@@ -163,3 +163,4 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
       handleError(res, error as Error);
     }
 };
+

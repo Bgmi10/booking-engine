@@ -14,12 +14,6 @@ model User {
   createdAt DateTime @default(now())
   role      Role
 }
-
-enum Role {
-  ADMIN
-  USER
-}
-
 model Room {
   id          String   @id @default(uuid())
   name        String
@@ -41,17 +35,19 @@ model RoomImage {
 }
 
 model Booking {
-  id          String     @id @default(uuid())
+  id          String        @id @default(uuid())
   guestName   String  
   guestEmail  String  
   checkIn     DateTime  
+  status      BookingStatus @default(PENDING)
   checkOut    DateTime  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  room        Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   roomId      String  
   payment     Payment?
   metadata    Json?
+  @@index([roomId, checkIn, checkOut])
 }
 
 model TemporaryHold {
@@ -67,12 +63,30 @@ model TemporaryHold {
 }
 
 model Payment {
-  id              String   @id @default(uuid())
-  stripeSessionId String   @unique
+  id              String           @id @default(uuid())
+  stripeSessionId String           @unique
   amount          Float
   currency        String
-  status          String
-  createdAt       DateTime @default(now())
-  booking         Booking  @relation(fields: [bookingId], references: [id])
-  bookingId       String   @unique
+  status          PaymentStatus
+  createdAt       DateTime         @default(now())
+  booking         Booking          @relation(fields: [bookingId], references: [id])
+  bookingId       String           @unique
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  FAILED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum Role {
+  ADMIN
+  USER
 }

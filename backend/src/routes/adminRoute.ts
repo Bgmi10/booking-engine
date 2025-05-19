@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById } from "../controllers/adminController";
 import { loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import authMiddleware from "../middlewares/authMiddlware";
@@ -21,5 +21,9 @@ adminRouter.delete("/rooms/:id", authMiddleware, deleteRoom);
 adminRouter.put("/rooms/:id/images/:imageId", authMiddleware, validateMiddleware(updateRoomImageSchema), updateRoomImage);
 
 adminRouter.delete("/rooms/:id/images/:imageId", authMiddleware, deleteRoomImage);
+
+adminRouter.get("/bookings/all", authMiddleware, getAllBookings);
+
+adminRouter.get("/bookings/:id", authMiddleware, getBookingById);
 
 export default adminRouter;

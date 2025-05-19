@@ -115,6 +115,34 @@ const deleteRoomImage = async (req: express.Request, res: express.Response) => {
   }
 };
 
+const getAllBookings = async (req: express.Request, res: express.Response) => {
+  try {
+    const bookings = await prisma.booking.findMany({
+      include: {
+        room: true,
+      },
+    });
+    responseHandler(res, 200, "All bookings", bookings);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const getBookingById = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Booking ID is required");
+    return;
+  }
+
+  try {
+    const booking = await prisma.booking.findUnique({ where: { id }, include: { room: true } });
+    responseHandler(res, 200, "Booking", booking);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
 
 
-export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage };
+export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById };

@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
+import { cleanExpiredTempHolds } from "./cron/cleanTempHolds";
 
 dotenv.config();
 
@@ -23,6 +24,8 @@ app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/rooms", roomsRouter);
 app.use("/api/v1/bookings", bookingRouter);
 app.use("/api/v1/stripe", stipeWebhookRouter);
+
+cleanExpiredTempHolds();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
