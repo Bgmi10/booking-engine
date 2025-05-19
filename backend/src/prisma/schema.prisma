@@ -7,16 +7,74 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+
 model User {
-  id           Int          @unique   @default(autoincrement())
-  name         String
-  email        String       @unique
-  password     String
-  created_at   DateTime     @default(now())
-  role         Role
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  role      Role
 }
 
 enum Role {
-  Admin
-  User
+  ADMIN
+  USER
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  capacity    Int
+  imageUrl    String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings     Booking[]
+  holds        TemporaryHold[]
+}
+
+model Booking {
+  id          String   @id @default(uuid())
+  guestName   String
+  guestEmail  String
+  checkIn     DateTime
+  checkOut    DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  room        Room     @relation(fields: [roomId], references: [id])
+  roomId      String
+
+  payment     Payment?
+
+  metadata    Json?
+}
+
+model TemporaryHold {
+  id          String   @id @default(uuid())
+  guestName   String
+  guestEmail  String
+  checkIn     DateTime
+  checkOut    DateTime
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  room        Room     @relation(fields: [roomId], references: [id])
+  roomId      String
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  stripeSessionId String   @unique
+  amount          Float
+  currency        String
+  status          String
+  createdAt       DateTime @default(now())
+
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  bookingId       String @unique
 }
