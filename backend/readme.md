@@ -1,26 +1,3 @@
-📦 2. Rooms API
-Public:
-GET /api/rooms
-
-Fetch all room listings (name, price, description, image, capacity)
-
-Admin (protected):
-POST /api/admin/rooms
-
-PUT /api/admin/rooms/:id
-
-DELETE /api/admin/rooms/:id
-
-Move room logic to roomController.ts and roomService.ts
-
-📅 3. Availability & Temporary Hold
-Availability Check:
-POST /api/availability
-
-Input: roomId, checkIn, checkOut
-
-Response: Available ✅ / Not Available ❌
-
 Clean up expired TemporaryHold entries before checking
 
 Create Hold:

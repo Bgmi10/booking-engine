@@ -3,6 +3,9 @@ import dotenv from "dotenv";
 import cors from "cors";
 import adminRouter from "./routes/adminRoute";
 import cookieParser from "cookie-parser";
+import roomsRouter from "./routes/roomRoute";
+import bookingRouter from "./routes/bookingRouter";
+import stipeWebhookRouter from "./routes/stripeWebhook";
 
 dotenv.config();
 
@@ -17,6 +20,9 @@ app.use(cors({
 }));
 
 app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/rooms", roomsRouter);
+app.use("/api/v1/bookings", bookingRouter);
+app.use("/api/v1/stripe", stipeWebhookRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -1,0 +1,1 @@
+export const TEMP_HOLD_DURATION_MINUTES = 5;

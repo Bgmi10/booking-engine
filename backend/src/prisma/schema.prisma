@@ -6,9 +6,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-
-
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -29,28 +26,31 @@ model Room {
   description String
   price       Float
   capacity    Int
-  imageUrl    String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
+  images       RoomImage[]
   bookings     Booking[]
   holds        TemporaryHold[]
 }
 
-model Booking {
+model RoomImage {
   id          String   @id @default(uuid())
-  guestName   String
-  guestEmail  String
-  checkIn     DateTime
-  checkOut    DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  room        Room     @relation(fields: [roomId], references: [id])
+  url         String
   roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
 
+model Booking {
+  id          String     @id @default(uuid())
+  guestName   String  
+  guestEmail  String  
+  checkIn     DateTime  
+  checkOut    DateTime  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId      String  
   payment     Payment?
-
   metadata    Json?
 }
 
@@ -62,8 +62,7 @@ model TemporaryHold {
   checkOut    DateTime
   createdAt   DateTime @default(now())
   expiresAt   DateTime
-
-  room        Room     @relation(fields: [roomId], references: [id])
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   roomId      String
 }
 
@@ -74,7 +73,6 @@ model Payment {
   currency        String
   status          String
   createdAt       DateTime @default(now())
-
   booking         Booking  @relation(fields: [bookingId], references: [id])
-  bookingId       String @unique
+  bookingId       String   @unique
 }
