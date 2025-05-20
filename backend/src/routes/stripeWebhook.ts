@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
-import { handleError, responseHandler } from "../utils/helper";
+import { handleError, mapStripeToStatus, responseHandler } from "../utils/helper";
 
 dotenv.config();
 
@@ -26,35 +26,74 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const { roomId, guestName, guestEmail, checkIn, checkOut } = session.metadata!;
-
+  
     try {
-       await prisma.booking.create({
+      const existingBooking = await prisma.booking.findFirst({
+        where: {
+          roomId,
+          guestEmail,
+          checkIn: new Date(checkIn),
+          checkOut: new Date(checkOut),
+        }
+      });
+  
+      if (existingBooking) {
+        responseHandler(res, 200, "Booking already exists.");
+        return
+      }
+  
+      const existingHold = await prisma.temporaryHold.findFirst({
+        where: {
+          roomId,
+          guestEmail,
+          checkIn: new Date(checkIn),
+          checkOut: new Date(checkOut),
+          expiresAt: { gt: new Date() }
+        }
+      });
+  
+      if (!existingHold) {
+        responseHandler(res, 400, "No valid temporary hold found.");
+        return;
+      }
+
+      const { paymentStatus, bookingStatus } = mapStripeToStatus(session.payment_status!);
+  
+      await prisma.booking.create({
         data: {
           guestName,
           guestEmail,
           checkIn: new Date(checkIn),
           checkOut: new Date(checkOut),
           roomId,
+          status: bookingStatus,
           payment: {
             create: {
               stripeSessionId: session.id,
               amount: session.amount_total! / 100,
               currency: session.currency!,
-              status: session.payment_status!,
+              status: paymentStatus,
             }
           }
         }
       });
-
+  
       await prisma.temporaryHold.deleteMany({
-        where: { roomId, guestEmail }
+        where: {
+          roomId,
+          guestEmail,
+          checkIn: new Date(checkIn),
+          checkOut: new Date(checkOut),
+        }
       });
-
+      // here we have to send a confirmation email to the guest and admin
+      responseHandler(res, 200, "Booking created successfully.", { received: true });
     } catch (err) {
+      console.error("Error processing Stripe webhook:", err);
       handleError(res, err as Error);
     }
   }
-  responseHandler(res, 200, "Webhook received", { received: true });
+  
 });
 
 export default stipeWebhookRouter;

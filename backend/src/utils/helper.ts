@@ -8,5 +8,19 @@ export const responseHandler = (res: express.Response, statusCode: number, messa
   return res.status(statusCode).json({ message, data });
 }
 
-
-
+export function mapStripeToStatus(stripeStatus: string): {
+    paymentStatus: "PENDING" | "COMPLETED" | "REFUNDED" | "FAILED";
+    bookingStatus: "PENDING" | "CONFIRMED" | "CANCELLED";
+  } {
+    switch (stripeStatus) {
+      case "paid":
+        return { paymentStatus: "COMPLETED", bookingStatus: "CONFIRMED" };
+      case "unpaid":
+        return { paymentStatus: "FAILED", bookingStatus: "PENDING" };
+      case "no_payment_required":
+        return { paymentStatus: "COMPLETED", bookingStatus: "CONFIRMED" };
+      default:
+        return { paymentStatus: "PENDING", bookingStatus: "PENDING" };
+    }
+}
+  

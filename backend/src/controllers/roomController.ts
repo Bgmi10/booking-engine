@@ -1,7 +1,7 @@
 import prisma from "../prisma";
 import { Request, Response } from "express";
 import { handleError, responseHandler } from "../utils/helper";
-import { eachDayOfInterval, format } from "date-fns";
+import { addDays, eachDayOfInterval, format } from "date-fns";
 
 export const getAllRooms = async (req: Request, res: Response) => {
     try {
@@ -21,7 +21,7 @@ export const getRoomById = async (req: Request, res: Response) => {
   }
 
   try {
-    const room = await prisma.room.findUnique({ where: { id }, include: { images: true } });
+    const room = await prisma.roomCategory.findUnique({ where: { id }, include: { images: true } });
     responseHandler(res, 200, "Room fetched successfully", room);
   } catch (e) {
     handleError(res, e as Error);
@@ -29,16 +29,50 @@ export const getRoomById = async (req: Request, res: Response) => {
 };
 
 export const getCalendarAvailability = async (req: Request, res: Response) => {
-    const { startDate, endDate, roomId } = req.query;
+    const { startDate, endDate, categoryId } = req.query;
+  
+    if (!startDate || !endDate) {
+      responseHandler(res, 400, "Start date and end date are required in query params");
+      return;
+    }
   
     try {
+      // Get all room categories with their rooms
+      const allCategories = await prisma.roomCategory.findMany({
+        where: categoryId ? { id: String(categoryId) } : {},
+        include: {
+          images: true,
+          rooms: {
+            where: {
+              isActive: true
+            }
+          }
+        }
+      });
+  
+      // Get all bookings within the date range
       const bookings = await prisma.booking.findMany({
         where: {
-          ...(roomId ? { roomId: String(roomId) } : {}),
           checkIn: { lte: new Date(endDate as string) },
           checkOut: { gte: new Date(startDate as string) },
+          room: categoryId ? { categoryId: String(categoryId) } : {}
         },
-        select: { checkIn: true, checkOut: true },
+        include: {
+          room: true
+        }
+      });
+  
+      // Get temporary holds within the date range
+      const holds = await prisma.temporaryHold.findMany({
+        where: {
+          checkIn: { lte: new Date(endDate as string) },
+          checkOut: { gte: new Date(startDate as string) },
+          expiresAt: { gt: new Date() }, // Only include non-expired holds
+          room: categoryId ? { categoryId: String(categoryId) } : {}
+        },
+        include: {
+          room: true
+        }
       });
   
       const allDates = eachDayOfInterval({
@@ -46,22 +80,85 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
         end: new Date(endDate as string),
       });
   
-      const bookedDates = new Set<string>();
-      bookings.forEach(({ checkIn, checkOut }) => {
-        eachDayOfInterval({ start: checkIn, end: checkOut }).forEach((d) => {
-          bookedDates.add(format(d, "yyyy-MM-dd"));
+      // Create a map of date -> set of booked room IDs
+      const dateToBookedRoomIds = new Map<string, Set<string>>();
+      
+      // Add bookings to the map
+      bookings.forEach(({ checkIn, checkOut, roomId }) => {
+        eachDayOfInterval({ start: checkIn, end: addDays(checkOut, -1) }).forEach((date) => {
+          const formattedDate = format(date, "yyyy-MM-dd");
+          if (!dateToBookedRoomIds.has(formattedDate)) {
+            dateToBookedRoomIds.set(formattedDate, new Set<string>());
+          }
+          dateToBookedRoomIds.get(formattedDate)?.add(roomId);
         });
       });
   
-      const availableDates = allDates
-        .map((d) => format(d, "yyyy-MM-dd"))
-        .filter((d) => !bookedDates.has(d));
+      // Add holds to the map
+      holds.forEach(({ checkIn, checkOut, roomId }) => {
+        eachDayOfInterval({ start: checkIn, end: addDays(checkOut, -1) }).forEach((date) => {
+          const formattedDate = format(date, "yyyy-MM-dd");
+          if (!dateToBookedRoomIds.has(formattedDate)) {
+            dateToBookedRoomIds.set(formattedDate, new Set<string>());
+          }
+          dateToBookedRoomIds.get(formattedDate)?.add(roomId);
+        });
+      });
   
-      responseHandler(res, 200, "Calendar availability fetched successfully", { availableDates, bookedDates: Array.from(bookedDates) });
+      // Create detailed information for each date
+      const calendarData = allDates.map((date) => {
+        const formattedDate = format(date, "yyyy-MM-dd");
+        const bookedRoomIds = dateToBookedRoomIds.get(formattedDate) || new Set<string>();
+        
+        // Calculate availability by category
+        const categoryAvailability = allCategories.map(category => {
+          const totalRoomsInCategory = category.rooms.length;
+          const availableRooms = category.rooms.filter(room => !bookedRoomIds.has(room.id));
+          const bookedRooms = category.rooms.filter(room => bookedRoomIds.has(room.id));
+          
+          return {
+            categoryId: category.id,
+            categoryName: category.name,
+            description: category.description,
+            price: category.price,
+            capacity: category.capacity,
+            imageUrl: category.images.length > 0 ? category.images[0].url : null,
+            totalRooms: totalRoomsInCategory,
+            availableRooms: availableRooms.length,
+            bookedRooms: bookedRooms.length,
+            isFullyBooked: availableRooms.length === 0,
+            // Include room numbers for available rooms if needed
+            availableRoomNumbers: availableRooms.map(room => room.roomNumber)
+          };
+        });
+        
+        const isFullyBooked = categoryAvailability.every(cat => cat.isFullyBooked);
+        
+        return {
+          date: formattedDate,
+          isFullyBooked,
+          categories: categoryAvailability
+        };
+      });
+  
+      // Calculate available and fully booked dates
+      const fullyBookedDates = calendarData
+        .filter(day => day.isFullyBooked)
+        .map(day => day.date);
+        
+      const availableDates = calendarData
+        .filter(day => !day.isFullyBooked)
+        .map(day => day.date);
+  
+      responseHandler(res, 200, "Calendar availability fetched successfully", {
+        availableDates,
+        bookedDates: fullyBookedDates,
+        calendarData
+      });
     } catch (error) {
       handleError(res, error as Error);
     }
-};
+  };
 
 export const checkRoomAvailability = async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -118,7 +215,7 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
       const end = new Date(endDate);
   
       // Get all rooms
-      const allRooms = await prisma.room.findMany({
+      const allRooms = await prisma.roomCategory.findMany({
         include: { images: true }
       });
   
@@ -163,4 +260,6 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
       handleError(res, error as Error);
     }
 };
+
+
 

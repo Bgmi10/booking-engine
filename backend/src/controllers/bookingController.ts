@@ -49,7 +49,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         return;
     }
       
-    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    const room = await prisma.roomCategory.findUnique({ where: { id: roomId } });
 
     if (!room) {
         responseHandler(res, 404, "Room not found");
