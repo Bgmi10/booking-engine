@@ -25,7 +25,7 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { roomId, guestName, guestEmail, checkIn, checkOut } = session.metadata!;
+    const { roomId, guestName, guestEmail, checkIn, checkOut, guestPhone, guestNationality } = session.metadata!;
   
     try {
       const existingBooking = await prisma.booking.findFirst({
@@ -61,8 +61,10 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
   
       await prisma.booking.create({
         data: {
-          guestName,
+          guestName,    
+          guestNationality,
           guestEmail,
+          guestPhone,
           checkIn: new Date(checkIn),
           checkOut: new Date(checkOut),
           roomId,

@@ -15,12 +15,14 @@ CREATE TABLE "User" (
     "password" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "role" "Role" NOT NULL,
+    "phone" TEXT,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "RoomCategory" (
+CREATE TABLE "Room" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -29,28 +31,16 @@ CREATE TABLE "RoomCategory" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "RoomCategory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Room" (
-    "id" TEXT NOT NULL,
-    "roomNumber" TEXT NOT NULL,
-    "categoryId" TEXT NOT NULL,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Room_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "CategoryImage" (
+CREATE TABLE "RoomImage" (
     "id" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "roomId" TEXT NOT NULL,
 
-    CONSTRAINT "CategoryImage_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "RoomImage_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -96,6 +86,17 @@ CREATE TABLE "Payment" (
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Otp" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "otp" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Otp_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -108,11 +109,11 @@ CREATE UNIQUE INDEX "Payment_stripeSessionId_key" ON "Payment"("stripeSessionId"
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_bookingId_key" ON "Payment"("bookingId");
 
--- AddForeignKey
-ALTER TABLE "Room" ADD CONSTRAINT "Room_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "RoomCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE UNIQUE INDEX "Otp_email_key" ON "Otp"("email");
 
 -- AddForeignKey
-ALTER TABLE "CategoryImage" ADD CONSTRAINT "CategoryImage_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "RoomCategory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "RoomImage" ADD CONSTRAINT "RoomImage_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Booking" ADD CONSTRAINT "Booking_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE CASCADE ON UPDATE CASCADE;

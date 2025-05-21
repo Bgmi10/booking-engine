@@ -1,39 +1,62 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, addRoomsToCategory, getAllRoomCategories, getRoomCategoryById, deleteRoomCategory, updateRoomStatus } from "../controllers/adminController";
-import { loginSchema } from "../zod/admin.auth.schema";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking } from "../controllers/adminController";
+import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
-import authMiddleware from "../middlewares/authMiddlware";
-import { createRoomSchema, updateRoomImageSchema, updateRoomSchema } from "../zod/admin.room.schema";
+import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
 import { getAllRooms } from "../controllers/roomController";
+import { createCheckoutSessionSchema } from "../zod/booking.schema";
 
 const adminRouter = Router();
 
 adminRouter.post("/login", validateMiddleware(loginSchema), login);
 
-adminRouter.post("/rooms", authMiddleware, validateMiddleware(createRoomSchema), createRoom);
+adminRouter.put("/users/:id/role", updateUserRole);
 
-adminRouter.get("/rooms/all", authMiddleware, getAllRooms);
+adminRouter.delete("/users/:id", deleteUser);
 
-adminRouter.put("/rooms/:id", authMiddleware, validateMiddleware(updateRoomSchema), updateRoom);
+adminRouter.post("/users", validateMiddleware(createUserSchema), createUser);
 
-adminRouter.delete("/rooms/:id", authMiddleware, deleteRoom);
+adminRouter.get("/users/all", getAllusers);
 
-adminRouter.put("/rooms-categories/:id/images/:imageId", authMiddleware, validateMiddleware(updateRoomImageSchema), updateRoomImage);
+adminRouter.post("/logout", logout);    
 
-adminRouter.delete("/rooms-categories/:id/images/:imageId", authMiddleware, deleteRoomImage);
+adminRouter.get("/profile", getAdminProfile);
 
-adminRouter.get("/bookings/all", authMiddleware, getAllBookings);
+adminRouter.put("/profile", updateAdminProfile);
 
-adminRouter.get("/bookings/:id", authMiddleware, getBookingById);
+adminRouter.put("/profile/change-password", updateAdminPassword);
 
-adminRouter.post("/room-categories/:id/rooms", authMiddleware, addRoomsToCategory);
+adminRouter.post("/forget-password", forgetPassword);
 
-adminRouter.get("/room-categories", authMiddleware, getAllRoomCategories);
+adminRouter.post("/reset-password", resetPassword);
 
-adminRouter.get("/room-categories/:id", authMiddleware, getRoomCategoryById);
+adminRouter.post("/rooms", validateMiddleware(createRoomSchema), createRoom);
 
-adminRouter.delete("/rooms-categories/:id", authMiddleware, deleteRoomCategory);
+adminRouter.get("/rooms/all", getAllRooms);
 
-adminRouter.put("/rooms/:id/status", authMiddleware, updateRoomStatus);
+adminRouter.put("/rooms/:id", validateMiddleware(updateRoomSchema), updateRoom);
+
+adminRouter.delete("/rooms/:id", deleteRoom);
+
+adminRouter.put("/rooms/:id/images/:imageId", validateMiddleware(updateRoomImageSchema), updateRoomImage);
+
+//@ts-ignore
+adminRouter.post("/rooms/:id/images", createRoomImage);
+
+adminRouter.delete("/rooms/:id/images/:imageId", deleteRoomImage);
+
+adminRouter.get("/bookings/all", getAllBookings);
+
+adminRouter.post("/bookings", validateMiddleware(createCheckoutSessionSchema), createBooking)
+
+adminRouter.put("/bookings/:id", updateBooking);
+
+adminRouter.delete("/bookings/:id", deleteBooking);
+
+adminRouter.get("/bookings/:id", getBookingById);
+
+adminRouter.post("/upload-url", uploadUrl);
+
+adminRouter.delete("/delete-image", deleteImage);
 
 export default adminRouter;

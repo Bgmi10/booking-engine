@@ -6,4 +6,7 @@ export const createCheckoutSessionSchema = z.object({
   guestEmail: z.string(),
   checkIn: z.string(),
   checkOut: z.string(),
+  guestPhone: z.string(),
+  guestNationality: z.string(),
 });
+
