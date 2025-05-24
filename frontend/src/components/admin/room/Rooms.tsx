@@ -19,7 +19,7 @@ import { baseUrl } from "../../../utils/constants"
 import { CreateRoomModal } from "./CreateRoomModal"
 import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
-
+import type { RatePolicy } from "../../../types/types"
 // Room type definition
 interface RoomImage {
   id: string
@@ -29,6 +29,9 @@ interface RoomImage {
   updatedAt: string
 }
 
+interface RoomRate {
+  ratePolicy: RatePolicy
+}
 interface Room {
   id: string
   name: string
@@ -37,6 +40,7 @@ interface Room {
   capacity: number
   images: RoomImage[]
   createdAt: string
+  RoomRate: RoomRate[]
   updatedAt: string
 }
 
@@ -244,6 +248,74 @@ export default function Rooms() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="p-6">
+            <h4 className="font-medium mb-2">Policies</h4>
+            <div className="space-y-3">
+  {selectedRoom.RoomRate.map((roomRate) => (
+    <div 
+      key={roomRate.ratePolicy.id}
+      className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Policy Name and Status */}
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium text-gray-900">
+            {roomRate.ratePolicy.name}
+          </h4>
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            roomRate.ratePolicy.isActive 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-gray-100 text-gray-800'
+          }`}>
+            {roomRate.ratePolicy.isActive ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        {/* Rate/Discount Info */}
+        <div className="flex flex-wrap gap-2">
+          {roomRate.ratePolicy.nightlyRate && (
+            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+              {roomRate.ratePolicy.nightlyRate}€/night
+            </span>
+          )}
+          {roomRate.ratePolicy.discountPercentage && (
+            <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+              {roomRate.ratePolicy.discountPercentage}% discount
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      {roomRate.ratePolicy.description && (
+        <p className="mt-2 text-sm text-gray-600">
+          {roomRate.ratePolicy.description}
+        </p>
+      )}
+
+      {/* Additional Details */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {roomRate.ratePolicy.refundable !== undefined && (
+          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+            {roomRate.ratePolicy.refundable ? 'Refundable' : 'Non-refundable'}
+          </span>
+        )}
+        {roomRate.ratePolicy.rebookValidityDays && (
+          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+            Rebookable for {roomRate.ratePolicy.rebookValidityDays} days
+          </span>
+        )}
+        {roomRate.ratePolicy.fullPaymentDays && (
+          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+            Full payment in {roomRate.ratePolicy.fullPaymentDays} days
+          </span>
+        )}
+      </div>
+    </div>
+  ))}
+</div>
           </div>
           
           <div className="bg-gray-50 px-4 py-3 flex justify-end rounded-b-lg">
@@ -485,6 +557,12 @@ export default function Rooms() {
                   </th>
                   <th
                     scope="col"
+                    className="py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Policies
+                  </th>
+                  <th
+                    scope="col"
                     className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Actions
@@ -530,6 +608,9 @@ export default function Rooms() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(room.createdAt)}
+                    </td>
+                    <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {room.RoomRate.length}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">

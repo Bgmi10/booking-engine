@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
+import { Prisma } from "@prisma/client";
 
 dotenv.config();
 
@@ -215,10 +216,13 @@ const logout = async (req: express.Request, res: express.Response) => {
 }   
 
 const createRoom = async (req: express.Request, res: express.Response) => {
-  const { name, price, description, images, capacity } = req.body;
+  const { name, price, description, images, capacity, ratePolicyId } = req.body;
   try {
     const room = await prisma.room.create({
-      data: { name, price, description, capacity, images: { create: (images || []).map((image: string) => ({ url: image })) }},
+      data: { name, price, description, capacity, images: { create: (images || []).map((image: string) => ({ url: image })) }, RoomRate: { create: ratePolicyId.map((id: string) => ({ ratePolicyId: id })) }},
+      include: {
+        RoomRate: true,
+      },
     });
     responseHandler(res, 200, "Room created successfully", room);
   } catch (e) {
@@ -228,23 +232,59 @@ const createRoom = async (req: express.Request, res: express.Response) => {
 
 const updateRoom = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
-  const { name, price, description, capacity } = req.body;
+  const { name, price, description, capacity, ratePolicyId } = req.body;
 
   try {
-    // Dynamically build the update payload
-    const updateData: any = {};
+    // Build base update data
+    const updateData: Prisma.RoomUpdateInput = {
+      ...(name !== undefined && { name }),
+      ...(price !== undefined && { price }),
+      ...(description !== undefined && { description }),
+      ...(capacity !== undefined && { capacity }),
+    };
 
-    if (name !== undefined) updateData.name = name;
-    if (price !== undefined) updateData.price = price;
-    if (description !== undefined) updateData.description = description;
-    if (capacity !== undefined) updateData.capacity = capacity;
-    
+    if (ratePolicyId !== undefined) {
+      // Clean input - remove empty strings and duplicates
+      const newPolicyIds = [...new Set(
+        ratePolicyId.filter((id: string) => id && id.trim() !== '')
+      )];
+
+      // Get current policies for this room
+      const currentPolicies = await prisma.roomRate.findMany({
+        where: { roomId: id },
+        select: { ratePolicyId: true }
+      });
+      const currentPolicyIds = currentPolicies.map(p => p.ratePolicyId);
+
+      // Determine which policies to add and which to remove
+      const policiesToAdd = newPolicyIds.filter((id: any) => !currentPolicyIds.includes(id));
+      const policiesToRemove = currentPolicyIds.filter((id: string) => !newPolicyIds.includes(id));
+
+      // Prepare the update operation
+      //@ts-ignore
+      updateData.RoomRate = {
+        ...(policiesToRemove.length > 0 && {
+          deleteMany: {
+            roomId: id,
+            ratePolicyId: { in: policiesToRemove }
+          }
+        }),
+        ...(policiesToAdd.length > 0 && {
+          create: policiesToAdd.map(policyId => ({ ratePolicyId: policyId }))
+        })
+      };
+    }
 
     const room = await prisma.room.update({
       where: { id },
       data: updateData,
       include: {
         images: true,
+        RoomRate: {
+          include: {
+            ratePolicy: true
+          }
+        }
       },
     });
 
@@ -394,7 +434,7 @@ const createRoomImage = async (req: express.Request, res: express.Response) => {
 };
 
 const createBooking = async (req: express.Request, res: express.Response) => {
-  const { roomId, checkIn, checkOut, guestEmail, guestName, guestNationality, guestPhone } = req.body;
+  const { roomId, checkIn, checkOut, guestEmail, guestName, guestNationality, guestPhone, totalGuests } = req.body;
 
   try {
     const response = await prisma.booking.create({
@@ -406,6 +446,7 @@ const createBooking = async (req: express.Request, res: express.Response) => {
         guestName,
         guestNationality,
         guestPhone,
+        totalGuests,
       }
     });
 
@@ -471,7 +512,136 @@ const deleteBooking = async (req: express.Request, res: express.Response) => {
   }
 };
 
+const createEnhancement = async (req: express.Request, res: express.Response) => {
+  const { name, price, description, image, isActive, availableDays, pricingType, seasonal, seasonEnd, seasonStart } = req.body;
 
-export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking };
+  let seasonEndDate = seasonEnd;
+  let seasonStartDate = seasonStart;
+  if (seasonEnd === "" && seasonStart === "") {
+    seasonEndDate = null;
+    seasonStartDate = null;
+  }
+  
+  try {
+    const enhancement = await prisma.enhancement.create({ data: { price, description, image, isActive, title: name, availableDays, pricingType, seasonal, seasonEnd: new Date(seasonEndDate), seasonStart: new Date(seasonStartDate) } });
+    responseHandler(res, 200, "Enhancement created successfully", enhancement);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const updateEnhancement = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { name, price, description, image, isActive, availableDays, pricingType, seasonal, seasonEnd, seasonStart } = req.body;
+
+  const updateData: any = {};
+
+  let seasonEndDate = seasonEnd;
+  let seasonStartDate = seasonStart;
+  if (seasonEnd === "" && seasonStart === "") {
+    seasonEndDate = null;
+    seasonStartDate = null;
+  }
+
+  if (name !== undefined) updateData.title = name;
+  if (price !== undefined) updateData.price = price;
+  if (description !== undefined) updateData.description = description;
+  if (image !== undefined) updateData.image = image;
+  if (isActive !== undefined) updateData.isActive = isActive;
+  if (availableDays !== undefined) updateData.availableDays = availableDays;
+  if (pricingType !== undefined) updateData.pricingType = pricingType;
+  if (seasonal !== undefined) updateData.seasonal = seasonal;
+  if (seasonEnd !== undefined) updateData.seasonEnd = new Date(seasonEndDate);
+  if (seasonStart !== undefined) updateData.seasonStart = new Date(seasonStartDate);
+
+  try {
+    const enhancement = await prisma.enhancement.update({ where: { id }, data: updateData });
+    responseHandler(res, 200, "Enhancement updated successfully", enhancement);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const deleteEnhancement = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.enhancement.delete({ where: { id } });
+    responseHandler(res, 200, "Enhancement deleted successfully");
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const getAllEnhancements = async (req: express.Request, res: express.Response) => {
+  try {
+    const enhancements = await prisma.enhancement.findMany();
+    responseHandler(res, 200, "All enhancements", enhancements);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const createRatePolicy = async (req: express.Request, res: express.Response) => {
+  const { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays, discountPercentage } = req.body;
+  try {
+    if (discountPercentage) {
+      const ratePolicy = await prisma.ratePolicy.create({ data: { name, description, discountPercentage, isActive, } });
+      responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
+    } else {
+      const ratePolicy = await prisma.ratePolicy.create({ data: { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays } });
+      responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
+    }
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const updateRatePolicy = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays, discountPercentage } = req.body;
+
+  const updateData: any = {};
+
+  if (name !== undefined) updateData.name = name;
+  if (description !== undefined) updateData.description = description;
+  if (nightlyRate !== undefined) updateData.nightlyRate = nightlyRate;
+  if (isActive !== undefined) updateData.isActive = isActive;
+  if (refundable !== undefined) updateData.refundable = refundable;
+  if (prepayPercentage !== undefined) updateData.prepayPercentage = prepayPercentage;
+  if (fullPaymentDays !== undefined) updateData.fullPaymentDays = fullPaymentDays;
+  if (changeAllowedDays !== undefined) updateData.changeAllowedDays = changeAllowedDays;
+  if (rebookValidityDays !== undefined) updateData.rebookValidityDays = rebookValidityDays;
+  if (discountPercentage !== undefined) updateData.discountPercentage = discountPercentage;
+
+  try {
+    const ratePolicy = await prisma.ratePolicy.update({ where: { id }, data: updateData });
+    responseHandler(res, 200, "Rate policy updated successfully", ratePolicy);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const deleteRatePolicy = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.ratePolicy.delete({ where: { id } });  
+    responseHandler(res, 200, "Rate policy deleted successfully");
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const getAllRatePolicies = async (req: express.Request, res: express.Response) => {
+  try {
+    const ratePolicies = await prisma.ratePolicy.findMany({});
+    responseHandler(res, 200, "All rate policies", ratePolicies);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy };
 
 

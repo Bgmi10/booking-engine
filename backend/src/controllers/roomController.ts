@@ -4,8 +4,29 @@ import { handleError, responseHandler } from "../utils/helper";
 import { eachDayOfInterval, format } from "date-fns";
 
 export const getAllRooms = async (req: Request, res: Response) => {
+
+    // here it is possible to get non null vaules from ratePolicy table
     try {
-        const rooms = await prisma.room.findMany({ include: { images: true } });
+        const rooms = await prisma.room.findMany({ include: { images: true, RoomRate: {
+         select: {
+            ratePolicy: {
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    nightlyRate: true,
+                    discountPercentage: true,
+                    isActive: true,
+                    refundable: true,
+                    prepayPercentage: true,
+                    fullPaymentDays: true,  
+                    changeAllowedDays: true,
+                    rebookValidityDays: true,
+                }
+            }
+         }    
+        } } });
+        
         responseHandler(res, 200, "Rooms fetched successfully", rooms);
     } catch (e) {
         handleError(res, e as Error);
@@ -29,39 +50,129 @@ export const getRoomById = async (req: Request, res: Response) => {
 };
 
 export const getCalendarAvailability = async (req: Request, res: Response) => {
-    const { startDate, endDate, roomId } = req.query;
+    const { startDate, endDate } = req.query;
+  
+    if (startDate === "null" || endDate === "null" || !startDate || !endDate) {
+      responseHandler(res, 400, "Missing startDate or endDate");
+      return;
+    }
   
     try {
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      const allDates = eachDayOfInterval({ start, end }).map((d) =>
+        format(d, "yyyy-MM-dd")
+      );
+  
+      // 1. Fetch all rooms
+      const rooms = await prisma.room.findMany({
+        select: {
+          id: true,
+          name: true,
+          capacity: true,
+          price: true,
+          description: true,
+          images: true,
+          updatedAt: true,
+          amenities: true,
+        },
+      });
+      const roomIds = rooms.map((room) => room.id);
+      const totalRooms = roomIds.length;
+  
+      // 2. Fetch bookings and holds
       const bookings = await prisma.booking.findMany({
         where: {
-          ...(roomId ? { roomId: String(roomId) } : {}),
-          checkIn: { lte: new Date(endDate as string) },
-          checkOut: { gte: new Date(startDate as string) },
+          roomId: { in: roomIds },
+          status: "CONFIRMED",
+          checkIn: { lte: end },
+          checkOut: { gte: start },
         },
-        select: { checkIn: true, checkOut: true },
+        select: { roomId: true, checkIn: true, checkOut: true },
       });
   
-      const allDates = eachDayOfInterval({
-        start: new Date(startDate as string),
-        end: new Date(endDate as string),
+      const holds = await prisma.temporaryHold.findMany({
+        where: {
+          roomId: { in: roomIds },
+          checkIn: { lte: end },
+          checkOut: { gte: start },
+          expiresAt: { gt: new Date() },
+        },
+        select: { roomId: true, checkIn: true, checkOut: true },
       });
   
-      const bookedDates = new Set<string>();
-      bookings.forEach(({ checkIn, checkOut }) => {
-        eachDayOfInterval({ start: checkIn, end: checkOut }).forEach((d) => {
-          bookedDates.add(format(d, "yyyy-MM-dd"));
+      // 3. Build map of date => Set of roomIds booked/held on that day
+      const dateMap = new Map<string, Set<string>>();
+      [...bookings, ...holds].forEach(({ roomId, checkIn, checkOut }) => {
+        eachDayOfInterval({ start: checkIn, end: checkOut }).forEach((day) => {
+          const key = format(day, "yyyy-MM-dd");
+          if (!dateMap.has(key)) dateMap.set(key, new Set());
+          dateMap.get(key)?.add(roomId);
         });
       });
   
-      const availableDates = allDates
-        .map((d) => format(d, "yyyy-MM-dd"))
-        .filter((d) => !bookedDates.has(d));
+      // 4. Compute date categories
+      const fullyBookedDates: string[] = [];
+      const partiallyBookedDates: string[] = [];
   
-      responseHandler(res, 200, "Calendar availability fetched successfully", { availableDates, bookedDates: Array.from(bookedDates) });
+      allDates.forEach((date) => {
+        const bookedCount = dateMap.get(date)?.size || 0;
+        if (bookedCount >= totalRooms) {
+          fullyBookedDates.push(date);
+        } else if (bookedCount > 0) {
+          partiallyBookedDates.push(date);
+        }
+      });
+  
+      const availableDates = allDates.filter(
+        (date) =>
+          !fullyBookedDates.includes(date) && !partiallyBookedDates.includes(date)
+      );
+  
+      // 5. Build roomBookingMap
+      const roomBookingMap: Record<string, Set<string>> = {};
+      [...bookings, ...holds].forEach(({ roomId, checkIn, checkOut }) => {
+        const dates = eachDayOfInterval({ start: checkIn, end: checkOut }).map((d) =>
+          format(d, "yyyy-MM-dd")
+        );
+        if (!roomBookingMap[roomId]) {
+          roomBookingMap[roomId] = new Set();
+        }
+        dates.forEach((date) => roomBookingMap[roomId].add(date));
+      });
+  
+      // 6. Separate available and unavailable rooms
+      const availableRooms = [];
+      const unavailableRooms = [];
+  
+      for (const room of rooms) {
+        const bookedDates = Array.from(roomBookingMap[room.id] || []);
+        const bookedSet = new Set(bookedDates);
+  
+        const isFullyBooked = allDates.every((date) => bookedSet.has(date));
+        const roomWithBookedDates = { ...room, bookedDates };
+  
+        if (isFullyBooked) {
+          unavailableRooms.push(roomWithBookedDates);
+        } else {
+          availableRooms.push(roomWithBookedDates);
+        }
+      }
+  
+      // 7. Respond with calendar availability
+      responseHandler(res, 200, "Calendar availability fetched successfully", {
+        fullyBookedDates,
+        partiallyBookedDates,
+        availableDates,
+        availableRooms,
+        unavailableRooms,
+      });
     } catch (error) {
+      console.error(error);
       handleError(res, error as Error);
     }
 };
+  
 
 export const checkRoomAvailability = async (req: Request, res: Response) => {
     const { id } = req.params;

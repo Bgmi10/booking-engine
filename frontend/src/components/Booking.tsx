@@ -1,9 +1,13 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Header from "./Header"
 import DateSelector from "./DateSelector"
-import Loader from "./Loader"
 import StepIndicator from "./StepIndicator"
+import { baseUrl } from "../utils/constants"
+import { BiLoader } from "react-icons/bi"
+import Categories from "./Categories"
+import Rates from "./Rates"
 
 // Define the steps in the booking process
 const STEPS = [
@@ -14,16 +18,54 @@ const STEPS = [
   { id: 5, name: "Details" },
 ]
 
+// Types for availability data
+interface AvailabilityData {
+  fullyBookedDates: string[]
+  partiallyBookedDates: string[]
+  availableDates: string[]
+}
+
+// Cache interface for storing fetched data
+interface AvailabilityCache {
+  [key: string]: {
+    data: AvailabilityData
+    timestamp: number
+  }
+}
+
 export default function Booking() {
   // State management
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [availabilityData, setAvailabilityData] = useState<AvailabilityData>({
+    fullyBookedDates: [],
+    partiallyBookedDates: [],
+    availableDates: []
+  })
+  const [calenderOpen, setCalenderOpen] = useState(false)
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const [bookingData, setBookingData] = useState({
     checkIn: null,
     checkOut: null,
     adults: 0,
     promotionCode: "",
+    selectedRoom: null,
   })
+  
+  const [availabilityCache, setAvailabilityCache] = useState<AvailabilityCache>({})
+  
+  // Cache duration in milliseconds (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000
+
+  // Helper function to generate cache key
+  const generateCacheKey = (startDate: string, endDate: string): string => {
+    return `${startDate}_${endDate}`
+  }
+
+  // Helper function to check if cache is valid
+  const isCacheValid = (timestamp: number): boolean => {
+    return Date.now() - timestamp < CACHE_DURATION
+  }
 
   // Handle moving to the next step
   const handleNext = () => {
@@ -40,10 +82,14 @@ export default function Booking() {
     setCurrentStep((prev) => Math.max(prev - 1, 1))
   }
 
-  // Update booking data
-  const updateBookingData = (data: any) => {
-    setBookingData((prev) => ({ ...prev, ...data }))
-  }
+  // Memoize the date selection callback to prevent infinite loops
+  const handleDateSelect = useCallback((dates: { startDate: Date | null; endDate: Date | null }) => {
+    setBookingData((prev: any) => ({
+      ...prev,
+      checkIn: dates.startDate,
+      checkOut: dates.endDate,
+    }))
+  }, [])
 
   // Handle adults count change
   const handleAdultsChange = (increment: number) => {
@@ -61,12 +107,124 @@ export default function Booking() {
     }))
   }
 
-  return (
+  // OPTIMIZED: Fetch availability with caching
+  const fetchCalendarAvailability = useCallback(async (startDate: string, endDate: string, isCallFromCalender: boolean) => {
+    const cacheKey = generateCacheKey(startDate, endDate)
+
+    if (!isCallFromCalender) {
+      const cachedData = availabilityCache[cacheKey]
+      if (cachedData && isCacheValid(cachedData.timestamp)) {
+        setAvailabilityData(cachedData.data)
+        return
+      }
+    }
+
+    try {
+      setIsLoadingAvailability(true)
+      
+      const response = await fetch(
+        `${baseUrl}/rooms/availability/calendar?startDate=${startDate}&endDate=${endDate}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      )
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.data) {
+        // Update availability data
+        setAvailabilityData(result.data)
+        
+        // Cache the data
+        if (!isCallFromCalender) {
+          setAvailabilityCache(prev => ({
+            ...prev,
+            [cacheKey]: {
+            data: result.data,
+            timestamp: Date.now()
+            }
+          }))
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching calendar availability:", error)
+      // Set empty availability data on error
+      const emptyData = {
+        fullyBookedDates: [],
+        partiallyBookedDates: [],
+        availableDates: []
+      }
+      setAvailabilityData(emptyData)
+    } finally {
+      setIsLoadingAvailability(false)
+    }
+  }, [availabilityCache])
+
+  useEffect(() => {
+    if (bookingData.checkIn && bookingData.checkOut) {
+      fetchCalendarAvailability(bookingData.checkIn, bookingData.checkOut, true)
+    }
+  }, [bookingData.checkIn, bookingData.checkOut])
+
+  // REMOVED: The useEffect that fetches data when bookingData dates change
+  // This was causing redundant API calls
+
+  // OPTIMIZED: Only fetch initial data when calendar opens for the first time
+  useEffect(() => {
+    if (calenderOpen) {
+      const today = new Date()
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0) // Next month end
+      
+      // Use the same date formatting method as DateSelector to avoid timezone issues
+      const formatDateForAPI = (date: Date): string => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      
+      const startDate = formatDateForAPI(startOfMonth)
+      const endDate = formatDateForAPI(endOfMonth)
+      
+      // This will now check cache first before making API call
+      fetchCalendarAvailability(startDate, endDate, false)
+    }
+  }, [calenderOpen, fetchCalendarAvailability])
+
+  // Optional: Clean up old cache entries periodically
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setAvailabilityCache(prev => {
+        const cleaned: AvailabilityCache = {}
+        
+        Object.entries(prev).forEach(([key, value]) => {
+          if (isCacheValid(value.timestamp)) {
+            cleaned[key] = value
+          }
+        })
+        
+        return cleaned
+      })
+    }, CACHE_DURATION) // Clean up every 5 minutes
+
+    return () => clearInterval(cleanupInterval)
+  }, [])
+  
+ return (
     <div className="flex flex-col min-h-screen">
       <Header />
 
       {/* Main content */}
-      <main className="flex-1 relative">
+      <main className="flex-1 relative bg-gray-100">
         {/* Background image */}
         {currentStep === 1 && <div
           className="absolute inset-0 z-0 bg-cover bg-center"
@@ -82,27 +240,27 @@ export default function Booking() {
           </div>
         </div>
          
-        <div className="relative z-10 container mx-auto px-4 py-8">
+        <div className="relative z-10 container mx-auto px-4">
           {/* Step content */}
-          <div className="max-w-lg mx-auto">
+          <div className={`${currentStep !== 1 ? "max-w-6xl" : "max-w-lg"} mx-auto`}>
             {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader />
+              <div className="flex justify-center items-center h-64 text-md gap-1">
+                <BiLoader className="animate-spin" /> Loading booking engine 
               </div>
             ) : (
               <>
                 {currentStep === 1 && (
-                  <div className="bg-white rounded-lg shadow-lg p-4">
+                  <div className="bg-white rounded-lg shadow-lg p-4 mt-6">
                     <h2 className="text-xl font-normal mb-4">Dates</h2>
 
                     <div className="mb-6">
                       <DateSelector
-                        onSelect={(dates) =>
-                          updateBookingData({
-                            checkIn: dates.startDate,
-                            checkOut: dates.endDate,
-                          })
-                        }
+                        calenderOpen={calenderOpen}
+                        setCalenderOpen={setCalenderOpen}
+                        onSelect={handleDateSelect}
+                        availabilityData={availabilityData}
+                        isLoadingAvailability={isLoadingAvailability}
+                        onFetchAvailability={fetchCalendarAvailability}
                       />
                     </div>
 
@@ -136,8 +294,9 @@ export default function Booking() {
                     </div>
 
                     <button
-                      className="w-full bg-gray-800 text-white py-3 rounded-md hover:bg-gray-700 transition-colors"
+                      className={`w-full bg-gray-800 text-white py-3 rounded-md hover:bg-gray-700 transition-colors  ${!bookingData.checkIn && !bookingData.checkOut || bookingData.adults === 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} `}
                       onClick={handleNext}
+                      disabled={!bookingData.checkIn || !bookingData.checkOut || bookingData.adults === 0}
                     >
                       Next
                     </button>
@@ -145,46 +304,14 @@ export default function Booking() {
                 )}
 
                 {currentStep === 2 && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-2xl font-semibold mb-6">Categories</h2>
-                    <p className="text-gray-600 mb-6">Select your room category</p>
-                    {/* Categories content will go here */}
-                    <div className="flex justify-between mt-6">
-                      <button
-                        className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                        onClick={handleBack}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700"
-                        onClick={handleNext}
-                      >
-                        Next
-                      </button>
-                    </div>
+                  <div>
+                    <Categories availabilityData={availabilityData} bookingData={bookingData} setCurrentStep={setCurrentStep} setBookingData={setBookingData}/>
                   </div>
                 )}
 
                 {currentStep === 3 && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-2xl font-semibold mb-6">Rates</h2>
-                    <p className="text-gray-600 mb-6">Select your rate</p>
-                    {/* Rates content will go here */}
-                    <div className="flex justify-between mt-6">
-                      <button
-                        className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                        onClick={handleBack}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700"
-                        onClick={handleNext}
-                      >
-                        Next
-                      </button>
-                    </div>
+                  <div>
+                    <Rates bookingData={bookingData} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
                   </div>
                 )}
 
@@ -201,7 +328,7 @@ export default function Booking() {
                         Back
                       </button>
                       <button
-                        className="px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700"
+                        className="px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 cursor-pointer"
                         onClick={handleNext}
                       >
                         Next

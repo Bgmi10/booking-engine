@@ -7,6 +7,8 @@ import Bookings from ".//bookings/Bookings";
 import Settings from "./Settings";
 import Profile from "./Profile";
 import Header from "../Header";
+import Enhancements from "./enhancements/Enhancements";
+import Ratepolicy from "./ratepolicies/Ratepolicy";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -35,8 +37,10 @@ export default function AdminDashboard() {
           {currentPage === "users" && <Users />}
           {currentPage === "rooms" && <Rooms />}
           {currentPage === "bookings" && <Bookings />}
+          {currentPage === "enhancements" && <Enhancements />}
           {currentPage === "settings" && <Settings />}
           {currentPage === "profile" && <Profile />}
+          {currentPage === "ratepolicies" && <Ratepolicy />}
         </div>
       </div>
     </div>

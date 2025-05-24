@@ -9,7 +9,9 @@ import {
 } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
-
+import { PlusCircleIcon } from "lucide-react"
+import type { RatePolicy } from "../../../types/types"
+import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
 interface Room {
   id: string
   name: string
@@ -46,8 +48,17 @@ export function CreateRoomModal({
   const [localError, setLocalError] = useState("")
   const [localSuccess, setLocalSuccess] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
+  const [ratepolicies, setRatepolicies] = useState<{
+    singlePolicy: RatePolicy[];
+    discountPolicy: RatePolicy[];
+  }>({
+    singlePolicy: [],
+    discountPolicy: []
+  })
+  const [isDiscountTab, setIsDiscountTab] = useState(false)
+  const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
 
-  // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
   
@@ -67,7 +78,7 @@ export function CreateRoomModal({
             },
             body: JSON.stringify({ 
               url: file.name,
-              fileType: file.type, // include file type for correct signing
+              fileType: file.type,
             }),
           });
   
@@ -118,10 +129,7 @@ export function CreateRoomModal({
     }
   };
   
-  
-  // Remove image
   const removeImage = async (index: number) => {
- 
     const newImageUrls = [...imageUrls]
     const res = await fetch(`${baseUrl}/admin/delete-image`, {
       method: "DELETE",
@@ -177,7 +185,8 @@ export function CreateRoomModal({
           price: Number(price),
           description,
           capacity: Number(capacity),
-          images
+          images,
+          ratePolicyId: selectedPolicies.map(policy => policy.id)
         }),
       })
       
@@ -206,6 +215,21 @@ export function CreateRoomModal({
       setLoadingAction(false)
     }
   }
+
+  const togglePolicySelection = (policy: RatePolicy) => {
+    setSelectedPolicies(prev => {
+      const isSelected = prev.some(p => p.id === policy.id);
+      if (isSelected) {
+        return prev.filter(p => p.id !== policy.id);
+      } else {
+        return [...prev, policy];
+      }
+    });
+  };
+
+  const removePolicy = (policyId: string) => {
+    setSelectedPolicies(prev => prev.filter(p => p.id !== policyId));
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
@@ -311,6 +335,72 @@ export function CreateRoomModal({
                 disabled={loadingAction}
               />
             </div>
+
+            <div className="md:col-span-2">
+              <button 
+                className="border border-gray-300 text-gray-500 px-4 cursor-pointer mt-2 py-2 rounded-md flex items-center" 
+                onClick={() => {
+                  setIsAttachPoliciesModalOpen(true)
+                  fetch(baseUrl + "/admin/rate-policies/all", {
+                    method: "GET",
+                    credentials: "include",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                  })
+                  .then(res => res.json())
+                  .then(data => {
+                    setRatepolicies({
+                      singlePolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage === null),
+                      discountPolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage !== null)
+                    })
+                  })
+                }}
+              > 
+                <PlusCircleIcon className="w-4 h-4 mr-2" /> 
+                Attach Policies
+              </button>
+              
+              {/* Display selected policies */}
+              {selectedPolicies.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">Selected Policies:</h4>
+                  <div className="space-y-2">
+                    {selectedPolicies.map(policy => (
+                      <div key={policy.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                        <div>
+                          <p className="font-medium">{policy.name}</p>
+                          {policy.discountPercentage ? (
+                            <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
+                          ) : (
+                            <p className="text-sm text-gray-500">{policy.nightlyRate}€ per night</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removePolicy(policy.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <RiCloseLine size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {
+              isAttachPoliciesModalOpen && (
+                <AttachPoliciesModal
+                  setIsAttachPoliciesModalOpen={setIsAttachPoliciesModalOpen}
+                  ratepolicies={ratepolicies}
+                  isDiscountTab={isDiscountTab}
+                  setIsDiscountTab={setIsDiscountTab}
+                  selectedPolicies={selectedPolicies}
+                  togglePolicySelection={togglePolicySelection}
+                />
+              )
+            }
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

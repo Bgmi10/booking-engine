@@ -8,6 +8,7 @@ import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
 import { cleanExpiredTempHolds } from "./cron/cleanTempHolds";
 import authMiddleware from "./middlewares/authMiddlware";
+import enhancementRouter from "./routes/enhancementRouter";
 
 dotenv.config();
 
@@ -21,10 +22,11 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use("/api/v1/admin", authMiddleware, adminRouter);
+app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/rooms", roomsRouter);
 app.use("/api/v1/bookings", bookingRouter);
 app.use("/api/v1/stripe", stipeWebhookRouter);
+app.use("/api/v1/enhancements", enhancementRouter);
 
 //cleanExpiredTempHolds();
 

@@ -63,6 +63,7 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
         data: {
           guestName,    
           guestNationality,
+          totalGuests: session.metadata?.totalGuests ? parseInt(session.metadata.totalGuests) : 1,
           guestEmail,
           guestPhone,
           checkIn: new Date(checkIn),

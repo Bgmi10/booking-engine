@@ -20,6 +20,7 @@ model Room {
   id          String   @id @default(uuid())
   name        String
   description String
+  amenities   String[]
   price       Float
   capacity    Int
   createdAt   DateTime @default(now())
@@ -27,6 +28,8 @@ model Room {
   images       RoomImage[]
   bookings     Booking[]
   holds        TemporaryHold[]
+
+  RoomRate RoomRate[]
 }
 
 model RoomImage {
@@ -41,6 +44,7 @@ model Booking {
   guestName        String  
   guestEmail       String  
   guestPhone       String 
+  totalGuests      Int
   guestNationality String?
   checkIn          DateTime  
   status           BookingStatus @default(PENDING)
@@ -52,7 +56,43 @@ model Booking {
   payment          Payment?
   metadata         Json?
   request          String?
+  enhancementBookings EnhancementBooking[]
   @@index([roomId, checkIn, checkOut])
+}
+
+model Enhancement {
+  id            String          @id @default(uuid())
+  image         String?
+  title         String
+  description   String
+  price         Float           // Price per unit
+  pricingType   EnhancementPricingType
+  availableDays String[]        // ['Sunday'] or ['Monday', 'Friday']
+  seasonal      Boolean         @default(false)
+  seasonStart   DateTime?
+  seasonEnd     DateTime?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  enhancementBookings EnhancementBooking[]
+}
+
+enum EnhancementPricingType {
+  PER_GUEST
+  PER_BOOKING
+  PER_DAY
+}
+
+model EnhancementBooking {
+  id             String       @id @default(uuid())
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId      String
+  enhancement    Enhancement  @relation(fields: [enhancementId], references: [id], onDelete: Cascade)
+  enhancementId  String
+  quantity       Int          // Optional multiplier (e.g., 2 guests)
+  dateSelected   DateTime?    // Optional for fixed-date enhancements
+  notes          String?
+  createdAt      DateTime     @default(now())
 }
 
 model TemporaryHold {
@@ -77,6 +117,36 @@ model Payment {
   booking         Booking          @relation(fields: [bookingId], references: [id])
   bookingId       String           @unique
 }
+
+model RatePolicy {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String
+  nightlyRate         Float?   // optional
+  discountPercentage  Float?   // optional
+  isActive            Boolean  @default(true)
+  refundable          Boolean?  @default(false)
+  prepayPercentage    Int?
+  fullPaymentDays     Int?
+  changeAllowedDays   Int?
+  rebookValidityDays  Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  roomRates           RoomRate[]
+}
+
+model RoomRate {
+  id          String     @id @default(uuid())
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId      String
+  ratePolicy  RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
+  ratePolicyId String
+  createdAt   DateTime   @default(now())
+
+  @@index([roomId, ratePolicyId])
+  @@unique([roomId, ratePolicyId])
+}
+
 
 model Otp {
   id        String   @id @default(uuid())

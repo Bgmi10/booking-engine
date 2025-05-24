@@ -2,30 +2,81 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { BiLoader } from "react-icons/bi"
 
-const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null; endDate: Date | null }) => void }) => {
-  const [isOpen, setIsOpen] = useState(false)
+// Types for availability data
+interface AvailabilityData {
+  fullyBookedDates: string[]
+  partiallyBookedDates: string[]
+  availableDates: string[]
+}
+
+interface DateSelectorProps {
+  onSelect: (dates: { startDate: Date | null; endDate: Date | null }) => void
+  availabilityData: AvailabilityData
+  isLoadingAvailability: boolean
+  onFetchAvailability: (startDate: string, endDate: string) => Promise<void>
+  calenderOpen: boolean
+  setCalenderOpen: (calenderOpen: boolean) => void
+}
+
+const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFetchAvailability, calenderOpen, setCalenderOpen }: DateSelectorProps) => {
+ 
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
     startDate: null,
     endDate: null,
   })
   const [selectionStage, setSelectionStage] = useState("arrival") // Track selection stage
   const [currentMonths, setCurrentMonths] = useState([
-    new Date(2025, 4), // May 2025
+    new Date(2025, 4), // May 2025 (corrected: month is 0-indexed)
     new Date(2025, 5), // June 2025
   ])
   const [warningMessage, setWarningMessage] = useState("")
+
   
   // Get today's date at midnight for comparison
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  // Helper function to format date as YYYY-MM-DD (avoiding timezone issues)
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Helper function to check if a date is fully booked
+  const isDateFullyBooked = (date: Date): boolean => {
+    const dateStr = formatDateForAPI(date)
+    return availabilityData.fullyBookedDates.includes(dateStr)
+  }
+
+  // Helper function to check if a date is partially booked
+  const isDatePartiallyBooked = (date: Date): boolean => {
+    const dateStr = formatDateForAPI(date)
+    return availabilityData.partiallyBookedDates.includes(dateStr)
+  }
+
+  // Helper function to check if a date is available
+  const isDateAvailable = (date: Date): boolean => {
+    const dateStr = formatDateForAPI(date)
+    return availabilityData.availableDates.includes(dateStr)
+  }
 
   // Handle date selection with validation
   const handleDateClick = (date: Date) => {
     // Check if date is in the past
     if (date < today) {
       setWarningMessage("Cannot select dates in the past")
-      setTimeout(() => setWarningMessage(""), 3000) // Clear warning after 3 seconds
+      setTimeout(() => setWarningMessage(""), 3000)
+      return
+    }
+
+    // Check if date is fully booked
+    if (isDateFullyBooked(date)) {
+      setWarningMessage("This date is fully booked")
+      setTimeout(() => setWarningMessage(""), 3000)
       return
     }
     
@@ -92,6 +143,73 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
     return date < today
   }
 
+  // Corrected availability state function with proper logic
+  const getDateAvailabilityState = (date: Date): 'fullyBooked' | 'partiallyBooked' | 'available' | 'unknown' => {
+    const dateStr = formatDateForAPI(date)
+    
+    // Check in order of priority: fully booked > partially booked > available > unknown
+    if (availabilityData.fullyBookedDates.includes(dateStr)) {
+      return 'fullyBooked'
+    }
+    
+    if (availabilityData.partiallyBookedDates.includes(dateStr)) {
+      return 'partiallyBooked'
+    }
+    
+    if (availabilityData.availableDates.includes(dateStr)) {
+      return 'available'
+    }
+    
+    return 'unknown'
+  }
+  
+  const getDateStyling = (date: Date) => {
+    if (isDateInPast(date)) {
+      return "bg-gray-100 text-gray-400 cursor-not-allowed"
+    }
+  
+    const availabilityState = getDateAvailabilityState(date)
+
+    if (isDateSelected(date)) {
+      if (isStartOrEndDate(date)) {
+        return "bg-gray-800 text-white"
+      }
+      return "bg-gray-200 text-gray-800"
+    }
+  
+    switch (availabilityState) {
+      case 'fullyBooked':
+        return "bg-red-100 text-red-600 cursor-not-allowed"
+      case 'partiallyBooked':
+        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+      case 'available':
+        return "bg-green-50 text-green-800 hover:bg-green-100"
+      default:
+        return "hover:bg-gray-100 text-gray-700"
+    }
+  }
+
+  // Get tooltip text for a date
+  const getDateTooltip = (date: Date) => {
+    if (isDateInPast(date)) {
+      return "Cannot book dates in the past"
+    }
+
+    if (isDateFullyBooked(date)) {
+      return "Fully booked - no rooms available"
+    }
+
+    if (isDatePartiallyBooked(date)) {
+      return "Limited availability"
+    }
+
+    if (isDateAvailable(date)) {
+      return "Available"
+    }
+
+    return ""
+  }
+
   // Navigate to previous month
   const goToPreviousMonth = () => {
     // Check if going to previous month would show dates before current month
@@ -100,19 +218,39 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
     
     // Only navigate if previous month isn't before current month
     if (prevMonth >= currentMonth) {
-      setCurrentMonths((prevMonths) => [
-        new Date(prevMonths[0].getFullYear(), prevMonths[0].getMonth() - 1),
-        new Date(prevMonths[1].getFullYear(), prevMonths[1].getMonth() - 1),
-      ])
+      const newMonths = [
+        new Date(currentMonths[0].getFullYear(), currentMonths[0].getMonth() - 1),
+        new Date(currentMonths[1].getFullYear(), currentMonths[1].getMonth() - 1),
+      ]
+      setCurrentMonths(newMonths)
+      
+      // Fetch availability for new month range
+      fetchAvailabilityForMonths(newMonths)
     }
   }
 
   // Navigate to next month
   const goToNextMonth = () => {
-    setCurrentMonths((prevMonths) => [
-      new Date(prevMonths[0].getFullYear(), prevMonths[0].getMonth() + 1),
-      new Date(prevMonths[1].getFullYear(), prevMonths[1].getMonth() + 1),
-    ])
+    const newMonths = [
+      new Date(currentMonths[0].getFullYear(), currentMonths[0].getMonth() + 1),
+      new Date(currentMonths[1].getFullYear(), currentMonths[1].getMonth() + 1),
+    ]
+    setCurrentMonths(newMonths)
+    
+    // Fetch availability for new month range
+    fetchAvailabilityForMonths(newMonths)
+  }
+
+  // OPTIMIZED: Fetch availability for given months - now uses parent's cached fetch
+  const fetchAvailabilityForMonths = (months: Date[]) => {
+    const startOfRange = new Date(months[0].getFullYear(), months[0].getMonth(), 1)
+    const endOfRange = new Date(months[1].getFullYear(), months[1].getMonth() + 1, 0)
+    
+    const startDate = formatDateForAPI(startOfRange)
+    const endDate = formatDateForAPI(endOfRange)
+    
+    // This now uses the parent's cached fetch function
+    onFetchAvailability(startDate, endDate)
   }
 
   // Generate days for a month
@@ -146,21 +284,25 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
       // Only call onSelect when both dates are selected
       onSelect && onSelect(selectedDates)
     }
-  }, [selectedDates.startDate, selectedDates.endDate, onSelect]) // Added onSelect to dependency array
+  }, [selectedDates.startDate, selectedDates.endDate, onSelect])
 
   // Initialize calendar to current month on first load
   useEffect(() => {
     // Set the current month and next month
     const currentDate = new Date()
-    setCurrentMonths([
+    const months = [
       new Date(currentDate.getFullYear(), currentDate.getMonth()),
       new Date(currentDate.getFullYear(), currentDate.getMonth() + 1)
-    ])
+    ]
+    setCurrentMonths(months)
   }, [])
+
+  // REMOVED: The useEffect that was fetching availability when calendar opens
+  // This was causing duplicate API calls - now handled by parent component
 
   // Prevent scrolling when modal is open
   useEffect(() => {
-    if (isOpen) {
+    if (calenderOpen) {
       document.body.style.overflow = "hidden"
     } else {
       document.body.style.overflow = "auto"
@@ -169,7 +311,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
     return () => {
       document.body.style.overflow = "auto"
     }
-  }, [isOpen])
+  }, [calenderOpen])
 
   // Function to reset selections
   const resetSelections = () => {
@@ -185,7 +327,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
     <div className="relative">
       <button
         className="cursor-pointer w-full px-4 py-3 border border-gray-300 rounded-md flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
-        onClick={() => setIsOpen(true)}
+        onClick={() => setCalenderOpen(true)}
       >
         <span className="text-gray-700">
           {selectedDates.startDate && selectedDates.endDate
@@ -202,7 +344,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
       </button>
 
       <AnimatePresence>
-        {isOpen && (
+        {calenderOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop overlay */}
             <motion.div 
@@ -210,7 +352,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
+              onClick={() => setCalenderOpen(false)}
             />
             
             {/* Calendar modal */}
@@ -243,7 +385,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
                   )}
                   <button 
                     className="text-gray-500 border border-gray-300 hover:text-gray-700 focus:outline-none hover:cursor-pointer hover:bg-gray-100 rounded-md p-1"
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => setCalenderOpen(false)}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -267,10 +409,38 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
                 )}
               </AnimatePresence>
 
+              {isLoadingAvailability && (
+                <div className="bg-black/70 text-white p-3 text-center text-sm lg:text-lg absolute z-50 top-20 inset-0 flex items-center justify-center">
+                  <BiLoader className="animate-spin text-white" /> Loading availability...
+                </div>
+              )}
+
+              {/* Availability legend */}
+              <div className="p-5 pb-0">
+                <div className="flex flex-wrap gap-4 text-xs text-gray-600 mb-4">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-100 rounded"></div>
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-yellow-100 rounded"></div>
+                    <span>Limited availability</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-red-100 rounded"></div>
+                    <span>Fully booked</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-gray-100 rounded"></div>
+                    <span>Past dates</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {currentMonths.map((month, monthIndex) => (
-                    <div key={monthIndex} className={monthIndex === 0 ? "md:border-r md:pr-6" : ""}>
+                    <div key={monthIndex} className={monthIndex === 0 ? "md:border-r border-gray-400 md:pr-6" : ""}>
                       <div className="flex justify-between items-center mb-4">
                         <button
                           className={`text-gray-500 hover:text-gray-700 focus:outline-none ${
@@ -286,7 +456,7 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
                           {month.toLocaleString("default", { month: "long", year: "numeric" })}
                         </h4>
                         <button
-                          className={`text-gray-500 hover:text-gray-700 focus:outline-none ${monthIndex === 1 ? "visible" : "invisible"}`}
+                          className={`text-gray-500 hover:text-gray-700 cursor-pointer focus:outline-none ${monthIndex === 1 ? "visible" : "invisible"}`}
                           onClick={goToNextMonth}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -307,28 +477,22 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
                             {date ? (
                               <>
                                 <motion.button
-                                  whileTap={isDateInPast(date) ? {} : { scale: 0.95 }}
-                                  className={`w-10 h-10 rounded-full focus:outline-none 
-                                    ${
-                                      isDateInPast(date)
-                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                        : isDateSelected(date)
-                                        ? isStartOrEndDate(date)
-                                          ? "bg-gray-800 text-white"
-                                          : "bg-gray-200 text-gray-800"
-                                        : "hover:bg-gray-100 text-gray-700"
-                                    }
-                                  `}
-                                  onClick={() => !isDateInPast(date) && handleDateClick(date)}
-                                  disabled={isDateInPast(date)}
+                                  whileTap={
+                                    isDateInPast(date) || isDateFullyBooked(date) ? {} : { scale: 0.95 }
+                                  }
+                                  className={`w-10 h-10 rounded-full focus:outline-none ${getDateStyling(date)}`}
+                                  onClick={() => 
+                                    !isDateInPast(date) && !isDateFullyBooked(date) && handleDateClick(date)
+                                  }
+                                  disabled={isDateInPast(date) || isDateFullyBooked(date)}
                                 >
                                   {date.getDate()}
                                 </motion.button>
                                 
-                                {/* Tooltip for past dates */}
-                                {isDateInPast(date) && (
+                                {/* Tooltip for dates */}
+                                {getDateTooltip(date) && (
                                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                                    Cannot book dates in the past
+                                    {getDateTooltip(date)}
                                   </div>
                                 )}
                               </>
@@ -351,8 +515,8 @@ const DateSelector = ({ onSelect }: { onSelect: (dates: { startDate: Date | null
                     <div><span className="font-medium">Departure:</span> {formatDate(selectedDates.endDate)}</div>
                   </div>
                   <button
-                    className="bg-gray-800 text-white px-6 py-2 rounded-md hover:bg-gray-700 focus:outline-none"
-                    onClick={() => setIsOpen(false)}
+                    className="bg-gray-800 cursor-pointer text-white px-6 py-2 rounded-md hover:bg-gray-700 focus:outline-none "
+                    onClick={() => setCalenderOpen(false)}
                   >
                     Confirm
                   </button>
