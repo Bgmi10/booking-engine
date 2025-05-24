@@ -20,6 +20,8 @@ import { CreateRoomModal } from "./CreateRoomModal"
 import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
 import type { RatePolicy } from "../../../types/types"
+import RatePolicyTab from "../../ui/RatePolicyTab"
+
 // Room type definition
 interface RoomImage {
   id: string
@@ -32,6 +34,7 @@ interface RoomImage {
 interface RoomRate {
   ratePolicy: RatePolicy
 }
+
 interface Room {
   id: string
   name: string
@@ -61,6 +64,17 @@ export default function Rooms() {
   const [itemsPerPage] = useState(10)
   const [loadingAction, setLoadingAction] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isApplyPoliciesModalOpen, setIsApplyPoliciesModalOpen] = useState(false)
+  const [ratepolicies, setRatepolicies] = useState<{
+    singlePolicy: RatePolicy[];
+    discountPolicy: RatePolicy[];
+  }>({
+    singlePolicy: [],
+    discountPolicy: []
+  })
+  const [isDiscountTab, setIsDiscountTab] = useState(false)
+  const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
+  const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false)
  
   // Fetch rooms
   const fetchRooms = async () => {
@@ -253,69 +267,69 @@ export default function Rooms() {
           <div className="p-6">
             <h4 className="font-medium mb-2">Policies</h4>
             <div className="space-y-3">
-  {selectedRoom.RoomRate.map((roomRate) => (
-    <div 
-      key={roomRate.ratePolicy.id}
-      className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Policy Name and Status */}
-        <div className="flex items-center gap-2">
-          <h4 className="font-medium text-gray-900">
-            {roomRate.ratePolicy.name}
-          </h4>
-          <span className={`px-2 py-1 text-xs rounded-full ${
-            roomRate.ratePolicy.isActive 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-gray-100 text-gray-800'
-          }`}>
-            {roomRate.ratePolicy.isActive ? 'Active' : 'Inactive'}
-          </span>
-        </div>
-
-        {/* Rate/Discount Info */}
-        <div className="flex flex-wrap gap-2">
-          {roomRate.ratePolicy.nightlyRate && (
-            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-              {roomRate.ratePolicy.nightlyRate}€/night
-            </span>
-          )}
-          {roomRate.ratePolicy.discountPercentage && (
-            <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
-              {roomRate.ratePolicy.discountPercentage}% discount
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Description */}
-      {roomRate.ratePolicy.description && (
-        <p className="mt-2 text-sm text-gray-600">
-          {roomRate.ratePolicy.description}
-        </p>
-      )}
-
-      {/* Additional Details */}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {roomRate.ratePolicy.refundable !== undefined && (
-          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-            {roomRate.ratePolicy.refundable ? 'Refundable' : 'Non-refundable'}
-          </span>
-        )}
-        {roomRate.ratePolicy.rebookValidityDays && (
-          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-            Rebookable for {roomRate.ratePolicy.rebookValidityDays} days
-          </span>
-        )}
-        {roomRate.ratePolicy.fullPaymentDays && (
-          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-            Full payment in {roomRate.ratePolicy.fullPaymentDays} days
-          </span>
-        )}
-      </div>
-    </div>
-  ))}
-</div>
+                {selectedRoom.RoomRate.map((roomRate) => (
+                  <div 
+                    key={roomRate.ratePolicy.id}
+                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      {/* Policy Name and Status */}
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-900">
+                          {roomRate.ratePolicy.name}
+                        </h4>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          roomRate.ratePolicy.isActive 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {roomRate.ratePolicy.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+              
+                      {/* Rate/Discount Info */}
+                      <div className="flex flex-wrap gap-2">
+                        {roomRate.ratePolicy.nightlyRate && (
+                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                            {roomRate.ratePolicy.nightlyRate}€/night
+                          </span>
+                        )}
+                        {roomRate.ratePolicy.discountPercentage && (
+                          <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                            {roomRate.ratePolicy.discountPercentage}% discount
+                          </span>
+                        )}
+                      </div>
+                    </div>
+              
+                    {/* Description */}
+                    {roomRate.ratePolicy.description && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        {roomRate.ratePolicy.description}
+                      </p>
+                    )}
+              
+                    {/* Additional Details */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {roomRate.ratePolicy.refundable !== undefined && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {roomRate.ratePolicy.refundable ? 'Refundable' : 'Non-refundable'}
+                        </span>
+                      )}
+                      {roomRate.ratePolicy.rebookValidityDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          Rebookable for {roomRate.ratePolicy.rebookValidityDays} days
+                        </span>
+                      )}
+                      {roomRate.ratePolicy.fullPaymentDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          Full payment in {roomRate.ratePolicy.fullPaymentDays} days
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
           </div>
           
           <div className="bg-gray-50 px-4 py-3 flex justify-end rounded-b-lg">
@@ -420,6 +434,224 @@ export default function Rooms() {
     )
   }
 
+  const togglePolicySelection = (policy: RatePolicy) => {
+    setSelectedPolicies(prev => {
+      const isSelected = prev.some(p => p.id === policy.id);
+      if (isSelected) {
+        return prev.filter(p => p.id !== policy.id);
+      } else {
+        return [...prev, policy];
+      }
+    });
+  };
+
+  const removePolicy = (policyId: string) => {
+    setSelectedPolicies(prev => prev.filter(p => p.id !== policyId));
+  };
+
+  const handleBulkPolicyUpdate = async () => {
+    if (selectedPolicies.length === 0) {
+      setError("Please select at least one policy to apply");
+      return;
+    }
+
+    setBulkUpdateLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(`${baseUrl}/admin/rooms/bulk-policies-update`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          policyId: selectedPolicies.map(policy => policy.id)
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to apply policies");
+      }
+
+      setSuccess("Policies applied successfully to all rooms!");
+      setIsApplyPoliciesModalOpen(false);
+      fetchRooms(); // Refresh the rooms list
+    } catch (error: any) {
+      setError(error.message || "Failed to apply policies. Please try again.");
+    } finally {
+      setBulkUpdateLoading(false);
+    }
+  };
+
+  // Bulk Apply Policies Modal
+  const BulkApplyPoliciesModal = () => {
+    return (
+      <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white z-10">
+            <h3 className="text-xl font-semibold text-gray-900">Bulk Apply Policies</h3>
+            <button 
+              onClick={() => setIsApplyPoliciesModalOpen(false)}
+              className="text-gray-500 hover:text-gray-700 focus:outline-none cursor-pointer"
+              disabled={bulkUpdateLoading}
+            >
+              <RiCloseLine size={24} />
+            </button>
+          </div>
+
+          <div className="p-6">
+            {error && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <RiErrorWarningLine className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <RiCheckLine className="h-5 w-5 text-green-400" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-green-700">{success}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                Selected policies will be applied to all rooms. This action will add the selected policies to existing room policies.
+              </p>
+            </div>
+
+            <RatePolicyTab isDiscountTab={isDiscountTab} setIsDiscountTab={setIsDiscountTab} />
+
+            <div className="mt-4">
+              {isDiscountTab ? (
+                <div className="space-y-2">
+                  {ratepolicies?.discountPolicy?.map((policy) => (
+                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedPolicies.some(p => p.id === policy.id)}
+                        onChange={() => togglePolicySelection(policy)}
+                        className="cursor-pointer" 
+                      />
+                      <div className="flex-1">
+                        <h2 className="font-medium">{policy.name}</h2>
+                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                        <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ratepolicies?.singlePolicy?.map((policy) => (
+                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedPolicies.some(p => p.id === policy.id)}
+                        onChange={() => togglePolicySelection(policy)}
+                        className="cursor-pointer" 
+                      />
+                      <div className="flex-1">
+                        <h2 className="font-medium">{policy.name}</h2>
+                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {policy.nightlyRate}€/night
+                          </span>
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {policy.refundable ? "Refundable" : "Non-refundable"}
+                          </span>
+                          {policy.rebookValidityDays && (
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              {policy.rebookValidityDays} days rebooking
+                            </span>
+                          )}
+                          {policy.fullPaymentDays && (
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              {policy.fullPaymentDays} days full payment
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedPolicies.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Policies:</h4>
+                <div className="space-y-2">
+                  {selectedPolicies.map(policy => (
+                    <div key={policy.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                      <div>
+                        <p className="font-medium">{policy.name}</p>
+                        {policy.discountPercentage ? (
+                          <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
+                        ) : (
+                          <p className="text-sm text-gray-500">{policy.nightlyRate}€ per night</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removePolicy(policy.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <RiCloseLine size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg sticky bottom-0">
+            <button
+              type="button"
+              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
+              onClick={() => setIsApplyPoliciesModalOpen(false)}
+              disabled={bulkUpdateLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
+              onClick={handleBulkPolicyUpdate}
+              disabled={bulkUpdateLoading || selectedPolicies.length === 0}
+            >
+              {bulkUpdateLoading ? (
+                <span className="flex items-center">
+                  <BiLoader className="animate-spin mr-2" />
+                  Applying...
+                </span>
+              ) : (
+                "Apply to All Rooms"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-gray-50 min-h-screen py-6 px-4 sm:px-6 lg:px-8">
       {/* Header */}
@@ -476,7 +708,7 @@ export default function Rooms() {
           <div className="flex space-x-3">
             <button
               onClick={fetchRooms}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer"
             >
               <RiRefreshLine className="mr-2 h-5 w-5" />
               Refresh
@@ -484,10 +716,34 @@ export default function Rooms() {
             
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none cursor-pointer"
             >
               <RiAddLine className="mr-2 h-5 w-5" />
               Add Room
+            </button>
+
+            <button
+              onClick={() => {
+                setIsApplyPoliciesModalOpen(true);
+                setSelectedPolicies([]);
+                fetch(baseUrl + "/admin/rate-policies/all", {
+                  method: "GET",
+                  credentials: "include",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                })
+                .then(res => res.json())
+                .then(data => {
+                  setRatepolicies({
+                    singlePolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage === null),
+                    discountPolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage !== null)
+                  });
+                });
+              }}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none cursor-pointer"
+            >
+              Bulk Apply Policy
             </button>
           </div>
         </div>
@@ -780,6 +1036,7 @@ export default function Rooms() {
           setSuccess={setSuccess}
         />
       )}
+      {isApplyPoliciesModalOpen && <BulkApplyPoliciesModal />}
     </div>
   )
 }

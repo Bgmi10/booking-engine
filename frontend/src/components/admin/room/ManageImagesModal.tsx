@@ -3,6 +3,7 @@ import { useState } from "react"
 import { RiCloseLine, RiCheckLine, RiErrorWarningLine, RiImageAddLine, RiDeleteBin6Line } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
+import type { RatePolicy } from "../../../types/types"
 
 interface RoomImage {
   id: string
@@ -10,6 +11,10 @@ interface RoomImage {
   roomId: string
   createdAt: string
   updatedAt: string
+}
+
+interface RoomRate {
+  ratePolicy: RatePolicy
 }
 
 interface Room {
@@ -20,13 +25,14 @@ interface Room {
   capacity: number
   images: RoomImage[]
   createdAt: string
+  RoomRate: RoomRate[]
   updatedAt: string
 }
 
 interface ManageImagesModalProps {
   room: Room | null
   setIsImagesModalOpen: (isOpen: boolean) => void
-  setRooms: (rooms: Room[]) => void
+  setRooms: React.Dispatch<React.SetStateAction<Room[]>>
   rooms: Room[]
   setError: (error: string) => void
   setSuccess: (success: string) => void

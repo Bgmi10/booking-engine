@@ -642,6 +642,67 @@ const getAllRatePolicies = async (req: express.Request, res: express.Response) =
   }
 }
 
-export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy };
+const bulkPoliciesUpdate = async (req: express.Request, res: express.Response) => {
+  const { policyId } = req.body;
+  
+  try {
+    // Validate input
+    if (!Array.isArray(policyId)) {
+      responseHandler(res, 400, "policyId must be an array");
+      return;
+    }
+
+    // Filter out empty/invalid IDs
+    const validPolicyIds = policyId.filter(id => id && id.trim() !== '');
+    
+    if (validPolicyIds.length === 0) {
+      responseHandler(res, 400, "No valid policy IDs provided");
+      return;
+    }
+
+    // Get all room IDs in a single query
+    const rooms = await prisma.room.findMany({
+      select: { id: true }
+    });
+
+    // Prepare all operations in a transaction
+    const operations = [];
+    
+    // For each valid policy ID
+    for (const policyId of validPolicyIds) {
+      // For each room
+      for (const room of rooms) {
+        operations.push(
+          prisma.roomRate.upsert({
+            where: {
+              roomId_ratePolicyId: {
+                roomId: room.id,
+                ratePolicyId: policyId
+              }
+            },
+            create: {
+              roomId: room.id,
+              ratePolicyId: policyId
+            },
+            update: {} // No changes needed if exists
+          })
+        );
+      }
+    }
+
+    // Execute all operations in a single transaction
+    await prisma.$transaction(operations);
+
+    responseHandler(res, 200, "Policies updated successfully", {
+      roomsUpdated: rooms.length,
+      policiesApplied: validPolicyIds.length
+    });
+    
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate };
 
 
