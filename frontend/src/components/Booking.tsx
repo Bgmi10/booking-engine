@@ -6,6 +6,7 @@ import { baseUrl } from "../utils/constants"
 import { BiLoader } from "react-icons/bi"
 import Categories from "./Categories"
 import Rates from "./Rates"
+import Summary from "./Summary"
 
 // Define the steps in the booking process
 const STEPS = [
@@ -42,6 +43,7 @@ export default function Booking() {
   })
   const [calenderOpen, setCalenderOpen] = useState(false)
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
+  const [bookingItems, setBookingItems] = useState([]);
   const [bookingData, setBookingData] = useState({
     checkIn: null,
     checkOut: null,
@@ -49,6 +51,8 @@ export default function Booking() {
     promotionCode: "",
     selectedEnhancements: [],
     selectedRoom: null,
+    selectedRateOption: null,
+    totalPrice: 0
   })
   
   const [availabilityCache, setAvailabilityCache] = useState<AvailabilityCache>({})
@@ -315,24 +319,8 @@ export default function Booking() {
                 )}
 
                 {currentStep === 4 && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-2xl font-semibold mb-6">Summary</h2>
-                    <p className="text-gray-600 mb-6">Review your booking</p>
-                    {/* Summary content will go here */}
-                    <div className="flex justify-between mt-6">
-                      <button
-                        className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                        onClick={handleBack}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 cursor-pointer"
-                        onClick={handleNext}
-                      >
-                        Next
-                      </button>
-                    </div>
+                  <div className="">
+                    <Summary bookingData={bookingData}  bookingItems={bookingItems} setBookingData={setBookingData} setBookingItems={setBookingItems} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
                   </div>
                 )}
 

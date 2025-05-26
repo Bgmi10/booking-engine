@@ -17,6 +17,15 @@ export const getEnhancements = async (req: Request, res: Response) => {
           hasSome: days,
         },
       },
+      select: {
+        id: true,
+        availableDays: true,
+        description: true,
+        image: true,
+        price: true,
+        pricingType: true,
+        title: true,
+      }
     });
 
     responseHandler(res, 200, "Fetched enhancements successfully", enhancements);

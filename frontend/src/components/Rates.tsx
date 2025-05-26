@@ -19,7 +19,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
-  const [selectedRateOption, setSelectedRateOption] = useState<string | null>(null);
+
+  console.log(bookingData)
 
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
@@ -174,17 +175,18 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   }
 
   function handleBookNow(rateOption: any) {
-    // Add the selected rate option to booking data
+    const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc, curr) => acc.price + curr.price + 0) : 0;
+    console.log(enhancementPrice);
     setBookingData(prev => ({
       ...prev,
       selectedRateOption: rateOption,
       rooms: rooms,
       adults: adults,
-      totalPrice: rateOption.price * nights * rooms
+      totalPrice: rateOption.price * nights * rooms + enhancementPrice * bookingData.adults
     }));
-    
-    // Move to next step or handle booking
-    setCurrentStep(3); // Assuming next step is checkout/confirmation
+    setTimeout(() => {
+        setCurrentStep(4);
+    }, 20)
   }
 
   useEffect(() => {
@@ -294,13 +296,24 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         <p className="text-gray-600 text-sm mb-3">{enhancement.description}</p>
                         
                         {enhancementDetails[enhancement.id] && (
-                          <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                            <p className="text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
-                          </div>
+                            <div>
+                              <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                                <p className="text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
+                              </div>
+                              <div className="flex gap-2">
+                                   {enhancement.availableDays.map((item) => 
+                                      (
+                                        <span className="gap-2 flex text-gray-600">
+                                            {item},
+                                        </span>
+                                      )
+                                    )}   
+                              </div>
+                            </div>
                         )}
                         
                         <button
-                          className="flex items-center text-gray-700 text-sm mb-4 hover:text-gray-900 transition-colors"
+                          className="flex items-center text-gray-700 text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
                           onClick={() => toggleEnhancementDetails(enhancement.id)}
                         >
                           {enhancementDetails[enhancement.id] ? (
@@ -318,14 +331,14 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           
                           {isAdded ? (
                             <button 
-                              className="bg-red-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                              className="bg-red-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer"
                               onClick={() => removeEnhancement(enhancement.id)}
                             >
                               Remove
                             </button>
                           ) : (
                             <button 
-                              className="bg-gray-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors"
+                              className="bg-gray-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors cursor-pointer"
                               onClick={() => addEnhancement(enhancement)}
                             >
                               Add
@@ -369,7 +382,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                     <label className="block text-sm text-gray-600 mb-1">Adults</label>
                     <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
                       <button 
-                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors"
+                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
                         onClick={() => updateOccupancy('adults', -1)}
                         disabled={adults <= 1}
                       >
@@ -377,7 +390,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                       </button>
                       <span className="font-semibold text-lg">{adults}</span>
                       <button 
-                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors"
+                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
                         onClick={() => updateOccupancy('adults', 1)}
                         disabled={adults >= selectedRoom.capacity}
                       >
@@ -473,7 +486,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
                       {/* Book Now Button */}
                       <button 
-                        className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+                        className={`w-full py-3 rounded-lg font-semibold transition-colors cursor-pointer ${
                           hasDiscount 
                             ? 'bg-orange-600 hover:bg-orange-700 text-white' 
                             : 'bg-gray-900 hover:bg-gray-800 text-white'
