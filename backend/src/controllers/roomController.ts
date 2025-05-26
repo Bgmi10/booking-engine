@@ -66,17 +66,30 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
   
       // 1. Fetch all rooms
       const rooms = await prisma.room.findMany({
-        select: {
-          id: true,
-          name: true,
-          capacity: true,
-          price: true,
-          description: true,
-          images: true,
-          updatedAt: true,
-          amenities: true,
-        },
+        include: {
+            images: true,
+            RoomRate: {
+                select: {
+                    ratePolicy: {
+                        select: {
+                            id: true,
+                            name: true,
+                            description: true,
+                            nightlyRate: true,
+                            discountPercentage: true,
+                            isActive: true,
+                            refundable: true,
+                            prepayPercentage: true,
+                            fullPaymentDays: true,  
+                            changeAllowedDays: true,
+                            rebookValidityDays: true,
+                        }
+                    }
+                 }    
+            }
+        }
       });
+
       const roomIds = rooms.map((room) => room.id);
       const totalRooms = roomIds.length;
   

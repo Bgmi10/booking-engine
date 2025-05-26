@@ -12,34 +12,20 @@ import { baseUrl } from "../../../utils/constants"
 import { PlusCircleIcon } from "lucide-react"
 import type { RatePolicy } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
-
-interface RoomImage {
-  id: string
-  url: string
-  roomId: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface RoomRate {
-  ratePolicy: RatePolicy
-}
-
 interface Room {
   id: string
   name: string
   price: number
   description: string
   capacity: number
-  images: RoomImage[]
+  images: any[]
   createdAt: string
-  RoomRate: RoomRate[]
   updatedAt: string
 }
 
 interface CreateRoomModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
-  setRooms: React.Dispatch<React.SetStateAction<Room[]>>
+  setRooms: (rooms: Room[]) => void
   rooms: Room[]
   setError: (error: string) => void
   setSuccess: (success: string) => void

@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useCallback } from "react"
 import Header from "./Header"
 import DateSelector from "./DateSelector"
@@ -49,6 +47,7 @@ export default function Booking() {
     checkOut: null,
     adults: 0,
     promotionCode: "",
+    selectedEnhancements: [],
     selectedRoom: null,
   })
   
@@ -235,7 +234,7 @@ export default function Booking() {
         <div className="w-full bg-white relative z-10">
           <div className="container px-4">
             <div className="py-4">
-              <StepIndicator steps={STEPS} currentStep={currentStep} />
+              <StepIndicator steps={STEPS} currentStep={currentStep} setCurrentStep={setCurrentStep} />
             </div>
           </div>
         </div>
@@ -311,7 +310,7 @@ export default function Booking() {
 
                 {currentStep === 3 && (
                   <div>
-                    <Rates bookingData={bookingData} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
+                    <Rates bookingData={bookingData} setCurrentStep={setCurrentStep} availabilityData={availabilityData} setBookingData={setBookingData} />
                   </div>
                 )}
 
