@@ -7,8 +7,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   
   const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
 
-  console.log(selectedRoom)
-
   const toggleExpanded = (index: number) => {
     setExpandedItems((prev: any) => ({
       ...prev,
@@ -54,17 +52,18 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   };
 
   const handleAddAnotherItem = () => {
-    // Create a copy of current booking data with room details for bookingItems
-    const bookingCopy = {
-      ...bookingData,
-      id: Date.now().toString(),
-      roomDetails: selectedRoom // Include full room data
-    };
-
-    // Add current booking to bookingItems array
-    setBookingItems((prev: any) => [...prev, bookingCopy]);
-
-    // Reset specific attributes while keeping dates and promotion code
+    // Only add if current booking is complete
+    if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
+      const bookingCopy = {
+        ...bookingData,
+        id: Date.now().toString(), // Use timestamp as unique ID
+        roomDetails: selectedRoom
+      };
+  
+      setBookingItems((prev: any) => [...prev, bookingCopy]);
+    }
+  
+    // Reset booking data for new item
     setBookingData((prev: any) => ({
       ...prev,
       adults: 2,
@@ -74,8 +73,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       totalPrice: 0,
       rooms: 1
     }));
-
-    // Go back to Categories step
+  
     setCurrentStep(2);
   };
 
@@ -106,21 +104,25 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   const getAllItems = () => {
     const items = [...bookingItems];
     
-    // If no booking items exist and we have a current booking, show it
-    if (items.length === 0 && bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
-      items.push({ 
-        ...bookingData, 
-        id: 'current',
-        roomDetails: selectedRoom // Add current room details
-      });
-    }
-    // If we have booking items and a current booking, add current booking
-    else if (items.length > 0 && bookingData.selectedRoom && bookingData.selectedRateOption) {
-      items.push({ 
-        ...bookingData, 
-        id: 'current',
-        roomDetails: selectedRoom // Add current room details
-      });
+    // Only add current booking data if it's complete (has a selected room and rate)
+    const isCurrentBookingComplete = bookingData.selectedRoom && 
+      (bookingData.selectedRateOption || bookingData.totalPrice > 0);
+    
+    if (isCurrentBookingComplete) {
+      // Check if current booking is already in bookingItems
+      const isAlreadyAdded = bookingItems.some((item: any) => 
+        item.id === 'current' || 
+        (item.selectedRoom === bookingData.selectedRoom && 
+         item.checkIn === bookingData.checkIn && 
+         item.checkOut === bookingData.checkOut));
+      
+      if (!isAlreadyAdded) {
+        items.push({ 
+          ...bookingData, 
+          id: 'current',
+          roomDetails: selectedRoom
+        });
+      }
     }
     
     return items;
@@ -221,7 +223,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       <div className="mt-3">
                         <button
                           onClick={() => toggleExpanded(index)}
-                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
+                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
                         >
                           {expandedItems[index] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           View enhancements ({item.selectedEnhancements.length})
@@ -267,7 +269,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
           <div className="text-center py-4">
             <button
               onClick={handleAddAnotherItem}
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium"
+              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium cursor-pointer"
             >
               <Plus className="w-5 h-5" />
               Add another item
@@ -316,9 +318,30 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
             </div>
 
             <div className="mt-6">
-              <button
-                onClick={() => setCurrentStep(5)}
-                className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium"
+            <button
+                onClick={() => {
+                  // If we have a current booking that's not in bookingItems yet, add it
+                  if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
+                    const isAlreadyAdded = bookingItems.some((item: any) => 
+                      item.id === 'current' || 
+                      (item.selectedRoom === bookingData.selectedRoom && 
+                       item.checkIn === bookingData.checkIn && 
+                       item.checkOut === bookingData.checkOut));
+                    
+                    if (!isAlreadyAdded) {
+                      setBookingItems((prev: any) => [
+                        ...prev, 
+                        {
+                          ...bookingData,
+                          id: Date.now().toString(),
+                          roomDetails: selectedRoom
+                        }
+                      ]);
+                    }
+                  }
+                  setCurrentStep(5);
+                }}
+                className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium cursor-pointer"
               >
                 Continue
               </button>
@@ -332,7 +355,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
             <p className="text-gray-500 text-lg mb-4">No booking items yet</p>
             <button
               onClick={() => setCurrentStep(2)}
-              className="bg-gray-800 text-white py-2 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium"
+              className="bg-gray-800 text-white py-2 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium cursor-pointer" 
             >
               Start Booking
             </button>

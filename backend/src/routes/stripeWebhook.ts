@@ -25,72 +25,128 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { roomId, guestName, guestEmail, checkIn, checkOut, guestPhone, guestNationality } = session.metadata!;
+    const { pendingBookingId, customerEmail, taxAmount, totalAmount } = session.metadata!;
   
     try {
-      const existingBooking = await prisma.booking.findFirst({
-        where: {
-          roomId,
-          guestEmail,
-          checkIn: new Date(checkIn),
-          checkOut: new Date(checkOut),
-        }
+      // Retrieve the pending booking data from database
+      const pendingBooking = await prisma.pendingBooking.findUnique({
+        where: { id: pendingBookingId }
       });
-  
-      if (existingBooking) {
-        responseHandler(res, 200, "Booking already exists.");
-        return
-      }
-  
-      const existingHold = await prisma.temporaryHold.findFirst({
-        where: {
-          roomId,
-          guestEmail,
-          checkIn: new Date(checkIn),
-          checkOut: new Date(checkOut),
-          expiresAt: { gt: new Date() }
-        }
-      });
-  
-      if (!existingHold) {
-        responseHandler(res, 400, "No valid temporary hold found.");
+
+      if (!pendingBooking) {
+        console.error('Pending booking not found:', pendingBookingId);
+        responseHandler(res, 400, "Pending booking not found.");
         return;
       }
 
+      // Parse the stored booking data
+      const bookingItems = JSON.parse(pendingBooking.bookingData);
+      const customerDetails = JSON.parse(pendingBooking.customerData);
+
       const { paymentStatus, bookingStatus } = mapStripeToStatus(session.payment_status!);
-  
-      await prisma.booking.create({
-        data: {
-          guestName,    
-          guestNationality,
-          totalGuests: session.metadata?.totalGuests ? parseInt(session.metadata.totalGuests) : 1,
-          guestEmail,
-          guestPhone,
-          checkIn: new Date(checkIn),
-          checkOut: new Date(checkOut),
-          roomId,
-          status: bookingStatus,
-          payment: {
-            create: {
-              stripeSessionId: session.id,
-              amount: session.amount_total! / 100,
-              currency: session.currency!,
-              status: paymentStatus,
+
+      // Process each booking item
+      for (const booking of bookingItems) {
+        const { checkIn, checkOut, selectedRoom: roomId, adults, rooms } = booking;
+
+        // Check if booking already exists
+        const existingBooking = await prisma.booking.findFirst({
+          where: {
+            roomId,
+            guestEmail: customerDetails.email,
+            checkIn: new Date(checkIn),
+            checkOut: new Date(checkOut),
+          }
+        });
+
+        if (existingBooking) {
+          console.log("Booking already exists for room:", roomId);
+          continue; // Skip this booking item
+        }
+
+        // Verify temporary hold still exists
+        const existingHold = await prisma.temporaryHold.findFirst({
+          where: {
+            roomId,
+            guestEmail: customerDetails.email,
+            checkIn: new Date(checkIn),
+            checkOut: new Date(checkOut),
+            expiresAt: { gt: new Date() }
+          }
+        });
+
+        if (!existingHold) {
+          console.error("No valid temporary hold found for room:", roomId);
+          continue; // Skip this booking item but don't fail the entire process
+        }
+
+        // Create the booking
+        const createdBooking = await prisma.booking.create({
+          data: {
+            guestName: customerDetails.name,
+            guestNationality: customerDetails.nationality,
+            totalGuests: adults * rooms,
+            guestEmail: customerDetails.email,
+            guestPhone: customerDetails.phone,
+            checkIn: new Date(checkIn),
+            checkOut: new Date(checkOut),
+            roomId,
+            status: bookingStatus,
+            request: customerDetails.specialRequests || null,
+            metadata: {
+              selectedRateOption: booking.selectedRateOption || null,
+              promotionCode: booking.promotionCode || null,
+              totalPrice: booking.totalPrice,
+              rooms: booking.rooms,
+              receiveMarketing: customerDetails.receiveMarketing || false
+            },
+            payment: {
+              create: {
+                stripeSessionId: session.id,
+                amount: session.amount_total! / 100,
+                currency: session.currency!,
+                status: paymentStatus,
+              }
             }
           }
+        });
+
+        // Create enhancement bookings if any
+        if (booking.selectedEnhancements && booking.selectedEnhancements.length > 0) {
+          const enhancementBookingsData = booking.selectedEnhancements.map((enhancement: any) => ({
+            bookingId: createdBooking.id,
+            enhancementId: enhancement.id,
+            quantity: enhancement.pricingType === "PER_GUEST" 
+              ? adults * rooms 
+              : rooms,
+            notes: enhancement.notes || null
+          }));
+
+          await prisma.enhancementBooking.createMany({
+            data: enhancementBookingsData
+          });
         }
+
+        // Remove the temporary hold
+        await prisma.temporaryHold.deleteMany({
+          where: {
+            roomId,
+            guestEmail: customerDetails.email,
+            checkIn: new Date(checkIn),
+            checkOut: new Date(checkOut),
+          }
+        });
+      }
+
+      // Clean up: delete the pending booking
+      await prisma.pendingBooking.delete({
+        where: { id: pendingBookingId }
       });
-  
-      await prisma.temporaryHold.deleteMany({
-        where: {
-          roomId,
-          guestEmail,
-          checkIn: new Date(checkIn),
-          checkOut: new Date(checkOut),
-        }
-      });
-      // here we have to send a confirmation email to the guest and admin
-      responseHandler(res, 200, "Booking created successfully.", { received: true });
+
+      // Here you should send confirmation email to guest and admin
+      // await sendBookingConfirmationEmail(customerDetails, bookingItems);
+      
+      responseHandler(res, 200, "Booking(s) created successfully.", { received: true });
     } catch (err) {
       console.error("Error processing Stripe webhook:", err);
       handleError(res, err as Error);

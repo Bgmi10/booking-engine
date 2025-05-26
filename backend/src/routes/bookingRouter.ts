@@ -5,7 +5,7 @@ import { createCheckoutSessionSchema } from "../zod/booking.schema";
 
 const bookingRouter = Router();
 
-bookingRouter.post("/create-checkout-session", validateMiddleware(createCheckoutSessionSchema), createCheckoutSession);
+bookingRouter.post("/create-checkout-session", createCheckoutSession);
 
 export default bookingRouter;
 

@@ -10,6 +10,7 @@ import { BiLoader } from "react-icons/bi"
 import Categories from "./Categories"
 import Rates from "./Rates"
 import Summary from "./Summary"
+import Details from "./Details"
 
 // Define the steps in the booking process
 const STEPS = [
@@ -81,11 +82,6 @@ export default function Booking() {
       setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))
       setIsLoading(false)
     }, 800)
-  }
-
-  // Handle moving to the previous step
-  const handleBack = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1))
   }
 
   // Memoize the date selection callback to prevent infinite loops
@@ -323,30 +319,14 @@ export default function Booking() {
                 )}
 
                 {currentStep === 4 && (
-                  <div className="">
+                  <div>
                     <Summary bookingData={bookingData}  bookingItems={bookingItems} setBookingData={setBookingData} setBookingItems={setBookingItems} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
                   </div>
                 )}
 
                 {currentStep === 5 && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-2xl font-semibold mb-6">Details</h2>
-                    <p className="text-gray-600 mb-6">Enter your details</p>
-                    {/* Details content will go here */}
-                    <div className="flex justify-between mt-6">
-                      <button
-                        className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                        onClick={handleBack}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                        onClick={() => alert("Booking completed!")}
-                      >
-                        Complete Booking
-                      </button>
-                    </div>
+                  <div>
+                    <Details bookingData={bookingData} bookingItems={bookingItems} setBookingItems={setBookingItems} setBookingData={setBookingData} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
                   </div>
                 )}
               </>
