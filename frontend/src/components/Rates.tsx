@@ -16,7 +16,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const selectedRoom = availabilityData.availableRooms.find((room: any) => room.id === bookingData.selectedRoom);
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [enhancementDetails, setEnhancementDetails] = useState({});
+  const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
 
@@ -43,7 +43,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     if (selectedRoom && bookingData.adults > selectedRoom.capacity) {
       const newAdults = selectedRoom.capacity;
       setAdults(newAdults);
-      setBookingData(prev => ({ ...prev, adults: newAdults }));
+      setBookingData((prev: any) => ({ ...prev, adults: newAdults }));
     }
   }, [selectedRoom, bookingData.adults]);
 
@@ -139,16 +139,16 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   }
 
   function toggleEnhancementDetails(enhancementId: string) {
-    setEnhancementDetails(prev => ({
+    setEnhancementDetails((prev: any) => ({
       ...prev,
       [enhancementId]: !prev[enhancementId]
     }));
   }
 
   function addEnhancement(enhancement: any) {
-    const existingEnhancement = bookingData.selectedEnhancements.find(e => e.id === enhancement.id);
+    const existingEnhancement = bookingData.selectedEnhancements.find((e: any) => e.id === enhancement.id);
     if (!existingEnhancement) {
-      setBookingData(prev => ({
+      setBookingData((prev: any) => ({
         ...prev,
         selectedEnhancements: [...prev.selectedEnhancements, enhancement]
       }));
@@ -156,28 +156,28 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   }
 
   function removeEnhancement(enhancementId: string) {
-    setBookingData(prev => ({
+    setBookingData((prev: any) => ({
       ...prev,
-      selectedEnhancements: prev.selectedEnhancements.filter(e => e.id !== enhancementId)
+      selectedEnhancements: prev.selectedEnhancements.filter((e: any) => e.id !== enhancementId)
     }));
   }
 
   function updateOccupancy(type: 'rooms' | 'adults', change: number) {
     if (type === 'rooms') {
-      setRooms(prev => Math.max(1, prev + change));
+      setRooms((prev: number) => Math.max(1, prev + change));
     } else {
       const newAdults = Math.max(1, adults + change);
       if (newAdults <= selectedRoom.capacity) {
         setAdults(newAdults);
-        setBookingData(prev => ({ ...prev, adults: newAdults }));
+        setBookingData((prev: any) => ({ ...prev, adults: newAdults }));
       }
     }
   }
 
   function handleBookNow(rateOption: any) {
-    const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc, curr) => acc.price + curr.price + 0) : 0;
+    const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc: any, curr: any) => acc.price + curr.price + 0) : 0;
     console.log(enhancementPrice);
-    setBookingData(prev => ({
+    setBookingData((prev: any) => ({
       ...prev,
       selectedRateOption: rateOption,
       rooms: rooms,
@@ -281,8 +281,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           <div className="flex-1">
             <h3 className="text-xl font-semibold mb-4 text-gray-800">Enhance your stay</h3>
             <div className="space-y-4">
-              {enhancements.map((enhancement) => {
-                const isAdded = bookingData.selectedEnhancements.some(e => e.id === enhancement.id);
+              {enhancements.map((enhancement: any) => {
+                const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
                 return (
                   <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                     <div className="flex gap-4">
@@ -301,7 +301,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                 <p className="text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
                               </div>
                               <div className="flex gap-2">
-                                   {enhancement.availableDays.map((item) => 
+                                   {enhancement.availableDays.map((item: string) => 
                                       (
                                         <span className="gap-2 flex text-gray-600">
                                             {item},
@@ -357,7 +357,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               <div className="mt-6">
                 <h4 className="text-lg font-semibold mb-3 text-gray-800">Added Enhancements</h4>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  {bookingData.selectedEnhancements.map((enhancement, index) => (
+                  {bookingData.selectedEnhancements.map((enhancement: any, index: number) => (
                     <div key={index} className="flex justify-between items-center py-2 border-b border-green-200 last:border-b-0">
                       <span className="text-green-800 font-medium">{enhancement.title}</span>
                       <span className="text-green-700 font-semibold">€{enhancement.price} / {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
@@ -409,7 +409,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             <div className="space-y-4">
               <h3 className="text-xl font-semibold text-gray-800">Available Rates</h3>
               
-              {rateOptions.map((rateOption) => {
+              {rateOptions.map((rateOption: any) => {
                 const hasDiscount = rateOption.discountPercentage > 0;
                 const totalPrice = rateOption.price * nights * rooms;
                 const basePrice = selectedRoom?.price || 0;
