@@ -25,7 +25,6 @@ export const formatDatetime = (dateString: string): string => {
     return dateString;
   }
 };
-
 /**
  * Format a price to currency format
  */

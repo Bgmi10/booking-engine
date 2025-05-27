@@ -326,7 +326,7 @@ export default function Booking() {
 
                 {currentStep === 5 && (
                   <div>
-                    <Details bookingData={bookingData} bookingItems={bookingItems} setBookingItems={setBookingItems} setBookingData={setBookingData} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
+                    <Details bookingData={bookingData} bookingItems={bookingItems} availabilityData={availabilityData} />
                   </div>
                 )}
               </>

@@ -264,7 +264,7 @@ export default function Categories({
     if (!validateDates()) {
       return
     }
-    setBookingData({...bookingData, selectedRoom: roomId})
+    setBookingData({...bookingData, selectedRoom: roomId, checkIn: adjustedDates.checkIn, checkOut: adjustedDates.checkOut})
     setShowDateAdjuster(null)
     setCurrentStep(3)
   }

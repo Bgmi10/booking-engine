@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { TEMP_HOLD_DURATION_MINUTES } from "../utils/constants";
 import prisma from "../prisma";
 import dotenv from "dotenv";
-import { handleError, responseHandler } from "../utils/helper";
+import { calculateNights, handleError, responseHandler } from "../utils/helper";
 
 dotenv.config();
 const devUrl = process.env.FRONTEND_DEV_URL;
@@ -14,11 +14,9 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
     const { bookingItems, customerDetails, taxAmount, totalAmount } = req.body;
   
     try {
-      // 1. Verify availability for all rooms
       for (const booking of bookingItems) {
         const { checkIn, checkOut, selectedRoom: roomId } = booking;
   
-        // Check existing bookings
         const overlappingBookings = await prisma.booking.findFirst({
           where: {
             roomId,
@@ -35,8 +33,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
           return;
         }
-  
-        // Check temporary holds
+
         const overlappingHold = await prisma.temporaryHold.findFirst({
           where: {
             roomId,
@@ -56,7 +53,6 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }
       }
   
-      // 2. Create temporary holds for all rooms
       const expiresAt = new Date(Date.now() + TEMP_HOLD_DURATION_MINUTES * 60 * 1000);
       await prisma.temporaryHold.createMany({
         data: bookingItems.map((booking: any) => ({
@@ -69,7 +65,6 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }))
       });
 
-      // 3. Store booking data in database temporarily
       const pendingBooking = await prisma.pendingBooking.create({
         data: {
           bookingData: JSON.stringify(bookingItems),
@@ -83,58 +78,59 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }
       });
   
-      // 4. Prepare Stripe line items
       const line_items = bookingItems.flatMap((booking: any) => {
+        const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
+        
+        const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
+        const totalRoomPrice = roomRatePerNight * numberOfNights;
+        
         const roomLineItem = {
           price_data: {
             currency: "eur",
             product_data: {
-              name: booking.roomDetails.name,
-              description: booking.roomDetails.description,
+              name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
+              description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
               images: booking.roomDetails.images?.[0]?.url 
                 ? [booking.roomDetails.images[0].url] 
                 : undefined,
             },
-            unit_amount: Math.round(booking.roomDetails.price * 100), // Includes tax
+            unit_amount: Math.round(totalRoomPrice * 100), // Total price for all nights
           },
-          quantity: booking.rooms,
+          quantity: booking.rooms, // Number of rooms booked
         };
-  
-        const enhancementLineItems = booking.selectedEnhancements?.map((enhancement: any) => ({
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: enhancement.title,
-              description: enhancement.description,
-              images: [enhancement.image],
+        
+        const enhancementLineItems = booking.selectedEnhancements?.map((enhancement: any) => {
+          let enhancementQuantity = 1;
+          
+          if (enhancement.pricingType === "PER_GUEST") {
+            enhancementQuantity = booking.adults * booking.rooms;
+          } else if (enhancement.pricingType === "PER_ROOM") {
+            enhancementQuantity = booking.rooms;
+          } else if (enhancement.pricingType === "PER_NIGHT") {
+            enhancementQuantity = numberOfNights * booking.rooms;
+          } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
+            enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
+          } else {
+            enhancementQuantity = 1;
+          }
+
+          return {
+            price_data: {
+              currency: "eur",
+              product_data: {
+                name: enhancement.title,
+                description: `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`,
+                images: enhancement.image ? [enhancement.image] : undefined,
+              },
+              unit_amount: Math.round(enhancement.price * 100),
             },
-            unit_amount: Math.round(enhancement.price * 100), // Includes tax
-          },
-          quantity: enhancement.pricingType === "PER_GUEST" 
-            ? booking.adults * booking.rooms 
-            : booking.rooms,
-        })) || [];
+            quantity: enhancementQuantity,
+          };
+        }) || [];
   
         return [roomLineItem, ...enhancementLineItems];
       });
   
-      // 5. Add rate option if selected
-      if (bookingItems[0].selectedRateOption) {
-        const rateOption = bookingItems[0].selectedRateOption;
-        line_items.push({
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: rateOption.name,
-              description: rateOption.description,
-            },
-            unit_amount: Math.round(rateOption.price * 100),
-          },
-          quantity: 1,
-        });
-      }
-  
-      // 6. Create Stripe session with minimal metadata
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card", "paypal", "sepa_debit"],
         mode: "payment",
@@ -146,7 +142,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           taxAmount: taxAmount.toString(),
           totalAmount: totalAmount.toString(),
         },
-        expires_at:  Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // make this to 30 minutes from now
+        expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // 30 minutes from now
         success_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking`,
       });
@@ -156,6 +152,4 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       console.error("Checkout error:", e);
       handleError(res, e as Error);
     }
-  };
-
-  
+};

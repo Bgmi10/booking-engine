@@ -1,10 +1,12 @@
+/* eslint-disable no-useless-escape */
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { baseUrl, nationalities } from "../utils/constants";
 import { ChevronDown, ChevronUp, LoaderIcon, Search } from "lucide-react";
 import CountryList from 'country-list-with-dial-code-and-flag';
 
-export default function Details({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any }) {
+export default function Details({ bookingData, bookingItems, availabilityData }: { bookingData: any, bookingItems: any, availabilityData: any }) {
     // Form states
     const [formData, setFormData] = useState({
         name: "",
@@ -20,22 +22,22 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
     const [nationality, setNationality] = useState("");
     const [showCountry, setShowCountry] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
-    const [country, setCountry] = useState("");
+    const [country, setCountry] = useState("+39");
     const [agreeToTerms, setAgreeToTerms] = useState(false);
     const [receiveMarketing, setReceiveMarketing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [errors, setErrors] = useState<any>({});
-    
+    const [errors, setErrors] = useState<any>({});    
     const countries = CountryList.getAll();
+    const [filteredCountries, setFilteredCountries] = useState<any[]>(countries);
     
-    // Filter countries based on search
-    const filteredCountries = useMemo(() => {
-        if (!countrySearch.trim()) return countries;
-        return countries.filter((country: any) => 
-            country.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-            country.dial_code.includes(countrySearch)
-        );
-    }, [countrySearch, countries]);
+    console.log(country)
+    useEffect(() => {
+       const filteredCountries = countries.filter((country: any) => 
+        country.data.name.toLowerCase().includes(countrySearch.toLowerCase())
+       );
+       setFilteredCountries(filteredCountries);     
+
+    }, [countrySearch]);
 
     // Filter nationalities based on search
     const filteredNationalities = useMemo(() => {
@@ -200,18 +202,17 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
         }
 
         setIsProcessing(true);
-        
         try {
             const bookingPayload = {
                 customerDetails: {
                     name: formData.name,
                     email: formData.email,
-                    phone: country + formData.phone,
+                    phone: country + formData.phone.trim(),
                     nationality: nationality,
                     specialRequests: formData.specialRequests,
                     receiveMarketing: receiveMarketing
                 },
-                bookingItems: allItems,
+                bookingItems: allItems, // here we need make a copy and remove the unwanted items 
                 totalAmount: grandTotal,
                 taxAmount: displayTax
             };
@@ -227,7 +228,7 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
             const data = await response.json();
             if ( response.status === 200 && data.data.url) {
                 // Redirect to Stripe checkout
-                window.location.href = data.data.url;
+               // window.location.href = data.data.url;
             } else {
                 throw new Error('Failed to create checkout session');
             }
@@ -247,7 +248,7 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
         
         // Clear error when user starts typing
         if (errors[field]) {
-            setErrors(prev => ({
+            setErrors((prev: any) => ({
                 ...prev,
                 [field]: undefined
             }));
@@ -302,7 +303,7 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
                             <div className="relative">
                                 <input 
                                     type="text" 
-                                    value={country || "+91"} 
+                                    value={country || "+39"} 
                                     onClick={() => setShowCountry(!showCountry)}
                                     className="mt-1 block w-20 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-2 py-2 outline-none border border-gray-300 cursor-pointer text-center"
                                     readOnly
@@ -321,10 +322,10 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
                                                 />
                                             </div>
                                         </div>
-                                        <div className="max-h-48 overflow-y-auto p-2">
-                                            {filteredCountries.map((countryItem: any) => (
+                                        <div className="max-h-52 overflow-y-auto p-2">
+                                            {filteredCountries.map((countryItem: any, index: number) => (
                                                 <div 
-                                                    key={countryItem.name} 
+                                                    key={index} 
                                                     className="hover:bg-gray-100 p-2 rounded-md cursor-pointer flex items-center gap-2" 
                                                     onClick={() => {
                                                         setCountry(countryItem.dial_code);
@@ -518,11 +519,11 @@ export default function Details({ bookingData, bookingItems, setBookingItems, se
                             />
                             <label htmlFor="agreeTerms" className="text-sm text-gray-700">
                                 I agree to{" "}
-                                <a href="#" className="text-gray-800 underline hover:no-underline">
+                                <a href="https://www.latorre.farm/terms" target="_blank" className="text-gray-800 underline hover:no-underline">
                                     Property T&C
                                 </a>{" "}
                                 and{" "}
-                                <a href="#" className="text-gray-800 underline hover:no-underline">
+                                <a href="https://www.latorre.farm/privacy" target="_blank" className="text-gray-800 underline hover:no-underline">
                                     Property Privacy Policy
                                 </a>
                                 . <span className="text-red-500">*</span>

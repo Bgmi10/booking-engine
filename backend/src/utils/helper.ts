@@ -23,4 +23,11 @@ export function mapStripeToStatus(stripeStatus: string): {
         return { paymentStatus: "PENDING", bookingStatus: "PENDING" };
     }
 }
-  
+
+export const calculateNights = (checkIn: string, checkOut: string): number => {
+  const checkInDate = new Date(checkIn);
+  const checkOutDate = new Date(checkOut);
+  const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
