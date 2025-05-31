@@ -144,7 +144,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         },
         expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // 30 minutes from now
         success_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking`,
+        cancel_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/failure`,
       });
   
       responseHandler(res, 200, "Checkout session created", { url: session.url });

@@ -53,7 +53,8 @@ model Booking {
   updatedAt        DateTime      @updatedAt
   room             Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   roomId           String  
-  payment          Payment?
+  paymentId        String?
+  payment          Payment?      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   metadata         Json?
   request          String?
   enhancementBookings EnhancementBooking[]
@@ -125,8 +126,7 @@ model Payment {
   currency        String
   status          PaymentStatus
   createdAt       DateTime         @default(now())
-  booking         Booking          @relation(fields: [bookingId], references: [id])
-  bookingId       String           @unique
+  booking         Booking[]
 }
 
 model RatePolicy {

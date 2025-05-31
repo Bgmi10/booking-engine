@@ -6,6 +6,7 @@ import { baseUrl } from "../utils/constants";
 import { format } from "date-fns";
 import type { Enhancement } from "../types/types";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Tag, Shield, Clock } from "lucide-react";
+import Header from "./Header";
 
 export default function Rates({ bookingData, setCurrentStep, availabilityData, setBookingData }: { bookingData: any, setCurrentStep: (step: number) => void, availabilityData: any, setBookingData: any }) {
 
@@ -195,8 +196,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   return (
     <div>
-      <div className="rounded-lg">
-        <div className="py-6">
+      <div className="container mx-auto">
+        <div className="rounded-lg">
+          <div className="py-6">
           <h2 className="text-2xl font-semibold text-center text-gray-800">Rates</h2>
         </div>
         <BookingSummary bookingData={bookingData} setCurrentStep={setCurrentStep} />
@@ -278,8 +280,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
         {/* Main Content Area */}
         <div className="flex gap-6 p-4">
           {/* Left Side - Enhancements */}
-          <div className="flex-1">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Enhance your stay</h3>
+          <div className={`${enhancements.length > 0 ? 'flex-1' : 'hidden'}`}>
+           {enhancements.length > 0 && <h3 className="text-xl font-semibold mb-4 text-gray-800">Enhance your stay</h3>}
             <div className="space-y-4">
               {enhancements.map((enhancement: any) => {
                 const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
@@ -503,6 +505,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

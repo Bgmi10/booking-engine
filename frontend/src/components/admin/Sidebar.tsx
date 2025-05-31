@@ -81,11 +81,11 @@ export default function Sidebar({
       title: "Rate Policies",
       path: "ratepolicies",
       icon: <RiFileTextLine size={20} />
-    }
+    },
   ];
 
   return (
-    <div className={`${isSidebarOpen ? "w-64" : "w-20"} duration-300 h-screen bg-gray-800 text-white fixed left-0 top-18 z-50 transition-all overflow-y-auto`}>
+    <div className={`${isSidebarOpen ? "w-64" : "w-20"} duration-300 h-screen bg-gray-800 text-white fixed left-0 top-16 z-50 transition-all overflow-y-auto`}>
       {/* Sidebar Header */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-gray-700">
         {isSidebarOpen && (
@@ -118,7 +118,7 @@ export default function Sidebar({
       </div>
 
       {/* Logout Button */}
-      <div className="absolute bottom-12 w-full border-t border-gray-700 py-4" onClick={logout}>
+      <div className="absolute bottom-0 w-full border-t border-gray-700 py-4" onClick={logout}>
         <div
           className="flex items-center cursor-pointer text-gray-300 hover:text-white px-4 mx-2 py-3 hover:bg-gray-700 rounded-md transition-all duration-200"
         >

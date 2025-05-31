@@ -9,25 +9,26 @@ import stipeWebhookRouter from "./routes/stripeWebhook";
 import { cleanExpiredTempHolds } from "./cron/cleanTempHolds";
 import authMiddleware from "./middlewares/authMiddlware";
 import enhancementRouter from "./routes/enhancementRouter";
+import sessionRouter from "./routes/sessionRoute";
 
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 const app = express();
 
-app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
   origin: [process.env.FRONTEND_DEV_URL as string, process.env.FRONTEND_PROD_URL as string],
   credentials: true,
 }));
 
+app.use("/api/v1/stripe", stipeWebhookRouter);
+app.use(express.json());
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/rooms", roomsRouter);
 app.use("/api/v1/bookings", bookingRouter);
-app.use("/api/v1/stripe", stipeWebhookRouter);
 app.use("/api/v1/enhancements", enhancementRouter);
-
+app.use("/api/v1/sessions", sessionRouter);
 //cleanExpiredTempHolds();
 
 app.listen(PORT, () => {

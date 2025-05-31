@@ -339,6 +339,11 @@ const getAllBookings = async (req: express.Request, res: express.Response) => {
       include: {
         room: true,
         payment: true,
+        enhancementBookings: {
+          include: {
+            enhancement: true
+          }
+        }
       },
     });
     responseHandler(res, 200, "All bookings", bookings);

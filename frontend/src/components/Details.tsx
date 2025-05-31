@@ -228,7 +228,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
             const data = await response.json();
             if ( response.status === 200 && data.data.url) {
                 // Redirect to Stripe checkout
-               // window.location.href = data.data.url;
+               window.location.href = data.data.url;
             } else {
                 throw new Error('Failed to create checkout session');
             }
