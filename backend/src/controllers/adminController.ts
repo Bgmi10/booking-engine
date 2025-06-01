@@ -201,7 +201,7 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
       }
     
       const token = generateToken({ id: existingAdmin.id, name: existingAdmin.name, email: existingAdmin.email });
-      res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 7 * 24 * 60 * 60 * 1000 });
+      res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 20 * 24 * 60 * 60 * 1000, domain: "latorre.farm" });
       responseHandler(res, 200, "Login successful");
     } catch (e) {
         console.log(e);
@@ -211,7 +211,7 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
 }
 
 const logout = async (req: express.Request, res: express.Response) => {
-  res.clearCookie("token");
+  res.clearCookie("token", { domain: "latorre.farm" });
   responseHandler(res, 200, "Logout successful");
 }   
 

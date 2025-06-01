@@ -113,7 +113,7 @@ const StepIndicator = ({ steps, currentStep, setCurrentStep, bookingData }: Step
           {step.id < steps.length && (
             <div
               className={`
-                lg:w-44 sm:w-7 h-[2px] mx-2 transition-all duration-300 ease-in-out
+                lg:w-44 sm: w-7 h-[2px] mx-2 transition-all duration-300 ease-in-out
                 ${isStepCompleted(step.id) ? "bg-gray-500" : "bg-gray-200"}
               `}
             />
