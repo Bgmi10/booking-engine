@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
 import { handleError, mapStripeToStatus, responseHandler } from "../utils/helper";
-import { sendAdminBookingNotification, sendBookingConfirmation } from "../services/bookingEmailTemplate";
+import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification } from "../services/bookingEmailTemplate";
 
 dotenv.config();
 
@@ -118,7 +118,7 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
       }
 
       // ✅ Create Payment once for all bookings
-      await prisma.payment.create({
+      const payment = await prisma.payment.create({
         data: {
           stripeSessionId: session.id,
           amount: session.amount_total! / 100,
@@ -130,9 +130,11 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
         }
       });
 
-      // Optional: Re-fetch with payment/enhancements
-      const enrichedBooking = await prisma.booking.findUnique({
-        where: { id: createdBookings[0].id },
+      // ✅ Fetch all bookings with complete data for email
+      const enrichedBookings = await prisma.booking.findMany({
+        where: { 
+          id: { in: createdBookings.map(b => b.id) }
+        },
         include: {
           room: true,
           payment: true,
@@ -147,12 +149,12 @@ stipeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), a
         where: { id: pendingBookingId }
       });
 
-      // ✉️ Send Emails (admin + user)
+      // ✉️ Send consolidated emails (one email with all bookings)
       await Promise.all([
         //@ts-ignore
-        sendBookingConfirmation(enrichedBooking),
+        sendConsolidatedBookingConfirmation(enrichedBookings, customerDetails),
         //@ts-ignore
-        sendAdminBookingNotification(enrichedBooking)
+        sendConsolidatedAdminNotification(enrichedBookings, customerDetails)
       ]);
 
       responseHandler(res, 200, "Bookings and payment created successfully.", { received: true });

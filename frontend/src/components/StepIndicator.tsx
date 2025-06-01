@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const StepIndicator = ({ steps, currentStep, setCurrentStep }: { steps: any[], currentStep: number, setCurrentStep: (step: number) => void }) => {
     return (
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-center p-4">
         {steps.map((step: any) => (
           <div key={step.id} className="flex items-center" onClick={() => setCurrentStep(step.id)}>
             <div
@@ -26,7 +26,7 @@ const StepIndicator = ({ steps, currentStep, setCurrentStep }: { steps: any[], c
             {step.id < steps.length && (
               <div
                 className={`
-                lg:w-52 sm: w-7 h-[2px] mx-2 
+                lg:w-44 sm: w-7 h-[2px] mx-2 
                 ${currentStep > step.id ? "bg-gray-500" : "bg-gray-200"}
               `}
               ></div>

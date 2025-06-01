@@ -196,6 +196,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   return (
     <div>
+      <Header />
       <div className="container mx-auto">
         <div className="rounded-lg">
           <div className="py-6">

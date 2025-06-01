@@ -7,8 +7,8 @@ export default function Success() {
     const [sessionData, setSessionData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [roomDetailsOpen, setRoomDetailsOpen] = useState(true);
-    const [enhancementsOpen, setEnhancementsOpen] = useState(true);
+    const [roomDetailsOpen, setRoomDetailsOpen] = useState<{[key: string]: boolean}>({});
+    const [enhancementsOpen, setEnhancementsOpen] = useState<{[key: string]: boolean}>({});
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
 
@@ -21,6 +21,15 @@ export default function Success() {
                     
                     if (response.ok) {
                         setSessionData(data.data);
+                        // Initialize dropdown states for all bookings
+                        const roomStates: {[key: string]: boolean} = {};
+                        const enhancementStates: {[key: string]: boolean} = {};
+                        data.data?.data?.booking?.forEach((booking: any) => {
+                            roomStates[booking.id] = true;
+                            enhancementStates[booking.id] = true;
+                        });
+                        setRoomDetailsOpen(roomStates);
+                        setEnhancementsOpen(enhancementStates);
                     } else {
                         setError(data.message || "Failed to retrieve booking details");
                     }
@@ -78,13 +87,13 @@ export default function Success() {
     const getStatusMessage = (status: string) => {
         switch (status) {
             case 'COMPLETED':
-                return "Your booking has been confirmed!";
+                return "Your bookings have been confirmed!";
             case 'PENDING':
-                return "Your booking is being processed";
+                return "Your bookings are being processed";
             case 'FAILED':
                 return "Booking failed";
             default:
-                return "Thank you for your booking!";
+                return "Thank you for your bookings!";
         }
     };
 
@@ -99,6 +108,26 @@ export default function Success() {
             default:
                 return 'text-green-600';
         }
+    };
+
+    const toggleRoomDetails = (bookingId: string) => {
+        setRoomDetailsOpen(prev => ({
+            ...prev,
+            [bookingId]: !prev[bookingId]
+        }));
+    };
+
+    const toggleEnhancements = (bookingId: string) => {
+        setEnhancementsOpen(prev => ({
+            ...prev,
+            [bookingId]: !prev[bookingId]
+        }));
+    };
+
+    const calculateTotalEnhancementCost = (enhancementBookings: any[]) => {
+        return enhancementBookings.reduce((total, enhancement) => {
+            return total + (enhancement.enhancement.price * enhancement.quantity);
+        }, 0);
     };
 
     if (loading) {
@@ -130,9 +159,10 @@ export default function Success() {
         );
     }
 
-    const booking = sessionData?.data?.booking;
+    const bookings = sessionData?.data?.booking || [];
     const payment = sessionData?.data;
-    const nights = booking ? calculateNights(booking.checkIn, booking.checkOut) : 0;
+    const firstBooking = bookings[0]; // For general guest info display
+    const totalRooms = bookings.length;
 
     return (
         <>
@@ -146,16 +176,18 @@ export default function Success() {
                         {getStatusMessage(payment?.status)}
                     </h1>
                     
-                    {payment?.status === 'COMPLETED' && (
+                    {payment?.status === 'COMPLETED' && firstBooking && (
                         <div className="flex items-center justify-center gap-2 text-gray-600 mb-4 flex-wrap">
                             <Mail className="w-5 h-5" />
-                            <p className="text-sm sm:text-base">We've sent a booking confirmation to <strong>{booking?.guestEmail}</strong></p>
+                            <p className="text-sm sm:text-base">
+                                We've sent booking confirmations to <strong>{firstBooking.guestEmail}</strong>
+                            </p>
                         </div>
                     )}
                     
                     {payment?.status === 'PENDING' && (
                         <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                            Your payment is being processed. You'll receive a confirmation email shortly.
+                            Your payment is being processed. You'll receive confirmation emails shortly.
                         </p>
                     )}
 
@@ -174,94 +206,130 @@ export default function Success() {
                     )}
                 </div>
 
-                {/* Booking Details */}
-                {booking && payment?.status === 'COMPLETED' && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                {/* Booking Summary */}
+                {bookings.length > 0 && payment?.status === 'COMPLETED' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+                        <h2 className="text-xl font-semibold text-gray-800 mb-4">Booking Summary</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-gray-800">{totalRooms}</div>
+                                <div className="text-sm text-gray-600">Room{totalRooms > 1 ? 's' : ''} Booked</div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-gray-800">{firstBooking?.totalGuests}</div>
+                                <div className="text-sm text-gray-600">Total Guest{firstBooking?.totalGuests > 1 ? 's' : ''}</div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-gray-800">{calculateNights(firstBooking?.checkIn, firstBooking?.checkOut)}</div>
+                                <div className="text-sm text-gray-600">Night{calculateNights(firstBooking?.checkIn, firstBooking?.checkOut) > 1 ? 's' : ''}</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Individual Booking Details */}
+                {bookings.map((booking: any, index: number) => (
+                    <div key={booking.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
                         <div className="p-4 sm:p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-semibold text-gray-800">Booking Details</h2>
-                            <p className="text-sm text-gray-500 mt-1 break-all sm:break-normal">Booking ID: {booking.id}</p>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h2 className="text-xl font-semibold text-gray-800">Room {index + 1} Details</h2>
+                                    <p className="text-sm text-gray-500 mt-1 break-all sm:break-normal">Booking ID: {booking.id}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-gray-600">Room Total</div>
+                                    <div className="text-lg font-semibold text-gray-800">€{booking.metadata?.totalPrice}</div>
+                                    {booking.enhancementBookings && booking.enhancementBookings.length > 0 && (
+                                        <div className="text-xs text-gray-500">
+                                            + €{calculateTotalEnhancementCost(booking.enhancementBookings).toFixed(2)} enhancements
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="p-4 sm:p-6 space-y-6">
-                            {/* Guest Information */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-medium text-gray-800 mb-3">Guest Information</h3>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                            <span className="text-gray-600">Name:</span>
-                                            <span className="font-medium">{booking.guestName}</span>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                            <span className="text-gray-600">Email:</span>
-                                            <span className="font-medium break-all">{booking.guestEmail}</span>
-                                        </div>
-                                        {booking.guestPhone && (
+                            {/* Guest Information - Only show for first booking to avoid repetition */}
+                            {index === 0 && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div>
+                                        <h3 className="text-lg font-medium text-gray-800 mb-3">Guest Information</h3>
+                                        <div className="space-y-2 text-sm">
                                             <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                                <span className="text-gray-600">Phone:</span>
-                                                <span className="font-medium">{booking.guestPhone}</span>
+                                                <span className="text-gray-600">Name:</span>
+                                                <span className="font-medium">{booking.guestName}</span>
                                             </div>
-                                        )}
-                                        {booking.guestNationality && (
                                             <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                                <span className="text-gray-600">Nationality:</span>
-                                                <span className="font-medium">{booking.guestNationality}</span>
+                                                <span className="text-gray-600">Email:</span>
+                                                <span className="font-medium break-all">{booking.guestEmail}</span>
                                             </div>
-                                        )}
+                                            {booking.guestPhone && (
+                                                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                                                    <span className="text-gray-600">Phone:</span>
+                                                    <span className="font-medium">{booking.guestPhone}</span>
+                                                </div>
+                                            )}
+                                            {booking.guestNationality && (
+                                                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                                                    <span className="text-gray-600">Nationality:</span>
+                                                    <span className="font-medium">{booking.guestNationality}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div>
-                                    <h3 className="text-lg font-medium text-gray-800 mb-3">Stay Information</h3>
-                                    <div className="space-y-3 text-sm">
-                                        <div className="flex items-start gap-2">
-                                            <Calendar className="w-4 h-4 text-gray-500 mt-0.5" />
-                                            <div>
-                                                <div className="font-medium">Check-in</div>
-                                                <div className="text-gray-600">
-                                                    {formatDate(booking.checkIn)} at {formatTime(booking.checkIn)}
+                                    <div>
+                                        <h3 className="text-lg font-medium text-gray-800 mb-3">Stay Information</h3>
+                                        <div className="space-y-3 text-sm">
+                                            <div className="flex items-start gap-2">
+                                                <Calendar className="w-4 h-4 text-gray-500 mt-0.5" />
+                                                <div>
+                                                    <div className="font-medium">Check-in</div>
+                                                    <div className="text-gray-600">
+                                                        {formatDate(booking.checkIn)} at {formatTime(booking.checkIn)}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-start gap-2">
-                                            <Calendar className="w-4 h-4 text-gray-500 mt-0.5" />
-                                            <div>
-                                                <div className="font-medium">Check-out</div>
-                                                <div className="text-gray-600">
-                                                    {formatDate(booking.checkOut)} at {formatTime(booking.checkOut)}
+                                            <div className="flex items-start gap-2">
+                                                <Calendar className="w-4 h-4 text-gray-500 mt-0.5" />
+                                                <div>
+                                                    <div className="font-medium">Check-out</div>
+                                                    <div className="text-gray-600">
+                                                        {formatDate(booking.checkOut)} at {formatTime(booking.checkOut)}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-start gap-2">
-                                            <Users className="w-4 h-4 text-gray-500 mt-0.5" />
-                                            <div>
-                                                <span className="font-medium">{booking.totalGuests} guest{booking.totalGuests > 1 ? 's' : ''}</span>
-                                                <span className="text-gray-600"> • {nights} night{nights > 1 ? 's' : ''}</span>
+                                            <div className="flex items-start gap-2">
+                                                <Users className="w-4 h-4 text-gray-500 mt-0.5" />
+                                                <div>
+                                                    <span className="font-medium">{booking.totalGuests} guest{booking.totalGuests > 1 ? 's' : ''}</span>
+                                                    <span className="text-gray-600"> • {calculateNights(booking.checkIn, booking.checkOut)} night{calculateNights(booking.checkIn, booking.checkOut) > 1 ? 's' : ''}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Room Details Dropdown */}
                             {booking.room && (
                                 <div className="border border-gray-200 rounded-lg">
                                     <button
-                                        onClick={() => setRoomDetailsOpen(!roomDetailsOpen)}
+                                        onClick={() => toggleRoomDetails(booking.id)}
                                         className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
                                     >
                                         <div className="flex items-center gap-3">
                                             <Bed className="w-5 h-5 text-gray-500" />
-                                            <h3 className="text-lg font-medium text-gray-800">Room Details</h3>
+                                            <h3 className="text-lg font-medium text-gray-800">{booking.room.name}</h3>
                                         </div>
-                                        {roomDetailsOpen ? (
+                                        {roomDetailsOpen[booking.id] ? (
                                             <ChevronUp className="w-5 h-5 text-gray-500" />
                                         ) : (
                                             <ChevronDown className="w-5 h-5 text-gray-500" />
                                         )}
                                     </button>
                                     
-                                    {roomDetailsOpen && (
+                                    {roomDetailsOpen[booking.id] && (
                                         <div className="p-4 border-t border-gray-200 bg-gray-50">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 <div>
@@ -293,11 +361,11 @@ export default function Success() {
                                                     <div>
                                                         <h4 className="font-semibold text-gray-800 mb-3">Room Images</h4>
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                            {booking.room.images.map((image: { id: string, url: string }, index: number) => (
+                                                            {booking.room.images.map((image: { id: string, url: string }, imageIndex: number) => (
                                                                 <div key={image.id} className="relative group">
                                                                     <img
                                                                         src={image.url}
-                                                                        alt={`Room view ${index + 1}`}
+                                                                        alt={`Room view ${imageIndex + 1}`}
                                                                         className="w-full h-32 object-cover rounded-lg shadow-sm hover:shadow-md transition-shadow"
                                                                         onError={(e) => {
                                                                             //@ts-ignore
@@ -329,25 +397,25 @@ export default function Success() {
                             {booking.enhancementBookings && booking.enhancementBookings.length > 0 && (
                                 <div className="border border-gray-200 rounded-lg">
                                     <button
-                                        onClick={() => setEnhancementsOpen(!enhancementsOpen)}
+                                        onClick={() => toggleEnhancements(booking.id)}
                                         className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
                                     >
                                         <div className="flex items-center gap-3">
                                             <Image className="w-5 h-5 text-gray-500" />
                                             <h3 className="text-lg font-medium text-gray-800">Selected Enhancements</h3>
                                         </div>
-                                        {enhancementsOpen ? (
+                                        {enhancementsOpen[booking.id] ? (
                                             <ChevronUp className="w-5 h-5 text-gray-500" />
                                         ) : (
                                             <ChevronDown className="w-5 h-5 text-gray-500" />
                                         )}
                                     </button>
                                     
-                                    {enhancementsOpen && (
+                                    {enhancementsOpen[booking.id] && (
                                         <div className="p-4 border-t border-gray-200 bg-gray-50">
                                             <div className="space-y-4">
-                                                {booking.enhancementBookings.map((enhancement: any, index: number) => (
-                                                    <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
+                                                {booking.enhancementBookings.map((enhancement: any, enhancementIndex: number) => (
+                                                    <div key={enhancementIndex} className="bg-white rounded-lg p-4 shadow-sm">
                                                         <div className="flex flex-col sm:flex-row gap-4">
                                                             {/* Enhancement Image */}
                                                             {enhancement.enhancement.image && (
@@ -398,51 +466,59 @@ export default function Success() {
                                     )}
                                 </div>
                             )}
-
-                            {/* Payment Summary */}
-                            <div className="border-t border-gray-200 pt-6">
-                                <h3 className="text-lg font-medium text-gray-800 mb-3">Payment Summary</h3>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Amount Paid:</span>
-                                        <span className="font-medium">€{(payment.amount).toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Payment Status:</span>
-                                        <span className={`font-medium ${payment.status === 'COMPLETED' ? 'text-green-600' : 'text-yellow-600'}`}>
-                                            {payment.status}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Payment Date:</span>
-                                        <span className="font-medium">{formatDate(payment.createdAt)}</span>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
+                    </div>
+                ))}
 
-                        {/* Footer Actions */}
-                        <div className="p-4 sm:p-6 bg-gray-50 border-t border-gray-200">
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <button
-                                    onClick={() => window.print()}
-                                    className="flex-1 bg-gray-100 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-center"
-                                >
-                                    Print Confirmation
-                                </button>
-                                <button
-                                    onClick={() => window.location.href = '/'}
-                                    className="flex-1 bg-gray-800 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors text-center"
-                                >
-                                    Return to Home
-                                </button>
+                {/* Overall Payment Summary */}
+                {bookings.length > 0 && payment?.status === 'COMPLETED' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+                        <h3 className="text-lg font-medium text-gray-800 mb-3">Payment Summary</h3>
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Total Amount Paid:</span>
+                                <span className="font-medium">€{(payment.amount).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Payment Status:</span>
+                                <span className={`font-medium ${payment.status === 'COMPLETED' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                    {payment.status}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Payment Date:</span>
+                                <span className="font-medium">{formatDate(payment.createdAt)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Total Rooms:</span>
+                                <span className="font-medium">{totalRooms}</span>
                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* Footer Actions */}
+                {payment?.status === 'COMPLETED' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button
+                                onClick={() => window.print()}
+                                className="flex-1 bg-gray-100 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-center"
+                            >
+                                Print Confirmations
+                            </button>
+                            <button
+                                onClick={() => window.location.href = '/'}
+                                className="flex-1 bg-gray-800 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors text-center"
+                            >
+                                Return to Home
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Pending/Failed States with minimal details */}
-                {booking && payment?.status !== 'COMPLETED' && (
+                {bookings && payment?.status !== 'COMPLETED' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
                         <h3 className="text-lg font-medium text-gray-800 mb-3">Booking Reference</h3>
                         <p className="text-sm text-gray-600 break-all">Booking ID: {booking.id}</p>
