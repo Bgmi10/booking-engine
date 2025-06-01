@@ -6,7 +6,6 @@ import { baseUrl } from "../utils/constants";
 import { format } from "date-fns";
 import type { Enhancement } from "../types/types";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Tag, Shield, Clock } from "lucide-react";
-import Header from "./Header";
 
 export default function Rates({ bookingData, setCurrentStep, availabilityData, setBookingData }: { bookingData: any, setCurrentStep: (step: number) => void, availabilityData: any, setBookingData: any }) {
 
@@ -20,8 +19,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
-
-  console.log(bookingData)
 
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
@@ -177,7 +174,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   function handleBookNow(rateOption: any) {
     const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc: any, curr: any) => acc.price + curr.price + 0) : 0;
-    console.log(enhancementPrice);
+    
     setBookingData((prev: any) => ({
       ...prev,
       selectedRateOption: rateOption,
@@ -196,8 +193,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   return (
     <div>
-      <Header />
-      <div className="container mx-auto">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="rounded-lg">
           <div className="py-6">
           <h2 className="text-2xl font-semibold text-center text-gray-800">Rates</h2>
@@ -205,15 +201,15 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
         <BookingSummary bookingData={bookingData} setCurrentStep={setCurrentStep} />
         
         {/* Room Display */}
-        <div className="flex gap-4 p-4">
-          <div className="bg-white flex rounded-xl shadow-sm overflow-hidden transition-all hover:shadow-md w-full">
+        <div className="flex gap-2 sm:gap-4 p-2 sm:p-4">
+          <div className="bg-white flex flex-col sm:flex-row rounded-xl shadow-sm overflow-hidden transition-all hover:shadow-md w-full">
             {/* Room image */}
-            <div className="relative h-64 overflow-hidden p-3">
+            <div className="relative h-48 sm:h-64 overflow-hidden p-2 sm:p-3">
               {selectedRoom.images?.length > 0 ? (
                 <img
                   src={selectedRoom.images[currentImageIndex]?.url}
                   alt={selectedRoom.name}
-                  className="w-96 rounded-md h-full object-cover transition-transform cursor-pointer"
+                  className="w-full sm:w-96 rounded-md h-full object-cover transition-transform cursor-pointer"
                   onClick={openGallery}
                 />
               ) : (
@@ -226,36 +222,36 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                   <button
                     onClick={prevImage}
                     disabled={currentImageIndex === 0}
-                    className={`cursor-pointer absolute left-3 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1.5 rounded-full transition-colors ${currentImageIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`cursor-pointer absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 sm:p-1.5 rounded-full transition-colors ${currentImageIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <ChevronLeft className="h-5 w-5" />
+                    <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                   <button
                     onClick={nextImage}
                     disabled={currentImageIndex === selectedRoom.images.length - 1}
-                    className={`cursor-pointer absolute right-3 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1.5 rounded-full transition-colors ${currentImageIndex === selectedRoom.images.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`cursor-pointer absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 sm:p-1.5 rounded-full transition-colors ${currentImageIndex === selectedRoom.images.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
-                  <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs px-2 py-1 rounded-md">
+                  <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-black/50 text-white text-xs px-2 py-1 rounded-md">
                     {currentImageIndex + 1}/{selectedRoom.images.length}
                   </div>
                 </>
               )}
             </div>
             
-            <div>
-              <div className="p-5 -mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">{selectedRoom.name}</h3>
+            <div className="flex-1">
+              <div className="p-3 sm:p-5 -mb-3 sm:-mb-6">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800">{selectedRoom.name}</h3>
               </div>
 
-              <div className="p-5">
+              <div className="p-3 sm:p-5">
                 <div className="flex items-center gap-2 text-gray-700 mb-3">
-                  <User className="h-5 w-5" />
-                  <span>Maximum persons: {selectedRoom.capacity}</span>
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-sm sm:text-base">Maximum persons: {selectedRoom.capacity}</span>
                 </div>
 
-                {isExpanded && <p className="text-gray-600 mb-3">{selectedRoom.description}</p>}
+                {isExpanded && <p className="text-gray-600 mb-3 text-sm sm:text-base">{selectedRoom.description}</p>}
                 
                 <div
                   className="flex items-center gap-1 text-gray-700 cursor-pointer mb-3"
@@ -263,13 +259,13 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                 >
                   {isExpanded ? (
                     <>
-                      <ChevronUp className="h-5 w-5" />
-                      <span className="text-sm font-medium">Less</span>
+                      <ChevronUp className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="text-xs sm:text-sm font-medium">Less</span>
                     </>
                   ) : (
                     <>
-                      <ChevronDown className="h-5 w-5" />
-                      <span className="text-sm font-medium">More</span>
+                      <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="text-xs sm:text-sm font-medium">More</span>
                     </>
                   )}
                 </div>
@@ -279,35 +275,39 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
         </div>
 
         {/* Main Content Area */}
-        <div className="flex gap-6 p-4">
-          {/* Left Side - Enhancements */}
-          <div className={`${enhancements.length > 0 ? 'flex-1' : 'hidden'}`}>
-           {enhancements.length > 0 && <h3 className="text-xl font-semibold mb-4 text-gray-800">Enhance your stay</h3>}
-            <div className="space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 p-2 sm:p-4">
+          {/* Left Side - Enhancements (Original Large Screen Design) */}
+          <div className={`${enhancements.length > 0 ? 'lg:flex-1' : 'hidden'} order-2 lg:order-1`}>
+           {enhancements.length > 0 && <h3 className="text-lg sm:text-xl font-semibold mb-4 text-gray-800 hidden lg:block">Enhance your stay</h3>}
+           
+          
+
+           {/* Original Large Screen Enhancement Design */}
+            <div className="space-y-4 hidden lg:block">
               {enhancements.map((enhancement: any) => {
                 const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
                 return (
-                  <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                    <div className="flex gap-4">
+                  <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <img 
                         src={enhancement.image} 
                         alt={enhancement.title} 
-                        className="w-20 h-20 rounded-lg object-cover flex-shrink-0" 
+                        className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover flex-shrink-0" 
                       />
                       <div className="flex-1">
-                        <h4 className="text-lg font-bold text-gray-800 mb-2">{enhancement.title}</h4>
-                        <p className="text-gray-600 text-sm mb-3">{enhancement.description}</p>
+                        <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.title}</h4>
+                        <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
                         
                         {enhancementDetails[enhancement.id] && (
                             <div>
                               <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                                <p className="text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
+                                <p className="text-xs sm:text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
                               </div>
-                              <div className="flex gap-2">
-                                   {enhancement.availableDays.map((item: string) => 
+                              <div className="flex flex-wrap gap-1 sm:gap-2">
+                                   {enhancement.availableDays.map((item: string, index: number) => 
                                       (
-                                        <span className="gap-2 flex text-gray-600">
-                                            {item},
+                                        <span key={index} className="text-gray-600 text-xs sm:text-sm">
+                                            {item}{index < enhancement.availableDays.length - 1 ? ',' : ''}
                                         </span>
                                       )
                                     )}   
@@ -316,32 +316,32 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         )}
                         
                         <button
-                          className="flex items-center text-gray-700 text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
+                          className="flex items-center text-gray-700 text-xs sm:text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
                           onClick={() => toggleEnhancementDetails(enhancement.id)}
                         >
                           {enhancementDetails[enhancement.id] ? (
-                            <>less <ChevronUp className="h-4 w-4 ml-1" /></>
+                            <>less <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
                           ) : (
-                            <>more <ChevronDown className="h-4 w-4 ml-1" /></>
+                            <>more <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
                           )}
                         </button>
                         
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                           <div>
-                            <span className="text-xl font-bold text-gray-800">€{enhancement.price}</span>
-                            <span className="text-gray-600 ml-1">/ {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
+                            <span className="text-lg sm:text-xl font-bold text-gray-800">€{enhancement.price}</span>
+                            <span className="text-gray-600 ml-1 text-sm">/ {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
                           </div>
                           
                           {isAdded ? (
                             <button 
-                              className="bg-red-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer"
+                              className="bg-red-600 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer text-sm w-full sm:w-auto"
                               onClick={() => removeEnhancement(enhancement.id)}
                             >
                               Remove
                             </button>
                           ) : (
                             <button 
-                              className="bg-gray-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors cursor-pointer"
+                              className="bg-gray-800 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors cursor-pointer text-sm w-full sm:w-auto"
                               onClick={() => addEnhancement(enhancement)}
                             >
                               Add
@@ -355,15 +355,15 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               })}
             </div>
 
-            {/* Selected Enhancements */}
+            {/* Selected Enhancements for Large Screen */}
             {bookingData.selectedEnhancements?.length > 0 && (
-              <div className="mt-6">
-                <h4 className="text-lg font-semibold mb-3 text-gray-800">Added Enhancements</h4>
+              <div className="mt-6 hidden lg:block">
+                <h4 className="text-base sm:text-lg font-semibold mb-3 text-gray-800">Added Enhancements</h4>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   {bookingData.selectedEnhancements.map((enhancement: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center py-2 border-b border-green-200 last:border-b-0">
-                      <span className="text-green-800 font-medium">{enhancement.title}</span>
-                      <span className="text-green-700 font-semibold">€{enhancement.price} / {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
+                    <div key={index} className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-2 border-b border-green-200 last:border-b-0 gap-1 sm:gap-0">
+                      <span className="text-green-800 font-medium text-sm sm:text-base">{enhancement.title}</span>
+                      <span className="text-green-700 font-semibold text-sm sm:text-base">€{enhancement.price} / {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
                     </div>
                   ))}
                 </div>
@@ -372,32 +372,31 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           </div>
 
           {/* Right Side - Occupancy and Rates */}
-          <div className="w-1/2 space-y-6">
+          <div className="lg:w-1/2 space-y-4 sm:space-y-6 order-1 lg:order-2">
             {/* Occupancy Section */}
-            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-              <h3 className="text-xl font-semibold mb-4 text-center text-gray-800">Occupancy</h3>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-center text-gray-800">Occupancy</h3>
               
               <div className="space-y-4">
-            
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Room 1:</label>
-                  <div className="ml-4">
+                  <div className="ml-2 sm:ml-4">
                     <label className="block text-sm text-gray-600 mb-1">Adults</label>
-                    <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 sm:px-4 py-3">
                       <button 
-                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
                         onClick={() => updateOccupancy('adults', -1)}
                         disabled={adults <= 1}
                       >
-                        <Minus className="h-4 w-4" />
+                        <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
-                      <span className="font-semibold text-lg">{adults}</span>
+                      <span className="font-semibold text-base sm:text-lg">{adults}</span>
                       <button 
-                        className="w-8 h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
                         onClick={() => updateOccupancy('adults', 1)}
                         disabled={adults >= selectedRoom.capacity}
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                     </div>
                     {adults >= selectedRoom.capacity && (
@@ -407,105 +406,200 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                 </div>
               </div>
             </div>
+ {/* Mobile Compact Enhancement Design */}
+ {enhancements.length > 0 && (
+            <div className="lg:hidden bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-4">
+              <h3 className="text-lg font-semibold mb-3 text-gray-800">Add-ons</h3>
+              <p className="text-sm text-gray-600 mb-4">Enhance your stay with these optional services</p>
+              
+              <div className="space-y-3">
+                {enhancements.map((enhancement: any) => {
+                  const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
+                  return (
+                    <div key={enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
+                      <div className="flex items-start gap-3">
+                        {/* Small thumbnail for mobile */}
+                        <img 
+                          src={enhancement.image} 
+                          alt={enhancement.title} 
+                          className="w-12 h-12 rounded-md object-cover flex-shrink-0" 
+                        />
+                        
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-gray-800 leading-tight">{enhancement.title}</h4>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">{enhancement.description}</p>
+                          
+                          {/* Price and action in one line on mobile */}
+                          <div className="flex items-center justify-between mt-2 gap-2">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-bold text-gray-800">€{enhancement.price}</span>
+                              <span className="text-xs text-gray-600">/ {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
+                            </div>
+                            
+                            {isAdded ? (
+                              <button 
+                                className="bg-red-100 text-red-700 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors cursor-pointer"
+                                onClick={() => removeEnhancement(enhancement.id)}
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <button 
+                                className="bg-blue-600 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+                                onClick={() => addEnhancement(enhancement)}
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Expandable details for mobile */}
+                          {enhancementDetails[enhancement.id] && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <div className="bg-gray-50 rounded-md p-2 mb-2">
+                                <p className="text-xs text-gray-700">Available during your {nights} night stay</p>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {enhancement.availableDays.map((item: string, index: number) => (
+                                  <span key={index} className="text-xs text-gray-600 bg-gray-100 px-1 py-0.5 rounded">
+                                    {item}
+                                  </span>
+                                ))}   
+                              </div>
+                            </div>
+                          )}
+                          
+                          <button
+                            className="flex items-center text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors cursor-pointer"
+                            onClick={() => toggleEnhancementDetails(enhancement.id)}
+                          >
+                            {enhancementDetails[enhancement.id] ? (
+                              <>Hide details <ChevronUp className="h-3 w-3 ml-1" /></>
+                            ) : (
+                              <>Show details <ChevronDown className="h-3 w-3 ml-1" /></>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
+              {/* Selected Enhancements Summary for mobile */}
+              {bookingData.selectedEnhancements?.length > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="text-sm font-semibold mb-2 text-green-800">Selected Add-ons ({bookingData.selectedEnhancements.length})</h4>
+                  <div className="space-y-1">
+                    {bookingData.selectedEnhancements.map((enhancement: any, index: number) => (
+                      <div key={index} className="flex justify-between items-center text-sm">
+                        <span className="text-green-700">{enhancement.title}</span>
+                        <span className="text-green-800 font-medium">€{enhancement.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+           )}
             {/* All Rate Options */}
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-800">Available Rates</h3>
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Available Rates</h3>
+            
+            {rateOptions.map((rateOption: any) => {
+              const hasDiscount = rateOption.discountPercentage > 0;
+              const totalPrice = rateOption.price * nights * rooms;
+              const basePrice = selectedRoom?.price || 0;
               
-              {rateOptions.map((rateOption: any) => {
-                const hasDiscount = rateOption.discountPercentage > 0;
-                const totalPrice = rateOption.price * nights * rooms;
-                const basePrice = selectedRoom?.price || 0;
-                
-                return (
-                  <div key={rateOption.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    {/* Rate Header */}
-                    <div className={`p-4 ${rateOption.type === 'special' && hasDiscount ? 'bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-200' : 'bg-gray-50 border-b border-gray-200'}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {hasDiscount && <Tag className="h-4 w-4 text-orange-600" />}
-                          <h4 className={`font-bold ${hasDiscount ? 'text-orange-800' : 'text-gray-800'}`}>
-                            {rateOption.name}
-                          </h4>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${rateOption.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                            {rateOption.isActive ? 'Active' : 'Inactive'}
+              return (
+                <div key={rateOption.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  {/* Rate Header */}
+                  <div className={`p-3 sm:p-4 ${rateOption.type === 'special' && hasDiscount ? 'bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-200' : 'bg-gray-50 border-b border-gray-200'}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        {hasDiscount && <Tag className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />}
+                        <h4 className={`font-bold text-sm sm:text-base ${hasDiscount ? 'text-orange-800' : 'text-gray-800'}`}>
+                          {rateOption.name}
+                        </h4>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${rateOption.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {rateOption.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        {hasDiscount && (
+                          <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
+                            -{rateOption.discountPercentage}%
                           </span>
-                          {hasDiscount && (
-                            <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
-                              -{rateOption.discountPercentage}%
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
-                      <p className={`text-sm ${hasDiscount ? 'text-orange-700' : 'text-gray-600'}`}>
-                        {rateOption.description}
-                      </p>
                     </div>
-
-                    {/* Rate Body */}
-                    <div className="p-4">
-                      {/* Pricing Display */}
-                      <div className="space-y-3 mb-4">
-                        {hasDiscount && rateOption.type === 'special' && (
-                          <div className="flex justify-between items-center text-gray-500">
-                            <span className="text-sm">Original Rate:</span>
-                            <span className="line-through text-sm">€{basePrice.toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-lg font-bold text-gray-800">€{rateOption.price.toFixed(2)}</span>
-                          <span className="text-sm text-gray-600">per night</span>
-                        </div>
-                        <div className="flex justify-between items-center text-lg font-semibold text-gray-700 border-t pt-2">
-                          <span>Total ({nights} nights, {rooms} room{rooms > 1 ? 's' : ''}):</span>
-                          <span className="text-xl font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      {/* Policy Information */}
-                      <div className="space-y-2 mb-4 text-xs">
-                        <div className="flex items-center gap-2">
-                          <Shield className="h-3 w-3 text-gray-600" />
-                          <span className={`px-2 py-1 rounded font-medium ${rateOption.refundable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {rateOption.refundable ? 'Refundable' : 'Non-refundable'}
-                          </span>
-                        </div>
-                        
-                        {rateOption.fullPaymentDays && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Clock className="h-3 w-3" />
-                            <span>Full payment required {rateOption.fullPaymentDays} days before arrival</span>
-                          </div>
-                        )}
-                        
-                        {rateOption.changeAllowedDays && (
-                          <div className="text-gray-600">
-                            <span>Changes allowed up to {rateOption.changeAllowedDays} days before arrival</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Book Now Button */}
-                      <button 
-                        className={`w-full py-3 rounded-lg font-semibold transition-colors cursor-pointer ${
-                          hasDiscount 
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white' 
-                            : 'bg-gray-900 hover:bg-gray-800 text-white'
-                        }`}
-                        onClick={() => handleBookNow(rateOption)}
-                      >
-                        Book This Rate - €{totalPrice.toFixed(2)}
-                      </button>
-                    </div>
+                    <p className={`text-xs sm:text-sm ${hasDiscount ? 'text-orange-700' : 'text-gray-600'}`}>
+                      {rateOption.description}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Rate Body */}
+                  <div className="p-3 sm:p-4">
+                    {/* Pricing Display */}
+                    <div className="space-y-2 sm:space-y-3 mb-4">
+                      {hasDiscount && rateOption.type === 'special' && (
+                        <div className="flex justify-between items-center text-gray-500">
+                          <span className="text-xs sm:text-sm">Original Rate:</span>
+                          <span className="line-through text-xs sm:text-sm">€{basePrice.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-base sm:text-lg font-bold text-gray-800">€{rateOption.price.toFixed(2)}</span>
+                        <span className="text-xs sm:text-sm text-gray-600">per night</span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-base sm:text-lg font-semibold text-gray-700 border-t pt-2 gap-1 sm:gap-0">
+                        <span className="text-sm sm:text-base">Total ({nights} nights, {rooms} room{rooms > 1 ? 's' : ''}):</span>
+                        <span className="text-lg sm:text-xl font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Policy Information */}
+                    <div className="space-y-2 mb-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-3 w-3 text-gray-600 flex-shrink-0" />
+                        <span className={`px-2 py-1 rounded font-medium text-xs ${rateOption.refundable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {rateOption.refundable ? 'Refundable' : 'Non-refundable'}
+                        </span>
+                      </div>
+                      
+                      {rateOption.fullPaymentDays && (
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <Clock className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                          <span className="text-xs">Full payment required {rateOption.fullPaymentDays} days before arrival</span>
+                        </div>
+                      )}
+                      
+                      {rateOption.changeAllowedDays && (
+                        <div className="text-gray-600 ml-5">
+                          <span className="text-xs">Changes allowed up to {rateOption.changeAllowedDays} days before arrival</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Book Now Button */}
+                    <button 
+                      className={`w-full py-2 sm:py-3 rounded-lg font-semibold transition-colors cursor-pointer text-sm sm:text-base ${
+                        hasDiscount 
+                          ? 'bg-orange-600 hover:bg-orange-700 text-white' 
+                          : 'bg-gray-900 hover:bg-gray-800 text-white'
+                      }`}
+                      onClick={() => handleBookNow(rateOption)}
+                    >
+                      Book This Rate - €{totalPrice.toFixed(2)}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
+    </div>
     </div>
     </div>
   );

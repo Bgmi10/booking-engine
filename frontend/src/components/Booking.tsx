@@ -237,7 +237,7 @@ export default function Booking() {
         <div className="w-full bg-white relative z-10">
           <div className="container px-4">
             <div className="py-4">
-              <StepIndicator steps={STEPS} currentStep={currentStep} setCurrentStep={setCurrentStep} />
+              <StepIndicator steps={STEPS} currentStep={currentStep} setCurrentStep={setCurrentStep} bookingData={bookingData} />
             </div>
           </div>
         </div>

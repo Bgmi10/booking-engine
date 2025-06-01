@@ -30,7 +30,6 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
     const countries = CountryList.getAll();
     const [filteredCountries, setFilteredCountries] = useState<any[]>(countries);
     
-    console.log(country)
     useEffect(() => {
        const filteredCountries = countries.filter((country: any) => 
         country.data.name.toLowerCase().includes(countrySearch.toLowerCase())
@@ -256,17 +255,17 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-6 min-h-screen">
-            <div className="text-center mb-8">
-                <h1 className="text-2xl font-semibold text-gray-800">Contact Details</h1>
+        <div className="max-w-4xl mx-auto p-3 sm:p-6 min-h-screen">
+            <div className="text-center mb-6 sm:mb-8">
+                <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Contact Details</h1>
             </div>
 
             <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 text-center">
-                    <span className="text-lg font-semibold text-gray-800">Your details</span>
+                <div className="p-4 sm:p-6 text-center">
+                    <span className="text-base sm:text-lg font-semibold text-gray-800">Your details</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 sm:p-6">
                     <div className="text-left">
                         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                             Name <span className="text-red-500">*</span>
@@ -305,11 +304,11 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                     type="text" 
                                     value={country || "+39"} 
                                     onClick={() => setShowCountry(!showCountry)}
-                                    className="mt-1 block w-20 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-2 py-2 outline-none border border-gray-300 cursor-pointer text-center"
+                                    className="mt-1 block w-16 sm:w-20 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-2 py-2 outline-none border border-gray-300 cursor-pointer text-center text-xs sm:text-sm"
                                     readOnly
                                 />
                                 {showCountry && (
-                                    <div className="absolute top-12 left-0 w-80 max-h-64 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                                    <div className="absolute top-12 left-0 w-72 sm:w-80 max-h-64 bg-white rounded-md shadow-lg border border-gray-200 z-10">
                                         <div className="p-3 border-b border-gray-200">
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -334,7 +333,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                                     }}
                                                 >
                                                     <span className="text-sm font-medium">{countryItem.dial_code}</span>
-                                                    <span className="text-sm text-gray-600">{countryItem.name}</span>
+                                                    <span className="text-sm text-gray-600 truncate">{countryItem.name}</span>
                                                 </div>
                                             ))}
                                             {filteredCountries.length === 0 && (
@@ -374,7 +373,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                 {showNationality ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                             </div>
                             {showNationality && (
-                                <div className="absolute top-12 left-0 w-full bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                                <div className="absolute top-12 left-0 right-0 bg-white rounded-md shadow-lg border border-gray-200 z-10">
                                     <div className="p-3 border-b border-gray-200">
                                         <div className="relative">
                                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -412,7 +411,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                         </div>
                     </div>
 
-                    <div className="text-left col-span-2">
+                    <div className="text-left col-span-1 lg:col-span-2">
                         <label htmlFor="specialRequests" className="block text-sm font-medium text-gray-700">Special requests</label>
                         <textarea 
                             id="specialRequests" 
@@ -429,8 +428,8 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
             {/* Booking Summary */}
             {allItems.length > 0 && (
                 <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
-                    <div className="p-6">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Booking Summary</h3>
+                    <div className="p-4 sm:p-6">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Booking Summary</h3>
                         
                         {allItems.map((item, index) => {
                             const nights = calculateNights(item.checkIn, item.checkOut);
@@ -441,23 +440,23 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                             
                             return (
                                 <div key={item.id || index} className="mb-6 pb-4 border-b border-gray-100 last:border-b-0">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <div className="text-gray-800 font-medium text-lg">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-2">
+                                        <div className="flex-1">
+                                            <div className="text-gray-800 font-medium text-base sm:text-lg">
                                                 {getRoomName(item)}
                                             </div>
                                             <div className="text-sm text-gray-500">
                                                 {formatDate(item.checkIn)} - {formatDate(item.checkOut)} • {nights} night{nights > 1 ? 's' : ''} • {rooms} room{rooms > 1 ? 's' : ''}
                                             </div>
                                         </div>
-                                        <span className="font-semibold text-lg">€{itemTotal.toFixed(2)}</span>
+                                        <span className="font-semibold text-lg text-right">€{itemTotal.toFixed(2)}</span>
                                     </div>
                                     
                                     {/* Room Rate Breakdown */}
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between text-gray-600">
-                                            <span>{item.selectedRateOption?.name || 'Standard Rate'} ({nights} × {rooms} × €{item.selectedRateOption?.price || 0})</span>
-                                            <span>€{roomBasePrice.toFixed(2)}</span>
+                                            <span className="flex-1 pr-2">{item.selectedRateOption?.name || 'Standard Rate'} ({nights} × {rooms} × €{item.selectedRateOption?.price || 0})</span>
+                                            <span className="font-medium">€{roomBasePrice.toFixed(2)}</span>
                                         </div>
                                         
                                         {/* Enhancements Breakdown */}
@@ -471,14 +470,14 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                                     
                                                     return (
                                                         <div key={enhIndex} className="flex justify-between text-gray-600">
-                                                            <span>
+                                                            <span className="flex-1 pr-2">
                                                                 {enhancement.title} 
                                                                 ({quantity} × €{enhancement.price})
                                                                 {enhancement.pricingType === "PER_GUEST" && (
                                                                     <span className="text-xs text-gray-500"> per guest</span>
                                                                 )}
                                                             </span>
-                                                            <span>€{enhancementTotal.toFixed(2)}</span>
+                                                            <span className="font-medium">€{enhancementTotal.toFixed(2)}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -498,8 +497,8 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                         </div>
 
                         <div className="flex justify-between items-center pt-4 border-t border-gray-300 mt-4">
-                            <span className="text-xl font-semibold">Total</span>
-                            <span className="text-xl font-semibold">€{grandTotal.toFixed(2)}</span>
+                            <span className="text-lg sm:text-xl font-semibold">Total</span>
+                            <span className="text-lg sm:text-xl font-semibold">€{grandTotal.toFixed(2)}</span>
                         </div>
 
                         <div className="text-sm text-gray-500 text-right mt-2">
@@ -508,14 +507,14 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                     </div>
 
                     {/* Terms and Conditions */}
-                    <div className="px-6 pb-6 space-y-4">
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
                         <div className="flex items-start gap-3">
                             <input
                                 type="checkbox"
                                 id="agreeTerms"
                                 checked={agreeToTerms}
                                 onChange={(e) => setAgreeToTerms(e.target.checked)}
-                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500"
+                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
                             />
                             <label htmlFor="agreeTerms" className="text-sm text-gray-700">
                                 I agree to{" "}
@@ -537,7 +536,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                 id="receiveMarketing"
                                 checked={receiveMarketing}
                                 onChange={(e) => setReceiveMarketing(e.target.checked)}
-                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500"
+                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
                             />
                             <label htmlFor="receiveMarketing" className="text-sm text-gray-700">
                                 I'd like to occasionally receive marketing updates from La Torre sulla via Francigena.

@@ -77,7 +77,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     setCurrentStep(2);
   };
 
-
   const getRoomName = (item: any) => {
     // First try to get room name from stored room details
     if (item.roomDetails?.name) {
@@ -142,12 +141,12 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   const displayTax = calculateDisplayTax(grandTotal);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 min-h-screen">
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-semibold text-gray-800">Summary</h1>
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 min-h-screen">
+      <div className="text-center mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Summary</h1>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {allItems.map((item, index) => {
           const nights = calculateNights(item.checkIn, item.checkOut);
           const basePrice = calculateItemBasePrice(item);
@@ -156,8 +155,78 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
           
           return (
             <div key={item.id || index} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-start gap-4">
+              <div className="p-4 sm:p-6">
+                {/* Mobile Layout */}
+                <div className="block sm:hidden">
+                  {/* Room Image */}
+                  <div className="w-full h-40 rounded-lg overflow-hidden mb-4">
+                    {item.roomDetails?.images?.[0]?.url ? (
+                      <img
+                        src={item.roomDetails.images[0].url}
+                        alt={getRoomName(item)}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white font-medium">
+                        Room
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Room Info */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-lg font-semibold text-gray-800 pr-2">
+                        {getRoomName(item)}
+                      </h3>
+                      <span className="text-lg font-semibold text-right">€{itemTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <div className="flex items-start gap-2">
+                        <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span className="break-words">{formatDate(item.checkIn)} - {formatDate(item.checkOut)} ({nights} nights)</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 flex-shrink-0" />
+                        <span>Adults: {item.adults} | Rooms: {item.rooms || 1}</span>
+                      </div>
+                      
+                      <div className="flex items-start gap-2">
+                        <BarChart3 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <span className="break-words">Rate: {item.selectedRateOption?.name || 'Standard Rate'}</span>
+                          {item.selectedRateOption?.discountPercentage > 0 && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                                <Tag className="w-3 h-3" />
+                                -{item.selectedRateOption.discountPercentage}% OFF
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Price Breakdown - Mobile */}
+                    <div className="text-sm bg-gray-50 p-3 rounded-lg">
+                      <div className="flex justify-between text-gray-600 mb-1">
+                        <span className="text-xs">Room rate ({nights} nights × {item.rooms || 1} room{(item.rooms || 1) > 1 ? 's' : ''})</span>
+                        <span className="text-xs">€{basePrice.toFixed(2)}</span>
+                      </div>
+                      {enhancementsPrice > 0 && (
+                        <div className="flex justify-between text-gray-600">
+                          <span className="text-xs">Enhancements ({item.adults} adults)</span>
+                          <span className="text-xs">€{enhancementsPrice.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden sm:flex items-start gap-4">
                   <div className="w-32 h-24 rounded-lg overflow-hidden flex-shrink-0">
                     {item.roomDetails?.images?.[0]?.url ? (
                       <img
@@ -205,7 +274,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       </div>
                     </div>
 
-                    {/* Price Breakdown */}
+                    {/* Price Breakdown - Desktop */}
                     <div className="mt-3 text-sm">
                       <div className="flex justify-between text-gray-600">
                         <span>Room rate ({nights} nights × {item.rooms || 1} room{(item.rooms || 1) > 1 ? 's' : ''})</span>
@@ -218,47 +287,48 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                         </div>
                       )}
                     </div>
+                  </div>
+                </div>
 
-                    {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
-                      <div className="mt-3">
-                        <button
-                          onClick={() => toggleExpanded(index)}
-                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
-                        >
-                          {expandedItems[index] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          View enhancements ({item.selectedEnhancements.length})
-                        </button>
-                        
-                        {expandedItems[index] && (
-                          <div className="mt-2 pl-4 border-l-2 border-gray-200">
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">Enhancements:</h4>
-                            {item.selectedEnhancements.map((enhancement: any) => (
-                              <div key={enhancement.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
-                                <div className="flex items-center gap-2">
-                                  <img 
-                                    src={enhancement.image} 
-                                    alt={enhancement.title}
-                                    className="w-8 h-8 rounded object-cover"
-                                  />
-                                  <div>
-                                    <span className="text-sm font-medium">{enhancement.title}</span>
-                                    <p className="text-xs text-gray-500">{enhancement.description}</p>
-                                    <p className="text-xs text-gray-400">
-                                      €{enhancement.price} × {item.adults} adults
-                                    </p>
-                                  </div>
-                                </div>
-                                <span className="text-sm font-medium">
-                                  €{(enhancement.price * item.adults).toFixed(2)}
-                                </span>
+                {/* Enhancements Section - Common for both layouts */}
+                {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
+                  <div className="mt-4 sm:mt-3">
+                    <button
+                      onClick={() => toggleExpanded(index)}
+                      className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                    >
+                      {expandedItems[index] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      View enhancements ({item.selectedEnhancements.length})
+                    </button>
+                    
+                    {expandedItems[index] && (
+                      <div className="mt-2 pl-4 border-l-2 border-gray-200">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Enhancements:</h4>
+                        {item.selectedEnhancements.map((enhancement: any) => (
+                          <div key={enhancement.id} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-b-0 gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <img 
+                                src={enhancement.image} 
+                                alt={enhancement.title}
+                                className="w-8 h-8 rounded object-cover flex-shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm font-medium block">{enhancement.title}</span>
+                                <p className="text-xs text-gray-500 break-words">{enhancement.description}</p>
+                                <p className="text-xs text-gray-400">
+                                  €{enhancement.price} × {item.adults} adults
+                                </p>
                               </div>
-                            ))}
+                            </div>
+                            <span className="text-sm font-medium flex-shrink-0">
+                              €{(enhancement.price * item.adults).toFixed(2)}
+                            </span>
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           );
@@ -279,46 +349,46 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
 
         {/* Price Summary */}
         {allItems.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="space-y-3">
               {allItems.map((item, index) => {
                 const itemTotal = calculateItemTotal(item);
                 const nights = calculateNights(item.checkIn, item.checkOut);
                 
                 return (
-                  <div key={item.id || index} className="flex justify-between items-center">
-                    <div>
-                      <div className="text-gray-700">
+                  <div key={item.id || index} className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-gray-700 text-sm sm:text-base break-words">
                         {getRoomName(item)} + {item.selectedRateOption?.name || 'Standard Rate'}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-xs sm:text-sm text-gray-500">
                         {nights} nights × {item.rooms || 1} room{(item.rooms || 1) > 1 ? 's' : ''}
                         {item.selectedEnhancements?.length > 0 && (
                           <span> + {item.selectedEnhancements.length} enhancement{item.selectedEnhancements.length > 1 ? 's' : ''}</span>
                         )}
                       </div>
                     </div>
-                    <span className="font-medium">€{itemTotal.toFixed(2)}</span>
+                    <span className="font-medium text-sm sm:text-base flex-shrink-0">€{itemTotal.toFixed(2)}</span>
                   </div>
                 );
               })}
               
               <div className="flex justify-between items-center pt-3 border-t">
-                <span className="text-gray-700">IVA 10%</span>
+                <span className="text-gray-700 text-sm sm:text-base">IVA 10%</span>
                 <div className="text-right">
-                  <div className="font-medium">€{displayTax.toFixed(2)}</div>
+                  <div className="font-medium text-sm sm:text-base">€{displayTax.toFixed(2)}</div>
                   <div className="text-xs text-gray-500">Taxes included in price</div>
                 </div>
               </div>
 
               <div className="flex justify-between items-center pt-3 border-t border-gray-300">
-                <span className="text-xl font-semibold">Total</span>
-                <span className="text-xl font-semibold">€{grandTotal.toFixed(2)}</span>
+                <span className="text-lg sm:text-xl font-semibold">Total</span>
+                <span className="text-lg sm:text-xl font-semibold">€{grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
             <div className="mt-6">
-            <button
+              <button
                 onClick={() => {
                   // If we have a current booking that's not in bookingItems yet, add it
                   if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
@@ -352,7 +422,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         {/* Show message if no items */}
         {allItems.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg mb-4">No booking items yet</p>
+            <p className="text-gray-500 text-base sm:text-lg mb-4">No booking items yet</p>
             <button
               onClick={() => setCurrentStep(2)}
               className="bg-gray-800 text-white py-2 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium cursor-pointer" 

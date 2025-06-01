@@ -521,9 +521,9 @@ export default function Success() {
                 {bookings && payment?.status !== 'COMPLETED' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
                         <h3 className="text-lg font-medium text-gray-800 mb-3">Booking Reference</h3>
-                        <p className="text-sm text-gray-600 break-all">Booking ID: {booking.id}</p>
-                        <p className="text-sm text-gray-600">Guest: {booking.guestName}</p>
-                        <p className="text-sm text-gray-600 break-all">Email: {booking.guestEmail}</p>
+                        <p className="text-sm text-gray-600 break-all">Booking ID: {bookings[0].id}</p>
+                        <p className="text-sm text-gray-600">Guest: {bookings[0].guestName}</p>
+                        <p className="text-sm text-gray-600 break-all">Email: {bookings[0].guestEmail}</p>
                     </div>
                 )}
             </div>

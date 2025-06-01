@@ -18,9 +18,18 @@ interface DateSelectorProps {
   onFetchAvailability: (startDate: string, endDate: string) => Promise<void>
   calenderOpen: boolean
   setCalenderOpen: (calenderOpen: boolean) => void
+  minStayDays?: number // Add minimum stay configuration
 }
 
-const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFetchAvailability, calenderOpen, setCalenderOpen }: DateSelectorProps) => {
+const DateSelector = ({ 
+  onSelect, 
+  availabilityData, 
+  isLoadingAvailability, 
+  onFetchAvailability, 
+  calenderOpen, 
+  setCalenderOpen,
+  minStayDays = 2 // Default minimum stay is 2 days
+}: DateSelectorProps) => {
  
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
     startDate: null,
@@ -64,6 +73,39 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
     return availabilityData.availableDates.includes(dateStr)
   }
 
+  // Helper function to calculate days between dates
+  const daysBetween = (startDate: Date, endDate: Date): number => {
+    const timeDiff = endDate.getTime() - startDate.getTime()
+    return Math.ceil(timeDiff / (1000 * 3600 * 24))
+  }
+
+  // Helper function to check if a date meets minimum stay requirement
+  const meetsMinimumStay = (startDate: Date, endDate: Date): boolean => {
+    return daysBetween(startDate, endDate) >= minStayDays
+  }
+
+  // Helper function to check if a date is disabled for departure selection
+  const isDateDisabledForDeparture = (date: Date): boolean => {
+    if (!selectedDates.startDate) return false
+    
+    // Same date as arrival
+    if (date.getTime() === selectedDates.startDate.getTime()) {
+      return true
+    }
+    
+    // Before arrival date
+    if (date < selectedDates.startDate) {
+      return true
+    }
+    
+    // Doesn't meet minimum stay requirement
+    if (!meetsMinimumStay(selectedDates.startDate, date)) {
+      return true
+    }
+    
+    return false
+  }
+
   // Handle date selection with validation
   const handleDateClick = (date: Date) => {
     // Check if date is in the past
@@ -79,6 +121,28 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
       setTimeout(() => setWarningMessage(""), 3000)
       return
     }
+
+    // If selecting departure date and it's the same as arrival
+    if (selectedDates.startDate && date.getTime() === selectedDates.startDate.getTime()) {
+      setWarningMessage("Departure date cannot be the same as arrival date")
+      setTimeout(() => setWarningMessage(""), 3000)
+      return
+    }
+
+    // If selecting departure date and it doesn't meet minimum stay
+    if (selectedDates.startDate && !selectedDates.endDate) {
+      if (date < selectedDates.startDate) {
+        setWarningMessage("Departure date cannot be before arrival date")
+        setTimeout(() => setWarningMessage(""), 3000)
+        return
+      }
+
+      if (!meetsMinimumStay(selectedDates.startDate, date)) {
+        setWarningMessage(`Minimum stay is ${minStayDays} days`)
+        setTimeout(() => setWarningMessage(""), 3000)
+        return
+      }
+    }
     
     setWarningMessage("") // Clear any existing warning
     
@@ -92,6 +156,7 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
     } else {
       // Complete the selection
       if (date < selectedDates.startDate) {
+        // This shouldn't happen with our validation, but keeping as fallback
         setSelectedDates({
           startDate: date,
           endDate: selectedDates.startDate,
@@ -143,7 +208,7 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
     return date < today
   }
 
-  // Corrected availability state function with proper logic
+  // FIXED: Corrected availability state function with proper logic for both months
   const getDateAvailabilityState = (date: Date): 'fullyBooked' | 'partiallyBooked' | 'available' | 'unknown' => {
     const dateStr = formatDateForAPI(date)
     
@@ -166,6 +231,11 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
   const getDateStyling = (date: Date) => {
     if (isDateInPast(date)) {
       return "bg-gray-100 text-gray-400 cursor-not-allowed"
+    }
+
+    // Check if date is disabled for departure selection
+    if (selectedDates.startDate && !selectedDates.endDate && isDateDisabledForDeparture(date)) {
+      return "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
     }
   
     const availabilityState = getDateAvailabilityState(date)
@@ -193,6 +263,19 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
   const getDateTooltip = (date: Date) => {
     if (isDateInPast(date)) {
       return "Cannot book dates in the past"
+    }
+
+    // Check if date is disabled for departure selection
+    if (selectedDates.startDate && !selectedDates.endDate && isDateDisabledForDeparture(date)) {
+      if (date.getTime() === selectedDates.startDate.getTime()) {
+        return "Departure cannot be same as arrival"
+      }
+      if (date < selectedDates.startDate) {
+        return "Departure cannot be before arrival"
+      }
+      if (!meetsMinimumStay(selectedDates.startDate, date)) {
+        return `Minimum stay is ${minStayDays} days`
+      }
     }
 
     if (isDateFullyBooked(date)) {
@@ -276,6 +359,14 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
     }
 
     return days
+  }
+
+  // Check if a date is clickable
+  const isDateClickable = (date: Date): boolean => {
+    if (isDateInPast(date)) return false
+    if (isDateFullyBooked(date)) return false
+    if (selectedDates.startDate && !selectedDates.endDate && isDateDisabledForDeparture(date)) return false
+    return true
   }
 
   // Effect to notify parent component when dates change
@@ -370,7 +461,7 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
                   </h3>
                   {selectedDates.startDate && !selectedDates.endDate && (
                     <span className="ml-4 text-sm text-gray-500">
-                      Arrival: {formatDate(selectedDates.startDate)}
+                      Arrival: {formatDate(selectedDates.startDate)} | Min stay: {minStayDays} days
                     </span>
                   )}
                 </div>
@@ -432,7 +523,7 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-gray-100 rounded"></div>
-                    <span>Past dates</span>
+                    <span>Past dates / Unavailable</span>
                   </div>
                 </div>
               </div>
@@ -478,13 +569,13 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
                               <>
                                 <motion.button
                                   whileTap={
-                                    isDateInPast(date) || isDateFullyBooked(date) ? {} : { scale: 0.95 }
+                                    isDateClickable(date) ? { scale: 0.95 } : {}
                                   }
                                   className={`w-10 h-10 rounded-full focus:outline-none ${getDateStyling(date)}`}
                                   onClick={() => 
-                                    !isDateInPast(date) && !isDateFullyBooked(date) && handleDateClick(date)
+                                    isDateClickable(date) && handleDateClick(date)
                                   }
-                                  disabled={isDateInPast(date) || isDateFullyBooked(date)}
+                                  disabled={!isDateClickable(date)}
                                 >
                                   {date.getDate()}
                                 </motion.button>
@@ -513,6 +604,9 @@ const DateSelector = ({ onSelect, availabilityData, isLoadingAvailability, onFet
                   <div className="text-sm">
                     <div><span className="font-medium">Arrival:</span> {formatDate(selectedDates.startDate)}</div>
                     <div><span className="font-medium">Departure:</span> {formatDate(selectedDates.endDate)}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Duration: {daysBetween(selectedDates.startDate, selectedDates.endDate)} days
+                    </div>
                   </div>
                   <button
                     className="bg-gray-800 cursor-pointer text-white px-6 py-2 rounded-md hover:bg-gray-700 focus:outline-none "
