@@ -56,9 +56,6 @@ jobs:
              -p 5000:5000 \
              ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
          
-           # Wait for the DB to be ready (you can replace this with healthcheck logic if needed)
-           sleep 10
-         
            # Run prisma migrations
            sudo docker exec la-torre npx prisma migrate deploy --schema=src/prisma/schema.prisma
           
