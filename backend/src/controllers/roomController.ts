@@ -90,7 +90,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
         }
       });
 
-      const roomIds = rooms.map((room) => room.id);
+      const roomIds = rooms.map((room: any) => room.id);
       const totalRooms = roomIds.length;
   
       // 2. Fetch bookings and holds
@@ -277,7 +277,7 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
             description: room.description,
             price: room.price,
             capacity: room.capacity,
-            images: room.images.map(i => i.url)
+            images: room.images.map((i: any) => i.url)
           });
         }
       }

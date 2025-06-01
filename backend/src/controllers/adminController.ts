@@ -210,7 +210,7 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
   
 }
 
-const logout = async (req: express.Request, res: express.Response) => {
+const logout = async (_req: express.Request, res: express.Response) => {
   res.clearCookie("token", { domain: "latorre.farm" });
   responseHandler(res, 200, "Logout successful");
 }   
@@ -254,7 +254,7 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
         where: { roomId: id },
         select: { ratePolicyId: true }
       });
-      const currentPolicyIds = currentPolicies.map(p => p.ratePolicyId);
+      const currentPolicyIds = currentPolicies.map((p: any) => p.ratePolicyId);
 
       // Determine which policies to add and which to remove
       const policiesToAdd = newPolicyIds.filter((id: any) => !currentPolicyIds.includes(id));
