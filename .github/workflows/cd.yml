@@ -55,9 +55,14 @@ jobs:
              -v /home/ubuntu/env/la-torre.env:/app/.env \
              -p 5000:5000 \
              ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
-         
+           
+           sudo docker exec la-torre npm run build
            # Run prisma migrations
            sudo docker exec la-torre npx prisma migrate deploy --schema=src/prisma/schema.prisma
           
            # Always regenerate Prisma client
            sudo docker exec la-torre npm run db:generate
+
+           sudo docker exec la-torre npm run seed
+           echo "seed done"
+           echo "Deployment completed successfully"
