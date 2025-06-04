@@ -55,9 +55,44 @@ export function CreateRoomModal({
   }>({
     singlePolicy: [],
     discountPolicy: []
-  })
+  });
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [newAmenity, setNewAmenity] = useState("");
   const [isDiscountTab, setIsDiscountTab] = useState(false)
-  const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
+  const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const event = {
+        target: {
+          files: e.dataTransfer.files
+        }
+      } as React.ChangeEvent<HTMLInputElement>;
+      handleImageUpload(event);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -168,6 +203,11 @@ export function CreateRoomModal({
       setLocalError("Please enter a valid capacity")
       return
     }
+
+    if (amenities.length === 0) {
+      setLocalError("Please add at least one amenity")
+      return
+    }
     
     setLoadingAction(true)
     setLocalError("")
@@ -186,6 +226,7 @@ export function CreateRoomModal({
           description,
           capacity: Number(capacity),
           images,
+          amenities,
           ratePolicyId: selectedPolicies.map(policy => policy.id)
         }),
       })
@@ -320,6 +361,68 @@ export function CreateRoomModal({
                 disabled={loadingAction}
               />
             </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="amenities" className="block text-sm font-medium text-gray-700 mb-1">
+                Amenities
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="amenities"
+                  value={newAmenity}
+                  onChange={(e) => setNewAmenity(e.target.value)}
+                  className="flex-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="e.g. Free WiFi, Air Conditioning"
+                  disabled={loadingAction}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newAmenity.trim()) {
+                      e.preventDefault();
+                      setAmenities([...amenities, newAmenity.trim()]);
+                      setNewAmenity("");
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
+                  onClick={() => {
+                    if (newAmenity.trim()) {
+                      setAmenities([...amenities, newAmenity.trim()]);
+                      setNewAmenity("");
+                    }
+                  }}
+                  disabled={loadingAction || !newAmenity.trim()}
+                >
+                  Add
+                </button>
+              </div>
+              
+              {/* Display added amenities */}
+              {amenities.length > 0 && (
+                <div className="mt-2">
+                  <div className="flex flex-wrap gap-2">
+                    {amenities.map((amenity, index) => (
+                      <div key={index} className="inline-flex items-center bg-gray-100 rounded-full px-3 py-1 text-sm">
+                        {amenity}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedAmenities = [...amenities];
+                            updatedAmenities.splice(index, 1);
+                            setAmenities(updatedAmenities);
+                          }}
+                          className="ml-2 text-gray-500 hover:text-gray-700"
+                          disabled={loadingAction}
+                        >
+                          <RiCloseLine size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="md:col-span-2">
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -402,58 +505,76 @@ export function CreateRoomModal({
               )
             }
             
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Images 
-                <span className="text-xs text-gray-500 ml-2">(Supports multiple images upload)</span>
-              </label>
-              
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                <div className="space-y-1 text-center">
-                  <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
-                    stroke="currentColor"
-                    fill="none"
-                    viewBox="0 0 48 48"
-                    aria-hidden="true"
+           <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Images 
+              <span className="text-xs text-gray-500 ml-2">(Supports multiple images upload)</span>
+            </label>
+            
+            <div 
+              className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md ${
+                isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <div className="space-y-1 text-center">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  stroke="currentColor"
+                  fill="none"
+                  viewBox="0 0 48 48"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <div className="flex text-sm text-gray-600 justify-center">
+                  <label
+                    htmlFor="file-upload"
+                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
                   >
-                    <path
-                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                    <span>Upload images</span>
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      multiple
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={loadingAction || uploadingImage}
                     />
-                  </svg>
-                  <div className="flex text-sm text-gray-600">
-                    <label
-                      htmlFor="file-upload"
-                      className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
-                    >
-                      <span>Upload an image</span>
-                      <input
-                        id="file-upload"
-                        name="file-upload"
-                        multiple
-                        type="file"
-                        className="sr-only"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        disabled={loadingAction || uploadingImage}
-                      />
-                    </label>
-                    <p className="pl-1">or drag and drop</p>
-                  </div>
-                  <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-                  
-                  {uploadingImage && (
-                    <div className="flex items-center justify-center mt-2">
-                      <BiLoader className="animate-spin text-indigo-600 mr-2" />
-                      <span className="text-sm text-gray-500">Uploading...</span>
-                    </div>
-                  )}
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
                 </div>
+                <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                
+                {uploadingImage && (
+                  <div className="flex items-center justify-center mt-2">
+                    <BiLoader className="animate-spin text-indigo-600 mr-2" />
+                    <span className="text-sm text-gray-500">Uploading...</span>
+                  </div>
+                )}
+                
+                {isDragging && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded-md pointer-events-none">
+                    <div className="bg-white p-4 rounded-md shadow-lg border border-indigo-300">
+                      <p className="text-indigo-600 font-medium">Drop images to upload</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              
+            </div>
+            </div>
+            
+          </div>
               {imageUrls.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-4">
                   {imageUrls.map((url, index) => (
@@ -476,11 +597,9 @@ export function CreateRoomModal({
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          </div>
+             )}
         </div>
-        
+
         <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg">
           <button
             type="button"

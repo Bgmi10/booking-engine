@@ -7,6 +7,7 @@ export const createRoomSchema = z.object({
   images: z.array(z.string().min(1)).optional(),
   capacity: z.number().min(1),
   ratePolicyId: z.array(z.string().min(1)),
+  amenities: z.array(z.string().min(1)).optional(),
 });
 
 export const updateRoomSchema = z.object({
@@ -16,6 +17,7 @@ export const updateRoomSchema = z.object({
   images: z.array(z.string().min(1)).optional(),
   capacity: z.number().min(1).optional(),
   ratePolicyId: z.array(z.string().min(1)).optional(),
+  amenities: z.array(z.string().min(1)).optional(),
 });
 
 export const updateRoomImageSchema = z.object({

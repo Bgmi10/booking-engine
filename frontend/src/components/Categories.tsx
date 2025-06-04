@@ -16,7 +16,7 @@ import {
   Check,
   AlertTriangle,
 } from "lucide-react"
-import BookingSummary from "./BookingSummary"
+import BookingSummary from "./BookingSummary" 
 
 export default function Categories({
   availabilityData,
@@ -328,13 +328,22 @@ export default function Categories({
             </div>
 
             {/* Room details */}
-            <div className="p-5">
+            <div className="p-5 overflow-hidden transition-all duration-300 ease-in-out">
               <div className="flex items-center gap-2 text-gray-700 mb-3">
                 <User className="h-5 w-5" />
                 <span>Maximum persons: {room.capacity}</span>
               </div>
-
-              {/* Description toggle */}
+              {/* Expanded description */}
+              {expandedDescriptions[room.id] && (
+                <div
+                className={`text-gray-700 text-sm leading-relaxed transition-all duration-300 ease-in-out ${
+                  expandedDescriptions[room.id] 
+                    ? "max-h-[1000px] opacity-100 mb-4" 
+                    : "max-h-0 opacity-0 mb-0"
+                }`}
+              >{room.description}</div>
+              )}
+               {/* Description toggle */}
               <div
                 className="flex items-center gap-1 text-gray-700 cursor-pointer mb-3"
                 onClick={() => toggleDescription(room.id)}
@@ -352,11 +361,7 @@ export default function Categories({
                 )}
               </div>
 
-              {/* Expanded description */}
-              {expandedDescriptions[room.id] && (
-                <div className="text-gray-700 mb-4 text-sm leading-relaxed">{room.description}</div>
-              )}
-
+             
               {/* Partial availability info */}
               {dateConflicts[room.id] && partialAvailability[room.id] && !showDateAdjuster && (
                 <div className="bg-amber-50 border-l-4 border-amber-400 p-3 mb-4 rounded-r-md">
@@ -539,6 +544,18 @@ export default function Categories({
                     <User className="h-5 w-5" />
                     <span>Maximum persons: {room.capacity}</span>
                   </div>
+
+                  {/* Amenities */}
+                  {room.amenities && room.amenities.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">Amenities:</h4>
+                      <ul className="list-disc list-inside text-sm text-gray-600 space-y-0.5">
+                        {room.amenities.map((amenity: string, index: number) => (
+                          <li key={index}>{amenity}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Price */}
                   <div className="flex items-center justify-between mt-4">

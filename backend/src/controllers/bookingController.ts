@@ -132,7 +132,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       });
   
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card", "paypal", "sepa_debit"],
+        payment_method_types: ["card"],
         mode: "payment",
         line_items,
         customer_email: customerDetails.email,

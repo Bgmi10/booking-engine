@@ -7,6 +7,8 @@ export const AuthContext = createContext({
     isAuthenticated: false,
     user: null as User | null,
     isLoading: false,
+    //@ts-ignore
+    setUser: (user: User | null) => {},     
     logout: () => Promise.resolve()
 })
 
@@ -63,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, user, isLoading, logout }}>
+        <AuthContext.Provider value={{ isAuthenticated, user, isLoading, logout, setUser }}>
             {children}
         </AuthContext.Provider>
     )

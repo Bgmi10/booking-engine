@@ -108,7 +108,7 @@ const getAdminProfile = async (req: express.Request, res: express.Response) => {
   try { 
     const admin = await prisma.user.findUnique({ where: { 
       //@ts-ignore
-      id: req.user.id }, select: { id: true, name: true, email: true, role: true, createdAt: true, updatedAt: true, phone: true } });
+      id: req.user.id }, select: { id: true, name: true, email: true, role: true, createdAt: true, updatedAt: true, phone: true, basePrice: true } });
     responseHandler(res, 200, "Admin profile", admin);
   } catch (e) {
     handleError(res, e as Error);
@@ -201,7 +201,7 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
       }
     
       const token = generateToken({ id: existingAdmin.id, name: existingAdmin.name, email: existingAdmin.email });
-      res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 20 * 24 * 60 * 60 * 1000, domain: "latorre.farm" });
+      res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 20 * 24 * 60 * 60 * 1000, domain: process.env.NODE_ENV === "production" ? "latorre.farm" : "localhost" });
       responseHandler(res, 200, "Login successful");
     } catch (e) {
         console.log(e);
@@ -216,10 +216,10 @@ const logout = async (_req: express.Request, res: express.Response) => {
 }   
 
 const createRoom = async (req: express.Request, res: express.Response) => {
-  const { name, price, description, images, capacity, ratePolicyId } = req.body;
+  const { name, price, description, images, capacity, ratePolicyId, amenities } = req.body;
   try {
     const room = await prisma.room.create({
-      data: { name, price, description, capacity, images: { create: (images || []).map((image: string) => ({ url: image })) }, RoomRate: { create: ratePolicyId.map((id: string) => ({ ratePolicyId: id })) }},
+      data: { name, price, description, capacity, images: { create: (images || []).map((image: string) => ({ url: image })) }, RoomRate: { create: ratePolicyId.map((id: string) => ({ ratePolicyId: id })) }, amenities },
       include: {
         RoomRate: true,
       },
@@ -232,7 +232,7 @@ const createRoom = async (req: express.Request, res: express.Response) => {
 
 const updateRoom = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
-  const { name, price, description, capacity, ratePolicyId } = req.body;
+  const { name, price, description, capacity, ratePolicyId, amenities } = req.body;
 
   try {
     // Build base update data
@@ -241,6 +241,7 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
       ...(price !== undefined && { price }),
       ...(description !== undefined && { description }),
       ...(capacity !== undefined && { capacity }),
+      ...(amenities !== undefined && { amenities }),
     };
 
     if (ratePolicyId !== undefined) {
@@ -708,6 +709,35 @@ const bulkPoliciesUpdate = async (req: express.Request, res: express.Response) =
   }
 }
 
-export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate };
+const updateBasePrice = async (req: express.Request, res: express.Response) => {
+  const { basePrice } = req.body;
+
+  if (!basePrice) {
+    responseHandler(res, 400, "Base price is required");
+    return;
+  }
+  //@ts-ignore
+  const { id } = req.user;
+  
+  try {
+    const updatedUser = await prisma.user.update({ where: { id }, data: { basePrice } });
+    responseHandler(res, 200, "Base price updated successfully", updatedUser);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+const updateRoomPrice = async (req: express.Request, res: express.Response) => {
+  const { roomId, price } = req.body;
+
+  try {
+    const updatedRoom = await prisma.room.update({ where: { id: roomId }, data: { price } });
+    responseHandler(res, 200, "Room price updated successfully", updatedRoom);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+}
+
+export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice };
 
 

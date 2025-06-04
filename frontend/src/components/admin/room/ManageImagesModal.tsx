@@ -20,6 +20,7 @@ interface RoomRate {
 interface Room {
   id: string
   name: string
+  amenities: string[]
   price: number
   description: string
   capacity: number

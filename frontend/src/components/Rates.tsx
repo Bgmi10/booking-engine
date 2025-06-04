@@ -249,7 +249,19 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                 <div className="flex items-center gap-2 text-gray-700 mb-3">
                   <User className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="text-sm sm:text-base">Maximum persons: {selectedRoom.capacity}</span>
+
+                  {selectedRoom.amenities && selectedRoom.amenities.length > 0 && (
+                    <div className="p-3 sm:p-5">
+                      <div className=" flex flex-wrap gap-2 text-sm text-gray-600 space-y-0.5">
+                        {selectedRoom.amenities.map((amenity: string, index: number) => (
+                          <span key={index} className="bg-gray-100 px-2 py-1 rounded-md">{amenity}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
+
 
                 {isExpanded && <p className="text-gray-600 mb-3 text-sm sm:text-base">{selectedRoom.description}</p>}
                 

@@ -19,6 +19,8 @@ app.use(cookieParser());
 app.use(cors({
   origin: [process.env.FRONTEND_DEV_URL as string, process.env.FRONTEND_PROD_URL as string],
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use("/api/v1/stripe", stipeWebhookRouter);

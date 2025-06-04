@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model User {
+model User {    
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
@@ -14,17 +14,18 @@ model User {
   createdAt DateTime @default(now())
   role      Role
   phone     String?
+  basePrice Float?
   updatedAt DateTime @updatedAt
 }
 model Room {
-  id          String   @id @default(uuid())
-  name        String
-  description String
-  amenities   String[]
-  price       Float
-  capacity    Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String      @id @default(uuid())
+  name         String   
+  description  String   
+  amenities    String[]   
+  price        Float   
+  capacity     Int   
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
   images       RoomImage[]
   bookings     Booking[]
   holds        TemporaryHold[]

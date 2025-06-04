@@ -30,6 +30,7 @@ interface Room {
   name: string
   price: number
   description: string
+  amenities: string[]
   capacity: number
   images: RoomImage[]
   createdAt: string
@@ -62,6 +63,8 @@ export function UpdateRoomModal({
   const [localError, setLocalError] = useState("")
   const [localSuccess, setLocalSuccess] = useState("")
   const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
+  const [amenities, setAmenities] = useState<string[]>([])
+  const [newAmenity, setNewAmenity] = useState("")
   const [ratepolicies, setRatepolicies] = useState<{
     singlePolicy: RatePolicy[];
     discountPolicy: RatePolicy[];
@@ -79,6 +82,7 @@ export function UpdateRoomModal({
       setPrice(room.price.toString())
       setDescription(room.description)
       setCapacity(room.capacity.toString())
+      setAmenities(room.amenities)
       // Initialize selected policies from room's existing policies
       if (room.RoomRate) {
         setSelectedPolicies(room.RoomRate.map(rate => rate.ratePolicy))
@@ -137,7 +141,8 @@ export function UpdateRoomModal({
           price: Number(price),
           description,
           capacity: Number(capacity),
-          ratePolicyId: selectedPolicies.map(policy => policy.id)
+          ratePolicyId: selectedPolicies.map(policy => policy.id),
+          amenities
         }),
       })
       
@@ -169,6 +174,9 @@ export function UpdateRoomModal({
     }
   }
 
+  const removeAmenity = (amenity: string) => {
+    setAmenities(prev => prev.filter(a => a !== amenity))
+  }
  
 
   if (!room) return null
@@ -262,6 +270,45 @@ export function UpdateRoomModal({
                 disabled={loadingAction}
               />
             </div>
+
+            <div>
+              <label htmlFor="amenities" className="block text-sm font-medium text-gray-700 mb-1">
+                Amenities
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  id="amenities"
+                value={newAmenity}
+                onChange={(e) => setNewAmenity(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Enter new amenity"
+              />
+              <button
+                onClick={() => {
+                   setAmenities(prev => [...prev, newAmenity])
+                   setNewAmenity("")
+                }} 
+                className="px-2 py-1 cursor-pointer bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {
+              amenities.map((amenity) => (
+                <div key={amenity} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                  <p className="font-medium">{amenity}</p>
+                  <button
+                    onClick={() => removeAmenity(amenity)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <RiCloseLine size={18} />
+                  </button>
+                </div>
+              ))
+            }
 
             <div className="md:col-span-2">
               <button 
