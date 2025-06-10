@@ -18,39 +18,7 @@ import { baseUrl } from "../../../utils/constants"
 import { CreateBookingModal } from "./CreateBookingModal"
 import { UpdateBookingModal } from "./UpdateBookingModal"
 import { ViewBookingModal } from "./ViewBookingModal"
-
-// Type definitions
-interface Room {
-  id: string
-  name: string
-  price: number
-  description: string
-  capacity: number
-}
-
-interface Payment {
-  id: string
-  amount: number
-  status: string
-  paymentMethod: string
-  createdAt: string
-}
-
-interface Booking {
-  id: string
-  roomId: string
-  checkIn: string
-  checkOut: string
-  guestEmail: string
-  guestName: string
-  guestNationality: string
-  guestPhone: string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
-  createdAt: string
-  updatedAt: string
-  room: Room
-  payment?: Payment
-}
+import type { Booking } from "../../../types/types"
 
 export default function Bookings() {
   // States
@@ -115,7 +83,8 @@ export default function Bookings() {
     if (searchTerm.trim() !== "") {
       filtered = filtered.filter(
         (booking) =>
-          booking.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          booking.guestFirstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          booking.guestLastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           booking.guestEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
           booking.room.name.toLowerCase().includes(searchTerm.toLowerCase()),
       )
@@ -246,7 +215,7 @@ export default function Bookings() {
                 Are you sure you want to delete this booking?
               </h3>
               <p className="text-sm text-gray-500 text-center">
-                This action cannot be undone. All data associated with this booking for {selectedBooking.guestName} will
+                This action cannot be undone. All data associated with this booking for {selectedBooking.guestFirstName} will
                 be permanently removed.
               </p>
             </div>
@@ -436,10 +405,10 @@ export default function Bookings() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm uppercase overflow-hidden">
-                          {booking.guestName.charAt(0)}
+                          {booking.guestFirstName.charAt(0)}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{booking.guestName}</div>
+                          <div className="text-sm font-medium text-gray-900">{booking.guestFirstName} {booking.guestLastName}</div>
                           <div className="text-sm text-gray-500">{booking.guestEmail}</div>
                         </div>
                       </div>

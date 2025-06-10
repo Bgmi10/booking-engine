@@ -7,23 +7,26 @@ export const getAllRooms = async (req: Request, res: Response) => {
 
     // here it is possible to get non null vaules from ratePolicy table
     try {
-        const rooms = await prisma.room.findMany({ include: { images: true, RoomRate: {
+        const rooms = await prisma.room.findMany({ 
+        include: {
+         images: true,   
+         RoomRate: {
          select: {
             ratePolicy: {
-                select: {
-                    id: true,
-                    name: true,
-                    description: true,
-                    nightlyRate: true,
-                    discountPercentage: true,
-                    isActive: true,
-                    refundable: true,
-                    prepayPercentage: true,
-                    fullPaymentDays: true,  
-                    changeAllowedDays: true,
-                    rebookValidityDays: true,
-                }
-            }
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                nightlyRate: true,
+                discountPercentage: true,
+                isActive: true,
+                refundable: true,
+                prepayPercentage: true,
+                fullPaymentDays: true,  
+                changeAllowedDays: true,
+                rebookValidityDays: true,
+              }
+            },
          }    
         } } });
         
@@ -171,15 +174,20 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
           availableRooms.push(roomWithBookedDates);
         }
       }
+
+      const generalSettings = await prisma.generalSettings.findMany({
+        select: { minStayDays: true }
+      });
   
-      // 7. Respond with calendar availability
       responseHandler(res, 200, "Calendar availability fetched successfully", {
         fullyBookedDates,
         partiallyBookedDates,
         availableDates,
         availableRooms,
         unavailableRooms,
+        generalSettings
       });
+      
     } catch (error) {
       console.error(error);
       handleError(res, error as Error);

@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredPendingBookings, cleanExpiredTempHolds } from "./cron/cron";
+import { cleanExpiredTempHolds } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 
@@ -31,7 +31,6 @@ app.use("/api/v1/bookings", bookingRouter);
 app.use("/api/v1/enhancements", enhancementRouter);
 app.use("/api/v1/sessions", sessionRouter);
 cleanExpiredTempHolds();
-cleanExpiredPendingBookings();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -4,7 +4,7 @@ import Dashboard from "./Dashboard";
 import Users from "./user/Users";
 import Rooms from "./room/Rooms";
 import Bookings from ".//bookings/Bookings";
-import Settings from "./Settings";
+import Settings from "./settings/Settings";
 import Profile from "./Profile";
 import Header from "../Header";
 import Enhancements from "./enhancements/Enhancements";

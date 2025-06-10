@@ -1,38 +1,7 @@
 "use client"
 
 import { RiCloseLine, RiCalendarEventLine, RiUser3Line, RiMailLine, RiPhoneLine, RiGlobalLine } from "react-icons/ri"
-
-interface Room {
-  id: string
-  name: string
-  price: number
-  description: string
-  capacity: number
-}
-
-interface Payment {
-  id: string
-  amount: number
-  status: string
-  paymentMethod: string
-  createdAt: string
-}
-
-interface Booking {
-  id: string
-  roomId: string
-  checkIn: string
-  checkOut: string
-  guestEmail: string
-  guestName: string
-  guestNationality: string
-  guestPhone: string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
-  createdAt: string
-  updatedAt: string
-  room: Room
-  payment?: Payment
-}
+import type { Booking } from "../../../types/types"
 
 interface ViewBookingModalProps {
   booking: Booking | null
@@ -137,7 +106,7 @@ export function ViewBookingModal({ booking, setIsViewModalOpen }: ViewBookingMod
                 <RiUser3Line className="mt-1 mr-2 text-gray-400" />
                 <div>
                   <h5 className="text-sm text-gray-500">Name</h5>
-                  <p>{booking.guestName}</p>
+                  <p>{`${booking.guestFirstName} ${booking.guestMiddleName} ${booking.guestLastName}`}</p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -168,25 +137,25 @@ export function ViewBookingModal({ booking, setIsViewModalOpen }: ViewBookingMod
             </div>
           </div>
 
-          {booking.payment && (
+          {booking.paymentIntent && (
             <div className="mt-8 border-t pt-4">
               <h4 className="font-medium mb-4">Payment Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h5 className="text-sm text-gray-500">Amount</h5>
-                  <p>{formatPrice(booking.payment.amount)}</p>
+                  <p>{formatPrice(booking.paymentIntent.amount)}</p>
                 </div>
                 <div>
                   <h5 className="text-sm text-gray-500">Status</h5>
-                  <p className="capitalize">{booking.payment.status.toLowerCase()}</p>
+                  <p className="capitalize">{booking.paymentIntent.status.toLowerCase()}</p>
                 </div>
                 <div>
                   <h5 className="text-sm text-gray-500">Payment Method</h5>
-                  <p className="capitalize">{booking.payment.paymentMethod.toLowerCase()}</p>
+                  <p className="capitalize">{booking.paymentIntent.paymentMethod.toLowerCase()}</p>
                 </div>
                 <div>
                   <h5 className="text-sm text-gray-500">Payment Date</h5>
-                  <p>{formatDate(booking.payment.createdAt)}</p>
+                  <p>{formatDate(booking.paymentIntent.createdAt)}</p>
                 </div>
               </div>
             </div>

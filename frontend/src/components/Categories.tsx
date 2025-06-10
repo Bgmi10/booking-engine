@@ -64,7 +64,7 @@ export default function Categories({
       initialImageIndexes[room.id] = 0
     })
     setCurrentImageIndexes(initialImageIndexes)
-  }, [availableRooms])
+  }, [])
 
   // Check for date conflicts and partial availability
   useEffect(() => {

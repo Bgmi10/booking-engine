@@ -28,7 +28,7 @@ const DateSelector = ({
   onFetchAvailability, 
   calenderOpen, 
   setCalenderOpen,
-  minStayDays = 2 // Default minimum stay is 2 days
+  minStayDays = 2 
 }: DateSelectorProps) => {
  
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
@@ -231,6 +231,11 @@ const DateSelector = ({
   const getDateStyling = (date: Date) => {
     if (isDateInPast(date)) {
       return "bg-gray-100 text-gray-400 cursor-not-allowed"
+    }
+
+    // Always highlight the arrival date when it's selected
+    if (selectedDates.startDate && date.getTime() === selectedDates.startDate.getTime()) {
+      return "bg-gray-800 text-white"
     }
 
     // Check if date is disabled for departure selection

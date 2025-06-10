@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
 import { getAllRooms } from "../controllers/roomController";
-import { createCheckoutSessionSchema } from "../zod/booking.schema";
 import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhancement.schema";
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
+import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate } from "../controllers/emailTemplateController";
 
 const adminRouter = Router();
 
@@ -50,8 +50,6 @@ adminRouter.delete("/rooms/:id/images/:imageId", authMiddleware, deleteRoomImage
 
 adminRouter.get("/bookings/all", authMiddleware, getAllBookings);
 
-adminRouter.post("/bookings", authMiddleware, validateMiddleware(createCheckoutSessionSchema), createBooking)
-
 adminRouter.put("/bookings/:id", authMiddleware, updateBooking);
 
 adminRouter.delete("/bookings/:id", authMiddleware, deleteBooking);
@@ -83,5 +81,23 @@ adminRouter.post("/rooms/bulk-policies-update", authMiddleware, bulkPoliciesUpda
 adminRouter.put("/base-price", authMiddleware, updateBasePrice);
 
 adminRouter.put("/rooms/:id/price", authMiddleware, updateRoomPrice);
+
+adminRouter.get("/settings", authMiddleware, getGeneralSettings);
+
+adminRouter.put("/settings", authMiddleware, updateGeneralSettings);
+
+adminRouter.post("/create-payment-link", authMiddleware, createAdminPaymentLink);
+
+adminRouter.get('/email-templates', getTemplates);
+
+adminRouter.get('/email-templates/:id', getTemplateById);
+
+adminRouter.get('/email-templates/:type/variables', getTemplateVariables);
+
+adminRouter.post('/email-templates', createTemplate);
+
+adminRouter.put('/email-templates/:id', updateTemplate);
+
+adminRouter.delete('/email-templates/:id', deleteTemplate); 
 
 export default adminRouter;

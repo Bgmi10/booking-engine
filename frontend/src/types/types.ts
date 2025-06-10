@@ -41,3 +41,50 @@ export interface RatePolicy {
   createdAt: string;
   updatedAt: string;
 }
+
+
+// Type definitions
+export interface Room {
+  id: string
+  name: string
+  price: number
+  description: string
+  capacity: number
+}
+
+export interface PaymentIntent {
+  id: string
+  amount: number
+  status: "SUCCEEDED" | "PENDING" | "FAILED" | "CANCELLED" | "EXPIRED" | "PAYMENT_LINK_SENT"
+  paymentMethod: string
+  createdAt: string
+  expiresAt: string
+  paidAt: string  
+  bookingData: string
+  customerData: string
+  taxAmount: number
+  totalAmount: number
+  createdByAdmin: boolean
+  adminUserId: string | null
+  adminNotes: string | null
+  stripePaymentIntentId: string | null
+  stripeSessionId: string | null
+}
+
+export interface Booking {
+  id: string
+  roomId: string
+  checkIn: string
+  checkOut: string
+  guestEmail: string
+  guestFirstName: string
+  guestMiddleName?: string
+  guestLastName: string
+  guestNationality: string
+  guestPhone: string
+  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
+  createdAt: string
+  updatedAt: string
+  room: Room
+  paymentIntent?: PaymentIntent
+}

@@ -9,7 +9,9 @@ import CountryList from 'country-list-with-dial-code-and-flag';
 export default function Details({ bookingData, bookingItems, availabilityData }: { bookingData: any, bookingItems: any, availabilityData: any }) {
     // Form states
     const [formData, setFormData] = useState({
-        name: "",
+        firstName: "",
+        middleName: "",
+        lastName: "",
         email: "",
         phone: "",
         nationality: "",
@@ -159,10 +161,16 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
     const validateForm = () => {
         const newErrors: any = {};
         
-        if (!formData.name.trim()) {
-            newErrors.name = "Name is required";
-        } else if (formData.name.trim().length < 2) {
-            newErrors.name = "Name must be at least 2 characters";
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = "First name is required";
+        } else if (formData.firstName.trim().length < 2) {
+            newErrors.firstName = "First name must be at least 2 characters";
+        }
+
+        if (!formData.lastName.trim()) {
+            newErrors.lastName = "Last name is required";
+        } else if (formData.lastName.trim().length < 2) {
+            newErrors.lastName = "Last name must be at least 2 characters";
         }
         
         if (!formData.email.trim()) {
@@ -186,7 +194,8 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
     // Check if form is complete and valid
     const isFormComplete = () => {
         return (
-            formData.name.trim().length >= 2 &&
+            formData.firstName.trim().length >= 2 &&
+            formData.lastName.trim().length >= 2 &&
             formData.email.trim() &&
             validateEmail(formData.email) &&
             (!formData.phone.trim() || validatePhone(formData.phone)) &&
@@ -204,7 +213,9 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
         try {
             const bookingPayload = {
                 customerDetails: {
-                    name: formData.name,
+                    firstName: formData.firstName,
+                    middleName: formData.middleName.trim() || null,
+                    lastName: formData.lastName,
                     email: formData.email,
                     phone: country + formData.phone.trim(),
                     nationality: nationality,
@@ -227,7 +238,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
             const data = await response.json();
             if ( response.status === 200 && data.data.url) {
                 // Redirect to Stripe checkout
-               window.location.href = data.data.url;
+               //window.location.href = data.data.url;
             } else {
                 throw new Error('Failed to create checkout session');
             }
@@ -266,19 +277,50 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 sm:p-6">
-                    <div className="text-left">
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                            Name <span className="text-red-500">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="name" 
-                            value={formData.name}
-                            onChange={(e) => handleInputChange('name', e.target.value)}
-                            className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
-                            placeholder="Full Name"
-                        />
-                        {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                    <div className="text-left lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+                                First Name <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="firstName" 
+                                value={formData.firstName}
+                                onChange={(e) => handleInputChange('firstName', e.target.value)}
+                                className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.firstName ? 'border-red-300' : 'border-gray-300'}`}
+                                placeholder="First Name"
+                            />
+                            {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+                        </div>
+
+                        <div>
+                            <label htmlFor="middleName" className="block text-sm font-medium text-gray-700">
+                                Middle Name
+                            </label>
+                            <input 
+                                type="text" 
+                                id="middleName" 
+                                value={formData.middleName}
+                                onChange={(e) => handleInputChange('middleName', e.target.value)}
+                                className="mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border border-gray-300"
+                                placeholder="Middle Name (optional)"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+                                Last Name <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="lastName" 
+                                value={formData.lastName}
+                                onChange={(e) => handleInputChange('lastName', e.target.value)}
+                                className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.lastName ? 'border-red-300' : 'border-gray-300'}`}
+                                placeholder="Last Name"
+                            />
+                            {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+                        </div>
                     </div>
                     
                     <div className="text-left">

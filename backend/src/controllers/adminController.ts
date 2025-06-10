@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../prisma";
-import { handleError, responseHandler } from "../utils/helper";
+import { calculateNights, handleError, responseHandler } from "../utils/helper";
 import { comparePassword, hashPassword } from "../utils/bcrypt";
 import { generateToken } from "../utils/jwt";
 import dotenv from "dotenv";
@@ -8,8 +8,14 @@ import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
 import { Prisma } from "@prisma/client";
+import { Stripe } from "stripe";
+import { sendPaymentLinkEmail } from "../services/bookingEmailTemplate";
 
 dotenv.config();
+
+const devUrl = "https://localhost:5173";
+const prodUrl = process.env.FRONTEND_PROD_URL;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-04-30.basil" });
 
 const getAllusers = async (req: express.Request, res: express.Response) => {
   //@ts-ignore
@@ -339,7 +345,7 @@ const getAllBookings = async (req: express.Request, res: express.Response) => {
     const bookings = await prisma.booking.findMany({
       include: {
         room: true,
-        payment: true,
+        paymentIntent: true,
         enhancementBookings: {
           include: {
             enhancement: true
@@ -438,32 +444,6 @@ const createRoomImage = async (req: express.Request, res: express.Response) => {
     handleError(res, e as Error);
   }
 };
-
-const createBooking = async (req: express.Request, res: express.Response) => {
-  const { roomId, checkIn, checkOut, guestEmail, guestName, guestNationality, guestPhone, totalGuests } = req.body;
-
-  try {
-    const response = await prisma.booking.create({
-      data: {
-        roomId,
-        checkIn: new Date(checkIn),
-        checkOut: new Date(checkOut),
-        guestEmail,
-        guestName,
-        guestNationality,
-        guestPhone,
-        totalGuests,
-      }
-    });
-
-    responseHandler(res, 200, "booking created successfully", response)
-
-  } catch (e) {
-    console.log(e);
-    handleError(res, e as Error);
-  }
-  
-} 
 
 const updateBooking = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
@@ -738,6 +718,433 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
   }
 }
 
-export { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, createBooking, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice };
+const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
+  const { minStayDays, id } = req.body;
+
+  if (!minStayDays || !id) {
+    responseHandler(res, 400, "Missing body");
+    return;
+  }
+
+  let updateData = {};
+
+  if (minStayDays) {
+    updateData = {
+      minStayDays: minStayDays
+    }
+  }
+  
+  try {
+    const response = await prisma.generalSettings.update({
+      where: { id },
+      data: updateData
+    });
+
+    responseHandler(res, 200, "Updated general settings success", response);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error)
+  }
+}
+
+const getGeneralSettings = async (req: express.Request, res: express.Response) => {
+   
+  try {
+    const settingsData = await prisma.generalSettings.findMany({});
+    responseHandler(res, 200, "success", settingsData);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+// Helper function to find or create product/price
+const findOrCreatePrice = async (itemData: { 
+    name: string;
+    description: string;
+    unitAmount: number;
+    currency: string;
+    images?: string[];
+    dates?: {
+        checkIn: string;
+        checkOut: string;
+    };
+    rateOption?: {
+        name: string;
+        id: string;
+    };
+    bookingIndex?: number; // Add index to make each booking unique
+}) => {
+    const { name, description, unitAmount, currency, images, dates, rateOption, bookingIndex } = itemData;
+    
+    // Always create a new product and price for room bookings
+    if (dates) {
+        // Make the product name unique by including the booking index
+        const uniqueProductName = `${name} - Booking ${bookingIndex || Date.now()}`;
+        
+        const product = await stripe.products.create({
+            name: uniqueProductName,
+            description,
+            images,
+            metadata: {
+                checkIn: dates.checkIn,
+                checkOut: dates.checkOut,
+                rateOptionId: rateOption?.id || '',
+                rateOptionName: rateOption?.name || '',
+                bookingIndex: bookingIndex?.toString() || Date.now().toString()
+            }
+        });
+
+        const price = await stripe.prices.create({
+            product: product.id,
+            unit_amount: unitAmount,
+            currency,
+        });
+
+        return price.id;
+    }
+
+    // For non-room items (like enhancements), create unique prices per booking
+    const uniqueProductName = `${name} - Booking ${bookingIndex || Date.now()}`;
+    
+    const product = await stripe.products.create({
+        name: uniqueProductName,
+        description,
+        images,
+        metadata: {
+            bookingIndex: bookingIndex?.toString() || Date.now().toString()
+        }
+    });
+
+    const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: unitAmount,
+        currency,
+    });
+
+    return price.id;
+};
+
+const createAdminPaymentLink = async (req: express.Request, res: express.Response) => {
+    const { 
+        bookingItems, 
+        customerDetails, 
+        taxAmount, 
+        totalAmount, 
+        expiresInHours = 72,
+        adminNotes 
+    } = req.body;
+    
+    //@ts-ignore
+    const adminUserId = req.user?.id;
+
+    try {
+        // Check room availability (same as before)
+        for (const booking of bookingItems) {
+            const { checkIn, checkOut, selectedRoom: roomId } = booking;
+
+            const overlappingBookings = await prisma.booking.findFirst({
+                where: {
+                    roomId,
+                    OR: [
+                        {
+                            checkIn: { lte: new Date(checkOut) },
+                            checkOut: { gte: new Date(checkIn) }
+                        }
+                    ]
+                }
+            });
+
+            if (overlappingBookings) {
+                responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
+                return;
+            }
+
+            const overlappingHold = await prisma.temporaryHold.findFirst({
+                where: {
+                    roomId,
+                    expiresAt: { gt: new Date() },
+                    OR: [
+                        {
+                            checkIn: { lte: new Date(checkOut) },
+                            checkOut: { gte: new Date(checkIn) }
+                        }
+                    ]
+                }
+            });
+
+            if (overlappingHold) {
+                responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
+                return;
+            }
+        }
+
+        const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+
+        // Create PaymentIntent record
+        const paymentIntent = await prisma.paymentIntent.create({
+            data: {
+                amount: totalAmount,
+                currency: "eur",
+                status: "CREATED",
+                bookingData: JSON.stringify(bookingItems),
+                customerData: JSON.stringify({
+                    ...customerDetails,
+                    receiveMarketing: customerDetails.receiveMarketing || false,
+                }),
+                taxAmount,
+                totalAmount,
+                createdByAdmin: true,
+                adminUserId,
+                adminNotes,
+                expiresAt,
+            }
+        });
+
+        // Create temporary holds
+        await prisma.temporaryHold.createMany({
+            data: bookingItems.map((booking: any) => ({
+                checkIn: new Date(booking.checkIn),
+                checkOut: new Date(booking.checkOut),
+                roomId: booking.selectedRoom,
+                expiresAt,
+                paymentIntentId: paymentIntent.id,
+            }))
+        });
+
+        // Build line items
+        const line_items: { price: string; quantity: number; }[] = [];
+        
+        await Promise.all(bookingItems.map(async (booking: any, index: number) => {
+            const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
+            const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
+            const totalRoomPrice = roomRatePerNight * numberOfNights;
+            
+            // Create room price with unique booking index
+            const roomPriceId = await findOrCreatePrice({
+                name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
+                description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
+                unitAmount: Math.round(totalRoomPrice * 100),
+                currency: "eur",
+                images: booking.roomDetails.images?.[0]?.url ? [booking.roomDetails.images[0].url] : undefined,
+                dates: {
+                    checkIn: new Date(booking.checkIn).toISOString().split('T')[0],
+                    checkOut: new Date(booking.checkOut).toISOString().split('T')[0]
+                },
+                rateOption: booking.selectedRateOption,
+                bookingIndex: index
+            });
+
+            line_items.push({
+                price: roomPriceId,
+                quantity: booking.rooms,
+            });
+
+            // Handle enhancements
+            if (booking.selectedEnhancements) {
+                await Promise.all(booking.selectedEnhancements.map(async (enhancement: any, enhancementIndex: number) => {
+                    let enhancementQuantity = 1;
+                    
+                    if (enhancement.pricingType === "PER_GUEST") {
+                        enhancementQuantity = booking.adults * booking.rooms;
+                    } else if (enhancement.pricingType === "PER_ROOM") {
+                        enhancementQuantity = booking.rooms;
+                    } else if (enhancement.pricingType === "PER_NIGHT") {
+                        enhancementQuantity = numberOfNights * booking.rooms;
+                    } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
+                        enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
+                    }
+
+                    // Create enhancement price with unique booking and enhancement index
+                    const enhancementPriceId = await findOrCreatePrice({
+                        name: enhancement.title,
+                        description: `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`,
+                        unitAmount: Math.round(enhancement.price * 100),
+                        currency: "eur",
+                        images: enhancement.image ? [enhancement.image] : undefined,
+                        bookingIndex: index * 1000 + enhancementIndex // Make sure enhancement index is unique
+                    });
+
+                    line_items.push({
+                        price: enhancementPriceId,
+                        quantity: enhancementQuantity,
+                    });
+                }));
+            }
+        }));
+
+        // Create Payment Link with aggregated line items
+        const paymentLink = await stripe.paymentLinks.create({
+            line_items,
+            metadata: {
+              customerEmail: customerDetails.email,
+              type: "admin_payment_link",
+              taxAmount: taxAmount.toString(),
+              totalAmount: totalAmount.toString(),
+              paymentIntentId: paymentIntent.id
+            },
+            after_completion: {
+                type: 'redirect',
+                redirect: {
+                    url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`
+                }
+            },
+            payment_intent_data: {
+              metadata: {
+                paymentIntentId: paymentIntent.id,
+                customerEmail: customerDetails.email,
+                type: "admin_payment_link",
+                checkout_session_id: "{CHECKOUT_SESSION_ID}" // Add this to ensure we can track the session ID
+              }
+            },
+            // Make the payment link single-use
+            allow_promotion_codes: false,
+            // Set to inactive after one successful payment
+            restrictions: {
+                completed_sessions: { limit: 1 }
+            }
+        });
+
+        // After successful payment link creation, update the payment intent status
+        await prisma.paymentIntent.update({
+            where: { id: paymentIntent.id },
+            data: {
+              status: "PAYMENT_LINK_SENT",
+              stripePaymentLinkId: paymentLink.id // Store the payment link ID
+            }
+        });
+
+        // Send payment link email to customer
+        await sendPaymentLinkEmail({
+            email: customerDetails.email,
+            name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+            paymentLink: paymentLink.url,
+            bookingDetails: bookingItems,
+            totalAmount,
+            expiresAt
+        });
+
+        responseHandler(res, 200, "Payment link created and sent to customer", {
+            paymentIntentId: paymentIntent.id,
+            paymentLinkUrl: paymentLink.url,
+            expiresAt,
+            status: "PAYMENT_LINK_SENT"
+        });
+
+    } catch (e) {
+        console.error("Admin payment link creation error:", e);
+        handleError(res, e as Error);
+    }
+};
+
+// Get payment intent status for admin tracking
+const getPaymentIntentStatus = async (req: express.Request, res: express.Response) => {
+  const { paymentIntentId } = req.params;
+
+  try {
+      const paymentIntent = await prisma.paymentIntent.findUnique({
+          where: { id: paymentIntentId },
+          include: {
+              bookings: {
+                  include: {
+                      room: true,
+                      enhancementBookings: {
+                          include: { enhancement: true }
+                      }
+                  }
+              },
+              payments: true,
+              temporaryHolds: true
+          }
+      });
+
+      if (!paymentIntent) {
+          responseHandler(res, 404, "Payment intent not found");
+          return;
+      }
+
+      responseHandler(res, 200, "Payment intent status retrieved", {
+          paymentIntent,
+          bookingItems: JSON.parse(paymentIntent.bookingData),
+          customerDetails: JSON.parse(paymentIntent.customerData)
+      });
+
+  } catch (e) {
+      console.error("Get payment intent status error:", e);
+      handleError(res, e as Error);
+  }
+};
+
+// List all admin payment intents with filtering
+const listAdminPaymentIntents = async (req: express.Request, res: express.Response) => {
+  const { 
+      status, 
+      page = 1, 
+      limit = 20, 
+      customerEmail,
+      dateFrom,
+      dateTo 
+  } = req.query;
+
+  try {
+      const where: any = {
+          createdByAdmin: true
+      };
+
+      if (status) {
+          where.status = status;
+      }
+
+      if (customerEmail) {
+          where.customerData = {
+              contains: customerEmail
+          };
+      }
+
+      if (dateFrom || dateTo) {
+          where.createdAt = {};
+          if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
+          if (dateTo) where.createdAt.lte = new Date(dateTo as string);
+      }
+
+      const [paymentIntents, total] = await Promise.all([
+          prisma.paymentIntent.findMany({
+              where,
+              include: {
+                  bookings: {
+                      include: { room: true }
+                  },
+                  payments: true
+              },
+              orderBy: { createdAt: 'desc' },
+              skip: (Number(page) - 1) * Number(limit),
+              take: Number(limit)
+          }),
+          prisma.paymentIntent.count({ where })
+      ]);
+
+      const enrichedPaymentIntents = paymentIntents.map(pi => ({
+          ...pi,
+          bookingItems: JSON.parse(pi.bookingData),
+          customerDetails: JSON.parse(pi.customerData)
+      }));
+
+      responseHandler(res, 200, "Payment intents retrieved", {
+          paymentIntents: enrichedPaymentIntents,
+          pagination: {
+              page: Number(page),
+              limit: Number(limit),
+              total,
+              pages: Math.ceil(total / Number(limit))
+          }
+      });
+
+  } catch (e) {
+      console.error("List payment intents error:", e);
+      handleError(res, e as Error);
+  }
+};
+
+export { getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, getPaymentIntentStatus, listAdminPaymentIntents };
 
 

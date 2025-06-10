@@ -26,6 +26,7 @@ interface AvailabilityData {
   fullyBookedDates: string[]
   partiallyBookedDates: string[]
   availableDates: string[]
+  minStayDays: number
 }
 
 // Cache interface for storing fetched data
@@ -43,8 +44,10 @@ export default function Booking() {
   const [availabilityData, setAvailabilityData] = useState<AvailabilityData>({
     fullyBookedDates: [],
     partiallyBookedDates: [],
-    availableDates: []
+    availableDates: [],
+    minStayDays: 0
   })
+
   const [calenderOpen, setCalenderOpen] = useState(false)
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const [bookingItems, setBookingItems] = useState([]);
@@ -142,15 +145,22 @@ export default function Booking() {
       const result = await response.json()
       
       if (result.data) {
-        // Update availability data
-        setAvailabilityData(result.data)
+        setAvailabilityData(prev => ({
+          ...prev,
+          ...result.data
+        }))
         
         // Cache the data
         if (!isCallFromCalender) {
           setAvailabilityCache(prev => ({
             ...prev,
             [cacheKey]: {
-            data: result.data,
+            data: {
+              fullyBookedDates: result.data.fullyBookedDates,
+              partiallyBookedDates: result.data.partiallyBookedDates,
+              availableDates: result.data.availableDates,
+              minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2
+            },
             timestamp: Date.now()
             }
           }))
@@ -162,7 +172,8 @@ export default function Booking() {
       const emptyData = {
         fullyBookedDates: [],
         partiallyBookedDates: [],
-        availableDates: []
+        availableDates: [],
+        minStayDays: 0
       }
       setAvailabilityData(emptyData)
     } finally {
@@ -176,10 +187,6 @@ export default function Booking() {
     }
   }, [bookingData.checkIn, bookingData.checkOut])
 
-  // REMOVED: The useEffect that fetches data when bookingData dates change
-  // This was causing redundant API calls
-
-  // OPTIMIZED: Only fetch initial data when calendar opens for the first time
   useEffect(() => {
     if (calenderOpen) {
       const today = new Date()
@@ -230,7 +237,7 @@ export default function Booking() {
         {/* Background image */}
         {currentStep === 1 && <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/assets/bg.png?height=800&width=1200')" }}
+          style={{ backgroundImage: "url('/assets/bg.png?height=800&width=1200')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundBlendMode: 'overlay', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
         />}
 
         {/* Step indicator - Fixed with proper full width */}
@@ -257,6 +264,7 @@ export default function Booking() {
 
                     <div className="mb-6">
                       <DateSelector
+                        minStayDays={availabilityData.minStayDays}
                         calenderOpen={calenderOpen}
                         setCalenderOpen={setCalenderOpen}
                         onSelect={handleDateSelect}

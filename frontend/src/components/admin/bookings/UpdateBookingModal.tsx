@@ -5,29 +5,8 @@ import { useState, useEffect } from "react"
 import { RiCloseLine, RiCheckLine, RiErrorWarningLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
+import type { Booking, Room } from "../../../types/types"
 
-interface Room {
-  id: string
-  name: string
-  price: number
-  description: string
-  capacity: number
-}
-
-interface Booking {
-  id: string
-  roomId: string
-  checkIn: string
-  checkOut: string
-  guestEmail: string
-  guestName: string
-  guestNationality: string
-  guestPhone: string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
-  createdAt: string
-  updatedAt: string
-  room: Room
-}
 
 interface UpdateBookingModalProps {
   booking: Booking | null
@@ -50,7 +29,9 @@ export function UpdateBookingModal({
   const [checkIn, setCheckIn] = useState("")
   const [checkOut, setCheckOut] = useState("")
   const [guestEmail, setGuestEmail] = useState("")
-  const [guestName, setGuestName] = useState("")
+  const [guestFirstName, setGuestFirstName] = useState("")
+  const [guestMiddleName, setGuestMiddleName] = useState("")
+  const [guestLastName, setGuestLastName] = useState("")
   const [guestNationality, setGuestNationality] = useState("")
   const [guestPhone, setGuestPhone] = useState("")
   const [status, setStatus] = useState<"PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED">("PENDING")
@@ -67,7 +48,9 @@ export function UpdateBookingModal({
       setCheckIn(new Date(booking.checkIn).toISOString().split("T")[0])
       setCheckOut(new Date(booking.checkOut).toISOString().split("T")[0])
       setGuestEmail(booking.guestEmail)
-      setGuestName(booking.guestName)
+      setGuestFirstName(booking.guestFirstName)
+      setGuestMiddleName(booking.guestMiddleName || "")
+      setGuestLastName(booking.guestLastName)
       setGuestNationality(booking.guestNationality || "")
       setGuestPhone(booking.guestPhone || "")
       setStatus(booking.status)
@@ -128,7 +111,7 @@ export function UpdateBookingModal({
       return
     }
 
-    if (!guestName.trim()) {
+    if (!guestFirstName.trim() || !guestLastName.trim()) {
       setLocalError("Guest name is required")
       return
     }
@@ -149,7 +132,9 @@ export function UpdateBookingModal({
           checkIn,
           checkOut,
           guestEmail,
-          guestName,
+          guestFirstName,
+          guestMiddleName,
+          guestLastName,
           guestNationality,
           guestPhone,
           status,
@@ -175,7 +160,9 @@ export function UpdateBookingModal({
         checkIn,
         checkOut,
         guestEmail,
-        guestName,
+        guestFirstName,
+        guestMiddleName,
+        guestLastName,
         guestNationality,
         guestPhone,
         status,
@@ -288,13 +275,43 @@ export function UpdateBookingModal({
 
             <div>
               <label htmlFor="guestName" className="block text-sm font-medium text-gray-700 mb-1">
-                Guest Name *
+                Guest First Name *
               </label>
               <input
                 type="text"
-                id="guestName"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
+                id="guestFirstName"
+                value={guestFirstName}
+                onChange={(e) => setGuestFirstName(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="John Doe"
+                disabled={loadingAction}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guestMiddleName" className="block text-sm font-medium text-gray-700 mb-1">
+                Guest Middle Name
+              </label>
+              <input
+                type="text"
+                id="guestMiddleName"
+                value={guestMiddleName}
+                onChange={(e) => setGuestMiddleName(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="John Doe"
+                disabled={loadingAction}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guestLastName" className="block text-sm font-medium text-gray-700 mb-1">
+                Guest Last Name *
+              </label>
+              <input
+                type="text"
+                id="guestLastName"
+                value={guestLastName}
+                onChange={(e) => setGuestLastName(e.target.value)}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="John Doe"
                 disabled={loadingAction}

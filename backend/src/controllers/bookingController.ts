@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { calculateNights, handleError, responseHandler } from "../utils/helper";
 
 dotenv.config();
-const devUrl = process.env.FRONTEND_DEV_URL;
+const devUrl = "https://localhost:5173";
 const prodUrl = process.env.FRONTEND_PROD_URL;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-04-30.basil" });
 
@@ -54,10 +54,9 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       }
   
       const expiresAt = new Date(Date.now() + TEMP_HOLD_DURATION_MINUTES * 60 * 1000);
+      
       await prisma.temporaryHold.createMany({
         data: bookingItems.map((booking: any) => ({
-          guestName: customerDetails.name,
-          guestEmail: customerDetails.email,
           checkIn: new Date(booking.checkIn),
           checkOut: new Date(booking.checkOut),
           roomId: booking.selectedRoom,
@@ -65,8 +64,9 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }))
       });
 
-      const pendingBooking = await prisma.pendingBooking.create({
+      const pendingBooking = await prisma.paymentIntent.create({
         data: {
+          amount: totalAmount,
           bookingData: JSON.stringify(bookingItems),
           customerData: JSON.stringify({
             ...customerDetails,
@@ -75,6 +75,10 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           taxAmount,
           totalAmount,
           expiresAt,
+          status: "PENDING",
+          createdByAdmin: false,
+          adminUserId: null,
+          adminNotes: null,
         }
       });
   
@@ -145,6 +149,11 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // 30 minutes from now
         success_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/failure`,
+      });
+
+      await prisma.paymentIntent.update({
+        where: { id: pendingBooking.id },
+        data: { stripeSessionId: session.id, status: "PENDING" }
       });
   
       responseHandler(res, 200, "Checkout session created", { url: session.url });
