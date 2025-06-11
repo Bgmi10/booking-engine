@@ -54,7 +54,7 @@ export const sendOtp = async (email: string, type: string, otp: string) => {
     await axios.post(
       "https://api.brevo.com/v3/smtp/email",
       {
-        sender: { name: "La Torre", email: "subashchandraboseravi45@gmail.com" },
+        sender: { name: "La Torre", email: process.env.BREVO_SENDER_EMAIL },
         to: [{ email }],
         subject: `${readableType} - Your OTP Code`,
         htmlContent,
