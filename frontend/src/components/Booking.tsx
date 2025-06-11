@@ -27,6 +27,7 @@ interface AvailabilityData {
   partiallyBookedDates: string[]
   availableDates: string[]
   minStayDays: number
+  taxPercentage: number
 }
 
 // Cache interface for storing fetched data
@@ -45,7 +46,8 @@ export default function Booking() {
     fullyBookedDates: [],
     partiallyBookedDates: [],
     availableDates: [],
-    minStayDays: 0
+    minStayDays: 0,
+    taxPercentage: 0.1
   })
 
   const [calenderOpen, setCalenderOpen] = useState(false)
@@ -80,11 +82,8 @@ export default function Booking() {
   // Handle moving to the next step
   const handleNext = () => {
     setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))
-      setIsLoading(false)
-    }, 800)
+    setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+    setIsLoading(false);  
   }
 
   // Memoize the date selection callback to prevent infinite loops
@@ -159,7 +158,8 @@ export default function Booking() {
               fullyBookedDates: result.data.fullyBookedDates,
               partiallyBookedDates: result.data.partiallyBookedDates,
               availableDates: result.data.availableDates,
-              minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2
+              minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
+              taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1
             },
             timestamp: Date.now()
             }
@@ -173,7 +173,8 @@ export default function Booking() {
         fullyBookedDates: [],
         partiallyBookedDates: [],
         availableDates: [],
-        minStayDays: 0
+        minStayDays: 0,
+        taxPercentage: 0.1
       }
       setAvailabilityData(emptyData)
     } finally {
@@ -316,7 +317,7 @@ export default function Booking() {
 
                 {currentStep === 2 && (
                   <div>
-                    <Categories availabilityData={availabilityData} bookingData={bookingData} setCurrentStep={setCurrentStep} setBookingData={setBookingData}/>
+                    <Categories availabilityData={availabilityData} bookingData={bookingData} setCurrentStep={setCurrentStep} setBookingData={setBookingData} minStayDays={availabilityData.minStayDays} />
                   </div>
                 )}
 
@@ -328,13 +329,13 @@ export default function Booking() {
 
                 {currentStep === 4 && (
                   <div>
-                    <Summary bookingData={bookingData}  bookingItems={bookingItems} setBookingData={setBookingData} setBookingItems={setBookingItems} setCurrentStep={setCurrentStep} availabilityData={availabilityData} />
+                    <Summary bookingData={bookingData}  bookingItems={bookingItems} setBookingData={setBookingData} setBookingItems={setBookingItems} setCurrentStep={setCurrentStep} availabilityData={availabilityData} taxPercentage={availabilityData.taxPercentage} />
                   </div>
                 )}
 
                 {currentStep === 5 && (
                   <div>
-                    <Details bookingData={bookingData} bookingItems={bookingItems} availabilityData={availabilityData} />
+                    <Details bookingData={bookingData} bookingItems={bookingItems} availabilityData={availabilityData} taxPercentage={availabilityData.taxPercentage} />
                   </div>
                 )}
               </>

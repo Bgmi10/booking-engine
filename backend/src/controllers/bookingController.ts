@@ -55,14 +55,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
   
       const expiresAt = new Date(Date.now() + TEMP_HOLD_DURATION_MINUTES * 60 * 1000);
       
-      await prisma.temporaryHold.createMany({
-        data: bookingItems.map((booking: any) => ({
-          checkIn: new Date(booking.checkIn),
-          checkOut: new Date(booking.checkOut),
-          roomId: booking.selectedRoom,
-          expiresAt,
-        }))
-      });
+    
 
       const pendingBooking = await prisma.paymentIntent.create({
         data: {
@@ -80,6 +73,16 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           adminUserId: null,
           adminNotes: null,
         }
+      });
+
+      await prisma.temporaryHold.createMany({
+        data: bookingItems.map((booking: any) => ({
+          checkIn: new Date(booking.checkIn),
+          checkOut: new Date(booking.checkOut),
+          roomId: booking.selectedRoom,
+          expiresAt,
+          paymentIntentId: pendingBooking.id
+        }))
       });
   
       const line_items = bookingItems.flatMap((booking: any) => {

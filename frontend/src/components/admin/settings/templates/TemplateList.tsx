@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { RiAddLine, RiEditLine, RiDeleteBinLine, RiFileCopyLine } from 'react-icons/ri';
 import { type Template, TEMPLATE_TYPES } from './types';
-
 interface TemplateListProps {
   templates: Template[];
   onEdit: (template: Template) => void;
@@ -11,11 +10,11 @@ interface TemplateListProps {
 }
 
 export const TemplateList: React.FC<TemplateListProps> = ({
-  templates,
   onEdit,
   onDelete,
   onDuplicate,
   onCreateNew,
+  templates,
 }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);

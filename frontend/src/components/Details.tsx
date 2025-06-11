@@ -1,12 +1,19 @@
-/* eslint-disable no-useless-escape */
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect } from "react";
-import { baseUrl, nationalities } from "../utils/constants";
+import { useState, useMemo } from "react";
+import { baseUrl } from "../utils/constants";
 import { ChevronDown, ChevronUp, LoaderIcon, Search } from "lucide-react";
 import CountryList from 'country-list-with-dial-code-and-flag';
 
-export default function Details({ bookingData, bookingItems, availabilityData }: { bookingData: any, bookingItems: any, availabilityData: any }) {
+export default function Details({ 
+    bookingData, 
+    bookingItems, 
+    availabilityData,
+    taxPercentage = 0.1 // Default to 10% if not provided
+}: { 
+    bookingData: any, 
+    bookingItems: any, 
+    availabilityData: any,
+    taxPercentage?: number 
+}) {
     // Form states
     const [formData, setFormData] = useState({
         firstName: "",
@@ -16,37 +23,28 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
         phone: "",
         nationality: "",
         specialRequests: ""
-    });
-    
+    });    
     // UI states
     const [showNationality, setShowNationality] = useState(false);
     const [nationalitySearch, setNationalitySearch] = useState("");
-    const [nationality, setNationality] = useState("");
-    const [showCountry, setShowCountry] = useState(false);
-    const [countrySearch, setCountrySearch] = useState("");
-    const [country, setCountry] = useState("+39");
+    //@ts-ignore
+    const [selectedCountry, setSelectedCountry] = useState<any>(null);
     const [agreeToTerms, setAgreeToTerms] = useState(false);
     const [receiveMarketing, setReceiveMarketing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [errors, setErrors] = useState<any>({});    
-    const countries = CountryList.getAll();
-    const [filteredCountries, setFilteredCountries] = useState<any[]>(countries);
+    const [apiError, setApiError] = useState("");
     
-    useEffect(() => {
-       const filteredCountries = countries.filter((country: any) => 
-        country.data.name.toLowerCase().includes(countrySearch.toLowerCase())
-       );
-       setFilteredCountries(filteredCountries);     
-
-    }, [countrySearch]);
-
-    // Filter nationalities based on search
-    const filteredNationalities = useMemo(() => {
-        if (!nationalitySearch.trim()) return nationalities;
-        return nationalities.filter((nat: string) => 
-            nat.toLowerCase().includes(nationalitySearch.toLowerCase())
+    const countries = CountryList.getAll();
+    
+    // Filter countries based on search for nationality dropdown
+    const filteredCountries = useMemo(() => {
+        if (!nationalitySearch.trim()) return countries;
+        return countries.filter((country: any) => 
+            country.name.toLowerCase().includes(nationalitySearch.toLowerCase()) ||
+            country.code.toLowerCase().includes(nationalitySearch.toLowerCase())
         );
-    }, [nationalitySearch]);
+    }, [nationalitySearch, countries]);
     
     // Helper functions from Summary component
     const formatDate = (date: string) => {
@@ -137,9 +135,10 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
     const calculateSubtotal = () => {
         return allItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
     };
-
+   
     const calculateDisplayTax = (subtotal: number) => {
-        return Math.round(subtotal * 0.1 / 1.1 * 100) / 100;
+        // taxPercentage is already in decimal form (e.g., 0.10 for 10%)
+        return Math.round(subtotal * taxPercentage * 100) / 100;
     };
 
     const grandTotal = calculateSubtotal();
@@ -151,44 +150,134 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
         return emailRegex.test(email);
     };
 
-    const validatePhone = (phone: string) => {
-        // Remove spaces and special characters for validation
-        const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-        // Allow 7-15 digits for international numbers
-        return /^\d{7,15}$/.test(cleanPhone);
-    };
+    
+const validatePhone = (phone: string) => {
+    // Remove spaces and special characters for validation
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    
+    // Check if phone starts with + and has valid length
+    if (!cleanPhone.startsWith('+')) {
+        return { isValid: false, error: "Phone number must start with country code (e.g., +1, +44)" };
+    }
+    
+    // Remove the + for further validation
+    const phoneWithoutPlus = cleanPhone.substring(1);
+    
+    // Check if it contains only digits after the +
+    if (!/^\d+$/.test(phoneWithoutPlus)) {
+        return { isValid: false, error: "Phone number can only contain digits after country code" };
+    }
+    
+    // Check total length (country code + phone number should be 7-15 digits)
+    if (phoneWithoutPlus.length < 7 || phoneWithoutPlus.length > 15) {
+        return { isValid: false, error: "Phone number must be 7-15 digits including country code" };
+    }
+    
+    return { isValid: true, error: null };
+};
 
-    const validateForm = () => {
-        const newErrors: any = {};
+const validateDialCode = (phone: string, countries: any[]) => {
+    if (!phone || !phone.startsWith('+')) {
+        return { isValid: false, error: "Phone number must include country code" };
+    }
+    
+    // Extract potential dial codes (1-4 digits after +)
+    const phoneWithoutPlus = phone.substring(1);
+    
+    // Try to match dial codes of different lengths (1-4 digits)
+    for (let i = 1; i <= 4; i++) {
+        const potentialDialCode = '+' + phoneWithoutPlus.substring(0, i);
+        const matchingCountry = countries.find(country => 
+            country.dial_code === potentialDialCode
+        );
         
-        if (!formData.firstName.trim()) {
-            newErrors.firstName = "First name is required";
-        } else if (formData.firstName.trim().length < 2) {
-            newErrors.firstName = "First name must be at least 2 characters";
+        if (matchingCountry) {
+            // Check if remaining digits form a valid phone number
+            const remainingDigits = phoneWithoutPlus.substring(i);
+            if (remainingDigits.length >= 4 && remainingDigits.length <= 12) {
+                return { 
+                    isValid: true, 
+                    error: null, 
+                    country: matchingCountry,
+                    dialCode: potentialDialCode,
+                    phoneNumber: remainingDigits
+                };
+            }
         }
+    }
+    
+    return { isValid: false, error: "Invalid country code or phone number format" };
+};
 
-        if (!formData.lastName.trim()) {
-            newErrors.lastName = "Last name is required";
-        } else if (formData.lastName.trim().length < 2) {
-            newErrors.lastName = "Last name must be at least 2 characters";
+// Updated validateForm function
+const validateForm = () => {
+    const newErrors: any = {};
+    
+    if (!formData.firstName.trim()) {
+        newErrors.firstName = "First name is required";
+    } else if (formData.firstName.trim().length < 2) {
+        newErrors.firstName = "First name must be at least 2 characters";
+    }
+
+    if (!formData.lastName.trim()) {
+        newErrors.lastName = "Last name is required";
+    } else if (formData.lastName.trim().length < 2) {
+        newErrors.lastName = "Last name must be at least 2 characters";
+    }
+    
+    if (!formData.email.trim()) {
+        newErrors.email = "Email is required";
+    } else if (!validateEmail(formData.email)) {
+        newErrors.email = "Please enter a valid email address";
+    }
+    
+    if (!formData.nationality.trim()) {
+        newErrors.nationality = "Nationality is required";
+    }
+    
+    if (!formData.phone.trim()) {
+        newErrors.phone = "Phone number is required";
+    } else {
+        // Validate phone format first
+        const phoneValidation = validatePhone(formData.phone);
+        if (!phoneValidation.isValid) {
+            newErrors.phone = phoneValidation.error;
+        } else {
+            // Then validate dial code
+            const dialCodeValidation = validateDialCode(formData.phone, countries);
+            if (!dialCodeValidation.isValid) {
+                newErrors.phone = dialCodeValidation.error;
+            }
         }
+    }
+    
+    if (!agreeToTerms) {
+        newErrors.terms = "You must agree to the terms and conditions";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+};
+
+
+    // Handle nationality change and update phone code
+    const handleNationalityChange = (country: any) => {
+        setSelectedCountry(country);
+        setFormData(prev => ({
+            ...prev,
+            nationality: country.name,
+            phone: country.dial_code
+        }));
+        setShowNationality(false);
+        setNationalitySearch("");
         
-        if (!formData.email.trim()) {
-            newErrors.email = "Email is required";
-        } else if (!validateEmail(formData.email)) {
-            newErrors.email = "Please enter a valid email address";
+        // Clear errors
+        if (errors.nationality) {
+            setErrors((prev: any) => ({
+                ...prev,
+                nationality: undefined
+            }));
         }
-        
-        if (formData.phone.trim() && !validatePhone(formData.phone)) {
-            newErrors.phone = "Please enter a valid phone number (7-15 digits)";
-        }
-        
-        if (!agreeToTerms) {
-            newErrors.terms = "You must agree to the terms and conditions";
-        }
-        
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
     };
 
     // Check if form is complete and valid
@@ -198,7 +287,8 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
             formData.lastName.trim().length >= 2 &&
             formData.email.trim() &&
             validateEmail(formData.email) &&
-            (!formData.phone.trim() || validatePhone(formData.phone)) &&
+            formData.nationality.trim() &&
+            formData.phone.trim() &&
             agreeToTerms
         );
     };
@@ -217,8 +307,8 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                     middleName: formData.middleName.trim() || null,
                     lastName: formData.lastName,
                     email: formData.email,
-                    phone: country + formData.phone.trim(),
-                    nationality: nationality,
+                    phone: formData.phone.trim(),
+                    nationality: formData.nationality,
                     specialRequests: formData.specialRequests,
                     receiveMarketing: receiveMarketing
                 },
@@ -240,11 +330,12 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                 // Redirect to Stripe checkout
                //window.location.href = data.data.url;
             } else {
-                throw new Error('Failed to create checkout session');
+                setApiError(data.message);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating checkout session:', error);
-            alert('There was an error processing your request. Please try again.');
+            alert("error while creating room");
+            setApiError(error);
         } finally {
             setIsProcessing(false);
         }
@@ -289,8 +380,11 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                 onChange={(e) => handleInputChange('firstName', e.target.value)}
                                 className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.firstName ? 'border-red-300' : 'border-gray-300'}`}
                                 placeholder="First Name"
+                                aria-required="true"
+                                aria-invalid={!!errors.firstName}
+                                aria-describedby={errors.firstName ? "firstName-error" : undefined}
                             />
-                            {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+                            {errors.firstName && <p id="firstName-error" className="text-red-500 text-xs mt-1" role="alert">{errors.firstName}</p>}
                         </div>
 
                         <div>
@@ -318,8 +412,11 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                 onChange={(e) => handleInputChange('lastName', e.target.value)}
                                 className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.lastName ? 'border-red-300' : 'border-gray-300'}`}
                                 placeholder="Last Name"
+                                aria-required="true"
+                                aria-invalid={!!errors.lastName}
+                                aria-describedby={errors.lastName ? "lastName-error" : undefined}
                             />
-                            {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+                            {errors.lastName && <p id="lastName-error" className="text-red-500 text-xs mt-1" role="alert">{errors.lastName}</p>}
                         </div>
                     </div>
                     
@@ -334,123 +431,91 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                             onChange={(e) => handleInputChange('email', e.target.value)}
                             className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.email ? 'border-red-300' : 'border-gray-300'}`}
                             placeholder="Email"
+                            aria-required="true"
+                            aria-invalid={!!errors.email}
+                            aria-describedby={errors.email ? "email-error" : undefined}
                         />
-                        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                    </div>
-
-                    <div className="text-left">
-                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
-                        <div className="flex gap-2">
-                            <div className="relative">
-                                <input 
-                                    type="text" 
-                                    value={country || "+39"} 
-                                    onClick={() => setShowCountry(!showCountry)}
-                                    className="mt-1 block w-16 sm:w-20 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-2 py-2 outline-none border border-gray-300 cursor-pointer text-center text-xs sm:text-sm"
-                                    readOnly
-                                />
-                                {showCountry && (
-                                    <div className="absolute top-12 left-0 w-72 sm:w-80 max-h-64 bg-white rounded-md shadow-lg border border-gray-200 z-10">
-                                        <div className="p-3 border-b border-gray-200">
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search countries..."
-                                                    value={countrySearch}
-                                                    onChange={(e) => setCountrySearch(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-gray-500"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="max-h-52 overflow-y-auto p-2">
-                                            {filteredCountries.map((countryItem: any, index: number) => (
-                                                <div 
-                                                    key={index} 
-                                                    className="hover:bg-gray-100 p-2 rounded-md cursor-pointer flex items-center gap-2" 
-                                                    onClick={() => {
-                                                        setCountry(countryItem.dial_code);
-                                                        setShowCountry(false);
-                                                        setCountrySearch("");
-                                                    }}
-                                                >
-                                                    <span className="text-sm font-medium">{countryItem.dial_code}</span>
-                                                    <span className="text-sm text-gray-600 truncate">{countryItem.name}</span>
-                                                </div>
-                                            ))}
-                                            {filteredCountries.length === 0 && (
-                                                <div className="p-2 text-sm text-gray-500 text-center">
-                                                    No countries found
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <input 
-                                type="tel" 
-                                id="phone" 
-                                value={formData.phone}
-                                onChange={(e) => handleInputChange('phone', e.target.value)}
-                                className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.phone ? 'border-red-300' : 'border-gray-300'}`}
-                                placeholder="Phone number"
-                            />
-                        </div>
-                        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                        {errors.email && <p id="email-error" className="text-red-500 text-xs mt-1" role="alert">{errors.email}</p>}
                     </div>
 
                     <div className="text-left relative">
-                        <label htmlFor="nationality" className="block text-sm font-medium text-gray-700">Nationality</label>
+                        <label htmlFor="nationality" className="block text-sm font-medium text-gray-700">
+                            Nationality <span className="text-red-500">*</span>
+                        </label>
                         <div className="relative">
-                            <input 
-                                type="text" 
+                            <button 
+                                type="button"
                                 id="nationality" 
-                                value={nationality} 
                                 onClick={() => setShowNationality(!showNationality)}
-                                className="mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 cursor-pointer focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border border-gray-300" 
-                                placeholder="Select nationality"
-                                readOnly
-                            />
+                                className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 cursor-pointer focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border text-left ${errors.nationality ? 'border-red-300' : 'border-gray-300'}`}
+                                aria-required="true"
+                                aria-invalid={!!errors.nationality}
+                                aria-describedby={errors.nationality ? "nationality-error" : undefined}
+                                aria-expanded={showNationality}
+                                aria-haspopup="listbox"
+                            >
+                                {formData.nationality || "Select nationality"}
+                            </button>
                             <div className="absolute right-3 top-3 pointer-events-none">
                                 {showNationality ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                             </div>
                             {showNationality && (
-                                <div className="absolute top-12 left-0 right-0 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                                <div className="absolute top-12 left-0 right-0 bg-white rounded-md shadow-lg border border-gray-200 z-10" role="listbox">
                                     <div className="p-3 border-b border-gray-200">
                                         <div className="relative">
-                                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" aria-hidden="true" />
                                             <input
                                                 type="text"
                                                 placeholder="Search nationality..."
                                                 value={nationalitySearch}
                                                 onChange={(e) => setNationalitySearch(e.target.value)}
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-gray-500"
+                                                aria-label="Search nationalities"
                                             />
                                         </div>
                                     </div>
                                     <div className="max-h-48 overflow-y-auto p-2">
-                                        {filteredNationalities.map((nat: string) => (
-                                            <div 
-                                                key={nat} 
-                                                className="hover:bg-gray-100 p-2 rounded-md cursor-pointer" 
-                                                onClick={() => {
-                                                    setNationality(nat);
-                                                    setShowNationality(false);
-                                                    setNationalitySearch("");
-                                                }}
+                                        {filteredCountries.map((country: any, index: number) => (
+                                            <button 
+                                                key={index} 
+                                                type="button"
+                                                className="w-full hover:bg-gray-100 p-2 rounded-md cursor-pointer text-left flex items-center gap-2" 
+                                                onClick={() => handleNationalityChange(country)}
+                                                role="option"
+                                                aria-selected={formData.nationality === country.name}
                                             >
-                                                {nat}
-                                            </div>
+                                                <span className="text-xl">{country.flag}</span>
+                                                <span className="text-sm">{country.name}</span>
+                                            </button>
                                         ))}
-                                        {filteredNationalities.length === 0 && (
+                                        {filteredCountries.length === 0 && (
                                             <div className="p-2 text-sm text-gray-500 text-center">
-                                                No nationalities found
+                                                No countries found
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             )}
                         </div>
+                        {errors.nationality && <p id="nationality-error" className="text-red-500 text-xs mt-1" role="alert">{errors.nationality}</p>}
+                    </div>
+
+                    <div className="text-left">
+                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                            Phone <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="tel" 
+                            id="phone" 
+                            value={formData.phone}
+                            onChange={(e) => handleInputChange('phone', e.target.value)}
+                            className={`mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border ${errors.phone ? 'border-red-300' : 'border-gray-300'}`}
+                            placeholder="Phone number with country code"
+                            aria-required="true"
+                            aria-invalid={!!errors.phone}
+                            aria-describedby={errors.phone ? "phone-error" : undefined}
+                        />
+                        {errors.phone && <p id="phone-error" className="text-red-500 text-xs mt-1" role="alert">{errors.phone}</p>}
                     </div>
 
                     <div className="text-left col-span-1 lg:col-span-2">
@@ -531,7 +596,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                         })}
                         
                         <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                            <span className="text-gray-700">IVA 10%</span>
+                            <span className="text-gray-700">IVA {(taxPercentage * 100).toFixed(0)}%</span>
                             <div className="text-right">
                                 <div className="font-medium">€{displayTax.toFixed(2)}</div>
                                 <div className="text-xs text-gray-500">Taxes included in price</div>
@@ -557,20 +622,23 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                                 checked={agreeToTerms}
                                 onChange={(e) => setAgreeToTerms(e.target.checked)}
                                 className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
+                                aria-required="true"
+                                aria-invalid={!!errors.terms}
+                                aria-describedby={errors.terms ? "terms-error" : undefined}
                             />
                             <label htmlFor="agreeTerms" className="text-sm text-gray-700">
                                 I agree to{" "}
-                                <a href="https://www.latorre.farm/terms" target="_blank" className="text-gray-800 underline hover:no-underline">
+                                <a href="https://www.latorre.farm/terms" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
                                     Property T&C
                                 </a>{" "}
                                 and{" "}
-                                <a href="https://www.latorre.farm/privacy" target="_blank" className="text-gray-800 underline hover:no-underline">
+                                <a href="https://www.latorre.farm/privacy" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
                                     Property Privacy Policy
                                 </a>
                                 . <span className="text-red-500">*</span>
                             </label>
                         </div>
-                        {errors.terms && <p className="text-red-500 text-xs">{errors.terms}</p>}
+                        {errors.terms && <p id="terms-error" className="text-red-500 text-xs" role="alert">{errors.terms}</p>}
 
                         <div className="flex items-start gap-3">
                             <input
@@ -583,16 +651,21 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                             <label htmlFor="receiveMarketing" className="text-sm text-gray-700">
                                 I'd like to occasionally receive marketing updates from La Torre sulla via Francigena.
                             </label>
+                          
+                        </div>
+                        <div className="mb-4">
+                          {apiError && <span className="text-red-500 mb-2">*{apiError}</span>}
                         </div>
 
                         <button
                             onClick={handleConfirmAndPay}
                             disabled={isProcessing || !isFormComplete()}
                             className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            aria-describedby={!isFormComplete() && !isProcessing ? "form-incomplete-message" : undefined}
                         >
                             {isProcessing ? (
                                 <>
-                                    <LoaderIcon className="w-4 h-4 animate-spin" />
+                                    <LoaderIcon className="w-4 h-4 animate-spin" aria-hidden="true" />
                                     Processing...
                                 </>
                             ) : (
@@ -601,7 +674,7 @@ export default function Details({ bookingData, bookingItems, availabilityData }:
                         </button>
                         
                         {!isFormComplete() && !isProcessing && (
-                            <p className="text-sm text-gray-500 text-center">
+                            <p id="form-incomplete-message" className="text-sm text-gray-500 text-center">
                                 Please complete all required fields to continue
                             </p>
                         )}

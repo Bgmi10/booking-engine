@@ -4,12 +4,14 @@ import { responseHandler } from "../utils/helper";
 import Stripe from "stripe";
 import puppeteer from 'puppeteer';
 import dotenv from "dotenv";
-import { EmailService } from "../services/emailService";
 import Handlebars from 'handlebars';
+import NodeCache from 'node-cache';
 
 dotenv.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Initialize cache with 24 hours TTL (in seconds)
+const pdfCache = new NodeCache({ stdTTL: 24 * 60 * 60 });
 
 // Register Handlebars helpers
 Handlebars.registerHelper('eq', function(a, b) {
@@ -88,7 +90,30 @@ export const sessionController = async (req: Request, res: Response) => {
     });
 };
 
-// New endpoint specifically for PDF generation
+// Helper function to generate PDF
+async function generatePDF(htmlContent: string): Promise<Buffer> {
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({ 
+        format: 'A4',
+        printBackground: true,
+        margin: {
+            top: '20px',
+            right: '20px',
+            bottom: '20px',
+            left: '20px'
+        }
+    });
+    
+    await browser.close();
+    return Buffer.from(pdfBuffer);
+}
+
 export const generateReceiptPDF = async (req: Request, res: Response) => {
     const { sessionId } = req.params;
 
@@ -98,6 +123,16 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
     }
 
     try {
+        // Check if PDF exists in cache
+        const cachedPDF = pdfCache.get<Buffer>(sessionId);
+        if (cachedPDF) {
+            console.log(`Serving cached PDF for session: ${sessionId}`);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=receipt-${sessionId}.pdf`);
+            res.send(cachedPDF);
+            return;
+        }
+
         // Get session and charge details from Stripe
         const sessionDetails = await stripe.checkout.sessions.retrieve(sessionId);
         const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -312,27 +347,13 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
         const htmlContent = compiledTemplate(templateData);
 
         // Generate PDF
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        });
-        const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        
-        const pdf = await page.pdf({ 
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: '20px',
-                right: '20px',
-                bottom: '20px',
-                left: '20px'
-            }
-        });
-        
-        await browser.close();
+        const pdf = await generatePDF(htmlContent);
 
-        // Set headers for PDF download
+        // Store in cache
+        pdfCache.set(sessionId, pdf);
+        console.log(`Cached PDF for session: ${sessionId}`);
+
+        // Send response
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=receipt-${charge.receipt_number || sessionId}.pdf`);
         res.send(pdf);
@@ -340,5 +361,14 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Error generating PDF:", error);
         responseHandler(res, 500, "Failed to generate PDF receipt");
+    }
+};
+
+// Add a function to clear cache if needed
+export const clearPDFCache = (sessionId?: string) => {
+    if (sessionId) {
+        pdfCache.del(sessionId);
+    } else {
+        pdfCache.flushAll();
     }
 };

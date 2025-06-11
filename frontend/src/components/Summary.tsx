@@ -1,11 +1,102 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, Tag } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, Tag, X, AlertTriangle } from 'lucide-react';
 
-export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any }) {
+export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData, taxPercentage = 0.1 }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
   const [expandedItems, setExpandedItems] = useState<any>({});
+  const [conflicts, setConflicts] = useState<any[]>([]);
   
   const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
+
+  useEffect(() => {
+    const checkConflicts = () => {
+      const allItems = getAllItems();
+      const conflictingItems: any[] = [];
+
+      for (let i = 0; i < allItems.length; i++) {
+        for (let j = i + 1; j < allItems.length; j++) {
+          const item1 = allItems[i];
+          const item2 = allItems[j];
+
+          // Check if same room
+          if (item1.selectedRoom === item2.selectedRoom) {
+            const checkIn1 = new Date(item1.checkIn);
+            const checkOut1 = new Date(item1.checkOut);
+            const checkIn2 = new Date(item2.checkIn);
+            const checkOut2 = new Date(item2.checkOut);
+
+            // Check for date overlap
+            const hasOverlap = checkIn1 < checkOut2 && checkIn2 < checkOut1;
+            
+            if (hasOverlap) {
+              // Mark both items as conflicting
+              if (!conflictingItems.some(c => c.id === item1.id)) {
+                conflictingItems.push({ ...item1, conflictWith: item2.id });
+              }
+              if (!conflictingItems.some(c => c.id === item2.id)) {
+                conflictingItems.push({ ...item2, conflictWith: item1.id });
+              }
+            }
+          }
+        }
+      }
+
+      setConflicts(conflictingItems);
+
+      // Auto-remove conflicts (keep the first one, remove duplicates)
+      if (conflictingItems.length > 0) {
+        const itemsToRemove = new Set();
+        
+        // Group conflicts by room
+        const roomConflicts: any = {};
+        conflictingItems.forEach(item => {
+          if (!roomConflicts[item.selectedRoom]) {
+            roomConflicts[item.selectedRoom] = [];
+          }
+          roomConflicts[item.selectedRoom].push(item);
+        });
+
+        // For each room, keep the first item and mark others for removal
+        Object.values(roomConflicts).forEach((conflictGroup: any) => {
+          // Sort by creation order (newer items have higher timestamps)
+          conflictGroup.sort((a: any, b: any) => {
+            const aTime = a.id === 'current' ? Date.now() : parseInt(a.id);
+            const bTime = b.id === 'current' ? Date.now() : parseInt(b.id);
+            return aTime - bTime;
+          });
+
+          // Mark all but the first for removal
+          for (let i = 1; i < conflictGroup.length; i++) {
+            itemsToRemove.add(conflictGroup[i].id);
+          }
+        });
+
+        // Remove conflicting items from bookingItems
+        if (itemsToRemove.size > 0) {
+          setBookingItems((prev: any) => 
+            prev.filter((item: any) => !itemsToRemove.has(item.id))
+          );
+
+          // If current booking conflicts, reset it
+          if (itemsToRemove.has('current')) {
+            setBookingData((prev: any) => ({
+              checkIn: null,
+              checkOut: null,
+              ...prev,
+              adults: 2,
+              selectedRoom: null,
+              selectedEnhancements: [],
+              selectedRateOption: null,
+              totalPrice: 0,
+              rooms: 1
+            }));
+          }
+        }
+      }
+    };
+
+    checkConflicts();
+  }, [bookingData, bookingItems, setBookingItems, setBookingData]);
 
   const toggleExpanded = (index: number) => {
     setExpandedItems((prev: any) => ({
@@ -51,6 +142,26 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     return basePrice + enhancementsPrice;
   };
 
+  const handleRemoveItem = (itemId: string) => {
+    if (itemId === 'current') {
+      // Reset current booking data
+      setBookingData((prev: any) => ({
+        checkIn: null,
+        checkOut: null,
+        ...prev,
+        adults: 2,
+        selectedRoom: null,
+        selectedEnhancements: [],
+        selectedRateOption: null,
+        totalPrice: 0,
+        rooms: 1
+      }));
+    } else {
+      // Remove from booking items
+      setBookingItems((prev: any) => prev.filter((item: any) => item.id !== itemId));
+    }
+  };
+
   const handleAddAnotherItem = () => {
     // Only add if current booking is complete
     if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
@@ -65,6 +176,8 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   
     // Reset booking data for new item
     setBookingData((prev: any) => ({
+      checkIn: null,
+      checkOut: null,
       ...prev,
       adults: 2,
       selectedRoom: null,
@@ -74,7 +187,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       rooms: 1
     }));
   
-    setCurrentStep(2);
+    setCurrentStep(1);
   };
 
   const getRoomName = (item: any) => {
@@ -129,16 +242,77 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
 
   const allItems = getAllItems();
 
+   useEffect(() => {
+    const allItems = getAllItems();
+    
+    // Only update if there are items and they're different from current bookingItems
+    if (allItems.length > 0) {
+      // Filter out items that are already in bookingItems to avoid duplicates
+      const newItems = allItems.filter(item => {
+        // Don't add items that already exist in bookingItems
+        if (item.id === 'current') {
+          // For current booking, check if there's already a similar item
+          return !bookingItems.some((existingItem: any) => 
+            existingItem.selectedRoom === item.selectedRoom && 
+            existingItem.checkIn === item.checkIn && 
+            existingItem.checkOut === item.checkOut
+          );
+        }
+        // For other items, check by ID
+        return !bookingItems.some((existingItem: any) => existingItem.id === item.id);
+      });
+
+      // If we have new items to add, update the state
+      if (newItems.length > 0) {
+        const itemsToAdd = newItems.map(item => {
+          if (item.id === 'current') {
+            return {
+              ...item,
+              id: Date.now().toString(), // Convert current to permanent ID
+              roomDetails: selectedRoom
+            };
+          }
+          return item;
+        });
+
+        setBookingItems((prev: any) => {
+          // Double check for duplicates before adding
+          const filtered = itemsToAdd.filter(newItem => 
+            !prev.some((existingItem: any) => 
+              existingItem.id === newItem.id ||
+              (existingItem.selectedRoom === newItem.selectedRoom && 
+               existingItem.checkIn === newItem.checkIn && 
+               existingItem.checkOut === newItem.checkOut)
+            )
+          );
+          return [...prev, ...filtered];
+        });
+      }
+    }
+   }, []);
+
+  useEffect(() => {
+   if (allItems.length === 0) {
+     setCurrentStep(2);
+     return;
+   }
+  }, [handleRemoveItem])
+
+  
   const calculateSubtotal = () => {
     return allItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
   const calculateDisplayTax = (subtotal: number) => {
-    return Math.round(subtotal * 0.1 / 1.1 * 100) / 100;
+    return Math.round(subtotal * taxPercentage * 100) / 100;
   };
 
   const grandTotal = calculateSubtotal();
   const displayTax = calculateDisplayTax(grandTotal);
+
+  const isItemConflicting = (itemId: string) => {
+    return conflicts.some(conflict => conflict.id === itemId);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 min-h-screen">
@@ -146,16 +320,44 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Summary</h1>
       </div>
 
+      {/* Conflict Warning */}
+      {conflicts.length > 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-800">Booking Conflicts Detected</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Some items had overlapping dates for the same room and have been automatically removed. 
+                The earliest booking for each room has been kept.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4 sm:space-y-6">
         {allItems.map((item, index) => {
           const nights = calculateNights(item.checkIn, item.checkOut);
           const basePrice = calculateItemBasePrice(item);
           const enhancementsPrice = calculateItemEnhancementsPrice(item);
           const itemTotal = calculateItemTotal(item);
+          const isConflicting = isItemConflicting(item.id);
           
           return (
-            <div key={item.id || index} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div key={item.id || index} className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${isConflicting ? 'ring-2 ring-yellow-200' : ''}`}>
               <div className="p-4 sm:p-6">
+                {/* Remove Button */}
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    title="Remove item"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
                 {/* Mobile Layout */}
                 <div className="block sm:hidden">
                   {/* Room Image */}
@@ -374,7 +576,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
               })}
               
               <div className="flex justify-between items-center pt-3 border-t">
-                <span className="text-gray-700 text-sm sm:text-base">IVA 10%</span>
+                <span className="text-gray-700 text-sm sm:text-base">IVA {(taxPercentage * 100).toFixed(0)}%</span>
                 <div className="text-right">
                   <div className="font-medium text-sm sm:text-base">€{displayTax.toFixed(2)}</div>
                   <div className="text-xs text-gray-500">Taxes included in price</div>

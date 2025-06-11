@@ -41,9 +41,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(true);
        }
     }
-
+    const currentPath = window.location.href;
+    console.log(currentPath)
     useEffect(() => {
+     if (currentPath === currentPath +  "admin/dashboard" || currentPath + "admin/login") {
       fetchUser();
+     }
     }, [])
     
     const logout = async () => {

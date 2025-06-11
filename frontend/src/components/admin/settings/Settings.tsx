@@ -2,58 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { RiSave3Line, RiErrorWarningLine, RiCheckLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl } from '../../../utils/constants';
-import { TemplateEditor } from './templates/TemplateEditor';
-import { TemplateList } from './templates/TemplateList';
-import type { Template } from './templates/types';
+import { Template as TemplateComponent } from './templates/Template';
+import type { Template, Variable } from './templates/types';
 
 interface GeneralSettings { // Represents the actual data structure from/to the backend
   id: string;
   minStayDays: number;
+  taxPercentage: number;
   // Add other settings properties here as they are defined in the backend model
 }
 
 // Represents the state of the form inputs, typically strings
 interface SettingsFormValues {
   minStayDays?: string;
+  taxPercentage?: string;
   // Add other settings form fields here, e.g., someOtherSetting?: string;
 }
 
 type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications';
 
-const TEMPLATE_VARIABLES = [
-  {
-    name: 'customerDetails.firstName',
-    type: 'string',
-    description: 'Customer first name',
-    example: 'John',
-  },
-  {
-    name: 'customerDetails.lastName',
-    type: 'string',
-    description: 'Customer last name',
-    example: 'Doe',
-  },
-  {
-    name: 'bookingDetails.checkIn',
-    type: 'date',
-    description: 'Check-in date',
-    example: '2024-03-20',
-  },
-  {
-    name: 'bookingDetails.checkOut',
-    type: 'date',
-    description: 'Check-out date',
-    example: '2024-03-25',
-  },
-  {
-    name: 'bookingDetails.totalAmount',
-    type: 'number',
-    description: 'Total booking amount',
-    example: 1000,
-  },
-];
-
 export default function Settings() {
+  // General settings state
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [initialSettings, setInitialSettings] = useState<GeneralSettings | null>(null);
   const [formValues, setFormValues] = useState<SettingsFormValues>({});
@@ -61,11 +30,11 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Template state
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
+  const [templateVariables, setTemplateVariables] = useState<Record<string, Record<string, Variable>>>({});
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
   const fetchSettings = async () => {
     setIsLoading(true);
@@ -86,11 +55,17 @@ export default function Settings() {
       if (data.data && data.data.length > 0) {
         const currentSettings = data.data[0] as GeneralSettings;
         setInitialSettings(currentSettings);
-        setFormValues({ minStayDays: String(currentSettings.minStayDays) });
+        setFormValues({ 
+          minStayDays: String(currentSettings.minStayDays),
+          taxPercentage: String((currentSettings.taxPercentage || 0) * 100)
+        });
         setSettingsId(currentSettings.id);
       } else {
         setInitialSettings(null);
-        setFormValues({ minStayDays: '1' }); // Default to '1' if no settings found
+        setFormValues({ 
+          minStayDays: '1',
+          taxPercentage: '0'
+        }); // Default values if no settings found
         setSettingsId(null);
       }
     } catch (err: any) {
@@ -104,6 +79,7 @@ export default function Settings() {
   };
 
   const fetchTemplates = async () => {
+    setIsLoadingTemplates(true);
     setError(null);
     try {
       const response = await fetch(`${baseUrl}/admin/email-templates`, {
@@ -120,33 +96,122 @@ export default function Settings() {
         throw new Error('Invalid response format from server');
       }
       
-      // Ensure each template has the required fields
       const validTemplates = data.data.map((template: any) => ({
         id: template.id,
         name: template.name || '',
         type: template.type || 'BOOKING_CONFIRMATION',
         subject: template.subject || '',
         html: template.html || '',
-        variables: template.variables || [],
+        variables: template.variables || {},
         version: template.version || 1,
         isActive: template.isActive || false,
         createdAt: template.createdAt,
         updatedAt: template.updatedAt,
-        design: template.design || null,
+        design: template.design || {
+          version: '1.0',
+          body: {
+            backgroundColor: '#f8fafc',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            color: '#1f2937'
+          },
+          blocks: []
+        },
       }));
-      
+
+      // Each template already has its own variables in the response
+      const templateVariablesMap = validTemplates.reduce((acc: Record<string, Record<string, Variable>>, template: Template) => {
+        return {
+          ...acc,
+          [template.id || '']: template.variables
+        };
+      }, {});
+  
+      setTemplateVariables(templateVariablesMap);
       setTemplates(validTemplates);
     } catch (err: any) {
       console.error('Failed to fetch templates:', err);
       setError(err.message || 'Failed to fetch templates');
-      setTemplates([]); // Reset templates on error
+      setTemplates([]);
+    } finally {
+      setIsLoadingTemplates(false);
     }
   };
 
+  // Template operations
+  const handleSaveTemplate = async (templateData: Partial<Template>) => {
+    try {
+      const method = templateData.id ? 'PUT' : 'POST';
+      const url = templateData.id 
+        ? `${baseUrl}/admin/email-templates/${templateData.id}`
+        : `${baseUrl}/admin/email-templates`;
+  
+      const response = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(templateData),
+      });
+  
+      if (!response.ok) throw new Error('Failed to save template');
+  
+      await fetchTemplates();
+      setSuccess('Template saved successfully!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save template');
+      throw err;
+    }
+  };
+  
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      const response = await fetch(`${baseUrl}/admin/email-templates/${templateId}`, {
+        method: 'DELETE',
+        credentials: "include",
+      });
+  
+      if (!response.ok) throw new Error('Failed to delete template');
+  
+      await fetchTemplates();
+      setSuccess('Template deleted successfully!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete template');
+      throw err;
+    }
+  };
+  
+  const handleDuplicateTemplate = async (template: Template) => {
+    try {
+      const { id, ...templateData } = template;
+      templateData.name = `${templateData.name} (Copy)`;
+      templateData.isActive = false;
+      const removedDesign = { ...templateData, design: null };
+  
+      const response = await fetch(`${baseUrl}/admin/email-templates`, {
+        method: 'POST',
+        credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(removedDesign),
+      });
+  
+      if (!response.ok) throw new Error('Failed to duplicate template');
+  
+      await fetchTemplates();
+      setSuccess('Template duplicated successfully!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to duplicate template');
+      throw err;
+    }
+  };
+ 
   useEffect(() => {
-   (async () => {
-     await Promise.all([fetchSettings(), fetchTemplates()]);
-   })();
+    fetchSettings();
+    fetchTemplates(); // Fetch templates once when component mounts
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,6 +242,7 @@ export default function Settings() {
         body: JSON.stringify({
           id: settingsId,
           minStayDays: Number(formValues.minStayDays),
+          taxPercentage: Number(formValues.taxPercentage) / 100,
         }),
       });
       
@@ -196,76 +262,6 @@ export default function Settings() {
     }
   };
 
-  const handleSaveTemplate = async (templateData: Partial<Template>) => {
-    try {
-      const method = selectedTemplate?.id ? 'PUT' : 'POST';
-      const url = selectedTemplate?.id 
-        ? `${baseUrl}/admin/email-templates/${selectedTemplate.id}`
-        : `${baseUrl}/admin/email-templates`;
-
-      const response = await fetch(url, {
-        method,
-        credentials: "include",
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(templateData),
-      });
-
-      if (!response.ok) throw new Error('Failed to save template');
-
-      await fetchTemplates();
-      setSelectedTemplate(null);
-      setIsCreatingTemplate(false);
-      setSuccess('Template saved successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to save template');
-      throw err;
-    }
-  };
-
-  const handleDeleteTemplate = async (templateId: string) => {
-    try {
-      const response = await fetch(`${baseUrl}/admin/email-templates/${templateId}`, {
-        method: 'DELETE',
-        credentials: "include",
-      });
-
-      if (!response.ok) throw new Error('Failed to delete template');
-
-      await fetchTemplates();
-      setSuccess('Template deleted successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete template');
-      throw err;
-    }
-  };
-
-  const handleDuplicateTemplate = async (template: Template) => {
-    try {
-      const { id, ...templateData } = template;
-      templateData.name = `${templateData.name} (Copy)`;
-      templateData.isActive = false;
-
-      const response = await fetch(`${baseUrl}/admin/email-templates`, {
-        method: 'POST',
-        credentials: "include",
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(templateData),
-      });
-
-      if (!response.ok) throw new Error('Failed to duplicate template');
-
-      await fetchTemplates();
-      setSuccess('Template duplicated successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to duplicate template');
-      throw err;
-    }
-  };
-
   // Tab configuration
   const tabs: { id: SettingsTab; name: string }[] = [
     { id: 'general', name: 'General' },
@@ -281,23 +277,65 @@ export default function Settings() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">General Settings</h3>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="grid grid-cols-1 gap-6">
-                  <div>
-                    <label htmlFor="minStayDaysInput" className="block text-sm font-medium text-gray-700 mb-2">
-                      Minimum Stay Days
-                    </label>
-                    <input
-                      id="minStayDaysInput"
-                      name="minStayDays"
-                      type="number"
-                      value={formValues.minStayDays ?? ''}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="1"
-                      disabled={isLoading}
-                      placeholder="e.g., 1"
-                    />
+              <div className="bg-white rounded-lg shadow-sm divide-y divide-gray-200">
+                {/* Booking Settings Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">Booking Settings</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="minStayDaysInput" className="block text-sm font-medium text-gray-700 mb-2">
+                        Minimum Stay Days
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          id="minStayDaysInput"
+                          name="minStayDays"
+                          type="number"
+                          value={formValues.minStayDays ?? ''}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          min="1"
+                          disabled={isLoading}
+                          placeholder="e.g., 1"
+                        />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        The minimum number of nights required for a booking
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Settings Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">Pricing Settings</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="taxPercentageInput" className="block text-sm font-medium text-gray-700 mb-2">
+                        Tax Percentage
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          id="taxPercentageInput"
+                          name="taxPercentage"
+                          type="number"
+                          value={formValues.taxPercentage ?? ''}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          disabled={isLoading}
+                          placeholder="e.g., 20"
+                        />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <span className="text-gray-500 sm:text-sm">%</span>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Tax rate applied to bookings (as a percentage)
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -305,19 +343,14 @@ export default function Settings() {
           </div>
         );
       case 'templates':
-        return selectedTemplate || isCreatingTemplate ? (
-          <TemplateEditor
-            initialData={selectedTemplate || undefined}
-            onSave={handleSaveTemplate}
-            variables={TEMPLATE_VARIABLES}
-          />
-        ) : (
-          <TemplateList
+        return (
+          <TemplateComponent 
             templates={templates}
-            onEdit={setSelectedTemplate}
-            onDelete={handleDeleteTemplate}
-            onDuplicate={handleDuplicateTemplate}
-            onCreateNew={() => setIsCreatingTemplate(true)}
+            templateVariables={templateVariables}
+            onSaveTemplate={handleSaveTemplate}
+            onDeleteTemplate={handleDeleteTemplate}
+            onDuplicateTemplate={handleDuplicateTemplate}
+            isLoading={isLoadingTemplates}
           />
         );
       case 'payment':

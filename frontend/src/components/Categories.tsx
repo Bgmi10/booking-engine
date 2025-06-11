@@ -1,9 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-"use client"
-
 import type React from "react"
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { format, differenceInDays, isWithinInterval, parseISO, isBefore, addDays } from "date-fns"
 import { useState, useEffect } from "react"
 import {
@@ -15,6 +10,7 @@ import {
   ChevronRight,
   Check,
   AlertTriangle,
+  Clock,
 } from "lucide-react"
 import BookingSummary from "./BookingSummary" 
 
@@ -23,17 +19,20 @@ export default function Categories({
   bookingData,
   setCurrentStep,
   setBookingData,
+  minStayDays
 }: {
   availabilityData: any
   bookingData: any
   setCurrentStep: (step: number) => void
   setBookingData: (bookingData: any) => void
+  minStayDays: number
 }) {
   // Extract data from props
   const availableRooms = availabilityData.availableRooms || []
   const unavailableRooms = availabilityData.unavailableRooms || []
-  const nightsSelected =bookingData.checkIn && bookingData.checkOut? differenceInDays(new Date(bookingData.checkOut), new Date(bookingData.checkIn))
-      : 0
+  const nightsSelected = bookingData.checkIn && bookingData.checkOut 
+    ? differenceInDays(new Date(bookingData.checkOut), new Date(bookingData.checkIn))
+    : 0
 
   // State for UI interactions
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({})
@@ -56,6 +55,7 @@ export default function Categories({
     general?: string
   }>({})
   const [availableDateRanges, setAvailableDateRanges] = useState<Record<string, { start: Date; end: Date }[]>>({})
+  const [minStayValidation, setMinStayValidation] = useState<Record<string, boolean>>({})
 
   // Initialize current image index for each room
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function Categories({
     setCurrentImageIndexes(initialImageIndexes)
   }, [])
 
-  // Check for date conflicts and partial availability
+  // Check for date conflicts, partial availability, and minimum stay validation
   useEffect(() => {
     if (!bookingData.checkIn || !bookingData.checkOut) return
 
@@ -76,11 +76,15 @@ export default function Categories({
     const conflicts: Record<string, boolean> = {}
     const partial: Record<string, string[]> = {}
     const availableRanges: Record<string, { start: Date; end: Date }[]> = {}
+    const minStayValid: Record<string, boolean> = {}
 
     // Check all rooms (available and unavailable)
     const allRooms = [...availableRooms, ...unavailableRooms]
 
     allRooms.forEach((room: any) => {
+      // Check minimum stay requirement for current selection
+      minStayValid[room.id] = nightsSelected >= minStayDays
+
       if (!room.bookedDates || !Array.isArray(room.bookedDates)) {
         conflicts[room.id] = false
         return
@@ -109,20 +113,29 @@ export default function Categories({
 
         sortedBookedDates.forEach((bookedDate) => {
           if (isBefore(currentStart, bookedDate)) {
-            ranges.push({
-              start: currentStart,
-              end: addDays(bookedDate, -1),
-            })
+            const rangeEnd = addDays(bookedDate, -1)
+            const rangeDays = differenceInDays(rangeEnd, currentStart) + 1
+            
+            // Only include ranges that meet minimum stay requirement
+            if (rangeDays >= minStayDays) {
+              ranges.push({
+                start: currentStart,
+                end: rangeEnd,
+              })
+            }
           }
           currentStart = addDays(bookedDate, 1)
         })
 
         // Add final range if needed
         if (isBefore(currentStart, checkOutDate)) {
-          ranges.push({
-            start: currentStart,
-            end: checkOutDate,
-          })
+          const rangeDays = differenceInDays(checkOutDate, currentStart) + 1
+          if (rangeDays >= minStayDays) {
+            ranges.push({
+              start: currentStart,
+              end: checkOutDate,
+            })
+          }
         }
 
         availableRanges[room.id] = ranges
@@ -132,7 +145,8 @@ export default function Categories({
     setDateConflicts(conflicts)
     setPartialAvailability(partial)
     setAvailableDateRanges(availableRanges)
-  }, [availableRooms, unavailableRooms, bookingData.checkIn, bookingData.checkOut, nightsSelected])
+    setMinStayValidation(minStayValid)
+  }, [availableRooms, unavailableRooms, bookingData.checkIn, bookingData.checkOut, nightsSelected, minStayDays])
 
   // Toggle room description
   const toggleDescription = (roomId: string) => {
@@ -190,18 +204,22 @@ export default function Categories({
 
   // Handle room booking
   const handleBookRoom = (roomId: string) => {
+    // Check minimum stay requirement first
+    if (!minStayValidation[roomId]) {
+      alert(`Minimum stay requirement not met. You need to stay at least ${minStayDays} night${minStayDays > 1 ? 's' : ''}.`)
+      return
+    }
+
     // Check if there are date conflicts
     if (dateConflicts[roomId]) {
       // If partially available, show date adjuster
-      if (partialAvailability[roomId]) {
+      if (partialAvailability[roomId] && availableDateRanges[roomId]?.length > 0) {
         // Set initial adjusted dates to the first available range if possible
-        if (availableDateRanges[roomId] && availableDateRanges[roomId].length > 0) {
-          const firstRange = availableDateRanges[roomId][0]
-          setAdjustedDates({
-            checkIn: firstRange.start,
-            checkOut: firstRange.end,
-          })
-        }
+        const firstRange = availableDateRanges[roomId][0]
+        setAdjustedDates({
+          checkIn: firstRange.start,
+          checkOut: firstRange.end,
+        })
         setShowDateAdjuster(roomId)
         return
       }
@@ -209,6 +227,7 @@ export default function Categories({
       alert(`This room is not available for the selected dates.`)
       return
     }
+
     setBookingData({...bookingData, selectedRoom: roomId})
     setCurrentStep(3)
   }
@@ -232,6 +251,12 @@ export default function Categories({
     if (adjustedDates.checkIn && adjustedDates.checkOut) {
       if (isBefore(adjustedDates.checkOut, adjustedDates.checkIn)) {
         errors.general = "Check-out date must be after check-in date"
+      }
+
+      // Check minimum stay requirement for adjusted dates
+      const adjustedNights = differenceInDays(adjustedDates.checkOut, adjustedDates.checkIn)
+      if (adjustedNights < minStayDays) {
+        errors.general = `Minimum stay requirement not met. You need to stay at least ${minStayDays} night${minStayDays > 1 ? 's' : ''}.`
       }
 
       // Check if the selected dates conflict with booked dates
@@ -272,6 +297,20 @@ export default function Categories({
   // Format currency
   const formatCurrency = (amount: number) => {
     return `€${amount.toFixed(2)}`
+  }
+
+  // Check if room can be booked (considering all validations)
+  const canBookRoom = (roomId: string) => {
+    // Must meet minimum stay requirement
+    if (!minStayValidation[roomId]) return false
+    
+    // If no conflicts, can book
+    if (!dateConflicts[roomId]) return true
+    
+    // If partially available and has valid ranges, can show date adjuster
+    if (partialAvailability[roomId] && availableDateRanges[roomId]?.length > 0) return true
+    
+    return false
   }
 
   return (
@@ -333,6 +372,7 @@ export default function Categories({
                 <User className="h-5 w-5" />
                 <span>Maximum persons: {room.capacity}</span>
               </div>
+              
               {/* Expanded description */}
               {expandedDescriptions[room.id] && (
                 <div
@@ -343,6 +383,7 @@ export default function Categories({
                 }`}
               >{room.description}</div>
               )}
+              
                {/* Description toggle */}
               <div
                 className="flex items-center gap-1 text-gray-700 cursor-pointer mb-3"
@@ -361,9 +402,26 @@ export default function Categories({
                 )}
               </div>
 
-             
+              {/* Minimum stay warning */}
+              {!minStayValidation[room.id] && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded-r-md">
+                  <div className="flex">
+                    <Clock className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div className="ml-3">
+                      <p className="text-sm text-red-800 font-medium">
+                        Minimum stay requirement not met
+                      </p>
+                      <p className="text-xs text-red-700 mt-1">
+                        This room requires a minimum stay of {minStayDays} night{minStayDays > 1 ? 's' : ''}. 
+                        You have selected {nightsSelected} night{nightsSelected !== 1 ? 's' : ''}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* Partial availability info */}
-              {dateConflicts[room.id] && partialAvailability[room.id] && !showDateAdjuster && (
+              {minStayValidation[room.id] && dateConflicts[room.id] && partialAvailability[room.id] && availableDateRanges[room.id]?.length > 0 && !showDateAdjuster && (
                 <div className="bg-amber-50 border-l-4 border-amber-400 p-3 mb-4 rounded-r-md">
                   <div className="flex">
                     <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -372,12 +430,31 @@ export default function Categories({
                         This room is partially available during your selected dates.
                       </p>
                       <p className="text-xs text-amber-700 mt-1">
-                        Available periods:
+                        Available periods (meeting minimum stay):
                         {availableDateRanges[room.id]?.map((range, i) => (
                           <span key={i} className="font-medium block mt-0.5">
-                            {format(range.start, "MMM d")} - {format(range.end, "MMM d")}
+                            {format(range.start, "MMM d")} - {format(range.end, "MMM d")} 
+                            ({differenceInDays(range.end, range.start) + 1} nights)
                           </span>
                         ))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No available ranges message */}
+              {minStayValidation[room.id] && dateConflicts[room.id] && partialAvailability[room.id] && (!availableDateRanges[room.id] || availableDateRanges[room.id].length === 0) && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded-r-md">
+                  <div className="flex">
+                    <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div className="ml-3">
+                      <p className="text-sm text-red-800">
+                        No available periods meet the minimum stay requirement.
+                      </p>
+                      <p className="text-xs text-red-700 mt-1">
+                        This room requires a minimum stay of {minStayDays} night{minStayDays > 1 ? 's' : ''}, 
+                        but no available periods within your selected dates meet this requirement.
                       </p>
                     </div>
                   </div>
@@ -441,7 +518,9 @@ export default function Categories({
                   </div>
 
                   <div className="flex flex-col space-y-2">
-                    <p className="text-sm text-gray-600">Available date ranges:</p>
+                    <p className="text-sm text-gray-600">
+                      Available date ranges (minimum {minStayDays} night{minStayDays > 1 ? 's' : ''}):
+                    </p>
                     {availableDateRanges[room.id]?.map((range, i) => (
                       <button
                         key={i}
@@ -464,8 +543,7 @@ export default function Categories({
                         <span>
                           {format(range.start, "MMM d")} - {format(range.end, "MMM d")}
                           <span className="text-xs text-gray-500 ml-1">
-                            ({differenceInDays(range.end, range.start) + 1}{" "}
-                            {differenceInDays(range.end, range.start) + 1 === 1 ? "night" : "nights"})
+                            ({differenceInDays(range.end, range.start) + 1} nights)
                           </span>
                         </span>
                       </button>
@@ -492,15 +570,21 @@ export default function Categories({
                 </div>
 
                 <button
-                  className={`py-2 px-6 rounded-lg font-medium transition-colors  cursor-pointer ${
-                    dateConflicts[room.id] && !partialAvailability[room.id]
+                  className={`py-2 px-6 rounded-lg font-medium transition-colors cursor-pointer ${
+                    !canBookRoom(room.id)
                       ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                       : "bg-gray-900 hover:bg-gray-800 text-white"
                   }`}
                   onClick={() => handleBookRoom(room.id)}
-                  disabled={dateConflicts[room.id] && !partialAvailability[room.id]}
+                  disabled={!canBookRoom(room.id)}
                 >
-                  {dateConflicts[room.id] && partialAvailability[room.id] ? "Check availability" : "Show rates"}
+                  {!minStayValidation[room.id] 
+                    ? "Min stay not met"
+                    : dateConflicts[room.id] && partialAvailability[room.id] && availableDateRanges[room.id]?.length > 0
+                    ? "Check availability" 
+                    : dateConflicts[room.id]
+                    ? "Not available"
+                    : "Show rates"}
                 </button>
               </div>
             </div>
@@ -575,7 +659,6 @@ export default function Categories({
           </div>
         </div>
       )}
-
       {/* Image Gallery Modal */}
       {showImageGallery && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">

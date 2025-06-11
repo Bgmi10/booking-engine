@@ -55,6 +55,7 @@ export default function Success() {
             
             const roomStates: { [key: string]: boolean } = {}
             const enhancementStates: { [key: string]: boolean } = {}
+            //@ts-ignore
             mergedBookings.forEach((booking: any, index: number) => {
               roomStates[index] = true
               enhancementStates[index] = true

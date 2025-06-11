@@ -380,6 +380,295 @@ async function main() {
       }
     },
     {
+      name: 'Booking Cancellation',
+      type: 'BOOKING_CANCELLATION',
+      subject: 'Booking Cancelled - La Torre (#{{confirmationId}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Cancellation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Cancellation Hero -->
+          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">❌</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Booking Cancelled</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Your reservation has been successfully cancelled
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                We have successfully processed your cancellation request. We're sorry to see you won't be joining us at La Torre sulla via Francigena, but we understand that plans can change.
+              </p>
+            </div>
+    
+            <!-- Cancellation Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Cancellation Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Confirmation ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">#{{confirmationId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Original Check-in:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkInDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Original Check-out:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkOutDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Nights:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalNights}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Guests:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalGuests}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Status:</span>
+                    <span style="background: #ef4444; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">CANCELLED</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+    
+            <!-- Cancelled Room Details -->
+            {{#each bookings}}
+            <div style="background: #fef2f2; border-radius: 12px; padding: 24px; margin-bottom: 24px; border-left: 4px solid #ef4444;">
+              <div style="background: white; padding: 24px; border-radius: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                  <div style="flex: 1;">
+                    <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">{{room.name}} <span style="color: #ef4444; font-size: 14px; font-weight: 500;">(CANCELLED)</span></h4>
+                    <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">{{room.description}}</p>
+                    <div style="background: #fef2f2; padding: 12px; border-radius: 8px; border: 1px solid #fecaca;">
+                      <div style="color: #dc2626; font-size: 14px; line-height: 1.5;">
+                        <div style="margin-bottom: 4px;"><strong>Booking ID:</strong> #{{id}}</div>
+                        <div style="margin-bottom: 4px;"><strong>Original Stay Period:</strong> {{checkIn}} - {{checkOut}}</div>
+                        <div><strong>Details:</strong> {{nights}} nights • {{totalGuests}} guests • Capacity: {{room.capacity}}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+    
+                <!-- Original Room Price Breakdown -->
+                <div style="margin-top: 20px; background: #f8fafc; padding: 16px; border-radius: 8px;">
+                  <h5 style="color: ${emailStyles.primaryColor}; margin: 0 0 12px 0; font-size: 16px;">Original Booking Amount</h5>
+                  <div style="display: grid; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                      <span style="color: ${emailStyles.secondaryColor};">Room Rate per Night</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{basePrice}}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                      <span style="color: ${emailStyles.secondaryColor};">Number of Nights</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{nights}}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                      <span style="color: ${emailStyles.secondaryColor};">Room Total</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{roomTotal}}</span>
+                    </div>
+                    {{#if enhancementsTotal}}
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                      <span style="color: ${emailStyles.secondaryColor};">Room Enhancements</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{enhancementsTotal}}</span>
+                    </div>
+                    {{/if}}
+                    <div style="display: flex; justify-content: space-between; padding: 12px 0; background: #fef2f2; border-radius: 6px; margin-top: 8px; text-decoration: line-through; opacity: 0.7;">
+                      <span style="color: #dc2626; font-weight: 600;">Original Total</span>
+                      <span style="color: #dc2626; font-weight: 700;">{{../currency}} {{add roomTotal enhancementsTotal}}</span>
+                    </div>
+                  </div>
+                </div>
+    
+                {{#if enhancements.length}}
+                <div style="margin-top: 16px; padding: 16px; background: #fef2f2; border-radius: 8px;">
+                  <strong style="color: #dc2626; font-size: 14px; display: block; margin-bottom: 12px;">Cancelled Enhancements:</strong>
+                  {{#each enhancements}}
+                  <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px; opacity: 0.7;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                      <div>
+                        <div style="color: ${emailStyles.primaryColor}; font-weight: 600; text-decoration: line-through;">{{title}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 13px; text-decoration: line-through;">{{description}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
+                          {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
+                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
+                          {{else if (eq pricingDetails.pricingType "PER_DAY")}}
+                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                          {{else}}
+                          {{../../currency}} {{pricingDetails.basePrice}} (per booking)
+                          {{/if}}
+                        </div>
+                      </div>
+                      <div style="color: #dc2626; font-weight: 600; text-decoration: line-through;">{{../../currency}} {{calculatedPrice}}</div>
+                    </div>
+                  </div>
+                  {{/each}}
+                </div>
+                {{/if}}
+              </div>
+            </div>
+            {{/each}}
+    
+            {{#if refund}}
+            <!-- Refund Information -->
+            <div style="background: #dcfce7; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #166534; margin: 0 0 20px 0; font-size: 20px;">💰 Refund Information</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Refund ID:</span>
+                    <span style="color: #166534; font-weight: 700; font-family: monospace; background: #dcfce7; padding: 6px 12px; border-radius: 6px;">{{refund.refundId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Refund Amount:</span>
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">{{refund.refundCurrency}} {{refund.refundAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Refund Reason:</span>
+                    <span style="color: #166534; font-weight: 600;">{{refund.refundReason}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #166534; font-weight: 600;">Status:</span>
+                    <span style="background: #166534; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">PROCESSED</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+    
+            <!-- Refund Processing Note -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Refund Processing Information
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #a16207; margin: 0; font-size: 15px; line-height: 1.7;">
+                  This email is to confirm that your refund has been issued by <strong>La Torre sulla via Francigena</strong>. 
+                  It can take approximately <strong>10 days</strong> to appear on your statement. If it takes longer, 
+                  please contact your bank for assistance.
+                </p>
+              </div>
+            </div>
+            {{else}}
+            <!-- No Refund Information -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #64748b;">
+              <h3 style="color: #475569; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #64748b;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                Payment Information
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #64748b; margin: 0; font-size: 15px; line-height: 1.7;">
+                  Your booking has been cancelled successfully. No refund is applicable for this cancellation as per our cancellation policy or the cancellation was processed before any payment was made.
+                </p>
+              </div>
+            </div>
+            {{/if}}
+    
+            <!-- Future Booking Invitation -->
+            <div style="text-align: center; padding: 32px 24px; background: linear-gradient(135deg, ${emailStyles.backgroundColor} 0%, #f1f5f9 100%); border-radius: 16px; margin-bottom: 24px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 26px; font-weight: 700;">We Hope to Welcome You Soon!</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 17px; line-height: 1.7;">
+                While we're disappointed that you won't be joining us this time, we'd love to have you stay with us in the future. 
+                La Torre sulla via Francigena will always be here to welcome you along your journey.
+              </p>
+              <div style="margin-top: 24px;">
+                <a href="https://booking-engine-seven.vercel.app" style="display: inline-block; background: ${emailStyles.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                  Book Your Next Stay
+                </a>
+              </div>
+            </div>
+    
+            <!-- Contact Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  If you have any questions about this cancellation or need assistance with future bookings, our team is here to help:
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
+                </ul>
+              </div>
+            </div>
+    
+            <!-- Final Message -->
+            <div style="text-align: center; color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.7;">
+              <p style="margin: 0;">
+                Thank you for considering La Torre sulla via Francigena. We look forward to serving you in the future.
+              </p>
+              <div style="margin-top: 16px; color: ${emailStyles.infoColor}; font-weight: 600;">
+                Safe travels! 🌟
+              </div>
+            </div>
+          </div>
+    
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        confirmationId: { type: 'string', description: 'Booking confirmation ID', example: 'ABC123' },
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        checkInDate: { type: 'string', description: 'Original check-in date', example: 'Monday, January 1, 2024' },
+        checkOutDate: { type: 'string', description: 'Original check-out date', example: 'Wednesday, January 3, 2024' },
+        totalNights: { type: 'number', description: 'Total number of nights', example: 2 },
+        totalGuests: { type: 'number', description: 'Total number of guests', example: 2 },
+        currency: { type: 'string', description: 'Payment currency', example: 'EUR' },
+        bookings: { 
+          type: 'array', 
+          description: 'Array of cancelled booking details',
+          example: [{
+            id: 'BOOK123',
+            room: {
+              name: 'Deluxe Room',
+              description: 'Spacious room with a view',
+              price: 200,
+              capacity: 2
+            },
+            checkIn: '2024-01-01',
+            checkOut: '2024-01-03',
+            totalGuests: 2,
+            nights: 2,
+            roomTotal: 400,
+            enhancementsTotal: 100,
+            enhancements: []
+          }]
+        },
+        refund: {
+          type: 'object',
+          description: 'Optional refund details - only show if refund was processed',
+          optional: true,
+          example: {
+            refundId: 're_1234567890',
+            refundAmount: 500,
+            refundCurrency: 'EUR',
+            refundReason: 'Customer requested cancellation'
+          }
+        }
+      }
+    },
+    {
       name: 'Admin Notification',
       type: 'ADMIN_NOTIFICATION',
       subject: '🔔 URGENT: {{totalRooms}} Room Booking Alert - {{customerName}} (#{{confirmationId}})',

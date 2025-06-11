@@ -8,6 +8,7 @@ import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhance
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
 import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate } from "../controllers/emailTemplateController";
+import { refund } from "../controllers/adminController";
 
 const adminRouter = Router();
 
@@ -99,5 +100,7 @@ adminRouter.post('/email-templates', createTemplate);
 adminRouter.put('/email-templates/:id', updateTemplate);
 
 adminRouter.delete('/email-templates/:id', deleteTemplate); 
+
+adminRouter.post("/bookings/refund", authMiddleware, refund);
 
 export default adminRouter;

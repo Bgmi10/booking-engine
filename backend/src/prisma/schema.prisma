@@ -149,7 +149,6 @@ model PaymentIntent {
   bookings              Booking[]        
   temporaryHolds        TemporaryHold[]
   payments              Payment[]        // Can have multiple payment attempts
-  emailQueue            EmailQueue[]
 
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
@@ -200,9 +199,10 @@ model RoomRate {
 }
 
 model GeneralSettings {
-  id          String        @id         @default(uuid())
-  minStayDays Int           @default(2)
-  updatedAt   DateTime      @updatedAt
+  id            String        @id         @default(uuid())
+  minStayDays   Int           @default(2)
+  updatedAt     DateTime      @updatedAt
+  taxPercentage Float?
 }
 
 model Otp {
@@ -222,6 +222,7 @@ enum PaymentIntentStatus {
   FAILED            // Payment failed
   CANCELLED         // Payment cancelled
   EXPIRED           // Payment expired
+  REFUNDED          // Payment refunded
 }
 
 enum PaymentStatus {
@@ -234,6 +235,7 @@ enum PaymentStatus {
 enum BookingStatus {
   PENDING
   CONFIRMED
+  REFUNDED
   CANCELLED
 }
 
@@ -256,26 +258,4 @@ model EmailTemplate {
   updatedAt   DateTime    @updatedAt
 
   @@index([type, isActive])
-}
-
-model EmailQueue {
-  id              String    @id @default(uuid())
-  paymentIntentId String
-  bookingIds      String[]
-  customerData    String    // JSON string of customer details
-  status          EmailQueueStatus @default(PENDING)
-  retryCount      Int      @default(0)
-  maxRetries      Int      @default(5)
-  lastError       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  paymentIntent   PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
-
-  @@index([status, retryCount])
-}
-
-enum EmailQueueStatus {
-  PENDING
-  COMPLETED
-  FAILED
 }

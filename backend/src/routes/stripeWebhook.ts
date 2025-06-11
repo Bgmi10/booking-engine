@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
 import { handleError, responseHandler } from "../utils/helper";
-import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification } from "../services/bookingEmailTemplate";
+import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail } from "../services/emailTemplate";
 
 dotenv.config();
 
@@ -39,15 +39,11 @@ stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), 
           case "payment_intent.canceled":
             await handlePaymentIntentCanceled(event);
             break;
-          case "charge.succeeded":
-            // This is for Payment Links - we can ignore as payment_intent.succeeded handles it
-            console.log("Charge succeeded (handled by payment_intent.succeeded):", event.data.object.id);
+          case "refund.created":
+            await handleRefundCreated(event);
             break;
-          case "payment_link.created":
-            console.log("Payment link created:", event.data.object.id);
-            break;
-          case "payment_intent.created":
-            console.log("Payment intent created:", event.data.object.id);
+          case "refund.updated":
+            await handleRefundUpdated(event);
             break;
           default:
            console.log(`Unhandled event type: ${event.type}`);
@@ -60,7 +56,120 @@ stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), 
     }
 });
 
-// Handle checkout session completion (only for regular checkout sessions)
+// NEW: Handle refund created
+async function handleRefundCreated(event: Stripe.Event) {
+    const refund = event.data.object as Stripe.Refund;
+    
+    try {
+        const ourPaymentIntent = await prisma.paymentIntent.findFirst({
+            where: {
+                stripePaymentIntentId: refund.payment_intent as string
+            },
+            include: {
+                bookings: {
+                    include: {
+                        room: true,
+                        enhancementBookings: {
+                            include: { enhancement: true }
+                        }
+                    }
+                },
+                payments: true
+            }
+        });
+
+        if (!ourPaymentIntent) {
+            console.log("PaymentIntent not found for refund:", refund.payment_intent);
+            return;
+        }
+
+        // Update payment intent and related records
+        await prisma.$transaction(async (tx) => {
+            // Update payment intent status
+            await tx.paymentIntent.update({
+                where: { id: ourPaymentIntent.id },
+                data: { 
+                    status: "REFUNDED",
+                    adminNotes: refund.metadata?.refundReason || "Refund processed"
+                }
+            });
+
+            // Update all bookings to refunded
+            await tx.booking.updateMany({
+                where: { paymentIntentId: ourPaymentIntent.id },
+                data: { status: "REFUNDED" }
+            });
+
+            // Update payment record
+            await tx.payment.updateMany({
+                where: { paymentIntentId: ourPaymentIntent.id },
+                data: { status: "REFUNDED" }
+            });
+        });
+
+        if (ourPaymentIntent.bookings.length > 0) {
+            const customerDetails = JSON.parse(ourPaymentIntent.customerData);
+            const bookingData = JSON.parse(ourPaymentIntent.bookingData);
+            await sendRefundConfirmationEmail(bookingData, customerDetails,  {
+                refundId: refund.id,
+                refundAmount: refund.amount / 100,
+                refundCurrency: refund.currency,
+                refundReason: refund.metadata?.refundReason || "Refund processed"
+            });
+        }
+        
+    } catch (error) {
+        console.error("Error in handleRefundCreated:", error);
+        throw error;
+    }
+}
+
+// NEW: Handle refund updated
+async function handleRefundUpdated(event: Stripe.Event) {
+    const refund = event.data.object as Stripe.Refund;
+    
+    try {
+        const ourPaymentIntent = await prisma.paymentIntent.findFirst({
+            where: {
+                stripePaymentIntentId: refund.payment_intent as string
+            }
+        });
+
+        if (!ourPaymentIntent) {
+            console.log("PaymentIntent not found for refund update:", refund.payment_intent);
+            return;
+        }
+
+        // Handle different refund statuses
+        if (refund.status === "failed") {
+            // Refund failed - revert status back to succeeded
+            await prisma.$transaction(async (tx) => {
+                await tx.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { 
+                        status: "SUCCEEDED",
+                        adminNotes: "Refund failed - payment still valid"
+                    }
+                });
+
+                await tx.booking.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: { status: "CONFIRMED" }
+                });
+
+                await tx.payment.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: { status: "COMPLETED" }
+                });
+            });
+        }
+        
+    } catch (error) {
+        console.error("Error in handleRefundUpdated:", error);
+        throw error;
+    }
+}
+
 async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     const session = event.data.object as Stripe.Checkout.Session;
     
@@ -85,37 +194,39 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
             return;
         }
 
-        // Always update the session ID if it's not set, regardless of status
+        // Always update both session ID and payment intent ID if they're not set
+        const updateData: any = {};
+        
         if (!ourPaymentIntent.stripeSessionId) {
+            updateData.stripeSessionId = session.id;
+        }
+        
+        if (!ourPaymentIntent.stripePaymentIntentId) {
+            updateData.stripePaymentIntentId = stripePaymentIntent.id;
+        }
+
+        // Update if we have data to update
+        if (Object.keys(updateData).length > 0) {
             await prisma.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
-                data: { 
-                    stripeSessionId: session.id,
-                    stripePaymentIntentId: stripePaymentIntent.id,
-                }
+                data: updateData
             });
         }
 
         // If payment hasn't been processed yet and payment is succeeded, process it
         if (ourPaymentIntent.status !== 'SUCCEEDED' && stripePaymentIntent.status === 'succeeded') {
+            // Get the updated payment intent to ensure we have the latest data
             const currentPaymentIntent = await prisma.paymentIntent.findUnique({
                 where: { id: ourPaymentIntent.id }
             });
             await processPaymentSuccess(currentPaymentIntent!, stripePaymentIntent, 'checkout_session');
-        } else {
-            console.log("Payment already processed or not yet succeeded:", {
-                ourStatus: ourPaymentIntent.status,
-                stripeStatus: stripePaymentIntent.status
-            });
-        }
-        
+        } 
     } catch (error) {
         console.error("Error in handleCheckoutSessionCompleted:", error);
         throw error;
     }
 }
 
-// Handle payment intent success (both checkout and payment links)
 async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
@@ -131,10 +242,10 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
         });
 
         if (!ourPaymentIntent) {
-            console.log("PaymentIntent not found in our database for:", paymentIntent.id);
             return;
         }
 
+    
         // Check if payment already exists (more specific check)
         const existingPayment = await prisma.payment.findFirst({
             where: { 
@@ -146,13 +257,11 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
         });
 
         if (existingPayment) {
-            console.log("Payment already processed, skipping:", paymentIntent.id);
             return;
         }
 
         // Skip if already being processed
         if (ourPaymentIntent.status === 'SUCCEEDED') {
-            console.log("PaymentIntent already processed successfully:", ourPaymentIntent.id);
             return;
         }
 
@@ -163,7 +272,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
                 where: { id: ourPaymentIntent.id },
                 data: { stripePaymentIntentId: paymentIntent.id }
             });
-            console.log("Updated PaymentIntent with Stripe ID:", updatedPaymentIntent.id);
         }
 
         // Determine payment source type
@@ -178,8 +286,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
                 const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
                 //@ts-ignore
                 if (invoice.payment_link) {
-                    //@ts-ignore
-                    console.log("Payment made via Payment Link:", invoice.payment_link);
                     paymentSourceType = 'payment_link';
 
                     // Try to get the session ID from various sources
@@ -220,7 +326,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
                             where: { id: ourPaymentIntent.id },
                             data: { stripeSessionId: foundSessionId }
                         });
-                        console.log("Updated PaymentIntent with session ID:", foundSessionId);
                         sessionId = foundSessionId;
                     } else {
                         console.log("Could not find session ID from any source");
@@ -235,8 +340,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
         } else if (sessionId) {
             paymentSourceType = 'checkout_session';
         }
-
-        console.log("Payment source type determined:", paymentSourceType);
 
         await processPaymentSuccess(updatedPaymentIntent, paymentIntent, paymentSourceType);
     } catch (error) {
@@ -310,7 +413,7 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
 // Process successful payment with idempotency check
 async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, sourceType: string = 'unknown') {
     try {
-        // Check if payment already processed
+     // Check if payment already processed
         const existingPayment = await prisma.payment.findFirst({
             where: { 
               OR: [
@@ -321,7 +424,6 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
         });
 
         if (existingPayment) {
-            console.log("Payment already processed:", stripePayment.id);
             return;
         }
 
@@ -331,9 +433,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
 
         // Use transaction to ensure atomicity
         const result = await prisma.$transaction(async (tx) => {
-            console.log("Starting transaction for payment intent:", ourPaymentIntent.id);
             
-            // Update PaymentIntent status
             const updatedPaymentIntent = await tx.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
                 data: { 
@@ -351,9 +451,14 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
             );
 
             if (createdBookings.length === 0) {
-                console.warn("No new bookings created for payment:", stripePayment.id);
                 return { updatedPaymentIntent, createdBookings: [] };
             }
+
+            // Get current payment intent to ensure we have latest session ID
+            const currentPaymentIntent = await tx.paymentIntent.findUnique({
+                where: { id: ourPaymentIntent.id },
+                select: { stripeSessionId: true }
+            });
 
             // Create payment record
             const paymentRecord = await tx.payment.create({
@@ -363,37 +468,21 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                   currency: stripePayment.currency,
                   status: "COMPLETED",
                   paymentIntentId: ourPaymentIntent.id,
-                  stripeSessionId: sourceType === 'payment_link' ? null : updatedPaymentIntent.stripeSessionId || null,
+                  // For payment links, stripeSessionId will be null
+                  stripeSessionId: sourceType === 'payment_link' ? null : currentPaymentIntent?.stripeSessionId || null,
                 }
             });
 
-            // Remove temporary holds
-            const deletedHolds = await tx.temporaryHold.deleteMany({
+            await tx.temporaryHold.deleteMany({
               where: { paymentIntentId: ourPaymentIntent.id }
             });
-
-            console.log("Temporary holds removed:", deletedHolds.count);
 
             return { updatedPaymentIntent, createdBookings, paymentRecord };
         });
 
-        console.log("Transaction completed successfully");
-
-        // Instead of sending emails immediately, queue them for async processing
+        // Send confirmation emails outside transaction
         if (result.createdBookings.length > 0) {
-            // Create an email queue record
-            await prisma.emailQueue.create({
-                data: {
-                    paymentIntentId: ourPaymentIntent.id,
-                    bookingIds: result.createdBookings.map(b => b.id),
-                    customerData: ourPaymentIntent.customerData,
-                    status: 'PENDING',
-                    retryCount: 0,
-                    maxRetries: 5
-                }
-            });
-            
-            console.log("Email sending queued for payment intent:", ourPaymentIntent.id);
+            await sendConfirmationEmails(result.createdBookings, customerDetails);
         }
 
     } catch (error) {
@@ -411,7 +500,6 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 where: { id: ourPaymentIntent.id },
                 data: { status: "FAILED" }
               });
-              console.log("Payment intent marked as FAILED due to processing error");
             }
         } catch (updateError) {
             console.error("Error updating payment intent to FAILED:", updateError);
@@ -444,7 +532,6 @@ async function processBookingsInTransaction(
         });
 
         if (existingBooking) {
-            console.log("Booking already exists, skipping:", existingBooking.id);
             continue;
         }
 
@@ -493,95 +580,88 @@ async function processBookingsInTransaction(
     return createdBookings;
 }
 
-// Create a new function for processing the email queue
-async function processEmailQueue() {
-    try {
-        // Get pending email tasks
-        const pendingEmails = await prisma.emailQueue.findMany({
-            where: {
-                status: 'PENDING',
-                retryCount: { lt: 5 }
-            },
-            take: 10 // Process 10 at a time
+// Add this helper function at the top level
+async function waitForSessionId(paymentIntentId: string, maxRetries = 10, delayMs = 2000): Promise<string | null> {    
+    for (let i = 0; i < maxRetries; i++) {
+        
+        const paymentIntent = await prisma.paymentIntent.findUnique({
+            where: { id: paymentIntentId },
+            select: { 
+                stripeSessionId: true,
+                stripePaymentIntentId: true,
+                status: true 
+            }
         });
 
-        for (const emailTask of pendingEmails) {
-            try {
-                // Get the payment intent and check for session ID
-                const paymentIntent = await prisma.paymentIntent.findUnique({
-                    where: { id: emailTask.paymentIntentId },
-                    select: { stripeSessionId: true }
-                });
-
-                if (!paymentIntent?.stripeSessionId) {
-                    // Increment retry count and skip for now
-                    await prisma.emailQueue.update({
-                        where: { id: emailTask.id },
-                        data: { retryCount: { increment: 1 } }
-                    });
-                    continue;
-                }
-
-                // Fetch enriched booking data
-                const enrichedBookings = await prisma.booking.findMany({
-                    where: { id: { in: emailTask.bookingIds } },
-                    include: {
-                        room: true,
-                        paymentIntent: {
-                            select: {
-                                id: true,
-                                amount: true,
-                                currency: true,
-                                status: true,
-                                stripeSessionId: true,
-                                stripePaymentIntentId: true,
-                                taxAmount: true,
-                                createdByAdmin: true
-                            }
-                        },
-                        enhancementBookings: {
-                            include: { enhancement: true }
-                        }
-                    }
-                });
-
-                const baseUrl = process.env.NODE_ENV === "local" ? process.env.BASE_URL_DEV : process.env.BASE_URL_PROD;
-                const receipt_url = `${baseUrl}/sessions/${paymentIntent.stripeSessionId}/receipt`;
-
-                // Send emails
-                await Promise.all([
-                    //@ts-ignore
-                    sendConsolidatedBookingConfirmation(enrichedBookings, JSON.parse(emailTask.customerData), receipt_url),
-                    //@ts-ignore
-                    sendConsolidatedAdminNotification(enrichedBookings, JSON.parse(emailTask.customerData))
-                ]);
-
-                // Mark as completed
-                await prisma.emailQueue.update({
-                    where: { id: emailTask.id },
-                    data: { status: 'COMPLETED' }
-                });
-
-                console.log("Emails sent successfully for payment intent:", emailTask.paymentIntentId);
-
-            } catch (error) {
-                console.error("Error processing email task:", error);
-                // Update retry count
-                await prisma.emailQueue.update({
-                    where: { id: emailTask.id },
-                    data: { 
-                        retryCount: { increment: 1 },
-                        lastError: (error as Error).message
-                    }
-                });
-            }
+        if (paymentIntent?.stripeSessionId) {
+            return paymentIntent.stripeSessionId;
         }
-    } catch (error) {
-        console.error("Error in email queue processor:", error);
+
+        // Wait before next retry
+        await new Promise(resolve => setTimeout(resolve, delayMs));
     }
+    return null;
 }
 
-// Export the email processor so it can be run separately
-export { processEmailQueue };
+// Update the sendConfirmationEmails function
+async function sendConfirmationEmails(createdBookings: any[], customerDetails: any) {
+    if (createdBookings.length === 0) return;
+
+    try {
+        // Fetch enriched booking data for emails
+        const enrichedBookings = await prisma.booking.findMany({
+            where: { 
+                id: { in: createdBookings.map(b => b.id) }
+            },
+            include: {
+                room: true,
+                paymentIntent: {
+                    select: {
+                        id: true,
+                        amount: true,
+                        currency: true,
+                        status: true,
+                        stripeSessionId: true,
+                        stripePaymentIntentId: true,
+                        taxAmount: true,
+                        createdByAdmin: true
+                    }
+                },
+                enhancementBookings: {
+                    include: { enhancement: true }
+                }
+            }
+        });
+
+        if (!enrichedBookings.length || !enrichedBookings[0].paymentIntent) {
+            console.error("No enriched bookings or payment intent found");
+            return;
+        }
+
+        const paymentIntent = enrichedBookings[0].paymentIntent;
+
+        let sessionId = paymentIntent.stripeSessionId;
+        if (!sessionId) {
+            sessionId = await waitForSessionId(paymentIntent.id);
+        }
+
+        if (!sessionId) {
+            console.error("Failed to get session ID after retries for payment intent:");
+            return;
+        }
+
+        const baseUrl = process.env.NODE_ENV === "local" ? process.env.BASE_URL_DEV : process.env.BASE_URL_PROD;
+        const receipt_url = `${baseUrl}/sessions/${sessionId}/receipt`;
+
+        await Promise.all([
+            //@ts-ignore
+            sendConsolidatedBookingConfirmation(enrichedBookings, customerDetails, receipt_url),
+            //@ts-ignore
+            sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId)
+        ]);
+    } catch (error) {
+        console.error("Error sending confirmation emails:", error);
+    }
+}
 
 export default stripeWebhookRouter;

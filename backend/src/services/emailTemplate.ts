@@ -1,4 +1,3 @@
-import axios from "axios"
 import dotenv from "dotenv"
 import { EmailService } from './emailService';
 import Handlebars from 'handlebars';
@@ -33,6 +32,14 @@ Handlebars.registerHelper('eq', function(a: any, b: any) {
 Handlebars.registerHelper('add', function(a: number, b: number) {
   return a + b;
 });
+
+
+interface RefundDetail {
+  refundId: string;
+  refundAmount: number;
+  refundCurrency: string;
+  refundReason: string;
+}
 
 interface BookingDetails {
   id: string
@@ -153,7 +160,7 @@ export const sendConsolidatedBookingConfirmation = async (
       };
     });
 
-    const enhancementsTotal = processedEnhancements.reduce((sum, enh) => sum + enh.calculatedPrice, 0);
+    const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
 
     return {
       id: booking.id,
@@ -230,6 +237,7 @@ export const sendConsolidatedBookingConfirmation = async (
 export const sendConsolidatedAdminNotification = async (
   bookings: BookingDetails[],
   customerDetails: CustomerDetails,
+  stripeSessionId: string
 ) => {
   if (!bookings.length) return;
 
@@ -285,7 +293,7 @@ export const sendConsolidatedAdminNotification = async (
         amount: payment.amount,
         currency: payment.currency,
         status: payment.status,
-        stripeSessionId: payment.stripeSessionId,
+        stripeSessionId,
       },
       customerDetails: {
         firstName: customerDetails.firstName,
@@ -321,5 +329,91 @@ export const sendPaymentLinkEmail = async (bookingItems: any) => {
         minute: '2-digit',
       }),
     },
+  });
+};
+
+export const sendRefundConfirmationEmail = async (
+  bookings: any[],
+  customerDetails: CustomerDetails,
+  refund?: RefundDetail
+) => {
+  if (!bookings || !bookings.length) return;
+
+  // Use the first booking (or extend for multiple if needed)
+  const bookingData = bookings[0];
+
+  // Dates
+  const checkIn = new Date(bookingData.checkIn);
+  const checkOut = new Date(bookingData.checkOut);
+  const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Room
+  const room = bookingData.roomDetails;
+  const roomTotal = room.price * nights;
+
+  // Enhancements
+  const processedEnhancements = (bookingData.selectedEnhancements || []).map((enh: any) => {
+    if (!enh || typeof enh.price !== 'number') {
+      console.warn('Skipping invalid enhancement booking in cancellation email:', enh);
+      return undefined;
+    }
+    let calculatedPrice = enh.price;
+    // If you have pricingType logic, add here
+    return {
+      ...enh,
+      calculatedPrice,
+      pricingDetails: {
+        basePrice: enh.price,
+        pricingType: enh.pricingType || 'PER_BOOKING',
+        nights: enh.pricingType === 'PER_DAY' ? nights : null,
+        guests: enh.pricingType === 'PER_GUEST' ? bookingData.adults : null
+      }
+    };
+  }).filter(Boolean);
+  const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
+
+  // Prepare bookings array for template (even if only one booking)
+  const bookingsForTemplate = [{
+    id: bookingData.id,
+    room: {
+      name: room.name,
+      description: room.description,
+      price: room.price,
+      capacity: room.capacity,
+      amenities: room.amenities || []
+    },
+    checkIn: bookingData.checkIn,
+    checkOut: bookingData.checkOut,
+    totalGuests: bookingData.adults,
+    nights,
+    roomTotal,
+    enhancementsTotal,
+    enhancements: processedEnhancements
+  }];
+
+  // Prepare template data
+  const templateData: any = {
+    confirmationId: bookingData.id,
+    customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
+    checkInDate: Handlebars.helpers.formatDate(checkIn),
+    checkOutDate: Handlebars.helpers.formatDate(checkOut),
+    totalNights: nights,
+    totalGuests: bookingData.adults,
+    currency: (refund && refund.refundCurrency) ? refund.refundCurrency.toUpperCase() : 'EUR',
+    bookings: bookingsForTemplate,
+  };
+
+  if (refund) {
+    templateData.refund = refund;
+  }
+
+  await EmailService.sendEmail({
+    to: {
+      email: customerDetails.email,
+      name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+    },
+    templateType: 'BOOKING_CANCELLATION',
+    subject: '', // Will be taken from template
+    templateData,
   });
 };

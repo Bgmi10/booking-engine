@@ -176,7 +176,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       }
 
       const generalSettings = await prisma.generalSettings.findMany({
-        select: { minStayDays: true }
+        select: { minStayDays: true, taxPercentage: true }
       });
   
       responseHandler(res, 200, "Calendar availability fetched successfully", {

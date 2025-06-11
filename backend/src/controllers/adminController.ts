@@ -9,7 +9,7 @@ import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
 import { Prisma } from "@prisma/client";
 import { Stripe } from "stripe";
-import { sendPaymentLinkEmail } from "../services/bookingEmailTemplate";
+import { sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
 
 dotenv.config();
 
@@ -345,7 +345,11 @@ const getAllBookings = async (req: express.Request, res: express.Response) => {
     const bookings = await prisma.booking.findMany({
       include: {
         room: true,
-        paymentIntent: true,
+        paymentIntent: {
+          include: {
+            payments: true
+          }
+        },
         enhancementBookings: {
           include: {
             enhancement: true
@@ -719,33 +723,35 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id } = req.body;
+  const { minStayDays, id, taxPercentage } = req.body;
 
-  if (!minStayDays || !id) {
-    responseHandler(res, 400, "Missing body");
+  if (!id || typeof minStayDays === 'undefined' && typeof taxPercentage === 'undefined') {
+    responseHandler(res, 400, "Missing required fields: id and at least one of minStayDays or taxPercentage");
     return;
   }
 
-  let updateData = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number } = {};
 
-  if (minStayDays) {
-    updateData = {
-      minStayDays: minStayDays
-    }
+  if (typeof minStayDays !== 'undefined') {
+    updateData.minStayDays = minStayDays;
   }
-  
+
+  if (typeof taxPercentage !== 'undefined') {
+    updateData.taxPercentage = taxPercentage;
+  }
+
   try {
     const response = await prisma.generalSettings.update({
       where: { id },
       data: updateData
     });
 
-    responseHandler(res, 200, "Updated general settings success", response);
+    responseHandler(res, 200, "Updated general settings successfully", response);
   } catch (e) {
-    console.log(e);
-    handleError(res, e as Error)
+    console.error("Error updating general settings:", e);
+    handleError(res, e as Error);
   }
-}
+};
 
 const getGeneralSettings = async (req: express.Request, res: express.Response) => {
    
@@ -1037,114 +1043,129 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
     }
 };
 
-// Get payment intent status for admin tracking
-const getPaymentIntentStatus = async (req: express.Request, res: express.Response) => {
-  const { paymentIntentId } = req.params;
 
-  try {
-      const paymentIntent = await prisma.paymentIntent.findUnique({
-          where: { id: paymentIntentId },
-          include: {
+  export const refund = async (req: express.Request, res: express.Response) => {
+    const { paymentIntentId, reason, bookingData, customerDetails } = req.body;
+  
+    if (!paymentIntentId) {
+        responseHandler(res, 400, "Payment Intent ID is required");
+        return;
+    }
+  
+    try {
+        // Find the payment intent in our database
+        const ourPaymentIntent = await prisma.paymentIntent.findUnique({
+            where: { id: paymentIntentId },
+            include: {
               bookings: {
-                  include: {
-                      room: true,
-                      enhancementBookings: {
-                          include: { enhancement: true }
-                      }
-                  }
+                include: {
+                  room: true
+                }
               },
-              payments: true,
-              temporaryHolds: true
-          }
-      });
-
-      if (!paymentIntent) {
-          responseHandler(res, 404, "Payment intent not found");
+              payments: true
+            }
+        });
+  
+        if (!ourPaymentIntent) {
+          responseHandler(res, 404, "Payment Intent not found");
           return;
-      }
+        }
+  
+        if (ourPaymentIntent.createdByAdmin && 
+            (ourPaymentIntent.status === "CREATED" || 
+             ourPaymentIntent.status === "PAYMENT_LINK_SENT" || 
+             ourPaymentIntent.status === "PENDING")) {
+            
+            console.log("Canceling unpaid admin-created payment intent:", paymentIntentId);
+            
+            // Cancel the Stripe payment intent if it exists
+            if (ourPaymentIntent.stripePaymentIntentId) {
+              try {
+                await stripe.paymentIntents.cancel(ourPaymentIntent.stripePaymentIntentId);
+                console.log("Stripe payment intent cancelled:", ourPaymentIntent.stripePaymentIntentId);
+              } catch (stripeError: any) {
+                console.log("Could not cancel Stripe payment intent:", stripeError.message);
+              }
+            }
+  
+            // Update our database - mark as cancelled
+            await prisma.$transaction(async (tx) => {
+              // Update payment intent status
+              await tx.paymentIntent.update({
+                  where: { id: paymentIntentId },
+                  data: { 
+                    status: "CANCELLED",
+                    adminNotes: reason || "Cancelled by admin before payment"
+                  }
+              });
 
-      responseHandler(res, 200, "Payment intent status retrieved", {
-          paymentIntent,
-          bookingItems: JSON.parse(paymentIntent.bookingData),
-          customerDetails: JSON.parse(paymentIntent.customerData)
-      });
+              // Update all related bookings to cancelled
+              await tx.booking.updateMany({
+                where: { paymentIntentId: paymentIntentId },
+                data: { status: "CANCELLED" }
+              });
 
-  } catch (e) {
-      console.error("Get payment intent status error:", e);
-      handleError(res, e as Error);
-  }
-};
+              // Remove temporary holds
+              await tx.temporaryHold.deleteMany({
+                where: { paymentIntentId: paymentIntentId }
+              });
+            });
+          await sendRefundConfirmationEmail(bookingData, customerDetails);
+  
+          responseHandler(res, 200, "Payment intent cancelled successfully", {
+            type: "cancellation",
+            paymentIntentId: paymentIntentId
+          });
+          return;
+        }
+  
+        // Case 2: Payment has been completed - need to refund via Stripe
+        if (ourPaymentIntent.status === "SUCCEEDED" && ourPaymentIntent.stripePaymentIntentId) {
+  
+            const stripePaymentIntent = await stripe.paymentIntents.retrieve(ourPaymentIntent.stripePaymentIntentId);
+            
+            if (stripePaymentIntent.status !== "succeeded") {
+              responseHandler(res, 400, "Payment was not successful, cannot refund");
+              return;
+            }
+  
+            // Check if already refunded
+            const existingRefund = await stripe.refunds.list({
+              payment_intent: ourPaymentIntent.stripePaymentIntentId,
+              limit: 1
+            });
+  
+            if (existingRefund.data.length > 0) {
+              responseHandler(res, 400, "Payment has already been refunded");
+              return;
+            }
+  
+            const refund = await stripe.refunds.create({
+                payment_intent: ourPaymentIntent.stripePaymentIntentId,
+                reason: reason || "requested_by_customer",
+                metadata: {
+                  paymentIntentId: paymentIntentId,
+                  refundReason: reason || "Admin initiated refund"
+                }
+            });
+  
+            responseHandler(res, 200, "Refund initiated successfully", {
+                type: "refund",
+                refundId: refund.id,
+                paymentIntentId: paymentIntentId,
+                amount: refund.amount / 100
+            });
+          return;
+        }
+  
+      responseHandler(res, 400, `Cannot process refund/cancellation for payment intent with status: ${ourPaymentIntent.status}`);
+  
+    } catch (error) {
+      console.error("Error processing refund:", error);
+      responseHandler(res, 500, "Failed to process refund");
+    }
+  };
 
-// List all admin payment intents with filtering
-const listAdminPaymentIntents = async (req: express.Request, res: express.Response) => {
-  const { 
-      status, 
-      page = 1, 
-      limit = 20, 
-      customerEmail,
-      dateFrom,
-      dateTo 
-  } = req.query;
-
-  try {
-      const where: any = {
-          createdByAdmin: true
-      };
-
-      if (status) {
-          where.status = status;
-      }
-
-      if (customerEmail) {
-          where.customerData = {
-              contains: customerEmail
-          };
-      }
-
-      if (dateFrom || dateTo) {
-          where.createdAt = {};
-          if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
-          if (dateTo) where.createdAt.lte = new Date(dateTo as string);
-      }
-
-      const [paymentIntents, total] = await Promise.all([
-          prisma.paymentIntent.findMany({
-              where,
-              include: {
-                  bookings: {
-                      include: { room: true }
-                  },
-                  payments: true
-              },
-              orderBy: { createdAt: 'desc' },
-              skip: (Number(page) - 1) * Number(limit),
-              take: Number(limit)
-          }),
-          prisma.paymentIntent.count({ where })
-      ]);
-
-      const enrichedPaymentIntents = paymentIntents.map(pi => ({
-          ...pi,
-          bookingItems: JSON.parse(pi.bookingData),
-          customerDetails: JSON.parse(pi.customerData)
-      }));
-
-      responseHandler(res, 200, "Payment intents retrieved", {
-          paymentIntents: enrichedPaymentIntents,
-          pagination: {
-              page: Number(page),
-              limit: Number(limit),
-              total,
-              pages: Math.ceil(total / Number(limit))
-          }
-      });
-
-  } catch (e) {
-      console.error("List payment intents error:", e);
-      handleError(res, e as Error);
-  }
-};
-
-export { getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, getPaymentIntentStatus, listAdminPaymentIntents };
+export { getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink };
 
 

@@ -1,88 +1,158 @@
 import React, { useState } from 'react';
-import { RiSave3Line } from 'react-icons/ri';
-import type { Variable, Template } from './types';
+import { RiSave3Line, RiArrowLeftLine, RiCodeLine, RiEyeLine } from 'react-icons/ri';
+import type { Variable, Template, EmailBlock } from './types';
+import { VisualEditor } from './editor/VisualEditor';
+import { VariableManager } from './editor/VariableManager';
+import { validateTemplate } from './editor/utils/validator';
+import { convertToHtml } from './editor/utils/converter';
+
+type EditorMode = 'visual' | 'html' | 'preview';
 
 interface TemplateEditorProps {
   initialData?: Template;
   onSave: (template: Partial<Template>) => Promise<void>;
-  variables: Variable[];
+  variables: Record<string, Variable>;
+  onBack: () => void;
 }
 
 export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   initialData,
   onSave,
   variables,
+  onBack,
 }) => {
-  const [name, setName] = useState(initialData?.name || '');
-  const [subject, setSubject] = useState(initialData?.subject || '');
-  const [html, setHtml] = useState(initialData?.html || '');
+  const [formData, setFormData] = useState({
+    name: initialData?.name || '',
+    subject: initialData?.subject || '',
+    html: initialData?.html || '',
+    type: initialData?.type || 'BOOKING_CONFIRMATION',
+  });
+
+  const [editorMode, setEditorMode] = useState<EditorMode>('visual');
+  const [blocks, setBlocks] = useState<EmailBlock[]>(initialData?.design?.blocks || []);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [activeVariable, setActiveVariable] = useState<string | null>(null);
 
   const handleSave = async () => {
-    if (!name.trim()) {
+    if (!formData.name.trim()) {
       setError('Template name is required');
       return;
     }
 
-    if (!subject.trim()) {
+    if (!formData.subject.trim()) {
       setError('Subject line is required');
       return;
     }
 
-    if (!html.trim()) {
-      setError('Template content is required');
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-
     try {
+      setIsSaving(true);
+      setError(null);
+
+      // Convert blocks to HTML if in visual mode
+      const finalHtml = editorMode === 'visual' ? convertToHtml(blocks) : formData.html;
+
+      // Validate template and variables
+      const validationResult = validateTemplate(finalHtml, variables);
+      if (!validationResult.isValid) {
+        //@ts-ignore
+        setError(validationResult.error);
+        return;
+      }
+
       await onSave({
-        name,
-        subject,
-        html,
+        ...formData,
+        html: finalHtml,
         type: initialData?.type || 'BOOKING_CONFIRMATION',
         version: initialData?.version || 1,
         isActive: initialData?.isActive || false,
-        variables: initialData?.variables || [],
+        variables,
+        design: {
+          version: '1.0',
+          blocks,
+          body: {
+            backgroundColor: '#f8fafc',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            color: '#1f2937'
+          }
+        }
       });
     } catch (err: any) {
       setError(err.message || 'Failed to save template');
-      console.error('Failed to save template:', err);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Function to insert variable at cursor position
-  const insertVariable = (variable: Variable) => {
-    const textarea = document.getElementById('template-html') as HTMLTextAreaElement;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentValue = textarea.value;
-    const newValue = currentValue.substring(0, start) + 
-                    `{{${variable.name}}}` + 
-                    currentValue.substring(end);
-    
-    setHtml(newValue);
-    
-    // Reset cursor position
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(
-        start + variable.name.length + 4,
-        start + variable.name.length + 4
-      );
-    }, 0);
+  const handleModeChange = (mode: EditorMode) => {
+    if (mode === 'visual' && editorMode === 'html') {
+      // Convert HTML to blocks when switching to visual mode
+      // This would need a HTML parser implementation
+      // setBlocks(parseHtmlToBlocks(formData.html));
+    }
+    setEditorMode(mode);
   };
 
   return (
     <div className="space-y-6 bg-white rounded-lg shadow-sm">
+      {/* Header with Back Button and Mode Switcher */}
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <RiArrowLeftLine className="w-5 h-5 mr-1" />
+              Back to Templates
+            </button>
+            <h2 className="text-lg font-medium text-gray-900">
+              {initialData ? 'Edit Template' : 'Create New Template'}
+            </h2>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange('visual')}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                editorMode === 'visual'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Visual Editor
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('html')}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                editorMode === 'html'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <RiCodeLine className="w-5 h-5" />
+              HTML
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('preview')}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                editorMode === 'preview'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <RiEyeLine className="w-5 h-5" />
+              Preview
+            </button>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="p-4 bg-red-50 border-l-4 border-red-500">
           <div className="flex">
@@ -106,11 +176,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           </label>
           <input
             type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setError(null);
-            }}
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Enter template name"
           />
@@ -121,87 +188,83 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           </label>
           <input
             type="text"
-            value={subject}
-            onChange={(e) => {
-              setSubject(e.target.value);
-              setError(null);
-            }}
+            value={formData.subject}
+            onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Enter email subject"
           />
         </div>
       </div>
 
-      {/* Editor Controls */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Template Content</h3>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => setPreviewMode(!previewMode)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {previewMode ? 'Edit Mode' : 'Preview Mode'}
-            </button>
+      {/* Editor Area */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Main Editor */}
+        <div className="col-span-9">
+          <div className="p-6">
+            {editorMode === 'visual' && (
+              <VisualEditor
+                blocks={blocks}
+                onBlocksChange={setBlocks}
+                variables={variables}
+                activeVariable={activeVariable}
+                onVariableSelect={setActiveVariable}
+              />
+            )}
+            {editorMode === 'html' && (
+              <textarea
+                value={formData.html}
+                onChange={(e) => setFormData(prev => ({ ...prev, html: e.target.value }))}
+                className="w-full h-[600px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                placeholder="Enter your HTML template here..."
+              />
+            )}
+            {editorMode === 'preview' && (
+              <div className="border rounded-md p-4 bg-white">
+                <div 
+                  dangerouslySetInnerHTML={{ 
+                    //@ts-ignore
+                    __html: editorMode === 'visual' ? convertToHtml(blocks) : formData.html 
+                  }} 
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Variables List */}
-        {!previewMode && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Available Variables
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {variables.map((variable) => (
-                <button
-                  key={variable.name}
-                  onClick={() => insertVariable(variable)}
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  title={variable.description}
-                >
-                  {variable.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Editor/Preview Area */}
-        <div className="mt-4">
-          {previewMode ? (
-            <div className="border rounded-md p-4 bg-white">
-              <div dangerouslySetInnerHTML={{ __html: html }} />
-            </div>
-          ) : (
-            <textarea
-              id="template-html"
-              value={html}
-              onChange={(e) => {
-                setHtml(e.target.value);
-                setError(null);
-              }}
-              className="w-full h-[600px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-              placeholder="Enter your HTML template here..."
-            />
-          )}
+        {/* Variable Manager Sidebar */}
+        <div className="col-span-3 border-l border-gray-200">
+          <VariableManager
+            variables={variables}
+            activeVariable={activeVariable}
+            onVariableSelect={setActiveVariable}
+          />
         </div>
       </div>
 
-      {/* Save Button */}
+      {/* Save and Cancel Buttons */}
       <div className="p-6 border-t border-gray-200">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-            ${isSaving 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-            }`}
-        >
-          <RiSave3Line className="w-5 h-5 mr-2" />
-          {isSaving ? 'Saving...' : 'Save Template'}
-        </button>
+        <div className="flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+              ${isSaving 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+              }`}
+          >
+            <RiSave3Line className="w-5 h-5 mr-2" />
+            {isSaving ? 'Saving...' : 'Save Template'}
+          </button>
+        </div>
       </div>
     </div>
   );

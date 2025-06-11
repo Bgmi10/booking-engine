@@ -1,55 +1,49 @@
-
-declare global {
-  namespace ReactEmailEditor {
-    interface Editor {
-      loadHTML: (html: string) => void;
-      setFonts: (fonts: Array<{ label: string; value: string }>) => void;
-    }
-  }
-}
-
 export interface Variable {
-  name: string;
-  type: string;
-  description: string;
-  example: any;
+  name: string
+  type: "string" | "number" | "array" | "object" | "boolean"
+  example: any
+  description: string
+  required?: boolean
 }
 
 export interface Template {
-  id?: string;
-  name: string;
-  type: string;
-  subject: string;
-  html: string;
-  variables: Variable[];
-  version: number;
-  isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  design?: string;
+  id?: string
+  name: string
+  type: string
+  subject: string
+  html: string
+  design?: EmailDesign
+  variables: Record<string, Variable>
+  version: number
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
-export interface TemplateFormData {
-  name: string;
-  type: string;
-  subject: string;
-  html: string;
-  isActive: boolean;
+export interface EmailDesign {
+  version: string
+  body: {
+    backgroundColor: string
+    fontFamily: string
+    fontSize: string
+    lineHeight: string
+    color: string
+  }
+  blocks: EmailBlock[]
 }
 
-export type TemplateType = 'BOOKING_CONFIRMATION' | 'ADMIN_NOTIFICATION' | 'PAYMENT_LINK';
+export interface EmailBlock {
+  id: string
+  type: "text" | "image" | "button" | "divider" | "spacer" | "columns" | "variable"
+  content: any
+  styles: Record<string, any>
+  children?: EmailBlock[]
+}
 
-export const TEMPLATE_TYPES: Record<TemplateType, { label: string; description: string }> = {
-  BOOKING_CONFIRMATION: {
-    label: 'Booking Confirmation',
-    description: 'Sent to guests after successful booking',
-  },
-  ADMIN_NOTIFICATION: {
-    label: 'Admin Notification',
-    description: 'Sent to admins when new booking is made',
-  },
-  PAYMENT_LINK: {
-    label: 'Payment Link',
-    description: 'Sent to guests with payment link',
-  },
-}; 
+export const TEMPLATE_TYPES = {
+  BOOKING_CONFIRMATION: { label: "Booking Confirmation", value: "BOOKING_CONFIRMATION" },
+  RECEIPT: { label: "Receipt", value: "RECEIPT" },
+  CANCELLATION: { label: "Cancellation", value: "CANCELLATION" },
+  REMINDER: { label: "Reminder", value: "REMINDER" },
+  WELCOME: { label: "Welcome", value: "WELCOME" },
+} as const

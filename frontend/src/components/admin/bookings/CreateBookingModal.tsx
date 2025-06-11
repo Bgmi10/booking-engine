@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import { RiCloseLine, RiCheckLine, RiErrorWarningLine, RiAddLine, RiSubtractLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
@@ -7,7 +5,7 @@ import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { baseUrl } from "../../../utils/constants"
 import countryList from "country-list-with-dial-code-and-flag"
-import type { Booking, Enhancement, Room } from "../../../types/types"
+import type { Enhancement, Room } from "../../../types/types"
 import { addDays, differenceInHours } from "date-fns"
 
 interface BookingItem {
@@ -35,19 +33,12 @@ interface CustomerDetails {
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
-  setBookings: any
-  bookings: Booking[]
-  setError: (error: string) => void
-  setSuccess: (success: string) => void
 }
 
 export function CreateBookingModal({
   setIsCreateModalOpen,
-  setBookings,
-  bookings,
-  setError,
-  setSuccess,
-}: CreateBookingModalProps) {
+  taxPercentage = 0.1 // Default to 10% if not provided
+}: CreateBookingModalProps & { taxPercentage?: number }) {
   const countries = countryList.getAll()
 
   // Customer Details State
@@ -78,8 +69,6 @@ export function CreateBookingModal({
       totalPrice: 0,
     },
   ])
-
-  console.log(bookingItems)
 
   const [loadingAction, setLoadingAction] = useState(false)
   const [localError, setLocalError] = useState("")
@@ -160,9 +149,9 @@ export function CreateBookingModal({
   }
 
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       await Promise.all([fetchRooms(), fetchAllEnhancements()])
-    })()
+    })();
   }, [])
 
   // Set default dates
@@ -216,10 +205,10 @@ export function CreateBookingModal({
       }
     })
 
-    const tax = total * 0.1 // 10% IVA
+    const tax = total * taxPercentage
     setTotalAmount(total)
     setTaxAmount(tax)
-  }, [bookingItems])
+  }, [bookingItems, taxPercentage])
 
   // Add new booking item
   const addBookingItem = () => {
@@ -319,7 +308,9 @@ export function CreateBookingModal({
     })
 
     // Room rates (if available)
+    //@ts-ignore
     if (room?.RoomRate && room.RoomRate.length > 0) {
+      //@ts-ignore
       room.RoomRate.forEach((roomRate: any) => {
         if (roomRate.ratePolicy.isActive) {
           let finalPrice = basePrice
@@ -403,103 +394,215 @@ export function CreateBookingModal({
     return match ? match[1] : null
   } 
 
-
+  // Helper function to check if two date ranges overlap
+const checkDateRangeOverlap = (start1: string, end1: string, start2: string, end2: string) => {
+  const startDate1 = new Date(start1);
+  const endDate1 = new Date(end1);
+  const startDate2 = new Date(start2);
+  const endDate2 = new Date(end2);
   
-  // Create booking
-  const createBooking = async () => {
-    // Reset all errors
-    setLocalError("")
-    setBookingItems((prev) => prev.map((item) => ({ ...item, error: undefined })))
+  // Check if ranges overlap
+  return startDate1 < endDate2 && startDate2 < endDate1;
+};
 
-    // Validation
-    if (!customerDetails.firstName.trim() || !customerDetails.lastName.trim() || !customerDetails.email.trim()) {
-      setLocalError("Customer first name, last name, and email are required")
-      return
+// Function to validate booking items for room conflicts
+const validateBookingItems = (bookingItems: BookingItem[]) => {
+  const errors = [];
+  
+  for (let i = 0; i < bookingItems.length; i++) {
+    const currentItem = bookingItems[i];
+    
+    // Skip if current item doesn't have required fields
+    if (!currentItem.selectedRoom || !currentItem.checkIn || !currentItem.checkOut) {
+      continue;
     }
-
-    for (let i = 0; i < bookingItems.length; i++) {
-      const item = bookingItems[i]
-      if (!item.selectedRoom) {
-        setLocalError(`Room selection is required for booking item ${i + 1}`)
-        return
+    
+    // Check against all other booking items
+    for (let j = i + 1; j < bookingItems.length; j++) {
+      const compareItem = bookingItems[j];
+      
+      // Skip if compare item doesn't have required fields
+      if (!compareItem.selectedRoom || !compareItem.checkIn || !compareItem.checkOut) {
+        continue;
       }
-      if (!item.checkIn || !item.checkOut) {
-        setLocalError(`Check-in and check-out dates are required for booking item ${i + 1}`)
-        return
-      }
-      if (new Date(item.checkIn) >= new Date(item.checkOut)) {
-        setBookingItems((prev) =>
-          prev.map((bItem, index) =>
-            index === i ? { ...bItem, error: "Check-out date must be after check-in date" } : bItem,
-          ),
-        )
-        return
-      }
-      if (!item.selectedRateOption || !item.selectedRateOption.id) {
-        setLocalError(`Rate option selection is required for booking item ${i + 1}`)
-        return
-      }
-    }
-
-    // Calculate hours until expiry
-    const finalExpiryHours =
-      expiryMode === "hours" ? expiresInHours : Math.max(1, differenceInHours(expiryDate, new Date()))
-
-    setLoadingAction(true)
-    setLocalSuccess("")
-
-    try {
-      const res = await fetch(`${baseUrl}/admin/create-payment-link`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bookingItems: bookingItems.map((item) => ({
-            ...item,
-            fromAdmin: true,
-          })),
-          customerDetails,
-          taxAmount,
-          totalAmount,
-          expiresInHours: finalExpiryHours,
-          adminNotes: customerDetails.specialRequests,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        // Check if error is about room availability
-        const roomName = extractRoomAndError(data.message)
-        if (roomName) {
-          // Find the booking item with this room and set its error
-          setBookingItems((prev) =>
-            prev.map((item) => (item.roomDetails?.name === roomName ? { ...item, error: data.message } : item)),
-          )
-        } else {
-          setLocalError(data.message || "Failed to create booking")
+      
+      // Check if same room and dates overlap
+      if (currentItem.selectedRoom === compareItem.selectedRoom) {
+        const hasOverlap = checkDateRangeOverlap(
+          currentItem.checkIn,
+          currentItem.checkOut,
+          compareItem.checkIn,
+          compareItem.checkOut
+        );
+        
+        if (hasOverlap) {
+          const roomName = currentItem.roomDetails?.name || `Room ${currentItem.selectedRoom}`;
+          const errorMessage = `${roomName} has conflicting dates between Room ${i + 1} and Room ${j + 1}`;
+          
+          errors.push({
+            indices: [i, j],
+            message: errorMessage,
+            roomId: currentItem.selectedRoom
+          });
         }
-        throw new Error(data.message || "Failed to create booking")
       }
-
-      setLocalSuccess("Payment link created successfully!")
-      setSuccess("Payment link created and sent to customer!")
-    } catch (error: any) {
-      console.error(error)
-      if (!error.message.includes("is not available for these dates")) {
-        setLocalError(error.message || "Failed to create booking. Please try again.")
-        setError(error.message || "Failed to create booking. Please try again.")
-      }
-    } finally {
-      setLoadingAction(false)
     }
   }
+  
+  return errors;
+};
+
+  // Validation function for booking items
+const validateBeforeBooking = (bookingItems: BookingItem[] , customerDetails: CustomerDetails) => {
+  // Reset all errors first
+  const itemsWithClearedErrors = bookingItems.map(item => ({ ...item, error: undefined }));
+  
+  // Basic validation
+  if (!customerDetails.firstName.trim() || !customerDetails.lastName.trim() || !customerDetails.email.trim()) {
+    return {
+      isValid: false,
+      error: "Customer first name, last name, and email are required",
+      updatedItems: itemsWithClearedErrors
+    };
+  }
+  
+  // Validate each booking item
+  for (let i = 0; i < bookingItems.length; i++) {
+    const item = bookingItems[i];
+    if (!item.selectedRoom) {
+      return {
+        isValid: false,
+        error: `Room selection is required for booking item ${i + 1}`,
+        updatedItems: itemsWithClearedErrors
+      };
+    }
+    if (!item.checkIn || !item.checkOut) {
+      return {
+        isValid: false,
+        error: `Check-in and check-out dates are required for booking item ${i + 1}`,
+        updatedItems: itemsWithClearedErrors
+      };
+    }
+    if (new Date(item.checkIn) >= new Date(item.checkOut)) {
+      const updatedItems = itemsWithClearedErrors.map((bItem, index) =>
+        index === i ? { ...bItem, error: "Check-out date must be after check-in date" } : bItem
+      );
+      return {
+        isValid: false,
+        error: null, // Error is set on specific item
+        updatedItems
+      };
+    }
+    if (!item.selectedRateOption || !item.selectedRateOption.id) {
+      return {
+        isValid: false,
+        error: `Rate option selection is required for booking item ${i + 1}`,
+        updatedItems: itemsWithClearedErrors
+      };
+    }
+  }
+  
+  // Check for room conflicts
+  const conflicts = validateBookingItems(bookingItems);
+
+  if (conflicts.length > 0) {
+    const updatedItems = itemsWithClearedErrors.map((item, i) => {
+      const conflict = conflicts.find(c => c.indices.includes(i));
+      if (conflict) {
+        return { ...item, error: conflict.message };
+      }
+      return item;
+    });
+    
+    return {
+      isValid: false,
+      error: "Please resolve room booking conflicts before proceeding",
+      updatedItems
+    };
+  }
+  
+  return {
+    isValid: true,
+    error: null,
+    updatedItems: itemsWithClearedErrors
+  };
+};
+
+
+  // Create booking
+const createBooking = async () => {
+  // Validate before proceeding
+  const validation = validateBeforeBooking(bookingItems, customerDetails);
+  
+  if (!validation.isValid) {
+    if (validation.error) {
+      setLocalError(validation.error);
+    }
+    setBookingItems(validation.updatedItems);
+    return;
+  }
+
+  // Clear any previous errors
+  setLocalError("");
+  
+  // Calculate hours until expiry
+  const finalExpiryHours =
+    expiryMode === "hours" ? expiresInHours : Math.max(1, differenceInHours(expiryDate, new Date()));
+
+  setLoadingAction(true);
+  setLocalSuccess("");
+
+  try {
+    const res = await fetch(`${baseUrl}/admin/create-payment-link`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        bookingItems: bookingItems.map((item) => ({
+          ...item,
+          fromAdmin: true,
+        })),
+        customerDetails,
+        taxAmount,
+        totalAmount,
+        expiresInHours: finalExpiryHours,
+        adminNotes: customerDetails.specialRequests,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Check if error is about room availability
+      const roomName = extractRoomAndError(data.message);
+      if (roomName) {
+        // Find the booking item with this room and set its error
+        setBookingItems((prev) =>
+          prev.map((item) => (item.roomDetails?.name === roomName ? { ...item, error: data.message } : item)),
+        );
+      } else {
+        setLocalError(data.message || "Failed to create booking");
+      }
+      throw new Error(data.message || "Failed to create booking");
+    }
+
+    setLocalSuccess("Payment link created successfully!");
+  } catch (error: any) {
+    console.error(error);
+    if (!error.message.includes("is not available for these dates")) {
+      setLocalError(error.message || "Failed to create booking. Please try again.");
+    }
+  } finally {
+    setLoadingAction(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+
         <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white">
           <h3 className="text-xl font-semibold text-gray-900">Create New Booking</h3>
           <button
