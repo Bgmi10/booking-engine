@@ -13,11 +13,12 @@ import {
   ChevronUp,
   Bed,
   ImageIcon,
-  Download,
-  FileText
 } from "lucide-react"
 import { baseUrl } from "../utils/constants"
 import Header from "./Header"
+import { generateMergedBookingId } from "../utils/helper"
+import type { Booking } from "../types/types"
+import { calculateNights } from "../utils/format"
 
 export default function Success() {
   const [sessionData, setSessionData] = useState<any>(null)
@@ -88,12 +89,7 @@ export default function Success() {
     return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   } 
 
-  const calculateNights = (checkIn: string, checkOut: string) => {
-    const checkInDate = new Date(checkIn)
-    const checkOutDate = new Date(checkOut)
-    return Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
-  }
-
+ 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "SUCCEEDED":
@@ -190,11 +186,10 @@ export default function Success() {
     status: 'CONFIRMED' // Since this is a success page, we know the bookings are confirmed
   }))
 
-  console.log(bookingData)
-
   const customerData = JSON.parse(sessionData.data.customerData)
   const payment = sessionData.data
   const totalRooms = bookings.length
+  const arrayofBookingIds = [...bookings.map((booking: Booking) =>booking.id)];
 
   return (
     <>
@@ -313,6 +308,10 @@ export default function Success() {
           )}
 
           {/* Individual Booking Details */}
+          <div className="mb-4 mr-2">
+            <span className="text-gray-600 mb-2">Booking ID: {generateMergedBookingId(arrayofBookingIds)}</span>
+          </div>
+
           {bookings.map((booking: any, index: number) => (
             <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
               <div className="p-4 sm:p-6 border-b border-gray-200">
@@ -320,7 +319,6 @@ export default function Success() {
                   <div className="flex flex-col gap-2">
                     <h2 className="text-xl font-semibold text-gray-800">Room {index + 1} Details</h2>
                     <div>
-                    <span className="text-gray-600">Booking ID: {booking.id}</span>
                   </div>
                   </div>
                   
@@ -547,7 +545,7 @@ export default function Success() {
 
 <>
             
-              {/* Receipt PDF Section */}
+{/*              
               {receiptUrl && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
                   <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center">
@@ -565,7 +563,7 @@ export default function Success() {
                     </a>
                   </div>
                 </div>
-              )}
+              )} */}
             </>
 
           {/* Footer Actions */}

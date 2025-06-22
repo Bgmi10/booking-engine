@@ -1,1 +1,93 @@
 @import "tailwindcss";
+
+/* Unlayer Email Editor Styles */
+.unlayer-editor {
+  height: 100%;
+  width: 100%;
+}
+
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
+
+  .space-x-2 > * + * {
+    margin-left: 0.5rem;
+  }
+
+  .space-x-3 > * + * {
+    margin-left: 0.75rem;
+  }
+}
+
+/* Error and success states */
+.bg-red-50 {
+  background-color: #fef2f2;
+}
+
+.bg-yellow-50 {
+  background-color: #fffbeb;
+}
+
+.bg-blue-50 {
+  background-color: #eff6ff;
+}
+
+.border-red-200 {
+  border-color: #fecaca;
+}
+
+.border-yellow-200 {
+  border-color: #fde68a;
+}
+
+.border-blue-200 {
+  border-color: #bfdbfe;
+}
+
+.text-red-700 {
+  color: #b91c1c;
+}
+
+.text-yellow-700 {
+  color: #a16207;
+}
+
+.text-blue-700 {
+  color: #1d4ed8;
+}

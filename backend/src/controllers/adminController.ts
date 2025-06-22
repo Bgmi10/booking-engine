@@ -8,14 +8,14 @@ import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
 import { Prisma } from "@prisma/client";
-import { Stripe } from "stripe";
-import { sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
+import { sendConsolidatedBookingConfirmation, sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
+import { stripe } from "../config/stripe";
+import { baseUrl } from "../utils/constants";
 
 dotenv.config();
 
 const devUrl = "https://localhost:5173";
 const prodUrl = process.env.FRONTEND_PROD_URL;
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-04-30.basil" });
 
 const getAllusers = async (req: express.Request, res: express.Response) => {
   //@ts-ignore
@@ -765,9 +765,9 @@ const getGeneralSettings = async (req: express.Request, res: express.Response) =
 }
 
 // Helper function to find or create product/price
-const findOrCreatePrice = async (itemData: { 
-    name: string;
-    description: string;
+export const findOrCreatePrice = async (itemData: { 
+    name?: string;
+    description?: string;
     unitAmount: number;
     currency: string;
     images?: string[];
@@ -854,8 +854,9 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
                     roomId,
                     OR: [
                         {
-                            checkIn: { lte: new Date(checkOut) },
-                            checkOut: { gte: new Date(checkIn) }
+                          checkIn: { lte: new Date(checkOut) },
+                          checkOut: { gte: new Date(checkIn) },
+                          status: "CONFIRMED"
                         }
                     ]
                 }
@@ -932,7 +933,7 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
                 description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
                 unitAmount: Math.round(totalRoomPrice * 100),
                 currency: "eur",
-                images: booking.roomDetails.images?.[0]?.url ? [booking.roomDetails.images[0].url] : undefined,
+                images: booking.roomDetails.images.length > 0 ? booking.roomDetails.images.map((image: any) => encodeURI(image.url.trim())) : ["https://www.shutterstock.com/search/no-picture-available"],
                 dates: {
                     checkIn: new Date(booking.checkIn).toISOString().split('T')[0],
                     checkOut: new Date(booking.checkOut).toISOString().split('T')[0]
@@ -1019,12 +1020,14 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
               stripePaymentLinkId: paymentLink.id // Store the payment link ID
             }
         });
-
-        // Send payment link email to customer
+        
+        const route = `/payment-intent/${paymentIntent.id}/check-status`
+        const paymentLinkUrl = process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL + route : process.env.FRONTEND_PROD_URL + route 
+    
         await sendPaymentLinkEmail({
             email: customerDetails.email,
             name: `${customerDetails.firstName} ${customerDetails.lastName}`,
-            paymentLink: paymentLink.url,
+            paymentLink: paymentLinkUrl,
             bookingDetails: bookingItems,
             totalAmount,
             expiresAt
@@ -1044,13 +1047,15 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
 };
 
 
-  export const refund = async (req: express.Request, res: express.Response) => {
+export const refund = async (req: express.Request, res: express.Response) => {
     const { paymentIntentId, reason, bookingData, customerDetails } = req.body;
   
     if (!paymentIntentId) {
-        responseHandler(res, 400, "Payment Intent ID is required");
-        return;
+      responseHandler(res, 400, "Payment Intent ID is required");
+      return;
     }
+
+    console.log("logged from adminController", customerDetails);
   
     try {
         // Find the payment intent in our database
@@ -1071,7 +1076,7 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
           return;
         }
   
-        if (ourPaymentIntent.createdByAdmin && 
+        if (
             (ourPaymentIntent.status === "CREATED" || 
              ourPaymentIntent.status === "PAYMENT_LINK_SENT" || 
              ourPaymentIntent.status === "PENDING")) {
@@ -1164,8 +1169,271 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
       console.error("Error processing refund:", error);
       responseHandler(res, 500, "Failed to process refund");
     }
-  };
+};
 
+export const getAllPaymentIntent = async (req: express.Request, res: express.Response) => {
+
+  try {
+    const paymentIntent = await prisma.paymentIntent.findMany({
+      include: {
+        bookings: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+    responseHandler(res, 200, "success", paymentIntent);
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+export const deletePaymentIntent = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Missing id in params");
+    return;
+  }
+
+  try {
+    await prisma.paymentIntent.delete({
+      where: { id }
+    })
+    responseHandler(res, 200, "success");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const sendConfirmationEmail = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  
+  if (!id) {
+    responseHandler(res, 400, "missing id params");
+    return;
+  }
+
+  try {
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id },
+      include: {
+        bookings: {
+          include: {
+            enhancementBookings: true,
+            room: true,
+          }
+        }
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+    const parsedCustomerDetails = JSON.parse(paymentIntent.customerData);
+    const receipt_url = `${baseUrl}/sessions/${paymentIntent.stripeSessionId}/receipt`;
+    const bookingsWithPaymentIntent = paymentIntent.bookings.map(booking => ({
+      ...booking,
+      paymentIntent: {
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        status: paymentIntent.status,
+        stripeSessionId: paymentIntent.stripeSessionId,
+        taxAmount: paymentIntent.taxAmount
+      }
+    }));
+
+    //@ts-ignore
+    await sendConsolidatedBookingConfirmation(bookingsWithPaymentIntent, parsedCustomerDetails, receipt_url);
+    responseHandler(res, 200, "Confimation email sent successfully");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+
+}
+
+export const getAllBookingsRestriction = async (req: express.Request, res: express.Response) => {
+  try {
+    const bookingRestriction = await prisma.bookingRestriction.findMany({
+      include: {
+        exceptions: true
+      }
+    });
+
+    responseHandler(res, 200, "Fetched booking restrictions successfully", bookingRestriction);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const createBookingsRestriction = async (req: express.Request, res: express.Response) => {
+  const { 
+    daysOfWeek, 
+    description, 
+    endDate, 
+    startDate, 
+    isActive, 
+    maxLength, 
+    minLength, 
+    minAdvance, 
+    name, 
+    priority, 
+    ratePolicyIds, 
+    rateScope, 
+    sameDayCutoffTime, 
+    type, 
+    maxAdvance, 
+    roomIds,
+    exceptions = [] // Add exceptions to the create payload
+  } = req.body;
+
+  try {
+    const restriction = await prisma.bookingRestriction.create({
+      data: { 
+        description,
+        endDate: new Date(endDate),
+        isActive,
+        maxAdvance,
+        daysOfWeek,
+        name,
+        startDate: new Date(startDate),
+        maxLength,
+        minAdvance,
+        minLength,
+        type,
+        roomIds,
+        sameDayCutoffTime,
+        priority,
+        ratePolicyIds,
+        rateScope,
+        exceptions: {
+          create: exceptions.map((ex: any) => ({
+            minLengthOverride: ex.minLengthOverride,
+            maxLengthOverride: ex.maxLengthOverride,
+            exceptionStartDate: ex.exceptionStartDate ? new Date(ex.exceptionStartDate) : null,
+            exceptionEndDate: ex.exceptionEndDate ? new Date(ex.exceptionEndDate) : null,
+            exceptionDaysOfWeek: ex.exceptionDaysOfWeek,
+            rateScope: ex.rateScope,
+            ratePolicyIds: ex.ratePolicyIds,
+            roomScope: ex.roomScope,
+            roomIds: ex.roomIds,
+            isActive: ex.isActive !== false
+          }))
+        }
+      },
+      include: {
+        exceptions: true
+      }
+    });
+
+    responseHandler(res, 200, "Booking restriction created successfully", restriction);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const deleteBookingsRestriction = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Missing id");
+    return;
+  }
+
+  try {
+    // Delete will cascade to exceptions due to the relation
+    await prisma.bookingRestriction.delete({ 
+      where: { id }
+    });
+    
+    responseHandler(res, 200, "Bookings restriction deleted successfully");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const editBookingRestriction = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const data = req.body;
+
+  // Mutate only those fields that need transformation
+  if (data.startDate) data.startDate = new Date(data.startDate);
+  if (data.endDate) data.endDate = new Date(data.endDate);
+
+  try {
+    const existing = await prisma.bookingRestriction.findUnique({
+      where: { id },
+      include: { exceptions: true }
+    });
+
+    if (!existing) {
+      res.status(404).json({ message: "Booking restriction not found" });
+      return;
+    }
+
+    // Handle exceptions update
+    const exceptionsUpdate = data.exceptions ? {
+      deleteMany: {}, // Delete all existing exceptions
+      create: data.exceptions.map((ex: any) => ({
+        minLengthOverride: ex.minLengthOverride,
+        maxLengthOverride: ex.maxLengthOverride,
+        exceptionStartDate: ex.exceptionStartDate ? new Date(ex.exceptionStartDate) : null,
+        exceptionEndDate: ex.exceptionEndDate ? new Date(ex.exceptionEndDate) : null,
+        exceptionDaysOfWeek: ex.exceptionDaysOfWeek,
+        rateScope: ex.rateScope,
+        ratePolicyIds: ex.ratePolicyIds,
+        roomScope: ex.roomScope,
+        roomIds: ex.roomIds,
+        isActive: ex.isActive !== false
+      }))
+    } : undefined;
+
+    const updated = await prisma.bookingRestriction.update({
+      where: { id },
+      data: {
+        ...data,
+        exceptions: exceptionsUpdate
+      },
+      include: {
+        exceptions: true
+      }
+    });
+
+    responseHandler(res, 200, "Booking restriction updated successfully", updated);
+  } catch (e) {
+    console.error(e);
+    handleError(res, e as Error);
+  }
+};
+
+export const getUserByID =  async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Missing userid in params");
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id }});
+    
+    if (!user) {
+      responseHandler(res, 404, "User not found");
+      return;
+    }
+    responseHandler(res, 200, "success", user);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
 export { getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink };
 
 

@@ -3,12 +3,12 @@ import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
 import { handleError, responseHandler } from "../utils/helper";
-import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail } from "../services/emailTemplate";
+import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
+import { stripe } from "../config/stripe";
 
 dotenv.config();
 
 const stripeWebhookRouter = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-04-30.basil" });
 
 stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
     const sig = req.headers['stripe-signature'];
@@ -56,11 +56,47 @@ stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), 
     }
 });
 
-// NEW: Handle refund created
+// Enhanced: Handle refund created with voucher management
 async function handleRefundCreated(event: Stripe.Event) {
     const refund = event.data.object as Stripe.Refund;
     
     try {
+        const paymentIntentId = refund.payment_intent as string;
+        if (!paymentIntentId) {
+            console.log("Refund event received without a Payment Intent ID.");
+            return;
+        }
+
+        // Check if the refund is for an ad-hoc charge
+        const charge = await prisma.charge.findFirst({
+            where: { stripePaymentIntentId: paymentIntentId },
+            include: { customer: true }
+        });
+
+        if (charge) {
+            await prisma.charge.update({
+                where: { id: charge.id },
+                data: {
+                    status: 'REFUNDED',
+                    adminNotes: `Refunded ${refund.amount / 100} ${refund.currency.toUpperCase()}. Reason: ${refund.reason || 'N/A'}`
+                }
+            });
+            
+            if (charge.customer) {
+                await sendChargeRefundConfirmationEmail(
+                    charge.customer,
+                    {
+                        description: charge.description || 'Ad-hoc Charge',
+                        paidAt: charge.paidAt
+                    },
+                    refund
+                );
+            }
+
+            console.log(`Charge ${charge.id} successfully marked as REFUNDED.`);
+            return;
+        }
+        
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({
             where: {
                 stripePaymentIntentId: refund.payment_intent as string
@@ -74,7 +110,12 @@ async function handleRefundCreated(event: Stripe.Event) {
                         }
                     }
                 },
-                payments: true
+                payments: true,
+                voucherUsages: {
+                    include: {
+                        voucher: true
+                    }
+                }
             }
         });
 
@@ -105,12 +146,15 @@ async function handleRefundCreated(event: Stripe.Event) {
                 where: { paymentIntentId: ourPaymentIntent.id },
                 data: { status: "REFUNDED" }
             });
+
+            // Handle voucher refund logic
+            await handleVoucherRefund(tx, ourPaymentIntent);
         });
 
         if (ourPaymentIntent.bookings.length > 0) {
             const customerDetails = JSON.parse(ourPaymentIntent.customerData);
             const bookingData = JSON.parse(ourPaymentIntent.bookingData);
-            await sendRefundConfirmationEmail(bookingData, customerDetails,  {
+            await sendRefundConfirmationEmail(bookingData, customerDetails, {
                 refundId: refund.id,
                 refundAmount: refund.amount / 100,
                 refundCurrency: refund.currency,
@@ -124,7 +168,7 @@ async function handleRefundCreated(event: Stripe.Event) {
     }
 }
 
-// NEW: Handle refund updated
+// Enhanced: Handle refund updated with voucher management
 async function handleRefundUpdated(event: Stripe.Event) {
     const refund = event.data.object as Stripe.Refund;
     
@@ -132,6 +176,13 @@ async function handleRefundUpdated(event: Stripe.Event) {
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({
             where: {
                 stripePaymentIntentId: refund.payment_intent as string
+            },
+            include: {
+                voucherUsages: {
+                    include: {
+                        voucher: true
+                    }
+                }
             }
         });
 
@@ -161,6 +212,14 @@ async function handleRefundUpdated(event: Stripe.Event) {
                     where: { paymentIntentId: ourPaymentIntent.id },
                     data: { status: "COMPLETED" }
                 });
+
+                // Revert voucher usage back to APPLIED since refund failed
+                await handleVoucherRefundRevert(tx, ourPaymentIntent);
+            });
+        } else if (refund.status === "succeeded") {
+            // Ensure voucher refund is properly handled if not already processed
+            await prisma.$transaction(async (tx) => {
+                await handleVoucherRefund(tx, ourPaymentIntent);
             });
         }
         
@@ -174,11 +233,13 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     const session = event.data.object as Stripe.Checkout.Session;
     
     try {
-        
-        // Get the payment intent from the session
         const stripePaymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
-        
-        // Find our PaymentIntent using the metadata - prioritize session metadata first
+
+        if (session.metadata?.chargeId) {
+            await processChargeSuccess(session.metadata.chargeId, stripePaymentIntent);
+            return;
+        }
+
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({ 
           where: { 
             OR: [
@@ -231,7 +292,11 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
     try {
-        
+        if (paymentIntent.metadata?.chargeId) {
+            await processChargeSuccess(paymentIntent.metadata.chargeId, paymentIntent);
+            return;
+        }
+
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({
             where: {
                 OR: [
@@ -245,7 +310,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
             return;
         }
 
-    
         // Check if payment already exists (more specific check)
         const existingPayment = await prisma.payment.findFirst({
             where: { 
@@ -348,28 +412,46 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     }
 }
 
-// Handle payment intent failure
+// Enhanced: Handle payment intent failure with voucher cleanup
 async function handlePaymentIntentFailed(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
     try {
+        if (paymentIntent.metadata?.chargeId) {
+            const failureMessage = paymentIntent.last_payment_error?.message || "Payment failed for an unknown reason.";
+            await processChargeFailure(paymentIntent.metadata.chargeId, failureMessage);
+            return;
+        }
+
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({
             where: {
                 OR: [
                     { stripePaymentIntentId: paymentIntent.id },
                     { id: paymentIntent.metadata?.paymentIntentId }
                 ]
+            },
+            include: {
+                voucherUsages: {
+                    include: {
+                        voucher: true
+                    }
+                }
             }
         });
 
         if (ourPaymentIntent) {
-            await prisma.paymentIntent.update({
-              where: { id: ourPaymentIntent.id },
-              data: { status: "FAILED" }
-            });
-            
-            await prisma.temporaryHold.deleteMany({
-              where: { paymentIntentId: ourPaymentIntent.id }
+            await prisma.$transaction(async (tx) => {
+                await tx.paymentIntent.update({
+                  where: { id: ourPaymentIntent.id },
+                  data: { status: "FAILED" }
+                });
+                
+                await tx.temporaryHold.deleteMany({
+                  where: { paymentIntentId: ourPaymentIntent.id }
+                });
+
+                // Handle voucher failure - mark usage as cancelled and revert voucher counts
+                await handleVoucherFailure(tx, ourPaymentIntent);
             });
         }
     } catch (error) {
@@ -378,31 +460,47 @@ async function handlePaymentIntentFailed(event: Stripe.Event) {
     }
 }
 
-// Handle payment intent cancellation
+// Enhanced: Handle payment intent cancellation with voucher cleanup
 async function handlePaymentIntentCanceled(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
     try {
+        if (paymentIntent.metadata?.chargeId) {
+            await processChargeFailure(paymentIntent.metadata.chargeId, "Payment was canceled.");
+            return;
+        }
+        
         const ourPaymentIntent = await prisma.paymentIntent.findFirst({
             where: {
               OR: [
                 { stripePaymentIntentId: paymentIntent.id },
                 { id: paymentIntent.metadata?.paymentIntentId }
               ]
+            },
+            include: {
+                voucherUsages: {
+                    include: {
+                        voucher: true
+                    }
+                }
             }
         });
 
         if (ourPaymentIntent) {
-            await prisma.paymentIntent.update({
-                where: { id: ourPaymentIntent.id },
-                data: { status: "CANCELLED" }
+            await prisma.$transaction(async (tx) => {
+                await tx.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { status: "CANCELLED" }
+                });
+                
+                // Remove temporary holds
+                await tx.temporaryHold.deleteMany({
+                    where: { paymentIntentId: ourPaymentIntent.id }
+                });
+
+                // Handle voucher cancellation - mark usage as cancelled and revert voucher counts
+                await handleVoucherCancellation(tx, ourPaymentIntent);
             });
-            
-            // Remove temporary holds
-            await prisma.temporaryHold.deleteMany({
-                where: { paymentIntentId: ourPaymentIntent.id }
-            });
-  
         }
     } catch (error) {
         console.error("Error in handlePaymentIntentCanceled:", error);
@@ -410,10 +508,10 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
     }
 }
 
-// Process successful payment with idempotency check
+// Enhanced: Process successful payment with voucher success handling
 async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, sourceType: string = 'unknown') {
     try {
-     // Check if payment already processed
+        // Check if payment already processed
         const existingPayment = await prisma.payment.findFirst({
             where: { 
               OR: [
@@ -433,31 +531,103 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
 
         // Use transaction to ensure atomicity
         const result = await prisma.$transaction(async (tx) => {
-            
+            // Check if customer exists and has stripeCustomerId
+            let customer = await tx.customer.findUnique({
+                where: { guestEmail: customerDetails.email }
+            });
+
+            if (customer) {
+                // Customer exists, check if they have stripeCustomerId
+                if (!customer.stripeCustomerId) {
+                    // Create Stripe customer
+                    const stripeCustomer = await stripe.customers.create({
+                        email: customerDetails.email,
+                        name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+                        phone: customerDetails.phone,
+                        metadata: {
+                            customerId: customer.id,
+                            guestEmail: customerDetails.email
+                        }
+                    });
+
+                    // Update customer with stripeCustomerId
+                    customer = await tx.customer.update({
+                        where: { id: customer.id },
+                        data: { 
+                            stripeCustomerId: stripeCustomer.id,
+                            guestLastName: customerDetails.lastName,
+                            guestFirstName: customerDetails.firstName,
+                            guestPhone: customerDetails.phone,
+                            guestMiddleName: customerDetails.middleName || null,
+                            guestNationality: customerDetails.nationality
+                        }
+                    });
+                } else {
+                    // Update existing customer info
+                    customer = await tx.customer.update({
+                        where: { id: customer.id },
+                        data: {
+                            guestLastName: customerDetails.lastName,
+                            guestFirstName: customerDetails.firstName,
+                            guestPhone: customerDetails.phone,
+                            guestMiddleName: customerDetails.middleName || null,
+                            guestNationality: customerDetails.nationality
+                        }
+                    });
+                }
+            } else {
+                // Customer doesn't exist, create new customer with Stripe
+                const stripeCustomer = await stripe.customers.create({
+                    email: customerDetails.email,
+                    name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+                    phone: customerDetails.phone,
+                    metadata: {
+                        guestEmail: customerDetails.email
+                    }
+                });
+
+                customer = await tx.customer.create({
+                    data: {
+                        guestEmail: customerDetails.email,
+                        guestLastName: customerDetails.lastName,
+                        guestFirstName: customerDetails.firstName,
+                        guestPhone: customerDetails.phone,
+                        guestMiddleName: customerDetails.middleName || null,
+                        guestNationality: customerDetails.nationality,
+                        stripeCustomerId: stripeCustomer.id
+                    }
+                });
+            }
+
             const updatedPaymentIntent = await tx.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
                 data: { 
                     status: "SUCCEEDED",
-                    paidAt: new Date()
+                    paidAt: new Date(),
+                    customer: { connect: { id: customer.id } }
                 }
             });
 
-            // Process bookings
             const createdBookings = await processBookingsInTransaction(
                 tx, 
-                bookingItems, 
-                customerDetails, 
-                ourPaymentIntent.id
-            );
+                bookingItems,  
+                customerDetails,
+                ourPaymentIntent.id,
+                customer.id,
+            ); 
 
             if (createdBookings.length === 0) {
                 return { updatedPaymentIntent, createdBookings: [] };
             }
-
-            // Get current payment intent to ensure we have latest session ID
+            
             const currentPaymentIntent = await tx.paymentIntent.findUnique({
                 where: { id: ourPaymentIntent.id },
-                select: { stripeSessionId: true }
+                select: { 
+                    stripeSessionId: true,
+                    voucherCode: true,
+                    voucherDiscount: true,
+                    amount: true
+                }
             });
 
             // Create payment record
@@ -468,7 +638,6 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                   currency: stripePayment.currency,
                   status: "COMPLETED",
                   paymentIntentId: ourPaymentIntent.id,
-                  // For payment links, stripeSessionId will be null
                   stripeSessionId: sourceType === 'payment_link' ? null : currentPaymentIntent?.stripeSessionId || null,
                 }
             });
@@ -477,7 +646,32 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
               where: { paymentIntentId: ourPaymentIntent.id }
             });
 
-            return { updatedPaymentIntent, createdBookings, paymentRecord };
+            // Handle voucher success - increment usage counts and confirm applied status
+            await handleVoucherSuccess(tx, ourPaymentIntent, createdBookings);
+
+            // Update bookings with voucher information
+            if (currentPaymentIntent?.voucherCode) {
+                await tx.booking.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: {
+                        voucherCode: currentPaymentIntent.voucherCode,
+                        voucherDiscount: currentPaymentIntent.voucherDiscount,
+                        voucherProducts: ourPaymentIntent.voucherProducts || null
+                    }
+                });
+            }
+
+            return { 
+                updatedPaymentIntent, 
+                createdBookings, 
+                paymentRecord,
+                customer,
+                voucherInfo: currentPaymentIntent?.voucherCode ? {
+                    code: currentPaymentIntent.voucherCode,
+                    discount: currentPaymentIntent.voucherDiscount,
+                    originalAmount: currentPaymentIntent.amount
+                } : null
+            };
         });
 
         // Send confirmation emails outside transaction
@@ -509,23 +703,248 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
     }
 }
 
+async function processChargeSuccess(chargeId: string, stripePayment: Stripe.PaymentIntent) {
+    try {
+        const charge = await prisma.charge.findUnique({ where: { id: chargeId } });
+
+        if (!charge) {
+            console.error(`Charge with ID ${chargeId} not found.`);
+            return;
+        }
+
+        if (charge.status === "SUCCEEDED") {
+            console.log(`Charge ${chargeId} already processed.`);
+            return;
+        }
+
+        await prisma.charge.update({
+            where: { id: chargeId },
+            data: {
+                status: "SUCCEEDED",
+                stripePaymentIntentId: stripePayment.id,
+                paidAt: new Date(),
+            },
+        });
+
+        console.log(`Successfully processed charge ${chargeId}`);
+
+    } catch (error) {
+        console.error(`Error processing successful charge ${chargeId}:`, error);
+        throw error;
+    }
+}
+
+async function processChargeFailure(chargeId: string, failureMessage: string | null) {
+    try {
+        const charge = await prisma.charge.findUnique({ where: { id: chargeId } });
+
+        if (!charge) {
+            console.error(`Charge with ID ${chargeId} not found for failure processing.`);
+            return;
+        }
+
+        if (charge.status !== "PENDING") {
+            console.log(`Charge ${chargeId} is not in PENDING state, skipping failure update.`);
+            return;
+        }
+
+        await prisma.charge.update({
+            where: { id: chargeId },
+            data: {
+                status: "FAILED",
+                adminNotes: failureMessage || "Payment failed via webhook.",
+            },
+        });
+
+        console.log(`Successfully marked charge ${chargeId} as FAILED.`);
+
+    } catch (error) {
+        console.error(`Error processing failed charge ${chargeId}:`, error);
+        throw error;
+    }
+}
+
+// NEW: Handle voucher success - increment usage counts
+async function handleVoucherSuccess(tx: any, paymentIntent: any, createdBookings: any[]) {
+    const voucherUsages = await tx.voucherUsage.findMany({
+        where: { 
+            paymentIntentId: paymentIntent.id,
+            status: "APPLIED"
+        },
+        include: {
+            voucher: true
+        }
+    });
+
+    for (const usage of voucherUsages) {
+        // Update voucher usage count
+        await tx.voucher.update({
+            where: { id: usage.voucherId },
+            data: {
+                currentUsage: {
+                    increment: 1
+                }
+            }
+        });
+
+        // Link voucher usage to the first booking (or all bookings if needed)
+        if (createdBookings.length > 0) {
+            await tx.voucherUsage.update({
+                where: { id: usage.id },
+                data: {
+                    bookingId: createdBookings[0].id,
+                    status: "APPLIED"
+                }
+            });
+        }
+
+        console.log(`Voucher ${usage.voucher.code} usage incremented successfully`);
+    }
+}
+
+// NEW: Handle voucher refund - decrement usage counts and mark as refunded
+async function handleVoucherRefund(tx: any, paymentIntent: any) {
+    const voucherUsages = await tx.voucherUsage.findMany({
+        where: { 
+            paymentIntentId: paymentIntent.id,
+            status: "APPLIED"
+        },
+        include: {
+            voucher: true
+        }
+    });
+
+    for (const usage of voucherUsages) {
+        // Decrement voucher usage count (don't go below 0)
+        const currentVoucher = await tx.voucher.findUnique({
+            where: { id: usage.voucherId },
+            select: { currentUsage: true }
+        });
+
+        if (currentVoucher && currentVoucher.currentUsage > 0) {
+            await tx.voucher.update({
+                where: { id: usage.voucherId },
+                data: {
+                    currentUsage: {
+                        decrement: 1
+                    }
+                }
+            });
+        }
+
+        // Mark voucher usage as refunded
+        await tx.voucherUsage.update({
+            where: { id: usage.id },
+            data: {
+                status: "REFUNDED"
+            }
+        });
+
+        console.log(`Voucher ${usage.voucher.code} usage decremented due to refund`);
+    }
+}
+
+// NEW: Handle voucher refund revert - increment usage counts back and mark as applied
+async function handleVoucherRefundRevert(tx: any, paymentIntent: any) {
+    const voucherUsages = await tx.voucherUsage.findMany({
+        where: { 
+            paymentIntentId: paymentIntent.id,
+            status: "REFUNDED"
+        },
+        include: {
+            voucher: true
+        }
+    });
+
+    for (const usage of voucherUsages) {
+        // Increment voucher usage count back
+        await tx.voucher.update({
+            where: { id: usage.voucherId },
+            data: {
+                currentUsage: {
+                    increment: 1
+                }
+            }
+        });
+
+        // Mark voucher usage as applied again
+        await tx.voucherUsage.update({
+            where: { id: usage.id },
+            data: {
+                status: "APPLIED"
+            }
+        });
+
+        console.log(`Voucher ${usage.voucher.code} usage reverted back to applied (refund failed)`);
+    }
+}
+
+// NEW: Handle voucher failure - mark as cancelled, don't increment usage
+async function handleVoucherFailure(tx: any, paymentIntent: any) {
+    const voucherUsages = await tx.voucherUsage.findMany({
+        where: { 
+            paymentIntentId: paymentIntent.id,
+            status: "APPLIED"
+        },
+        include: {
+            voucher: true
+        }
+    });
+
+    for (const usage of voucherUsages) {
+        // Mark voucher usage as cancelled (no usage count changes needed as payment failed)
+        await tx.voucherUsage.update({
+            where: { id: usage.id },
+            data: {
+                status: "CANCELLED"
+            }
+        });
+
+        console.log(`Voucher ${usage.voucher.code} usage marked as cancelled due to payment failure`);
+    }
+}
+
+// NEW: Handle voucher cancellation - mark as cancelled, don't increment usage
+async function handleVoucherCancellation(tx: any, paymentIntent: any) {
+    const voucherUsages = await tx.voucherUsage.findMany({
+        where: { 
+            paymentIntentId: paymentIntent.id,
+            status: "APPLIED"
+        },
+        include: {
+            voucher: true
+        }
+    });
+
+    for (const usage of voucherUsages) {
+        // Mark voucher usage as cancelled (no usage count changes needed as payment was cancelled)
+        await tx.voucherUsage.update({
+            where: { id: usage.id },
+            data: {
+                status: "CANCELLED"
+            }
+        });
+
+        console.log(`Voucher ${usage.voucher.code} usage marked as cancelled due to payment cancellation`);
+    }
+}
+
 // Process bookings within transaction
 async function processBookingsInTransaction(
     tx: any,
     bookingItems: any[], 
     customerDetails: any, 
-    paymentIntentId: string
+    paymentIntentId: string,
+    customerId: string
 ): Promise<any[]> {
     const createdBookings: any[] = [];
 
     for (const booking of bookingItems) {
         const { checkIn, checkOut, selectedRoom: roomId, adults, rooms } = booking;
 
-        // Check if booking already exists
         const existingBooking = await tx.booking.findFirst({
             where: {
                 roomId,
-                guestEmail: customerDetails.email,
                 checkIn: new Date(checkIn),
                 checkOut: new Date(checkOut),
             }
@@ -538,31 +957,25 @@ async function processBookingsInTransaction(
         // Create the booking
         const newBooking = await tx.booking.create({
             data: {
-                guestFirstName: customerDetails.firstName,
-                guestMiddleName: customerDetails.middleName || null,
-                guestLastName: customerDetails.lastName,
-                guestNationality: customerDetails.nationality,
                 totalGuests: adults * rooms,
-                guestEmail: customerDetails.email,
-                guestPhone: customerDetails.phone,
                 checkIn: new Date(checkIn),
                 checkOut: new Date(checkOut),
-                roomId,
+                room: { connect: { id: roomId } },
                 status: "CONFIRMED",
                 request: customerDetails.specialRequests || null,
-                paymentIntentId: paymentIntentId,
+                paymentIntent: { connect: { id: paymentIntentId } },
                 metadata: {
                     selectedRateOption: booking.selectedRateOption || null,
                     promotionCode: booking.promotionCode || null,
                     totalPrice: booking.totalPrice,
                     rooms: booking.rooms,
                     receiveMarketing: customerDetails.receiveMarketing || false
-                }
+                },
+                customer: { connect: { id: customerId }}
             },
             include: { room: true, paymentIntent: true }
         });
 
-        // Handle enhancements
         if (booking.selectedEnhancements?.length) {
             const enhancementData = booking.selectedEnhancements.map((enhancement: any) => ({
                 bookingId: newBooking.id,
@@ -619,12 +1032,15 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
                     select: {
                         id: true,
                         amount: true,
+                        totalAmount: true,  
                         currency: true,
                         status: true,
                         stripeSessionId: true,
                         stripePaymentIntentId: true,
                         taxAmount: true,
-                        createdByAdmin: true
+                        createdByAdmin: true,
+                        voucherCode: true,
+                        voucherDiscount: true,
                     }
                 },
                 enhancementBookings: {
@@ -653,11 +1069,42 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
         const baseUrl = process.env.NODE_ENV === "local" ? process.env.BASE_URL_DEV : process.env.BASE_URL_PROD;
         const receipt_url = `${baseUrl}/sessions/${sessionId}/receipt`;
 
+        // Prepare voucher information if voucher was used
+        let voucherInfo = null;
+        if (paymentIntent.voucherCode) {
+            // Fetch voucher details with products
+            const voucherDetails = await prisma.voucher.findUnique({
+                where: { code: paymentIntent.voucherCode },
+                include: {
+                    products: true
+                }
+            });
+
+            if (voucherDetails) {
+                voucherInfo = {
+                    code: voucherDetails.code,
+                    name: voucherDetails.name,
+                    type: voucherDetails.type,
+                    discountPercent: voucherDetails.discountPercent,
+                    fixedAmount: voucherDetails.fixedAmount,
+                    discountAmount: paymentIntent.voucherDiscount || 0,
+                    originalAmount:  paymentIntent.amount,
+                    finalAmount: paymentIntent.amount,
+                    products: voucherDetails.products.map(product => ({
+                        name: product.name,
+                        description: product.description,
+                        imageUrl: product.imageUrl,
+                        value: product.value
+                    }))
+                };
+            }
+        }
+
         await Promise.all([
             //@ts-ignore
-            sendConsolidatedBookingConfirmation(enrichedBookings, customerDetails, receipt_url),
+            sendConsolidatedBookingConfirmation(enrichedBookings, customerDetails, receipt_url, voucherInfo),
             //@ts-ignore
-            sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId)
+            sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId, voucherInfo)
         ]);
     } catch (error) {
         console.error("Error sending confirmation emails:", error);

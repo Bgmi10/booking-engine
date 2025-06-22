@@ -1,0 +1,309 @@
+import React from "react";
+import DatePicker from "react-datepicker";
+import { RiSubtractLine } from "react-icons/ri";
+import { BiLoader } from "react-icons/bi";
+import type { Enhancement, Room } from "../../../types/types";
+
+interface BookingItem {
+  checkIn: string;
+  checkOut: string;
+  selectedRoom: string;
+  rooms: number;
+  adults: number;
+  selectedEnhancements: Enhancement[];
+  roomDetails?: Room;
+  error?: string;
+  selectedRateOption?: any;
+  totalPrice?: number;
+}
+
+interface BookingItemCardProps {
+  item: BookingItem;
+  index: number;
+  rooms: Room[];
+  enhancements: Enhancement[];
+  loadingAction: boolean;
+  loadingRooms: boolean;
+  updateBookingItem: (index: number, field: keyof BookingItem, value: any) => void;
+  removeBookingItem: (index: number) => void;
+  toggleEnhancement: (bookingIndex: number, enhancement: Enhancement) => void;
+  getRateOptions: (room: Room) => any[];
+  selectRateOption: (bookingIndex: number, rateOption: any) => void;
+  canRemove: boolean;
+}
+
+const BookingItemCard: React.FC<BookingItemCardProps> = ({
+  item,
+  index,
+  rooms,
+  enhancements,
+  loadingAction,
+  loadingRooms,
+  updateBookingItem,
+  removeBookingItem,
+  toggleEnhancement,
+  getRateOptions,
+  selectRateOption,
+  canRemove,
+}) => {
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <h5 className="text-md font-medium text-gray-900">Room {index + 1}</h5>
+        {canRemove && (
+          <button
+            onClick={() => removeBookingItem(index)}
+            className="text-red-600 hover:text-red-800"
+            disabled={loadingAction}
+          >
+            <RiSubtractLine size={20} />
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Room *</label>
+          {loadingRooms ? (
+            <div className="flex items-center space-x-2">
+              <BiLoader className="animate-spin text-indigo-600" />
+              <span className="text-sm text-gray-500">Loading...</span>
+            </div>
+          ) : (
+            <select
+              value={item.selectedRoom}
+              onChange={(e) => updateBookingItem(index, "selectedRoom", e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              disabled={loadingAction}
+            >
+              <option value="">Select room</option>
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name} - €{room.price}/night (Cap: {room.capacity})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Adults {item.roomDetails && `(Max: ${item.roomDetails.capacity * item.rooms})`}
+          </label>
+          <input
+            type="number"
+            min="1"
+            max={item.roomDetails ? item.roomDetails.capacity * item.rooms : undefined}
+            value={item.adults}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "") {
+                updateBookingItem(index, "adults", value);
+                return;
+              }
+              const parsed = Number.parseInt(value);
+              if (!isNaN(parsed)) {
+                updateBookingItem(index, "adults", parsed);
+              }
+            }}
+            onBlur={(e) => {
+              const parsed = Number.parseInt(e.target.value);
+              const min = 1;
+              const max = item.roomDetails ? item.roomDetails.capacity * item.rooms : Infinity;
+              const sanitized = Math.min(Math.max(parsed || min, min), max);
+              updateBookingItem(index, "adults", sanitized);
+            }}
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            disabled={loadingAction}
+          />
+        </div>
+      </div>
+      <div className="flex gap-4 mb-4">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date *</label>
+          <DatePicker
+            selected={item.checkIn ? new Date(item.checkIn) : null}
+            onChange={(date: Date | null) =>
+              updateBookingItem(index, "checkIn", date ? date.toISOString().split("T")[0] : "")
+            }
+            dateFormat="dd/MM/yyyy"
+            className={`block w-full px-3 py-2 border ${
+              item.error
+                ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+            } rounded-md shadow-sm focus:outline-none sm:text-sm`}
+            disabled={loadingAction}
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
+          <DatePicker
+            selected={item.checkOut ? new Date(item.checkOut) : null}
+            onChange={(date: Date | null) =>
+              updateBookingItem(index, "checkOut", date ? date.toISOString().split("T")[0] : "")
+            }
+            dateFormat="dd/MM/yyyy"
+            className={`block w-full px-3 py-2 border ${
+              item.error
+                ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+            } rounded-md shadow-sm focus:outline-none sm:text-sm`}
+            disabled={loadingAction}
+          />
+        </div>
+      </div>
+      {item.error && (
+        <div className="mt-1 mb-4">
+          <p className="text-sm text-red-600">{item.error}</p>
+        </div>
+      )}
+      {/* Enhancements Section */}
+      {enhancements.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Enhancements</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {enhancements.map((enhancement) => (
+              <label
+                key={enhancement.id}
+                className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={item.selectedEnhancements.some((e) => e.id === enhancement.id)}
+                  onChange={() => toggleEnhancement(index, enhancement)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mt-1"
+                  disabled={loadingAction}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900">{enhancement.title}</div>
+                  <div className="text-sm text-gray-500">
+                    €{enhancement.price} {enhancement.pricingType.toLowerCase().replace("_", " ")}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">{enhancement.description}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Rate Options Section */}
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Rate Options</label>
+        <div className="space-y-3">
+          {item.roomDetails &&
+            getRateOptions(item.roomDetails).map((rateOption: any) => {
+              const hasDiscount = rateOption.discountPercentage > 0;
+              const isSelected = item.selectedRateOption?.id === rateOption.id;
+              const checkInDate = new Date(item.checkIn);
+              const checkOutDate = new Date(item.checkOut);
+              const nights = Math.ceil(
+                (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              const totalPrice = rateOption.price * nights * item.rooms;
+              return (
+                <div
+                  key={rateOption.id}
+                  className={`border rounded-lg overflow-hidden ${
+                    isSelected
+                      ? "border-indigo-500 ring-1 ring-indigo-500"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div
+                    className={`p-3 ${
+                      rateOption.type === "special" && hasDiscount
+                        ? "bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-200"
+                        : "bg-gray-50 border-b border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {hasDiscount && (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 text-orange-600"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                          </svg>
+                        )}
+                        <h4
+                          className={`font-medium text-sm ${hasDiscount ? "text-orange-800" : "text-gray-800"}`}
+                        >
+                          {rateOption.name}
+                        </h4>
+                      </div>
+                      <div className="flex gap-2">
+                        {hasDiscount && (
+                          <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs font-bold">
+                            -{rateOption.discountPercentage}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className={`text-xs ${hasDiscount ? "text-orange-700" : "text-gray-600"}`}>
+                      {rateOption.description}
+                    </p>
+                  </div>
+                  <div className="p-3">
+                    <div className="space-y-2 mb-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-800">
+                          €{rateOption.price.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-gray-600">per night</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm font-medium text-gray-700 border-t pt-2">
+                        <span>Total ({nights} nights):</span>
+                        <span className="font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 mb-3 text-xs">
+                      <div className="flex items-center gap-1">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-3 w-3 text-gray-600"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span
+                          className={`px-1.5 py-0.5 rounded font-medium ${rateOption.refundable ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+                        >
+                          {rateOption.refundable ? "Refundable" : "Non-refundable"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`w-full py-1.5 rounded font-medium transition-colors text-xs ${
+                        isSelected
+                          ? "bg-indigo-600 text-white"
+                          : hasDiscount
+                          ? "bg-orange-100 text-orange-800 hover:bg-orange-200"
+                          : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                      }`}
+                      onClick={() => selectRateOption(index, rateOption)}
+                    >
+                      {isSelected ? "Selected" : "Select Rate"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BookingItemCard; 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TemplateEditor } from "./TemplateEditor"
+import { VisualEmailEditor } from "./TemplateEditor"
 import { TemplateList } from "./TemplateList"
 import type { Variable, Template as TemplateType } from "./types";
 
@@ -39,7 +39,7 @@ export const Template = ({
     return (
         <div>
            {selectedTemplate || isCreatingTemplate ? (
-            <TemplateEditor
+            <VisualEmailEditor
               initialData={selectedTemplate || undefined}
               onSave={async (template) => {
                 await onSaveTemplate(template);

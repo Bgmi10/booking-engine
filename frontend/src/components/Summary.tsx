@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, Tag, X, AlertTriangle } from 'lucide-react';
+import { calculateNights } from '../utils/format';
 
 export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData, taxPercentage = 0.1 }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
   const [expandedItems, setExpandedItems] = useState<any>({});
@@ -112,12 +113,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     
     return `${days[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${months[d.getMonth()]}/${d.getFullYear()}`;
-  };
-
-  const calculateNights = (checkIn: string, checkOut: string) => {
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    return Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   const calculateItemBasePrice = (item: any) => {

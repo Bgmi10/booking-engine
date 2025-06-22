@@ -1,119 +1,219 @@
-🔧 3. Backend API Development
-🔐 Admin Auth
- /api/admin/login – Login and return JWT
+2.5 Integration with Existing Systems
 
- Middleware: authMiddleware to protect admin routes
+ Update booking creation flow
 
-📦 Rooms API
- GET /api/rooms – Public
+ Integrate voucher validation
+ Apply voucher discounts
+ Save voucher information
+ Handle voucher products
 
- POST /api/admin/rooms – Create room
 
- PUT /api/admin/rooms/:id – Update room
+ Update payment flow
 
- DELETE /api/admin/rooms/:id – Delete room
+ Adjust payment amounts based on vouchers
+ Store original and discounted amounts
+ Handle voucher in Stripe integration
 
-📅 Availability & Hold
- POST /api/availability – Check room availability for dates
 
- POST /api/hold – Create TemporaryHold if available
+ Update booking cancellation/refund flow
 
- Clean-up job or auto-delete expired holds
+ Handle voucher usage reversal
+ Update usage counters
+ Refund logic for voucher discounts
 
-💳 Stripe Integration
- POST /api/stripe/create-session – Create Stripe Checkout session
 
-Attach temporaryHoldId in metadata
 
- POST /api/stripe/webhook – Handle payment confirmation
+Phase 3: Frontend Development
+3.1 Admin Dashboard - Voucher Products
 
-Convert TemporaryHold → Booking
+ Create voucher products list page
 
-Create Payment
+ Display all products in table format
+ Search and filter functionality
+ Active/inactive status toggle
+ Actions: Edit, Delete, View details
 
-📖 Bookings
- GET /api/admin/bookings – View all bookings (admin only)
 
-⚛️ 4. Frontend Development
-General Setup
- React Router setup with pages:
+ Create voucher product form
 
-/ → Home (room list)
+ Form for creating new products
+ Form for editing existing products
+ Validation and error handling
+ Image upload support (optional)
 
-/book/:roomId → Booking form
 
-/confirm → Confirmation page
 
-/admin/login → Admin login
+3.2 Admin Dashboard - Voucher Management
 
-/admin/dashboard → Dashboard
+ Create vouchers list page
 
-Public Booking Flow
- Home page: list rooms with “Book” button
+ Display vouchers with key information
+ Filter by type, status, validity
+ Search by code or name
+ Usage statistics display
+ Actions: Edit, Delete, Duplicate, View usage
 
- Booking Form:
 
-Inputs: guest name, email, check-in/out dates
+ Create voucher form
 
-Submit: check availability → create hold → redirect to Stripe
+ Multi-step form for voucher creation
+ Step 1: Basic information (code, name, type)
+ Step 2: Value configuration (discount/fixed/products)
+ Step 3: Usage limits and validity dates
+ Step 4: Restrictions (rooms, rates, requirements)
+ Step 5: Review and create
+ Form validation and error handling
 
- Confirmation page (after Stripe success)
 
-Parse session_id, show booking confirmation
+ Create voucher details page
 
-Admin Dashboard
- Admin login → store JWT
+ Display all voucher information
+ Usage history and statistics
+ Edit and manage voucher
+ Export usage data
 
- Authenticated dashboard:
 
-View, create, update, delete rooms
 
-View bookings
+3.3 Admin Dashboard - Voucher Analytics
 
-🧪 5. Validation & Error Handling
- Use Zod on backend for all request schema validation
+ Create voucher analytics dashboard
 
- Global error handler middleware
+ Usage statistics and trends
+ Popular vouchers report
+ Revenue impact analysis
+ Export functionality
 
- Gracefully handle:
 
-Room not available
 
-Expired holds
+3.4 Customer-Facing Interface
 
-Stripe payment failure
+ Add voucher code input to booking form
 
-🧼 6. Cleanup & Expired Hold Handling
- Option A: cron job every 5 mins to delete expired TemporaryHolds
+ Input field with validation
+ Apply/Remove voucher buttons
+ Real-time discount calculation display
+ Error message handling
 
- Option B: On every new hold or availability check, auto-delete expired ones
 
-🚀 7. Deployment
-Backend
- Dockerize Express app
+ Update booking summary
 
- Deploy to AWS EC2
+ Show original amount
+ Show voucher discount
+ Show final amount
+ Display free products (if applicable)
 
- Setup environment variables
 
- Set up NGINX reverse proxy (optional)
+ Update confirmation page
 
-Frontend
- Deploy to Vercel or Netlify
+ Show voucher information
+ Display savings achieved
+ List any free products included
 
-📊 8. Monitoring & Maintenance
- Set up Stripe Dashboard Webhooks
 
- Enable server logging
 
- Setup admin email alerts for failed payments (optional)
+3.5 Email Templates
 
-📌 9. Extras (Optional)
- Email notifications via SMTP/sendgrid after booking
+ Update booking confirmation emails
 
- Google Calendar / iCal integration for admin
+ Include voucher information
+ Show discount applied
+ List free products
 
- Pagination & search in admin panel
 
- Rate limiting on booking endpoint
+ Create voucher-specific email templates
 
+ Voucher creation notification (admin)
+ Low usage alert (admin)
+ Expiring voucher notification
+
+
+
+Phase 4: Testing & Quality Assurance
+4.1 Backend Testing
+
+ Unit tests for voucher validation logic
+ Unit tests for voucher calculation service
+ Unit tests for voucher usage tracking
+ Integration tests for voucher APIs
+ Test edge cases and error scenarios
+
+4.2 Frontend Testing
+
+ Component tests for voucher forms
+ E2E tests for voucher application flow
+ Test responsive design
+ Test error handling and validation
+
+4.3 Manual Testing Scenarios
+
+ Test all voucher types (discount, fixed, product)
+ Test usage limits (total and per user)
+ Test date restrictions (validity, booking, stay dates)
+ Test room and rate restrictions
+ Test minimum requirements
+ Test voucher combinations
+ Test booking cancellation with vouchers
+ Test expired voucher handling
+ Test invalid voucher codes
+
+Phase 5: Documentation & Deployment
+5.1 Documentation
+
+ API documentation for all voucher endpoints
+ Admin user guide for voucher management
+ Customer guide for using vouchers
+ Technical documentation for developers
+
+5.2 Database Migration & Deployment
+
+ Create production migration plan
+ Test migration on staging environment
+ Schedule production deployment
+ Monitor post-deployment performance
+
+5.3 Monitoring & Analytics
+
+ Set up voucher usage monitoring
+ Create alerts for high voucher usage
+ Set up analytics tracking
+ Monitor performance impact
+
+Phase 6: Post-Launch Activities
+6.1 User Training
+
+ Train admin users on voucher management
+ Create tutorial videos/guides
+ Conduct training sessions
+
+6.2 Marketing Integration
+
+ Create sample vouchers for marketing campaigns
+ Set up voucher code generation for promotions
+ Integrate with email marketing tools
+
+6.3 Optimization & Improvements
+
+ Monitor voucher usage patterns
+ Analyze performance metrics
+ Gather user feedback
+ Plan future enhancements
+
+Optional Enhancements (Future Phases)
+Advanced Features
+
+ Voucher code auto-generation
+ Bulk voucher creation from CSV
+ Voucher templates for quick creation
+ Advanced analytics and reporting
+ Integration with external marketing tools
+ Mobile app voucher scanning (QR codes)
+ Social media voucher sharing
+ Loyalty program integration
+ Dynamic voucher generation based on user behavior
+
+Performance Optimizations
+
+ Caching for voucher validation
+ Database indexing optimization
+ Async processing for bulk operations
+ Rate limiting for voucher validation

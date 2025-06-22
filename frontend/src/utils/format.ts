@@ -1,8 +1,13 @@
 import { format, parseISO } from 'date-fns';
 
-/**
- * Format a date string to a display-friendly format
- */
+export const calculateNights = (checkIn: string, checkOut: string): number => {
+  const checkInDate = new Date(checkIn);
+  const checkOutDate = new Date(checkOut);
+  const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
 export const formatDate = (dateString: string): string => {
   try {
     const date = parseISO(dateString);
@@ -13,9 +18,6 @@ export const formatDate = (dateString: string): string => {
   }
 };
 
-/**
- * Format a date string to include time
- */
 export const formatDatetime = (dateString: string): string => {
   try {
     const date = parseISO(dateString);
@@ -25,9 +27,7 @@ export const formatDatetime = (dateString: string): string => {
     return dateString;
   }
 };
-/**
- * Format a price to currency format
- */
+
 export const formatPrice = (price: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

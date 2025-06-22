@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../prisma";
 import { responseHandler } from "../utils/helper";
-import Stripe from "stripe";
+import { stripe } from "../config/stripe"
 import puppeteer from 'puppeteer';
 import dotenv from "dotenv";
 import Handlebars from 'handlebars';
@@ -9,8 +9,6 @@ import NodeCache from 'node-cache';
 
 dotenv.config();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-// Initialize cache with 24 hours TTL (in seconds)
 const pdfCache = new NodeCache({ stdTTL: 24 * 60 * 60 });
 
 // Register Handlebars helpers
@@ -90,7 +88,6 @@ export const sessionController = async (req: Request, res: Response) => {
     });
 };
 
-// Helper function to generate PDF
 async function generatePDF(htmlContent: string): Promise<Buffer> {
     const browser = await puppeteer.launch({
         headless: true,
@@ -161,6 +158,37 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
         // Parse booking and customer data
         const bookingData = JSON.parse(dbPaymentIntent.bookingData);
         const customerData = JSON.parse(dbPaymentIntent.customerData);
+
+        // Prepare voucher information if voucher was used
+        let voucherInfo = null;
+        if (dbPaymentIntent.voucherCode) {
+            // Fetch voucher details with products
+            const voucherDetails = await prisma.voucher.findUnique({
+                where: { code: dbPaymentIntent.voucherCode },
+                include: {
+                    products: true
+                }
+            });
+
+            if (voucherDetails) {
+                voucherInfo = {
+                    code: voucherDetails.code,
+                    name: voucherDetails.name,
+                    type: voucherDetails.type,
+                    discountPercent: voucherDetails.discountPercent,
+                    fixedAmount: voucherDetails.fixedAmount,
+                    discountAmount: dbPaymentIntent.voucherDiscount || 0,
+                    originalAmount: dbPaymentIntent.totalAmount,
+                    finalAmount: dbPaymentIntent.totalAmount,
+                    products: voucherDetails.products.map(product => ({
+                        name: product.name,
+                        description: product.description,
+                        imageUrl: product.imageUrl,
+                        value: product.value
+                    }))
+                };
+            }
+        }
 
         // Get all booking IDs from the PaymentIntent
         const bookingIds = dbPaymentIntent.bookings.map(b => b.id);
@@ -313,7 +341,7 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
             cardBrand: charge.payment_method_details?.card?.brand || '',
             cardLast4: charge.payment_method_details?.card?.last4 || '',
             amount: dbPaymentIntent.totalAmount.toFixed(2),
-            subtotal: totalRoomCharges.toFixed(2),
+            subtotal: (totalRoomCharges + totalEnhancements).toFixed(2),
             roomCharges: totalRoomCharges.toFixed(2),
             enhancementsTotal: totalEnhancements.toFixed(2),
             taxAmount: dbPaymentIntent.taxAmount.toFixed(2),
@@ -340,7 +368,8 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
-            })
+            }),
+            voucherInfo: voucherInfo
         };
 
         // Generate HTML content using the compiled template
@@ -361,14 +390,5 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Error generating PDF:", error);
         responseHandler(res, 500, "Failed to generate PDF receipt");
-    }
-};
-
-// Add a function to clear cache if needed
-export const clearPDFCache = (sessionId?: string) => {
-    if (sessionId) {
-        pdfCache.del(sessionId);
-    } else {
-        pdfCache.flushAll();
     }
 };

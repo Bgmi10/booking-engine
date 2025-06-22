@@ -28,6 +28,8 @@ interface AvailabilityData {
   availableDates: string[]
   minStayDays: number
   taxPercentage: number
+  restrictedDates: string[],
+  dateRestrictions: {}
 }
 
 // Cache interface for storing fetched data
@@ -47,8 +49,10 @@ export default function Booking() {
     partiallyBookedDates: [],
     availableDates: [],
     minStayDays: 0,
-    taxPercentage: 0.1
-  })
+    taxPercentage: 0.1,
+    restrictedDates: [],
+    dateRestrictions: {}
+  });
 
   const [calenderOpen, setCalenderOpen] = useState(false)
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
@@ -61,7 +65,7 @@ export default function Booking() {
     selectedEnhancements: [],
     selectedRoom: null,
     selectedRateOption: null,
-    totalPrice: 0
+    totalPrice: 0,
   })
   
   const [availabilityCache, setAvailabilityCache] = useState<AvailabilityCache>({})
@@ -159,7 +163,9 @@ export default function Booking() {
               partiallyBookedDates: result.data.partiallyBookedDates,
               availableDates: result.data.availableDates,
               minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
-              taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1
+              taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
+              dateRestrictions: result.data.dateRestrictions,
+              restrictedDates: result.data.restrictedDates
             },
             timestamp: Date.now()
             }
@@ -174,7 +180,9 @@ export default function Booking() {
         partiallyBookedDates: [],
         availableDates: [],
         minStayDays: 0,
-        taxPercentage: 0.1
+        taxPercentage: 0.1,
+        restrictedDates: [],
+        dateRestrictions: {}
       }
       setAvailabilityData(emptyData)
     } finally {

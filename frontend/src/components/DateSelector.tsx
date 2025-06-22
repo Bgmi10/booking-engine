@@ -1,14 +1,23 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { BiLoader } from "react-icons/bi"
 
-// Types for availability data
+interface DateRestrictionInfo {
+  canCheckIn: boolean
+  canCheckOut: boolean
+  canStay: boolean
+  minimumStay?: number
+  maximumStay?: number
+  restrictionReasons: string[]
+  availableRates: string[]
+}
+
 interface AvailabilityData {
   fullyBookedDates: string[]
   partiallyBookedDates: string[]
   availableDates: string[]
+  restrictedDates: string[]
+  dateRestrictions: Record<string, DateRestrictionInfo>
 }
 
 interface DateSelectorProps {
@@ -18,7 +27,9 @@ interface DateSelectorProps {
   onFetchAvailability: (startDate: string, endDate: string) => Promise<void>
   calenderOpen: boolean
   setCalenderOpen: (calenderOpen: boolean) => void
-  minStayDays?: number // Add minimum stay configuration
+  minStayDays?: number
+  selectedRoomId?: string
+  selectedRatePolicyId?: string
 }
 
 const DateSelector = ({ 
@@ -28,31 +39,68 @@ const DateSelector = ({
   onFetchAvailability, 
   calenderOpen, 
   setCalenderOpen,
-  minStayDays = 2 
+  minStayDays = 2,
+  selectedRoomId,
+  selectedRatePolicyId
 }: DateSelectorProps) => {
- 
+  
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
     startDate: null,
     endDate: null,
   })
-  const [selectionStage, setSelectionStage] = useState("arrival") // Track selection stage
+  const [selectionStage, setSelectionStage] = useState("arrival")
   const [currentMonths, setCurrentMonths] = useState([
-    new Date(2025, 4), // May 2025 (corrected: month is 0-indexed)
+    new Date(2025, 4), // May 2025
     new Date(2025, 5), // June 2025
   ])
   const [warningMessage, setWarningMessage] = useState("")
 
-  
-  // Get today's date at midnight for comparison
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Helper function to format date as YYYY-MM-DD (avoiding timezone issues)
+  // Helper function to format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date): string => {
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
+  }
+
+  // Get restriction info for a specific date
+  const getDateRestrictionInfo = (date: Date): DateRestrictionInfo | null => {
+    const dateStr = formatDateForAPI(date)
+    return availabilityData.dateRestrictions?.[dateStr] || null
+  }
+
+  // Check if a date is restricted from stay
+  const isDateRestrictedFromStay = (date: Date): boolean => {
+    const restriction = getDateRestrictionInfo(date)
+    return restriction ? !restriction.canStay : false
+  }
+
+  // Check if a date is restricted from check-in
+  const isDateRestrictedFromCheckIn = (date: Date): boolean => {
+    const restriction = getDateRestrictionInfo(date)
+    return restriction ? !restriction.canCheckIn : false
+  }
+
+  // Check if a date is restricted from check-out
+  const isDateRestrictedFromCheckOut = (date: Date): boolean => {
+    const restriction = getDateRestrictionInfo(date)
+    return restriction ? !restriction.canCheckOut : false
+  }
+
+  // Get minimum stay requirement for a date
+  const getMinimumStayForDate = (date: Date): number => {
+    const restriction = getDateRestrictionInfo(date)
+    const restrictionMinStay = restriction?.minimumStay || 0
+    return Math.max(minStayDays, restrictionMinStay)
+  }
+
+  // Get maximum stay requirement for a date
+  const getMaximumStayForDate = (date: Date): number | undefined => {
+    const restriction = getDateRestrictionInfo(date)
+    return restriction?.maximumStay
   }
 
   // Helper function to check if a date is fully booked
@@ -79,34 +127,69 @@ const DateSelector = ({
     return Math.ceil(timeDiff / (1000 * 3600 * 24))
   }
 
-  // Helper function to check if a date meets minimum stay requirement
-  const meetsMinimumStay = (startDate: Date, endDate: Date): boolean => {
-    return daysBetween(startDate, endDate) >= minStayDays
-  }
-
-  // Helper function to check if a date is disabled for departure selection
-  const isDateDisabledForDeparture = (date: Date): boolean => {
-    if (!selectedDates.startDate) return false
-    
+  // Enhanced validation for departure date selection
+  const validateDepartureDateSelection = (arrivalDate: Date, departureDate: Date): { isValid: boolean; reason?: string } => {
     // Same date as arrival
-    if (date.getTime() === selectedDates.startDate.getTime()) {
-      return true
+    if (departureDate.getTime() === arrivalDate.getTime()) {
+      return { isValid: false, reason: "Departure date cannot be the same as arrival date" }
     }
     
     // Before arrival date
-    if (date < selectedDates.startDate) {
-      return true
+    if (departureDate < arrivalDate) {
+      return { isValid: false, reason: "Departure date cannot be before arrival date" }
     }
-    
-    // Doesn't meet minimum stay requirement
-    if (!meetsMinimumStay(selectedDates.startDate, date)) {
-      return true
+
+    // Check if departure date allows check-out
+    if (isDateRestrictedFromCheckOut(departureDate)) {
+      const restriction = getDateRestrictionInfo(departureDate)
+      const reasons = restriction?.restrictionReasons || ["Check-out not allowed on this date"]
+      return { isValid: false, reason: reasons[0] }
     }
+
+    // Check minimum stay requirement
+    const stayLength = daysBetween(arrivalDate, departureDate)
+    const minStayRequired = getMinimumStayForDate(arrivalDate)
     
-    return false
+    if (stayLength < minStayRequired) {
+      return { isValid: false, reason: `Minimum stay is ${minStayRequired} days` }
+    }
+
+    // Check maximum stay requirement
+    const maxStayAllowed = getMaximumStayForDate(arrivalDate)
+    if (maxStayAllowed && stayLength > maxStayAllowed) {
+      return { isValid: false, reason: `Maximum stay is ${maxStayAllowed} days` }
+    }
+
+    // Check if any date in the stay period is restricted
+    const stayDates = []
+    for (let d = new Date(arrivalDate); d < departureDate; d.setDate(d.getDate() + 1)) {
+      stayDates.push(new Date(d))
+    }
+
+    for (const stayDate of stayDates) {
+      if (isDateRestrictedFromStay(stayDate)) {
+        const restriction = getDateRestrictionInfo(stayDate)
+        const reasons = restriction?.restrictionReasons || ["Stay not allowed on this date"]
+        return { isValid: false, reason: `${formatDateForAPI(stayDate)}: ${reasons[0]}` }
+      }
+      
+      if (isDateFullyBooked(stayDate)) {
+        return { isValid: false, reason: `${formatDateForAPI(stayDate)} is fully booked` }
+      }
+    }
+
+    return { isValid: true }
   }
 
-  // Handle date selection with validation
+  // Check if a date is disabled for departure selection
+  const isDateDisabledForDeparture = (date: Date): boolean => {
+    if (!selectedDates.startDate) return false
+    
+    const validation = validateDepartureDateSelection(selectedDates.startDate, date)
+    return !validation.isValid
+  }
+
+  // Enhanced date click handler with comprehensive validation
   const handleDateClick = (date: Date) => {
     // Check if date is in the past
     if (date < today) {
@@ -122,52 +205,53 @@ const DateSelector = ({
       return
     }
 
-    // If selecting departure date and it's the same as arrival
-    if (selectedDates.startDate && date.getTime() === selectedDates.startDate.getTime()) {
-      setWarningMessage("Departure date cannot be the same as arrival date")
-      setTimeout(() => setWarningMessage(""), 3000)
-      return
-    }
-
-    // If selecting departure date and it doesn't meet minimum stay
-    if (selectedDates.startDate && !selectedDates.endDate) {
-      if (date < selectedDates.startDate) {
-        setWarningMessage("Departure date cannot be before arrival date")
-        setTimeout(() => setWarningMessage(""), 3000)
-        return
-      }
-
-      if (!meetsMinimumStay(selectedDates.startDate, date)) {
-        setWarningMessage(`Minimum stay is ${minStayDays} days`)
-        setTimeout(() => setWarningMessage(""), 3000)
-        return
-      }
-    }
-    
-    setWarningMessage("") // Clear any existing warning
-    
+    // If selecting arrival date
     if (!selectedDates.startDate || (selectedDates.startDate && selectedDates.endDate)) {
-      // Start a new selection
+      // Check if date is restricted for check-in
+      if (isDateRestrictedFromCheckIn(date)) {
+        const restriction = getDateRestrictionInfo(date)
+        const reasons = restriction?.restrictionReasons || ["Check-in not allowed on this date"]
+        setWarningMessage(reasons[0])
+        setTimeout(() => setWarningMessage(""), 3000)
+        return
+      }
+
+      // Check if date is restricted from stay
+      if (isDateRestrictedFromStay(date)) {
+        const restriction = getDateRestrictionInfo(date)
+        const reasons = restriction?.restrictionReasons || ["Stay not allowed on this date"]
+        setWarningMessage(reasons[0])
+        setTimeout(() => setWarningMessage(""), 3000)
+        return
+      }
+
+      // Set as arrival date
       setSelectedDates({
         startDate: date,
         endDate: null,
       })
-      setSelectionStage("departure") // Switch to departure selection
-    } else {
-      // Complete the selection
-      if (date < selectedDates.startDate) {
-        // This shouldn't happen with our validation, but keeping as fallback
-        setSelectedDates({
-          startDate: date,
-          endDate: selectedDates.startDate,
-        })
-      } else {
-        setSelectedDates({
-          startDate: selectedDates.startDate,
-          endDate: date,
-        })
+      setSelectionStage("departure")
+      setWarningMessage("")
+      return
+    }
+
+    // If selecting departure date
+    if (selectedDates.startDate && !selectedDates.endDate) {
+      const validation = validateDepartureDateSelection(selectedDates.startDate, date)
+      
+      if (!validation.isValid) {
+        setWarningMessage(validation.reason || "Invalid departure date")
+        setTimeout(() => setWarningMessage(""), 3000)
+        return
       }
-      setSelectionStage("arrival") // Reset to arrival for next selection
+
+      // Set as departure date
+      setSelectedDates({
+        startDate: selectedDates.startDate,
+        endDate: date,
+      })
+      setSelectionStage("arrival")
+      setWarningMessage("")
     }
   }
 
@@ -208,11 +292,16 @@ const DateSelector = ({
     return date < today
   }
 
-  // FIXED: Corrected availability state function with proper logic for both months
-  const getDateAvailabilityState = (date: Date): 'fullyBooked' | 'partiallyBooked' | 'available' | 'unknown' => {
+  // Enhanced availability state function
+  const getDateAvailabilityState = (date: Date): 'fullyBooked' | 'partiallyBooked' | 'available' | 'restricted' | 'unknown' => {
     const dateStr = formatDateForAPI(date)
     
-    // Check in order of priority: fully booked > partially booked > available > unknown
+    // Check restrictions first
+    if (availabilityData.restrictedDates.includes(dateStr) || isDateRestrictedFromStay(date)) {
+      return 'restricted'
+    }
+    
+    // Check booking status
     if (availabilityData.fullyBookedDates.includes(dateStr)) {
       return 'fullyBooked'
     }
@@ -228,6 +317,7 @@ const DateSelector = ({
     return 'unknown'
   }
   
+  // Enhanced date styling with restriction handling
   const getDateStyling = (date: Date) => {
     if (isDateInPast(date)) {
       return "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -253,6 +343,8 @@ const DateSelector = ({
     }
   
     switch (availabilityState) {
+      case 'restricted':
+        return "bg-orange-100 text-orange-600 cursor-not-allowed"
       case 'fullyBooked':
         return "bg-red-100 text-red-600 cursor-not-allowed"
       case 'partiallyBooked':
@@ -264,23 +356,23 @@ const DateSelector = ({
     }
   }
 
-  // Get tooltip text for a date
+  // Enhanced tooltip with restriction information
   const getDateTooltip = (date: Date) => {
     if (isDateInPast(date)) {
       return "Cannot book dates in the past"
     }
 
+    const restriction = getDateRestrictionInfo(date)
+    
     // Check if date is disabled for departure selection
     if (selectedDates.startDate && !selectedDates.endDate && isDateDisabledForDeparture(date)) {
-      if (date.getTime() === selectedDates.startDate.getTime()) {
-        return "Departure cannot be same as arrival"
-      }
-      if (date < selectedDates.startDate) {
-        return "Departure cannot be before arrival"
-      }
-      if (!meetsMinimumStay(selectedDates.startDate, date)) {
-        return `Minimum stay is ${minStayDays} days`
-      }
+      const validation = validateDepartureDateSelection(selectedDates.startDate, date)
+      return validation.reason || "Cannot select this departure date"
+    }
+
+    // Show restriction reasons
+    if (restriction && restriction.restrictionReasons.length > 0) {
+      return restriction.restrictionReasons[0]
     }
 
     if (isDateFullyBooked(date)) {
@@ -292,7 +384,16 @@ const DateSelector = ({
     }
 
     if (isDateAvailable(date)) {
-      return "Available"
+      let tooltip = "Available"
+      if (restriction) {
+        if (restriction.minimumStay && restriction.minimumStay > minStayDays) {
+          tooltip += ` (Min stay: ${restriction.minimumStay} days)`
+        }
+        if (restriction.maximumStay) {
+          tooltip += ` (Max stay: ${restriction.maximumStay} days)`
+        }
+      }
+      return tooltip
     }
 
     return ""
@@ -300,19 +401,15 @@ const DateSelector = ({
 
   // Navigate to previous month
   const goToPreviousMonth = () => {
-    // Check if going to previous month would show dates before current month
     const prevMonth = new Date(currentMonths[0].getFullYear(), currentMonths[0].getMonth() - 1)
     const currentMonth = new Date(today.getFullYear(), today.getMonth())
     
-    // Only navigate if previous month isn't before current month
     if (prevMonth >= currentMonth) {
       const newMonths = [
         new Date(currentMonths[0].getFullYear(), currentMonths[0].getMonth() - 1),
         new Date(currentMonths[1].getFullYear(), currentMonths[1].getMonth() - 1),
       ]
       setCurrentMonths(newMonths)
-      
-      // Fetch availability for new month range
       fetchAvailabilityForMonths(newMonths)
     }
   }
@@ -324,12 +421,10 @@ const DateSelector = ({
       new Date(currentMonths[1].getFullYear(), currentMonths[1].getMonth() + 1),
     ]
     setCurrentMonths(newMonths)
-    
-    // Fetch availability for new month range
     fetchAvailabilityForMonths(newMonths)
   }
 
-  // OPTIMIZED: Fetch availability for given months - now uses parent's cached fetch
+  // Fetch availability for given months
   const fetchAvailabilityForMonths = (months: Date[]) => {
     const startOfRange = new Date(months[0].getFullYear(), months[0].getMonth(), 1)
     const endOfRange = new Date(months[1].getFullYear(), months[1].getMonth() + 1, 0)
@@ -337,7 +432,6 @@ const DateSelector = ({
     const startDate = formatDateForAPI(startOfRange)
     const endDate = formatDateForAPI(endOfRange)
     
-    // This now uses the parent's cached fetch function
     onFetchAvailability(startDate, endDate)
   }
 
@@ -347,18 +441,15 @@ const DateSelector = ({
     const lastDay = new Date(year, month + 1, 0)
     const daysInMonth = lastDay.getDate()
 
-    // Adjust for Monday as first day of week (0 = Monday, 6 = Sunday)
     let dayOfWeek = firstDay.getDay() - 1
-    if (dayOfWeek === -1) dayOfWeek = 6 // Sunday becomes 6
+    if (dayOfWeek === -1) dayOfWeek = 6
 
     const days = []
 
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < dayOfWeek; i++) {
       days.push(null)
     }
 
-    // Add days of the month
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i))
     }
@@ -366,25 +457,33 @@ const DateSelector = ({
     return days
   }
 
-  // Check if a date is clickable
+  // Enhanced clickability check
   const isDateClickable = (date: Date): boolean => {
     if (isDateInPast(date)) return false
     if (isDateFullyBooked(date)) return false
-    if (selectedDates.startDate && !selectedDates.endDate && isDateDisabledForDeparture(date)) return false
+    
+    // For arrival date selection
+    if (!selectedDates.startDate || (selectedDates.startDate && selectedDates.endDate)) {
+      if (isDateRestrictedFromCheckIn(date) || isDateRestrictedFromStay(date)) return false
+    }
+    
+    // For departure date selection
+    if (selectedDates.startDate && !selectedDates.endDate) {
+      if (isDateDisabledForDeparture(date)) return false
+    }
+    
     return true
   }
 
   // Effect to notify parent component when dates change
   useEffect(() => {
     if (selectedDates.startDate && selectedDates.endDate) {
-      // Only call onSelect when both dates are selected
       onSelect && onSelect(selectedDates)
     }
   }, [selectedDates.startDate, selectedDates.endDate, onSelect])
 
   // Initialize calendar to current month on first load
   useEffect(() => {
-    // Set the current month and next month
     const currentDate = new Date()
     const months = [
       new Date(currentDate.getFullYear(), currentDate.getMonth()),
@@ -392,9 +491,6 @@ const DateSelector = ({
     ]
     setCurrentMonths(months)
   }, [])
-
-  // REMOVED: The useEffect that was fetching availability when calendar opens
-  // This was causing duplicate API calls - now handled by parent component
 
   // Prevent scrolling when modal is open
   useEffect(() => {
@@ -417,6 +513,14 @@ const DateSelector = ({
     })
     setSelectionStage("arrival")
     setWarningMessage("")
+  }
+
+  // Get current minimum stay requirement
+  const getCurrentMinStay = () => {
+    if (selectedDates.startDate) {
+      return getMinimumStayForDate(selectedDates.startDate)
+    }
+    return minStayDays
   }
 
   return (
@@ -442,7 +546,6 @@ const DateSelector = ({
       <AnimatePresence>
         {calenderOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            {/* Backdrop overlay */}
             <motion.div 
               className="absolute inset-0 bg-black/50"
               initial={{ opacity: 0 }}
@@ -451,7 +554,6 @@ const DateSelector = ({
               onClick={() => setCalenderOpen(false)}
             />
             
-            {/* Calendar modal */}
             <motion.div
               className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 md:mx-auto max-h-[90vh] overflow-auto"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -466,7 +568,7 @@ const DateSelector = ({
                   </h3>
                   {selectedDates.startDate && !selectedDates.endDate && (
                     <span className="ml-4 text-sm text-gray-500">
-                      Arrival: {formatDate(selectedDates.startDate)} | Min stay: {minStayDays} days
+                      Arrival: {formatDate(selectedDates.startDate)} | Min stay: {getCurrentMinStay()} days
                     </span>
                   )}
                 </div>
@@ -490,7 +592,6 @@ const DateSelector = ({
                 </div>
               </div>
               
-              {/* Warning message bar */}
               <AnimatePresence>
                 {warningMessage && (
                   <motion.div 
@@ -511,7 +612,6 @@ const DateSelector = ({
                 </div>
               )}
 
-              {/* Availability legend */}
               <div className="p-5 pb-0">
                 <div className="flex flex-wrap gap-4 text-xs text-gray-600 mb-4">
                   <div className="flex items-center gap-1">
@@ -525,6 +625,10 @@ const DateSelector = ({
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-red-100 rounded"></div>
                     <span>Fully booked</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-orange-100 rounded"></div>
+                    <span>Restricted</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-gray-100 rounded"></div>
@@ -585,7 +689,6 @@ const DateSelector = ({
                                   {date.getDate()}
                                 </motion.button>
                                 
-                                {/* Tooltip for dates */}
                                 {getDateTooltip(date) && (
                                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
                                     {getDateTooltip(date)}

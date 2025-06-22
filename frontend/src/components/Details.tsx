@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { baseUrl } from "../utils/constants";
-import { ChevronDown, ChevronUp, LoaderIcon, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, LoaderIcon, Search, CheckCircle, Gift, Sparkles } from "lucide-react";
 import CountryList from 'country-list-with-dial-code-and-flag';
+import confetti from 'canvas-confetti';
+import { calculateNights } from "../utils/format";
 
 export default function Details({ 
     bookingData, 
@@ -24,6 +26,14 @@ export default function Details({
         nationality: "",
         specialRequests: ""
     });    
+
+    // Voucher states
+    const [voucherCode, setVoucherCode] = useState(bookingData.promotionCode || "");
+    const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
+    const [voucherError, setVoucherError] = useState("");
+    const [voucherData, setVoucherData] = useState<any>(null);
+    const [showVoucherDetails, setShowVoucherDetails] = useState(false);
+
     // UI states
     const [showNationality, setShowNationality] = useState(false);
     const [nationalitySearch, setNationalitySearch] = useState("");
@@ -37,6 +47,114 @@ export default function Details({
     
     const countries = CountryList.getAll();
     
+    // Validate voucher code on component mount if code exists
+    useEffect(() => {
+        if (voucherCode) {
+            validateVoucher();
+        }
+    }, []);
+
+    // Validate voucher code
+    const validateVoucher = async () => {
+        if (!voucherCode.trim()) {
+            setVoucherError("Please enter a promotional code");
+            setVoucherData(null);
+            return;
+        }
+
+        setIsValidatingVoucher(true);
+        setVoucherError("");
+
+        try {
+            const response = await fetch(`${baseUrl}/vouchers/validate/${voucherCode}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                setVoucherData(data.data);
+                setVoucherError("");
+                setShowVoucherDetails(true);
+                
+                // Trigger confetti animation
+                const duration = 3 * 1000;
+                const animationEnd = Date.now() + duration;
+                const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+                function randomInRange(min: number, max: number) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                const interval: any = setInterval(function() {
+                    const timeLeft = animationEnd - Date.now();
+
+                    if (timeLeft <= 0) {
+                        return clearInterval(interval);
+                    }
+
+                    const particleCount = 50 * (timeLeft / duration);
+                    
+                    // since particles fall down, start a bit higher than random
+                    confetti({
+                        ...defaults,
+                        particleCount,
+                        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+                    });
+                    confetti({
+                        ...defaults,
+                        particleCount,
+                        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+                    });
+                }, 250);
+            } else {
+                setVoucherError(data.message || "Invalid promotional code");
+                setVoucherData(null);
+                setShowVoucherDetails(false);
+            }
+        } catch (error) {
+            setVoucherError("Error validating promotional code");
+            setVoucherData(null);
+            setShowVoucherDetails(false);
+        } finally {
+            setIsValidatingVoucher(false);
+        }
+    };
+
+    // Calculate final price with voucher discount
+    const calculateFinalPrice = () => {
+        const subtotal = calculateSubtotal();
+        const tax = calculateDisplayTax(subtotal);
+        const total = subtotal; // Total already includes tax
+
+        if (voucherData) {
+            if (voucherData.type === "DISCOUNT" && voucherData.discountPercent) {
+                const discount = (total * voucherData.discountPercent) / 100;
+                return {
+                    subtotal,
+                    tax,
+                    originalTotal: total,
+                    discount,
+                    finalTotal: total - discount
+                };
+            } else if (voucherData.type === "FIXED" && voucherData.fixedAmount) {
+                const discount = Math.min(voucherData.fixedAmount, total);
+                return {
+                    subtotal,
+                    tax,
+                    originalTotal: total,
+                    discount,
+                    finalTotal: total - discount
+                };
+            }
+        }
+
+        return {
+            subtotal,
+            tax,
+            originalTotal: total,
+            discount: 0,
+            finalTotal: total
+        };
+    };
+
     // Filter countries based on search for nationality dropdown
     const filteredCountries = useMemo(() => {
         if (!nationalitySearch.trim()) return countries;
@@ -55,13 +173,7 @@ export default function Details({
         
         return `${days[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${months[d.getMonth()]}/${d.getFullYear()}`;
     };
-
-    const calculateNights = (checkIn: string, checkOut: string) => {
-        const checkInDate = new Date(checkIn);
-        const checkOutDate = new Date(checkOut);
-        return Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
-    };
-
+    
     const calculateItemBasePrice = (item: any) => {
         const nights = calculateNights(item.checkIn, item.checkOut);
         const rooms = item.rooms || 1;
@@ -141,8 +253,7 @@ export default function Details({
         return Math.round(subtotal * taxPercentage * 100) / 100;
     };
 
-    const grandTotal = calculateSubtotal();
-    const displayTax = calculateDisplayTax(grandTotal);
+    const priceDetails = calculateFinalPrice();
 
     // Validation functions
     const validateEmail = (email: string) => {
@@ -292,7 +403,8 @@ const validateForm = () => {
             agreeToTerms
         );
     };
-
+    
+    console.log(voucherData)
     // Handle form submission and Stripe checkout
     const handleConfirmAndPay = async () => {
         if (!validateForm()) {
@@ -312,9 +424,13 @@ const validateForm = () => {
                     specialRequests: formData.specialRequests,
                     receiveMarketing: receiveMarketing
                 },
-                bookingItems: allItems, // here we need make a copy and remove the unwanted items 
-                totalAmount: grandTotal,
-                taxAmount: displayTax
+                bookingItems: allItems,
+                totalAmount: priceDetails.finalTotal,
+                taxAmount: calculateDisplayTax(priceDetails.originalTotal),
+                voucherCode: voucherData ? voucherCode : null,
+                voucherDiscount: priceDetails.discount,
+                voucherProducts: voucherData ? voucherData.products : null,
+                originalAmount: priceDetails.originalTotal
             };
 
             const response = await fetch(baseUrl + "/bookings/create-checkout-session", {
@@ -326,16 +442,14 @@ const validateForm = () => {
             });
 
             const data = await response.json();
-            if ( response.status === 200 && data.data.url) {
-                // Redirect to Stripe checkout
-               window.location.href = data.data.url;
+            if (response.status === 200 && data.data.url) {
+                window.location.href = data.data.url;
             } else {
                 setApiError(data.message);
             }
         } catch (error: any) {
             console.error('Error creating checkout session:', error);
-            alert("error while creating room");
-            setApiError(error);
+            setApiError(error.message || "Error creating booking");
         } finally {
             setIsProcessing(false);
         }
@@ -532,6 +646,108 @@ const validateForm = () => {
                 </div>
             </div>
 
+            {/* Promotional Code Section */}
+            <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
+                <div className="p-4 sm:p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800">Promotional Code</h3>
+                        <Sparkles className="w-5 h-5 text-yellow-500" />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <input
+                                type="text"
+                                value={voucherCode}
+                                onChange={(e) => {
+                                    setVoucherCode(e.target.value);
+                                    setVoucherError("");
+                                    setVoucherData(null);
+                                    setShowVoucherDetails(false);
+                                }}
+                                placeholder="Enter promotional code"
+                                className={`w-full px-4 py-2 border rounded-md focus:outline-none transition-all duration-200 ${
+                                    voucherError ? 'border-red-300' : 'border-gray-300'
+                                } ${showVoucherDetails ? 'border-green-300' : ''}`}
+                            />
+                            {voucherError && (
+                                <p className="text-red-500 text-sm mt-1 animate-shake">{voucherError}</p>
+                            )}
+                        </div>
+                        <button
+                            onClick={validateVoucher}
+                            disabled={isValidatingVoucher}
+                            className={`px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 ${
+                                showVoucherDetails ? 'bg-green-600 hover:bg-green-700' : ''
+                            }`}
+                        >
+                            {isValidatingVoucher ? (
+                                <LoaderIcon className="w-4 h-4 animate-spin" />
+                            ) : showVoucherDetails ? (
+                                <CheckCircle className="w-4 h-4" />
+                            ) : (
+                                "Apply"
+                            )}
+                        </button>
+                    </div>
+
+                    {showVoucherDetails && voucherData && (
+                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md animate-slideDown">
+                            <div className="flex items-start gap-3">
+                                <div className="relative">
+                                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5 " />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-medium text-green-800">Promotional Code Applied!</h4>
+                                    <p className="text-sm text-green-700 mt-1">
+                                        {voucherData.type === "DISCOUNT" && (
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="font-bold">{voucherData.discountPercent}%</span> discount applied
+                                            </span>
+                                        )}
+                                        {voucherData.type === "FIXED" && (
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="font-bold">€{voucherData.fixedAmount}</span> discount applied
+                                            </span>
+                                        )}
+                                        {voucherData.type === "PRODUCT" && (
+                                            "Free product included"
+                                        )}
+                                    </p>
+                                    
+                                    {voucherData.type === "PRODUCT" && voucherData.products && (
+                                        <div className="mt-3 space-y-2">
+                                            {voucherData.products.map((product: any) => (
+                                                <div 
+                                                    key={product.id} 
+                                                    className="flex items-center gap-3 bg-white p-3 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200"
+                                                >
+                                                    {product.imageUrl && (
+                                                        <img 
+                                                            src={product.imageUrl} 
+                                                            alt={product.name}
+                                                            className="w-12 h-12 object-cover rounded-md"
+                                                        />
+                                                    )}
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">{product.name}</p>
+                                                        <p className="text-sm text-gray-500">{product.description}</p>
+                                                        <p className="text-sm text-green-600 font-medium flex items-center gap-1">
+                                                            <Gift className="w-4 h-4" />
+                                                            Free with this code
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Booking Summary */}
             {allItems.length > 0 && (
                 <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
@@ -595,92 +811,133 @@ const validateForm = () => {
                             );
                         })}
                         
-                        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                            <span className="text-gray-700">IVA {(taxPercentage * 100).toFixed(0)}%</span>
-                            <div className="text-right">
-                                <div className="font-medium">€{displayTax.toFixed(2)}</div>
-                                <div className="text-xs text-gray-500">Taxes included in price</div>
+                        <div className="space-y-3 pt-4 border-t border-gray-200">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-700">Subtotal</span>
+                                <span className="font-medium">€{priceDetails.subtotal.toFixed(2)}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-700">IVA {(taxPercentage * 100).toFixed(0)}%</span>
+                                <div className="text-right">
+                                    <div className="font-medium">€{priceDetails.tax.toFixed(2)}</div>
+                                    <div className="text-xs text-gray-500">Taxes included in price</div>
+                                </div>
+                            </div>
+
+                            {priceDetails.discount > 0 && (
+                                <div className="flex justify-between items-center text-green-600">
+                                    <span>Discount</span>
+                                    <span className="font-medium">-€{priceDetails.discount.toFixed(2)}</span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center pt-4 border-t border-gray-300">
+                                <span className="text-lg sm:text-xl font-semibold">Total</span>
+                                <div className="text-right">
+                                    {priceDetails.discount > 0 && (
+                                        <span className="text-sm text-gray-500 line-through mr-2">
+                                            €{priceDetails.originalTotal.toFixed(2)}
+                                        </span>
+                                    )}
+                                    <span className="text-lg sm:text-xl font-semibold">
+                                        €{priceDetails.finalTotal.toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex justify-between items-center pt-4 border-t border-gray-300 mt-4">
-                            <span className="text-lg sm:text-xl font-semibold">Total</span>
-                            <span className="text-lg sm:text-xl font-semibold">€{grandTotal.toFixed(2)}</span>
-                        </div>
+                        {/* Terms and Conditions */}
+                        <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 mt-6">
+                            <div className="flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="agreeTerms"
+                                    checked={agreeToTerms}
+                                    onChange={(e) => setAgreeToTerms(e.target.checked)}
+                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
+                                    aria-required="true"
+                                    aria-invalid={!!errors.terms}
+                                    aria-describedby={errors.terms ? "terms-error" : undefined}
+                                />
+                                <label htmlFor="agreeTerms" className="text-sm text-gray-700">
+                                    I agree to{" "}
+                                    <a href="https://www.latorre.farm/terms" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
+                                        Property T&C
+                                    </a>{" "}
+                                    and{" "}
+                                    <a href="https://www.latorre.farm/privacy" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
+                                        Property Privacy Policy
+                                    </a>
+                                    . <span className="text-red-500">*</span>
+                                </label>
+                            </div>
+                            {errors.terms && <p id="terms-error" className="text-red-500 text-xs" role="alert">{errors.terms}</p>}
 
-                        <div className="text-sm text-gray-500 text-right mt-2">
-                            You'll pay when you finish your reservation.
-                        </div>
-                    </div>
+                            <div className="flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="receiveMarketing"
+                                    checked={receiveMarketing}
+                                    onChange={(e) => setReceiveMarketing(e.target.checked)}
+                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
+                                />
+                                <label htmlFor="receiveMarketing" className="text-sm text-gray-700">
+                                    I'd like to occasionally receive marketing updates from La Torre sulla via Francigena.
+                                </label>
+                              
+                            </div>
+                            <div className="mb-4">
+                              {apiError && <span className="text-red-500 mb-2">*{apiError}</span>}
+                            </div>
 
-                    {/* Terms and Conditions */}
-                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
-                        <div className="flex items-start gap-3">
-                            <input
-                                type="checkbox"
-                                id="agreeTerms"
-                                checked={agreeToTerms}
-                                onChange={(e) => setAgreeToTerms(e.target.checked)}
-                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
-                                aria-required="true"
-                                aria-invalid={!!errors.terms}
-                                aria-describedby={errors.terms ? "terms-error" : undefined}
-                            />
-                            <label htmlFor="agreeTerms" className="text-sm text-gray-700">
-                                I agree to{" "}
-                                <a href="https://www.latorre.farm/terms" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
-                                    Property T&C
-                                </a>{" "}
-                                and{" "}
-                                <a href="https://www.latorre.farm/privacy" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
-                                    Property Privacy Policy
-                                </a>
-                                . <span className="text-red-500">*</span>
-                            </label>
-                        </div>
-                        {errors.terms && <p id="terms-error" className="text-red-500 text-xs" role="alert">{errors.terms}</p>}
-
-                        <div className="flex items-start gap-3">
-                            <input
-                                type="checkbox"
-                                id="receiveMarketing"
-                                checked={receiveMarketing}
-                                onChange={(e) => setReceiveMarketing(e.target.checked)}
-                                className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
-                            />
-                            <label htmlFor="receiveMarketing" className="text-sm text-gray-700">
-                                I'd like to occasionally receive marketing updates from La Torre sulla via Francigena.
-                            </label>
-                          
-                        </div>
-                        <div className="mb-4">
-                          {apiError && <span className="text-red-500 mb-2">*{apiError}</span>}
-                        </div>
-
-                        <button
-                            onClick={handleConfirmAndPay}
-                            disabled={isProcessing || !isFormComplete()}
-                            className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            aria-describedby={!isFormComplete() && !isProcessing ? "form-incomplete-message" : undefined}
-                        >
-                            {isProcessing ? (
-                                <>
-                                    <LoaderIcon className="w-4 h-4 animate-spin" aria-hidden="true" />
-                                    Processing...
-                                </>
-                            ) : (
-                                'Confirm & pay now'
+                            <button
+                                onClick={handleConfirmAndPay}
+                                disabled={isProcessing || !isFormComplete()}
+                                className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                aria-describedby={!isFormComplete() && !isProcessing ? "form-incomplete-message" : undefined}
+                            >
+                                {isProcessing ? (
+                                    <>
+                                        <LoaderIcon className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    'Confirm & pay now'
+                                )}
+                            </button>
+                            
+                            {!isFormComplete() && !isProcessing && (
+                                <p id="form-incomplete-message" className="text-sm text-gray-500 text-center">
+                                    Please complete all required fields to continue
+                                </p>
                             )}
-                        </button>
-                        
-                        {!isFormComplete() && !isProcessing && (
-                            <p id="form-incomplete-message" className="text-sm text-gray-500 text-center">
-                                Please complete all required fields to continue
-                            </p>
-                        )}
+                        </div>
                     </div>
                 </div>
             )}
+
+            {/* Add these styles to your global CSS or component styles */}
+            <style>{`
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    25% { transform: translateX(-5px); }
+                    75% { transform: translateX(5px); }
+                }
+                
+                @keyframes slideDown {
+                    from { transform: translateY(-10px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                
+                .animate-shake {
+                    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+                }
+                
+                .animate-slideDown {
+                    animation: slideDown 0.3s ease-out;
+                }
+            `}</style>
         </div>
     );
 }

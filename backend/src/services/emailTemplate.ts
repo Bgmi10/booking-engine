@@ -75,6 +75,7 @@ interface BookingDetails {
     }
   }[]
   paymentIntent: {
+    totalAmount: number;
     amount: number
     currency: string
     status: string
@@ -104,7 +105,8 @@ interface CustomerDetails {
 export const sendConsolidatedBookingConfirmation = async (
   bookings: BookingDetails[],
   customerDetails: CustomerDetails,
-  receipt_url: string
+  receipt_url: string,
+  voucherInfo?: any
 ) => {
   if (!bookings.length) return;
 
@@ -191,53 +193,62 @@ export const sendConsolidatedBookingConfirmation = async (
   const enhancementsTotal = processedBookings.reduce((sum, booking) => sum + booking.enhancementsTotal, 0);
   const subtotal = roomCharges + enhancementsTotal;
 
-  await EmailService.sendEmail({
-    to: {
-      email: customerDetails.email,
-      name: `${customerDetails.firstName} ${customerDetails.lastName}`,
-    },
-    templateType: 'BOOKING_CONFIRMATION',
-    subject: '', // Will be taken from template
-    templateData: {
-      confirmationId: firstBooking.id,
-      customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
-      showCommonDates: allSameCheckIn && allSameCheckOut,
-      checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
-      checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
-      totalNights,
-      totalRooms: bookings.length,
-      totalGuests,
-      amount: payment.amount,
-      subtotal,
-      roomCharges,
-      enhancementsTotal,
-      taxAmount: payment.taxAmount.toFixed(2), // 10% tax included in total amount
-      currency: payment.currency,
-      paymentStatus: payment.status,
-      bookings: processedBookings,
-      customerDetails: {
-        firstName: customerDetails.firstName,
-        middleName: customerDetails.middleName,
-        lastName: customerDetails.lastName,
+  try {
+    // Fetch PDF receipt and create attachment
+    const receiptAttachment = await EmailService.createPdfAttachment(
+      receipt_url,
+      `receipt-${firstBooking.id}.pdf`
+    );
+
+    await EmailService.sendEmail({
+      to: {
         email: customerDetails.email,
-        phone: customerDetails.phone,
-        nationality: customerDetails.nationality,
-        specialRequests: customerDetails.specialRequests,
+        name: `${customerDetails.firstName} ${customerDetails.lastName}`,
       },
-      // Add receipt URL for PDF download
-      pdfReceipt: {
-        url: receipt_url,
-        text: "View your receipt (includes 10% tax)",
-        downloadText: "Download PDF Receipt"
-      }
-    },
-  });
+      templateType: 'BOOKING_CONFIRMATION',
+      subject: '', // Will be taken from template
+      templateData: {
+        confirmationId: firstBooking.id,
+        customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
+        showCommonDates: allSameCheckIn && allSameCheckOut,
+        checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
+        checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
+        totalNights,
+        totalRooms: bookings.length,
+        totalGuests,
+        amount: payment.totalAmount,
+        subtotal,
+        roomCharges,
+        enhancementsTotal,
+        taxAmount: payment.taxAmount.toFixed(2), // 10% tax included in total amount
+        currency: payment.currency,
+        paymentStatus: payment.status,
+        bookings: processedBookings,
+        customerDetails: {
+          firstName: customerDetails.firstName,
+          middleName: customerDetails.middleName,
+          lastName: customerDetails.lastName,
+          email: customerDetails.email,
+          phone: customerDetails.phone,
+          nationality: customerDetails.nationality,
+          specialRequests: customerDetails.specialRequests,
+        },
+        ...(voucherInfo && { voucherInfo }),
+      },
+      attachments: [receiptAttachment]
+    });
+
+    console.log(`Booking confirmation sent with PDF attachment for booking: ${firstBooking.id}`);
+  } catch (error) {
+    console.error('Error sending booking confirmation with PDF attachment:', error);
+  }
 };
 
 export const sendConsolidatedAdminNotification = async (
   bookings: BookingDetails[],
   customerDetails: CustomerDetails,
-  stripeSessionId: string
+  stripeSessionId: string,
+  voucherInfo?: any
 ) => {
   if (!bookings.length) return;
 
@@ -304,12 +315,15 @@ export const sendConsolidatedAdminNotification = async (
         nationality: customerDetails.nationality,
         specialRequests: customerDetails.specialRequests,
       },
+      ...(voucherInfo && { voucherInfo }),
     },
   });
 };
 
 export const sendPaymentLinkEmail = async (bookingItems: any) => {
   const { email, name, paymentLink, expiresAt } = bookingItems;
+
+  console.log(email)
 
   await EmailService.sendEmail({
     to: {
@@ -337,55 +351,78 @@ export const sendRefundConfirmationEmail = async (
   customerDetails: CustomerDetails,
   refund?: RefundDetail
 ) => {
+  console.log(customerDetails.email)
   if (!bookings || !bookings.length) return;
 
   // Use the first booking (or extend for multiple if needed)
   const bookingData = bookings[0];
 
-  // Dates
-  const checkIn = new Date(bookingData.checkIn);
-  const checkOut = new Date(bookingData.checkOut);
+  // Safely handle dates
+  const checkIn = bookingData.checkIn ? new Date(bookingData.checkIn) : new Date();
+  const checkOut = bookingData.checkOut ? new Date(bookingData.checkOut) : new Date();
   const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Room
-  const room = bookingData.roomDetails;
-  const roomTotal = room.price * nights;
+  // Safely handle room details - check if roomDetails exists and has required properties
+  const room = bookingData.roomDetails || {};
+  const roomPrice = room.price || 0;
+  const roomTotal = roomPrice * nights;
 
-  // Enhancements
+  // Safely handle enhancements
   const processedEnhancements = (bookingData.selectedEnhancements || []).map((enh: any) => {
     if (!enh || typeof enh.price !== 'number') {
       console.warn('Skipping invalid enhancement booking in cancellation email:', enh);
       return undefined;
     }
+    
     let calculatedPrice = enh.price;
-    // If you have pricingType logic, add here
+    const totalGuests = bookingData.adults || bookingData.totalGuests || 1;
+    
+    // Handle different pricing types
+    switch (enh.pricingType) {
+      case 'PER_GUEST':
+        calculatedPrice = enh.price * totalGuests;
+        break;
+      case 'PER_DAY':
+        calculatedPrice = enh.price * nights;
+        break;
+      case 'PER_BOOKING':
+      default:
+        calculatedPrice = enh.price;
+        break;
+    }
+    
     return {
-      ...enh,
+      title: enh.title || enh.name || 'Enhancement',
+      description: enh.description || '',
+      price: enh.price,
+      pricingType: enh.pricingType || 'PER_BOOKING',
       calculatedPrice,
       pricingDetails: {
         basePrice: enh.price,
         pricingType: enh.pricingType || 'PER_BOOKING',
         nights: enh.pricingType === 'PER_DAY' ? nights : null,
-        guests: enh.pricingType === 'PER_GUEST' ? bookingData.adults : null
+        guests: enh.pricingType === 'PER_GUEST' ? totalGuests : null
       }
     };
   }).filter(Boolean);
+
   const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
 
   // Prepare bookings array for template (even if only one booking)
   const bookingsForTemplate = [{
-    id: bookingData.id,
+    id: bookingData.id || 'N/A',
     room: {
-      name: room.name,
-      description: room.description,
-      price: room.price,
-      capacity: room.capacity,
+      name: room.name || 'Room',
+      description: room.description || 'Room booking',
+      price: roomPrice,
+      capacity: room.capacity || 1,
       amenities: room.amenities || []
     },
-    checkIn: bookingData.checkIn,
-    checkOut: bookingData.checkOut,
-    totalGuests: bookingData.adults,
-    nights,
+    checkIn: bookingData.checkIn || new Date().toISOString(),
+    checkOut: bookingData.checkOut || new Date().toISOString(),
+    totalGuests: bookingData.adults || bookingData.totalGuests || 1,
+    nights: nights > 0 ? nights : 1,
+    basePrice: roomPrice,
     roomTotal,
     enhancementsTotal,
     enhancements: processedEnhancements
@@ -393,27 +430,132 @@ export const sendRefundConfirmationEmail = async (
 
   // Prepare template data
   const templateData: any = {
-    confirmationId: bookingData.id,
+    confirmationId: bookingData.id || 'N/A',
     customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
-    checkInDate: Handlebars.helpers.formatDate(checkIn),
-    checkOutDate: Handlebars.helpers.formatDate(checkOut),
-    totalNights: nights,
-    totalGuests: bookingData.adults,
+    checkInDate: bookingData.checkIn ? Handlebars.helpers.formatDate(checkIn) : 'N/A',
+    checkOutDate: bookingData.checkOut ? Handlebars.helpers.formatDate(checkOut) : 'N/A',
+    totalNights: nights > 0 ? nights : 1,
+    totalGuests: bookingData.adults || bookingData.totalGuests || 1,
     currency: (refund && refund.refundCurrency) ? refund.refundCurrency.toUpperCase() : 'EUR',
     bookings: bookingsForTemplate,
   };
 
+  // Only add refund data if it exists
   if (refund) {
-    templateData.refund = refund;
+    templateData.refund = {
+      refundId: refund.refundId,
+      refundAmount: refund.refundAmount,
+      refundCurrency: refund.refundCurrency.toUpperCase(),
+      refundReason: refund.refundReason
+    };
   }
 
-  await EmailService.sendEmail({
-    to: {
-      email: customerDetails.email,
-      name: `${customerDetails.firstName} ${customerDetails.lastName}`,
-    },
-    templateType: 'BOOKING_CANCELLATION',
-    subject: '', // Will be taken from template
-    templateData,
-  });
+  try {
+    console.log(customerDetails.email)
+    await EmailService.sendEmail({
+      to: {
+        email: customerDetails.email,
+        name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+      },
+      templateType: 'BOOKING_CANCELLATION',
+      subject: '', // Will be taken from template
+      templateData,
+    });
+    
+    console.log(`Cancellation/Refund email sent successfully to ${customerDetails.email}`);
+  } catch (error) {
+    console.error('Error sending cancellation/refund email:', error);
+    throw error;
+  }
+};
+
+export const sendChargeRefundConfirmationEmail = async (
+  customer: { guestEmail: string; guestFirstName: string; guestLastName: string },
+  charge: { description: string; paidAt: Date | null },
+  refund: { id: string; amount: number; currency: string; reason: string | null }
+) => {
+  try {
+    await EmailService.sendEmail({
+      to: {
+        email: customer.guestEmail,
+        name: `${customer.guestFirstName} ${customer.guestLastName}`,
+      },
+      templateType: 'CHARGE_REFUND_CONFIRMATION',
+      subject: '', // Will be taken from template
+      templateData: {
+        customerName: `${customer.guestFirstName} ${customer.guestLastName}`,
+        refundAmount: (refund.amount / 100).toFixed(2),
+        refundCurrency: refund.currency.toUpperCase(),
+        chargeDescription: charge.description,
+        transactionDate: charge.paidAt ? new Date(charge.paidAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }) : 'N/A',
+        refundId: refund.id,
+        refundReason: refund.reason || 'N/A',
+      },
+    });
+    console.log(`Charge refund confirmation sent successfully to ${customer.guestEmail}`);
+  } catch (error) {
+    console.error('Error sending charge refund confirmation email:', error);
+    throw error;
+  }
+};
+
+export const sendChargeConfirmationEmail = async (
+  customer: { 
+    guestEmail: string; 
+    guestFirstName: string; 
+    guestLastName: string;
+    guestPhone?: string;
+    guestNationality?: string;
+  },
+  charge: { 
+    id: string; 
+    amount: number; 
+    description: string; 
+    currency: string; 
+    createdAt: Date;
+  },
+  paymentLink: string,
+  expiresAt: Date
+) => {
+  try {
+    await EmailService.sendEmail({
+      to: {
+        email: customer.guestEmail,
+        name: `${customer.guestFirstName} ${customer.guestLastName}`,
+      },
+      templateType: 'CHARGE_CONFIRMATION',
+      subject: '', // Will be taken from template
+      templateData: {
+        chargeId: charge.id,
+        customerName: `${customer.guestFirstName} ${customer.guestLastName}`,
+        customerEmail: customer.guestEmail,
+        customerPhone: customer.guestPhone || null,
+        customerNationality: customer.guestNationality || null,
+        amount: (charge.amount / 100).toFixed(2), // Convert from cents to dollars
+        currency: charge.currency.toUpperCase(),
+        description: charge.description,
+        chargeDate: new Date(charge.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+        paymentLink,
+        expiresAt: new Date(expiresAt).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      },
+    });
+    console.log(`Charge confirmation sent successfully to ${customer.guestEmail}`);
+  } catch (error) {
+    console.error('Error sending charge confirmation email:', error);
+    throw error;
+  }
 };

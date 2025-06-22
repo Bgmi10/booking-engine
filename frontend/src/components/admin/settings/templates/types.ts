@@ -47,3 +47,14 @@ export const TEMPLATE_TYPES = {
   REMINDER: { label: "Reminder", value: "REMINDER" },
   WELCOME: { label: "Welcome", value: "WELCOME" },
 } as const
+
+
+export const BLOCK_TYPES = [
+  { type: "header", label: "Header", icon: "📰" },
+  { type: "text", label: "Text", icon: "📝" },
+  { type: "button", label: "Button", icon: "🔘" },
+  { type: "image", label: "Image", icon: "🖼️" },
+  { type: "divider", label: "Divider", icon: "➖" },
+  { type: "spacer", label: "Spacer", icon: "⬜" },
+  { type: "footer", label: "Footer", icon: "🦶" },
+]

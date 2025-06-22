@@ -9,6 +9,8 @@ import Profile from "./Profile";
 import Header from "../Header";
 import Enhancements from "./enhancements/Enhancements";
 import Ratepolicy from "./ratepolicies/Ratepolicy";
+import Voucher from "./voucher/Voucher";
+import Customer from "./customers/Customer";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -41,6 +43,8 @@ export default function AdminDashboard() {
           {currentPage === "settings" && <Settings />}
           {currentPage === "profile" && <Profile />}
           {currentPage === "ratepolicies" && <Ratepolicy />}
+          {currentPage === "vouchers" && <Voucher />}
+          {currentPage === "customers" && <Customer />}
         </div>
       </div>
     </div>

@@ -10,6 +10,13 @@ interface EmailOptions {
   subject: string;
   templateType: string;
   templateData: Record<string, any>;
+  attachments?: EmailAttachment[];
+}
+
+interface EmailAttachment {
+  content: string; // Base64 encoded content
+  name: string;    // File name
+  type?: string;   // MIME type
 }
 
 export class EmailService {
@@ -36,7 +43,38 @@ export class EmailService {
     return compiledTemplate(data);
   }
 
-  public static async sendEmail({ to, templateType, templateData }: EmailOptions) {
+  /**
+   * Fetch PDF from URL and convert to base64 for email attachment
+   */
+  private static async fetchPdfAsBase64(url: string): Promise<string> {
+    try {
+      console.log(`Fetching PDF from: ${url}`);
+      
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 30000, // 30 second timeout
+        headers: {
+          'Accept': 'application/pdf',
+          'User-Agent': 'EmailService/1.0'
+        }
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`Failed to fetch PDF: HTTP ${response.status}`);
+      }
+
+      // Convert arraybuffer to base64
+      const base64 = Buffer.from(response.data).toString('base64');
+      console.log(`PDF fetched successfully, size: ${base64.length} chars`);
+      
+      return base64;
+    } catch (error: any) {
+      console.error('Error fetching PDF:', error.message);
+      throw new Error(`Failed to fetch PDF from URL: ${error.message}`);
+    }
+  }
+
+  public static async sendEmail({ to, templateType, templateData, attachments = [] }: EmailOptions) {
     try {
       // Get template from database
       const template = await this.getTemplate(templateType);
@@ -45,18 +83,30 @@ export class EmailService {
       const compiledSubject = this.compileTemplate(template.subject, templateData);
       const compiledHtml = this.compileTemplate(template.html, templateData);
 
+      // Prepare email payload
+      const emailPayload: any = {
+        sender: {
+          name: 'La Torre sulla via Francigena',
+          email: process.env.BREVO_SENDER_EMAIL,
+        },
+        to: [to],
+        subject: compiledSubject,
+        htmlContent: compiledHtml,
+      };
+
+      // Add attachments if provided
+      if (attachments.length > 0) {
+        emailPayload.attachment = attachments.map(att => ({
+          content: att.content,
+          name: att.name,
+          type: att.type || 'application/pdf'
+        }));
+      }
+
       // Send email using Brevo
       await axios.post(
         'https://api.brevo.com/v3/smtp/email',
-        {
-          sender: {
-            name: 'La Torre sulla via Francigena',
-            email: process.env.BREVO_SENDER_EMAIL,
-          },
-          to: [to],
-          subject: compiledSubject,
-          htmlContent: compiledHtml,
-        },
+        emailPayload,
         {
           headers: {
             'api-key': process.env.BREVO_API_KEY,
@@ -72,4 +122,17 @@ export class EmailService {
       throw new Error('Failed to send email');
     }
   }
-} 
+
+  /**
+   * Helper method to create PDF attachment from URL
+   */
+  public static async createPdfAttachment(url: string, filename: string): Promise<EmailAttachment> {
+    const base64Content = await this.fetchPdfAsBase64(url);
+    
+    return {
+      content: base64Content,
+      name: filename,
+      type: 'application/pdf'
+    };
+  }
+}
