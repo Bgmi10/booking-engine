@@ -6,16 +6,19 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, initializeDahuaService, triggerAutomatedTasks } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
 import voucherRouter from "./routes/voucherRouter";
 import chargeRouter from "./routes/chargeRoute";
+import customerRouter from "./routes/customerRoute";
+import WebSocketManager from "./websocket/websocketManager";
+import OrderEventService from "./services/orderEventService";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const app = express();
 
 app.use(cookieParser());
@@ -36,12 +39,28 @@ app.use("/api/v1/sessions", sessionRouter);
 app.use("/api/v1/payment-intent", paymentIntentRouter);
 app.use("/api/v1/vouchers", voucherRouter);
 app.use("/api/v1/charges", chargeRouter);
+app.use("/api/v1/customers", customerRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();
+cleanupExpiredLicensePlates();
+initializeDahuaService();
+triggerAutomatedTasks();
 
-app.listen(PORT, () => {
+// Create HTTP server
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+// Initialize WebSocket manager
+const wsManager = new WebSocketManager(server);
+
+// Initialize Order Event Service
+const orderEventService = new OrderEventService(wsManager);
+
+// Make orderEventService available globally for use in routes
+(global as any).orderEventService = orderEventService;
+
+console.log('WebSocket server initialized');
 
 

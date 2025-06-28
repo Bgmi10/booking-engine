@@ -2,6 +2,13 @@ import express from "express";
 import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
 import { stripe } from "../config/stripe";
+import { v4 as uuidv4 } from "uuid";
+import { addMinutes, isBefore } from "date-fns";
+import { EmailService } from "../services/emailService";
+import { generateToken } from "../utils/jwt";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const createCustomer = async (req: express.Request, res: express.Response) => {
     const { firstName, lastName, middleName, nationality, email, phone, dob, passportExpiry, passportNumber, vipStatus, totalNigthsStayed, totalMoneySpent } = req.body; 
@@ -211,4 +218,134 @@ export const getCustomerChargePayments = async (req: express.Request, res: expre
     console.error(error);
     handleError(res, error);
   }
+}
+
+export const getOrderItemsByLocation =  async (req: express.Request, res: express.Response) => {
+    const { location } = req.query;
+
+    if (!location) {
+        responseHandler(res, 400, "location is required.");
+        return;
+    }
+
+    try {
+        const orderItems = await prisma.location.findUnique({
+            where: { name: location as string },
+        });
+
+        if (!orderItems) {
+            responseHandler(res, 404, "Order items not found for this location");
+            return;
+        }
+
+        responseHandler(res, 200, "success", orderItems);
+    } catch (error: any) {
+        console.error(error);
+        handleError(res, error);
+    }
+}
+
+export const requestVerification = async (req: express.Request, res: express.Response) => {
+    const { email } = req.body;
+    if (!email) {
+        responseHandler(res, 400, "Email is required");
+        return;
+    }
+    try {
+        let customer = await prisma.customer.findUnique({ where: { guestEmail: email } });
+        if (!customer) {
+            responseHandler(res, 404, "User not found please contact latorre for more information Or try with email which you you provided to bookings");
+            return;
+        }
+        const otp = uuidv4();
+        const expiresAt = addMinutes(new Date(), 15);
+        await prisma.otp.upsert({
+            where: { email },
+            update: { otp, expiresAt },
+            create: { email, otp, expiresAt },
+        });
+        const verifyUrl = `${process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL}/customers/verify?token=${otp}`;
+        await EmailService.sendEmail({
+            to: { email, name: customer.guestFirstName || "Customer" },
+            subject: "Verify your email for La Torre", // Will be overridden by template
+            templateType: "CUSTOMER_EMAIL_VERIFICATION",
+            templateData: {
+                verifyUrl,
+                year: new Date().getFullYear(),
+                name: customer.guestFirstName || "Customer"
+            },
+        });
+        responseHandler(res, 200, "Verification email sent");
+    } catch (e) {
+        console.log(e);
+        handleError(res, e as Error);
+    }
+};
+
+export const verifyCustomer = async (req: express.Request, res: express.Response) => {
+    const { token } = req.query;
+    if (!token || typeof token !== "string") {
+        responseHandler(res, 400, "Token is required");
+        return;
+    }
+    try {
+        const otpRecord = await prisma.otp.findFirst({ where: { otp: token } });
+        if (!otpRecord) {
+            responseHandler(res, 400, "Invalid or expired token");
+            return;
+        }
+        if (isBefore(otpRecord.expiresAt, new Date())) {
+            responseHandler(res, 400, "Token expired");
+            return;
+        }
+        const customer = await prisma.customer.findUnique({ where: { guestEmail: otpRecord.email } });
+        if (!customer) {
+            responseHandler(res, 404, "Customer not found");
+            return;
+        }
+        const payload = { id: customer.id, email: customer.guestEmail };
+        const tokenJwt = generateToken(payload);
+        await prisma.otp.deleteMany({ where: { otp: token } });
+        res.cookie("customertoken", tokenJwt, {
+            domain: process.env.NODE_ENV === "local" ?  "localhost" : "latorre.farm",
+            httpOnly: false, 
+            secure: process.env.NODE_ENV === "production", 
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        })
+        responseHandler(res, 200, "Verification successful");
+    } catch (e) {
+        console.log(e);
+        handleError(res, e as Error);
+    }
+}; 
+
+export const getCustomerProfile = async(req: express.Request, res: express.Response) => {
+    //@ts-ignore
+    const { id } = req.user;
+
+    try {
+        const customer = await prisma.customer.findUnique({ where: { id } });
+        responseHandler(res, 200, "success", customer);
+    } catch (e) {
+        console.log(e);
+        handleError(res, e as Error);
+    }
+}
+
+export const customerLogout = async(req: express.Request, res: express.Response) => {
+    res.clearCookie("customertoken", {
+        secure: process.env.NODE_ENV === "production",
+        domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm",
+    });
+    responseHandler(res, 200, "Logout successful");          
+}
+
+export const createOrder = async(req: express.Request, res: express.Response) => {
+    const { items, total, location, email } = req.body;
+
+    if (!items || !total || !location || !email) {
+        responseHandler(res, 400, "missing body");
+        return;
+    }
+
 }

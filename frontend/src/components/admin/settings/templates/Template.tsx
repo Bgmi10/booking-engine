@@ -41,6 +41,7 @@ export const Template = ({
            {selectedTemplate || isCreatingTemplate ? (
             <VisualEmailEditor
               initialData={selectedTemplate || undefined}
+              //@ts-ignore
               onSave={async (template) => {
                 await onSaveTemplate(template);
                 handleBack();

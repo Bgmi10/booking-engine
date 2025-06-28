@@ -1,20 +1,7 @@
 import React from "react";
-import type { Enhancement, Room } from "../../../types/types";
+import type { BookingItem, Enhancement, Room } from "../../../types/types";
 import BookingItemCard from "./BookingItemCard";
 import { RiAddLine } from "react-icons/ri";
-
-interface BookingItem {
-  checkIn: string;
-  checkOut: string;
-  selectedRoom: string;
-  rooms: number;
-  adults: number;
-  selectedEnhancements: Enhancement[];
-  roomDetails?: Room;
-  error?: string;
-  selectedRateOption?: any;
-  totalPrice?: number;
-}
 
 interface BookingItemsListProps {
   bookingItems: BookingItem[];

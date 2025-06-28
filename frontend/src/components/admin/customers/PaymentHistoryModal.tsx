@@ -1,4 +1,4 @@
-import { X, CreditCard, Calendar, Clock, Link as LinkIcon, RefreshCw, User } from "lucide-react";
+import { X, CreditCard, Calendar, Clock, RefreshCw, User } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import { baseUrl } from "../../../utils/constants";

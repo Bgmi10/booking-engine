@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import {
   CheckCircle,
@@ -28,7 +26,6 @@ export default function Success() {
   const [enhancementsOpen, setEnhancementsOpen] = useState<{ [key: string]: boolean }>({})
   const params = new URLSearchParams(window.location.search)
   const sessionId = params.get("session_id") || params.get("sessionId");
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionId) {
@@ -61,7 +58,6 @@ export default function Success() {
               roomStates[index] = true
               enhancementStates[index] = true
             })
-            setReceiptUrl(data.data.receipt.pdfDownloadUrl);
             setRoomDetailsOpen(roomStates)
             setEnhancementsOpen(enhancementStates)
           } else {

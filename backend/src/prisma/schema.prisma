@@ -17,6 +17,16 @@ model User {
   phone     String?
   basePrice Float?
   updatedAt DateTime @updatedAt
+  
+  // Notification relations
+  assignedNotifications Notification[] @relation("AssignedNotifications")
+  createdNotifications  Notification[] @relation("CreatedNotifications")
+  completedNotifications Notification[] @relation("CompletedNotifications")
+  notificationAttachments NotificationAttachment[]
+  
+  assignedAutomatedTasks AutomatedTaskRule[]
+  kitchenOrders Order[] @relation("KitchenOrders")
+  waiterOrders  Order[] @relation("WaiterOrders")
 }
 
 model Room {
@@ -32,6 +42,7 @@ model Room {
   bookings     Booking[]
   holds        TemporaryHold[]
   RoomRate     RoomRate[]
+  notifications Notification[]
 }
 
 model RoomImage {
@@ -65,6 +76,8 @@ model Customer {
   groupName           String?
   groupEmail          String?
   charges             Charge[]
+  notifications       Notification[]
+  orders              Order[]
   @@index([guestEmail, guestFirstName])
 }
 
@@ -109,6 +122,8 @@ model Booking {
   voucherDiscount     Float?            // Discount amount applied from voucher
   voucherProducts     Json?          
   groupId             String?
+  carNumberPlate      String?           // License plate for Dahua camera integration
+  notifications       Notification[]
   @@index([roomId, checkIn, checkOut])
 }
 
@@ -248,11 +263,18 @@ model RoomRate {
   @@unique([roomId, ratePolicyId])
 }
 
-model GeneralSettings {
-  id            String        @id         @default(uuid())
-  minStayDays   Int           @default(2)
-  updatedAt     DateTime      @updatedAt
-  taxPercentage Float?
+model GeneralSettings {        
+  id                           String        @id         @default(uuid())
+  minStayDays                  Int           @default(2)
+  updatedAt                    DateTime      @updatedAt
+  taxPercentage                Float?
+  chargePaymentConfig          String?
+  dahuaApiUrl                  String?       // Dahua camera API endpoint
+  dahuaUsername                String?       // Dahua camera username
+  dahuaPassword                String?       // Dahua camera password
+  dahuaIsEnabled               Boolean       @default(false)  // Enable/disable Dahua integration
+  dahuaGateId                  String?       // Gate ID for automatic opening
+  dahuaLicensePlateExpiryHours Int           @default(24)    // Hours after checkout to remove license plate
 }
 
 model Otp {
@@ -488,6 +510,12 @@ enum BookingStatus {
 enum Role {
   ADMIN
   USER
+  MANAGER
+  RECEPTION
+  CLEANER
+  MAINTENANCE
+  KITCHEN
+  WAITER
 }
 
 enum RestrictionType {
@@ -508,4 +536,233 @@ enum RateScope {
 enum RoomScope {
   ALL_ROOMS           // Apply to all rooms
   SPECIFIC_ROOMS      // Apply to specific rooms only
+}
+
+model Notification {
+  id              String              @id @default(uuid())
+  title           String
+  description     String?
+  type            NotificationType
+  priority        NotificationPriority @default(MEDIUM)
+  status          NotificationStatus   @default(PENDING)
+  
+  // Assignment
+  assignedTo      String?             // User ID
+  assignedBy      String?              // User ID who created/assigned
+  assignedRole    Role?               // Role-based assignment
+  
+  // Guest association (optional)
+  guestId         String?             // Customer ID
+  guestName       String?             // Guest name for display
+  
+  // Room association (optional)
+  roomId          String?             // Room ID
+  roomName        String?             // Room name for display
+  
+  // Booking association (optional)
+  bookingId       String?             // Booking ID
+  
+  // Due date and completion
+  dueDate         DateTime?
+  completedAt     DateTime?
+  completedBy     String?             // User ID who completed
+  
+  // Attachments
+  attachments     NotificationAttachment[]
+  
+  // Automated task info
+  isAutomated     Boolean             @default(false)
+  automatedRuleId String?             // Reference to automated rule
+  
+  // Timestamps
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  // Relations
+  assignedUser    User?               @relation("AssignedNotifications", fields: [assignedTo], references: [id])
+  createdByUser   User?               @relation("CreatedNotifications", fields: [assignedBy], references: [id])
+  completedByUser User?               @relation("CompletedNotifications", fields: [completedBy], references: [id])
+  guest           Customer?           @relation(fields: [guestId], references: [id])
+  room            Room?               @relation(fields: [roomId], references: [id])
+  booking         Booking?            @relation(fields: [bookingId], references: [id])
+  automatedRule   AutomatedTaskRule?  @relation(fields: [automatedRuleId], references: [id])
+  
+  @@index([assignedTo, status])
+  @@index([assignedRole, status])
+  @@index([dueDate])
+  @@index([guestId])
+  @@index([roomId])
+  @@index([bookingId])
+}
+
+model NotificationAttachment {
+  id              String        @id @default(uuid())
+  notificationId  String
+  fileName        String
+  fileUrl         String
+  fileType        String
+  fileSize        Int
+  uploadedBy      String
+  createdAt       DateTime      @default(now())
+  
+  // Relations
+  notification    Notification  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  uploadedByUser  User          @relation(fields: [uploadedBy], references: [id])
+}
+
+model AutomatedTaskRule {
+  id              String              @id @default(uuid())
+  name            String
+  description     String?
+  taskTitle       String
+  taskDescription String?
+  
+  // Trigger conditions
+  triggerType     AutomatedTaskTriggerType
+  triggerDay      Int?                // Day of stay (e.g., 3 for 3rd day)
+  triggerTime     String?             // Time of day (e.g., "09:00")
+  
+  // Assignment
+  assignedRole    Role
+  assignedTo      String?             // Specific user ID (optional)
+  
+  // Room scope
+  roomScope       RoomScope           @default(ALL_ROOMS)
+  roomIds         String[]            // Specific room IDs when roomScope is SPECIFIC_ROOMS
+  
+  // Task details
+  priority        NotificationPriority @default(MEDIUM)
+  dueDateOffset   Int?                // Hours after trigger to set as due
+  
+  // Active status
+  isActive        Boolean             @default(true)
+  
+  // Timestamps
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  // Relations
+  assignedUser    User?               @relation(fields: [assignedTo], references: [id])
+  notifications   Notification[]
+  
+  @@index([isActive, triggerType])
+  @@index([roomScope])
+}
+
+model Location {
+  id              String          @id         @default(uuid())
+  name            String          @unique
+  updateAt        DateTime        @updatedAt
+  orderCategories OrderCategory[]
+  order           Order[]
+}
+
+model OrderCategory {
+  id                String       @id             @default(uuid())
+  name              String
+  description       String?
+  imageUrl          String
+  orderItems        OrderItem[]
+  isAvailable       Boolean?     @default(true)
+  availabilityRule  AvailabilityRule?
+  locations         Location[]
+}
+
+model OrderItem {
+  id               String         @id         @default(uuid())
+  name             String
+  description      String
+  imageUrl         String
+  price            Float
+  isAvailable      Boolean?       @default(true)
+  categories       OrderCategory[]
+}
+
+model AvailabilityRule {
+  id                String         @id @default(uuid())
+  name              String         // e.g., "Weekday Mornings", "Weekend Brunch"
+  orderCategoryId   String         @unique
+  orderCategory     OrderCategory  @relation(fields: [orderCategoryId], references: [id], onDelete: Cascade)
+  
+  startTime         String         // "HH:MM" format, e.g., "07:00"
+  endTime           String         // "HH:MM" format, e.g., "11:00"
+  daysOfWeek        Int[]          // [0-6] where 0=Sunday, 1=Monday, etc.
+  
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model Order {
+  id                 String         @id           @default(uuid())
+  status             OrderStatus
+  customerId         String
+  total              Float          @default(0)
+  customer           Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  items              Json
+  locationName       String
+  location           Location       @relation(fields: [locationName], references: [name])
+  assignedToKitchen  String?        
+  assignedToWaiter   String?      
+  kitchenAssignedAt  DateTime?    
+  readyAt            DateTime?    
+  waiterAssignedAt   DateTime?     
+  deliveredAt        DateTime?        
+  kitchenStaff       User?          @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
+  waiter             User?          @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
+  
+  @@index([status])
+  @@index([assignedToKitchen])
+  @@index([assignedToWaiter])
+  @@index([createdAt])
+}
+
+enum OrderStatus {
+  PENDING       // Order created, waiting for kitchen to pick up
+  PREPARING     // Kitchen staff picked up the order and is preparing it
+  READY         // Kitchen completed preparation, waiting for waiter to pick up
+  ASSIGNED      // Waiter picked up the order and is serving it
+  DELIVERED     // Order completed and delivered to customer
+  CANCELLED     // Order was cancelled
+}
+
+
+enum NotificationType {
+  TASK            // General task
+  MAINTENANCE     // Maintenance/repair task
+  CLEANING        // Room cleaning task
+  GUEST_REQUEST   // Guest-related request
+  BIRTHDAY        // Guest birthday celebration
+  CHECK_IN        // Check-in related
+  CHECK_OUT       // Check-out related
+  PAYMENT         // Payment related
+  KITCHEN         // Kitchen/food related
+  SERVICE         // Service/waiter related
+  ADMIN           // Administrative task
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum AutomatedTaskTriggerType {
+  DAY_OF_STAY     // Trigger on specific day of guest stay
+  DAILY           // Trigger daily at specific time
+  WEEKLY          // Trigger weekly on specific day/time
+  MONTHLY         // Trigger monthly on specific date/time
+  CHECK_IN        // Trigger on guest check-in
+  CHECK_OUT       // Trigger on guest check-out
 }

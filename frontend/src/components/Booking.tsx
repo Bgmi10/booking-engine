@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState, useCallback } from "react"
 import Header from "./Header"
 import DateSelector from "./DateSelector"

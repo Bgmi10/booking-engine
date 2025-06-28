@@ -1,5 +1,9 @@
 import cron from "node-cron";
 import prisma from "../prisma";
+import { licensePlateCleanupService } from "../services/licensePlateCleanupService";
+import { dahuaService } from "../services/dahuaService";
+import { notificationService } from "../services/notificationService";
+
 const now = new Date();
 
 export const cleanExpiredTempHolds = () => {
@@ -59,3 +63,39 @@ export const makeExpiredSessionToInactive = () => {
     }
   })
 }
+
+export const cleanupExpiredLicensePlates = () => {
+  cron.schedule("0 * * * *", async () => {
+    try {
+      console.log("[Cron] Starting license plate cleanup...");
+      await licensePlateCleanupService.cleanupExpiredLicensePlates();
+      console.log("[Cron] License plate cleanup completed");
+    } catch (error) {
+      console.error("[Cron] License plate cleanup failed:", error);
+    }
+  });
+};
+
+export const initializeDahuaService = () => {
+  cron.schedule("0 0 * * *", async () => {
+    try {
+      console.log("[Cron] Initializing Dahua service...");
+      await dahuaService.initialize();
+      console.log("[Cron] Dahua service initialization completed");
+    } catch (error) {
+      console.error("[Cron] Dahua service initialization failed:", error);
+    }
+  });
+};
+
+export const triggerAutomatedTasks = () => {
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      console.log("[Cron] Starting automated task triggering...");
+      const triggeredTasks = await notificationService.triggerAutomatedTasks();
+      console.log(`[Cron] Automated task triggering completed. Created ${triggeredTasks.length} tasks`);
+    } catch (error) {
+      console.error("[Cron] Automated task triggering failed:", error);
+    }
+  });
+};

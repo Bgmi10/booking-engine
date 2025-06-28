@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 import { useEffect, useRef, useState, useCallback } from "react"
 import { RiSave3Line, RiArrowLeftLine, RiEyeLine, RiCodeLine, RiDownloadLine, RiMagicLine, RiCheckLine } from "react-icons/ri"

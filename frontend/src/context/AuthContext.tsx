@@ -41,17 +41,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(true);
        }
     }
-    const currentPath = window.location.href;
-    console.log(currentPath)
+
     useEffect(() => {
-     if (currentPath === currentPath +  "admin/dashboard" || currentPath + "admin/login") {
-      fetchUser();
-     }
-    }, [])
+        const pathname = window.location.pathname;
+
+        // Only fetch admin profile on specific admin routes
+        if (pathname === "/admin/dashboard" || pathname === "/admin/login") {
+            fetchUser();
+        } else {
+            // Mark loading finished if we are not on an admin route that requires auth
+            setIsLoading(true);
+        }
+    }, []);
     
     const logout = async () => {
       try {
         const res = await fetch(baseUrl + "/admin/logout", {
+            method: "POST",
             credentials: "include",
             headers: {
                 "Content-Type": "application/json",

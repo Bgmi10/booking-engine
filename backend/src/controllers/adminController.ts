@@ -11,6 +11,8 @@ import { Prisma } from "@prisma/client";
 import { sendConsolidatedBookingConfirmation, sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripe";
 import { baseUrl } from "../utils/constants";
+import { dahuaService } from '../services/dahuaService';
+import { licensePlateCleanupService } from '../services/licensePlateCleanupService';
 
 dotenv.config();
 
@@ -187,37 +189,37 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
   const login = async (req: express.Request, res: express.Response) => {
   const { email, password } = req.body;
 
-    try {
-        const existingAdmin = await prisma.user.findUnique({
-          where: {
-            email,
-          },
-        });
-    
-      if (!existingAdmin) {
-        responseHandler(res, 400, "User not found");
-        return;
-      }
-    
-      const isPasswordValid = await comparePassword(password, existingAdmin.password);
-    
-      if (!isPasswordValid) {
-        responseHandler(res, 400, "Invalid password");
-        return;
-      }
-    
-      const token = generateToken({ id: existingAdmin.id, name: existingAdmin.name, email: existingAdmin.email });
-      res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 20 * 24 * 60 * 60 * 1000, domain: process.env.NODE_ENV === "production" ? "latorre.farm" : "localhost" });
-      responseHandler(res, 200, "Login successful");
-    } catch (e) {
-        console.log(e);
-        handleError(res, e as Error);
-    }  
+  try {
+      const existingAdmin = await prisma.user.findUnique({
+        where: {
+          email,
+        },
+      });
+  
+    if (!existingAdmin) {
+      responseHandler(res, 400, "User not found");
+      return;
+    }
+  
+    const isPasswordValid = await comparePassword(password, existingAdmin.password);
+  
+    if (!isPasswordValid) {
+      responseHandler(res, 400, "Invalid password");
+      return;
+    }
+  
+    const token = generateToken({ id: existingAdmin.id, name: existingAdmin.name, email: existingAdmin.email, role: existingAdmin.role });
+    res.cookie("token", token, { httpOnly: false, secure: process.env.NODE_ENV === "production", maxAge: 7 * 24 * 60 * 60 * 1000, domain: process.env.NODE_ENV === "production" ? "latorre.farm" : "localhost" });
+    responseHandler(res, 200, "Login successful");
+  } catch (e) {
+      console.log(e);
+      handleError(res, e as Error);
+  }  
   
 }
 
 const logout = async (_req: express.Request, res: express.Response) => {
-  res.clearCookie("token", { domain: "latorre.farm" });
+  res.clearCookie("token", { domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm" });
   responseHandler(res, 200, "Logout successful");
 }   
 
@@ -723,23 +725,45 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage } = req.body;
+  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername } = req.body;
 
-  if (!id || typeof minStayDays === 'undefined' && typeof taxPercentage === 'undefined') {
-    responseHandler(res, 400, "Missing required fields: id and at least one of minStayDays or taxPercentage");
-    return;
-  }
-
-  let updateData: { minStayDays?: number; taxPercentage?: number } = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
   }
 
+  if (typeof chargePaymentConfig !== 'undefined') {
+    updateData.chargePaymentConfig = chargePaymentConfig;
+  }
+
   if (typeof taxPercentage !== 'undefined') {
     updateData.taxPercentage = taxPercentage;
   }
+  
+  if (typeof dahuaApiUrl !== 'undefined') {
+    updateData.dahuaApiUrl = dahuaApiUrl;
+  }
+  
+  if (typeof dahuaGateId !== 'undefined') {
+    updateData.dahuaGateId = dahuaGateId;
+  }
 
+  if (typeof dahuaLicensePlateExpiryHours !== 'undefined') {
+    updateData.dahuaLicensePlateExpiryHours = dahuaLicensePlateExpiryHours;
+  }
+
+  if (typeof dahuaIsEnabled !== 'undefined') {
+    updateData.dahuaIsEnabled = dahuaIsEnabled;
+  }
+  
+  if (typeof dahuaPassword !== 'undefined') {
+    updateData.dahuaPassword = dahuaPassword;
+  }
+  if (typeof dahuaUsername !== 'undefined') {
+    updateData.dahuaUsername = dahuaUsername;
+  }
+  
   try {
     const response = await prisma.generalSettings.update({
       where: { id },
@@ -1434,6 +1458,89 @@ export const getUserByID =  async (req: express.Request, res: express.Response) 
     handleError(res, e as Error);
   }
 }
-export { getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink };
+
+// Dahua Camera Management Endpoints
+
+export const testDahuaConnection = async (req: express.Request, res: express.Response) => {
+  try {
+    const success = await dahuaService.testConnection();
+    
+    if (success) {
+      responseHandler(res, 200, "Dahua camera connection successful");
+    } else {
+      responseHandler(res, 400, "Dahua camera connection failed");
+    }
+  } catch (error: any) {
+    console.error("Dahua connection test error:", error);
+    responseHandler(res, 500, `Connection test failed: ${error.message}`);
+  }
+};
+
+export const getLicensePlateStatus = async (req: express.Request, res: express.Response) => {
+  const { plateNumber } = req.params;
+  
+  if (!plateNumber) {
+    responseHandler(res, 400, "License plate number is required");
+    return;
+  }
+
+  try {
+    const status = await dahuaService.getLicensePlateStatus(plateNumber);
+    responseHandler(res, 200, "License plate status retrieved", status);
+  } catch (error: any) {
+    console.error("License plate status error:", error);
+    responseHandler(res, 500, `Failed to get license plate status: ${error.message}`);
+  }
+};
+
+export const removeLicensePlate = async (req: express.Request, res: express.Response) => {
+  const { bookingId } = req.params;
+  
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking ID is required");
+    return;
+  }
+
+  try {
+    const success = await licensePlateCleanupService.cleanupLicensePlateForBooking(bookingId);
+    
+    if (success) {
+      responseHandler(res, 200, "License plate removed successfully");
+    } else {
+      responseHandler(res, 404, "No license plate found for this booking");
+    }
+  } catch (error: any) {
+    console.error("License plate removal error:", error);
+    responseHandler(res, 500, `Failed to remove license plate: ${error.message}`);
+  }
+};
+
+export const runLicensePlateCleanup = async (req: express.Request, res: express.Response) => {
+  try {
+    await licensePlateCleanupService.cleanupExpiredLicensePlates();
+    responseHandler(res, 200, "License plate cleanup completed successfully");
+  } catch (error: any) {
+    console.error("License plate cleanup error:", error);
+    responseHandler(res, 500, `Cleanup failed: ${error.message}`);
+  }
+};
+
+// Get users for notification assignment (optionally filter by role)
+const getNotificationAssignableUsers = async (req: express.Request, res: express.Response) => {
+  const { role } = req.query;
+  try {
+    const where: any = {};
+    if (role) where.role = role;
+    const users = await prisma.user.findMany({
+      where,
+      select: { id: true, name: true, role: true }
+    });
+    responseHandler(res, 200, 'Assignable users', users);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink };
 
 

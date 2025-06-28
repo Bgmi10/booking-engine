@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -18,6 +18,12 @@ import { updateCustomerSchema } from "../zod/customer.schema";
 import { createBookingsGroup } from "../controllers/groupController";
 import { chargeNewCard, chargeSaveCard, createQrSession, getChargeById, refundCharge } from "../controllers/chargeController";
 import { createManualTransactionCharge } from "../controllers/chargeController";
+import { getNotifications, getNotificationById, createNotification, updateNotification, completeNotification, deleteNotification, getDailyActionList, deleteNotificationAttachment } from '../controllers/notificationController';
+import { getAutomatedTaskRules, createAutomatedTaskRule, updateAutomatedTaskRule, deleteAutomatedTaskRule } from '../controllers/automatedTaskRuleController';
+import { createLocation, deleteLocation, getAllLocations, updateLocation } from "../controllers/locationController";
+import { createOrderItem, deleteOrderItem, getAllOrderItem, updateOrderItem } from "../controllers/orderItemController";
+import { getAllAssignedCustomersOrders, getAllPendingCustomersOrders, getKitchenOrdersByUserId, getWaiterOrdersByUserId } from "../controllers/orderController";
+import { createOrderCategory, deleteOrderCategory, getAllOrderCategories, updateOrderCategory } from "../controllers/orderCategoryController";
 
 const adminRouter = Router();
 
@@ -33,7 +39,9 @@ adminRouter.get("/users/all", authMiddleware, getAllusers);
 
 adminRouter.get("/users/:id", authMiddleware, getUserByID);
 
-adminRouter.get("/logout", logout);    
+adminRouter.get("/notification-users", authMiddleware, getNotificationAssignableUsers);
+
+adminRouter.post("/logout", logout);    
 
 adminRouter.get("/profile", authMiddleware, getAdminProfile);
 
@@ -173,4 +181,61 @@ adminRouter.post('/charges/manual-transaction', authMiddleware, createManualTran
 adminRouter.get('/charges/:id', authMiddleware, getChargeById);
 
 adminRouter.post('/charges/:id/refund', authMiddleware, refundCharge);
+
+adminRouter.get('/notifications', authMiddleware, getNotifications);
+
+adminRouter.get('/notifications/:id', authMiddleware, getNotificationById);
+
+adminRouter.post('/notifications', authMiddleware, createNotification);
+
+adminRouter.put('/notifications/:id', authMiddleware, updateNotification);
+
+adminRouter.post('/notifications/:id/complete', authMiddleware, completeNotification);
+
+adminRouter.delete('/notifications/:id', authMiddleware, deleteNotification);
+
+adminRouter.get('/notifications/daily-action-list', authMiddleware, getDailyActionList);
+
+adminRouter.delete('/notification-attachment/:id', authMiddleware, deleteNotificationAttachment);
+
+adminRouter.get('/automated-task-rules', authMiddleware, getAutomatedTaskRules);
+
+adminRouter.post('/automated-task-rules', authMiddleware, createAutomatedTaskRule);
+
+adminRouter.put('/automated-task-rules/:id', authMiddleware, updateAutomatedTaskRule);
+
+adminRouter.delete('/automated-task-rules/:id', authMiddleware, deleteAutomatedTaskRule);
+
+adminRouter.post('/locations', authMiddleware, createLocation);
+
+adminRouter.put('/locations/:id', authMiddleware, updateLocation);
+
+adminRouter.delete('/locations/:id', authMiddleware, deleteLocation);
+
+adminRouter.get('/locations/all', authMiddleware, getAllLocations);
+
+adminRouter.get('/order-items/all', authMiddleware, getAllOrderItem);
+
+adminRouter.post('/order-categories', authMiddleware, createOrderCategory);
+
+adminRouter.get('/order-categories/all', authMiddleware, getAllOrderCategories);
+
+adminRouter.put('/order-categories/:id', authMiddleware, updateOrderCategory);
+
+adminRouter.delete('/order-categories/:id', authMiddleware, deleteOrderCategory);
+
+adminRouter.post('/order-items', authMiddleware, createOrderItem);
+
+adminRouter.put('/order-items/:id', authMiddleware, updateOrderItem);
+
+adminRouter.delete('/order-items/:id', authMiddleware, deleteOrderItem);
+
+adminRouter.get('/customers/orders/pending/all', authMiddleware, getAllPendingCustomersOrders);
+
+adminRouter.get('/kitchen/orders', authMiddleware, getKitchenOrdersByUserId);
+
+adminRouter.get('/customers/orders/assigned/all', authMiddleware, getAllAssignedCustomersOrders);
+
+adminRouter.get('/waiter/orders', authMiddleware, getWaiterOrdersByUserId);
+
 export default adminRouter;

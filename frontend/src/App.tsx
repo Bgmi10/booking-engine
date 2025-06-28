@@ -10,6 +10,8 @@ import Failure from "./components/Failure";
 import PaymentIntentStatus from "./components/PaymentIntentStatus";
 import Qrcode from "./components/admin/customers/Qrcode";
 import { ChargeStatus } from "./components/ChargeStatus";
+import Order from "./components/orders/Order";
+import CustomerVerify from "./components/orders/CustomerVerify";
 
 function App() {
   const [showLoader, setShowLoader] = useState(true);
@@ -28,6 +30,8 @@ function App() {
         <Route path="/charge/:id" element={<ChargeStatus />} />
         <Route path="/booking/success" element={<Success />} />
         <Route path="/booking/failure" element={<Failure />} />
+        <Route path="/customers/order-items" element={<Order />} /> 
+        <Route path="/customers/verify" element={<CustomerVerify />} /> 
         <Route element={<AdminProtectedRoutes />}>  
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/qr/:id" element={<Qrcode />} />

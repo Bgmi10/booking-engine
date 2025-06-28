@@ -26,6 +26,7 @@ export const parseHtmlToBlocks = (html: string): EmailBlock[] => {
         case "h3":
           blocks.push({
             id,
+            //@ts-ignore
             type: "header",
             content: {
               text: child.textContent || "",
@@ -84,6 +85,7 @@ export const parseHtmlToBlocks = (html: string): EmailBlock[] => {
             } else {
               blocks.push({
                 id,
+                //@ts-ignore
                 type: blockType,
                 content: {
                   text: child.textContent,

@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { handleError, responseHandler } from "../utils/helper";
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripe";
+import { dahuaService } from "../services/dahuaService";
 
 dotenv.config();
 
@@ -56,7 +57,6 @@ stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), 
     }
 });
 
-// Enhanced: Handle refund created with voucher management
 async function handleRefundCreated(event: Stripe.Event) {
     const refund = event.data.object as Stripe.Refund;
     
@@ -168,7 +168,6 @@ async function handleRefundCreated(event: Stripe.Event) {
     }
 }
 
-// Enhanced: Handle refund updated with voucher management
 async function handleRefundUpdated(event: Stripe.Event) {
     const refund = event.data.object as Stripe.Refund;
     
@@ -412,7 +411,6 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     }
 }
 
-// Enhanced: Handle payment intent failure with voucher cleanup
 async function handlePaymentIntentFailed(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
@@ -460,7 +458,6 @@ async function handlePaymentIntentFailed(event: Stripe.Event) {
     }
 }
 
-// Enhanced: Handle payment intent cancellation with voucher cleanup
 async function handlePaymentIntentCanceled(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     
@@ -508,7 +505,6 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
     }
 }
 
-// Enhanced: Process successful payment with voucher success handling
 async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, sourceType: string = 'unknown') {
     try {
         // Check if payment already processed
@@ -764,7 +760,6 @@ async function processChargeFailure(chargeId: string, failureMessage: string | n
     }
 }
 
-// NEW: Handle voucher success - increment usage counts
 async function handleVoucherSuccess(tx: any, paymentIntent: any, createdBookings: any[]) {
     const voucherUsages = await tx.voucherUsage.findMany({
         where: { 
@@ -802,7 +797,6 @@ async function handleVoucherSuccess(tx: any, paymentIntent: any, createdBookings
     }
 }
 
-// NEW: Handle voucher refund - decrement usage counts and mark as refunded
 async function handleVoucherRefund(tx: any, paymentIntent: any) {
     const voucherUsages = await tx.voucherUsage.findMany({
         where: { 
@@ -844,7 +838,6 @@ async function handleVoucherRefund(tx: any, paymentIntent: any) {
     }
 }
 
-// NEW: Handle voucher refund revert - increment usage counts back and mark as applied
 async function handleVoucherRefundRevert(tx: any, paymentIntent: any) {
     const voucherUsages = await tx.voucherUsage.findMany({
         where: { 
@@ -879,7 +872,6 @@ async function handleVoucherRefundRevert(tx: any, paymentIntent: any) {
     }
 }
 
-// NEW: Handle voucher failure - mark as cancelled, don't increment usage
 async function handleVoucherFailure(tx: any, paymentIntent: any) {
     const voucherUsages = await tx.voucherUsage.findMany({
         where: { 
@@ -904,7 +896,6 @@ async function handleVoucherFailure(tx: any, paymentIntent: any) {
     }
 }
 
-// NEW: Handle voucher cancellation - mark as cancelled, don't increment usage
 async function handleVoucherCancellation(tx: any, paymentIntent: any) {
     const voucherUsages = await tx.voucherUsage.findMany({
         where: { 
@@ -929,7 +920,6 @@ async function handleVoucherCancellation(tx: any, paymentIntent: any) {
     }
 }
 
-// Process bookings within transaction
 async function processBookingsInTransaction(
     tx: any,
     bookingItems: any[], 
@@ -963,6 +953,7 @@ async function processBookingsInTransaction(
                 room: { connect: { id: roomId } },
                 status: "CONFIRMED",
                 request: customerDetails.specialRequests || null,
+                carNumberPlate: customerDetails.carNumberPlate || null,
                 paymentIntent: { connect: { id: paymentIntentId } },
                 metadata: {
                     selectedRateOption: booking.selectedRateOption || null,
@@ -975,6 +966,24 @@ async function processBookingsInTransaction(
             },
             include: { room: true, paymentIntent: true }
         });
+
+        // Handle license plate integration with Dahua camera
+        if (customerDetails.carNumberPlate) {
+            try {
+                const guestName = `${customerDetails.firstName} ${customerDetails.lastName}`.trim();
+                await dahuaService.addLicensePlate({
+                    plateNumber: customerDetails.carNumberPlate,
+                    checkInDate: new Date(checkIn),
+                    checkOutDate: new Date(checkOut),
+                    guestName: guestName,
+                    bookingId: newBooking.id
+                });
+                console.log(`License plate ${customerDetails.carNumberPlate} added to Dahua camera for booking ${newBooking.id}`);
+            } catch (error) {
+                console.error(`Failed to add license plate to Dahua camera for booking ${newBooking.id}:`, error);
+                // Don't fail the booking creation if Dahua integration fails
+            }
+        }
 
         if (booking.selectedEnhancements?.length) {
             const enhancementData = booking.selectedEnhancements.map((enhancement: any) => ({
@@ -993,7 +1002,6 @@ async function processBookingsInTransaction(
     return createdBookings;
 }
 
-// Add this helper function at the top level
 async function waitForSessionId(paymentIntentId: string, maxRetries = 10, delayMs = 2000): Promise<string | null> {    
     for (let i = 0; i < maxRetries; i++) {
         
@@ -1016,7 +1024,6 @@ async function waitForSessionId(paymentIntentId: string, maxRetries = 10, delayM
     return null;
 }
 
-// Update the sendConfirmationEmails function
 async function sendConfirmationEmails(createdBookings: any[], customerDetails: any) {
     if (createdBookings.length === 0) return;
 

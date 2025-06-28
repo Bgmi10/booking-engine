@@ -256,7 +256,7 @@ export type Voucher = {
   description: string | null;
   type: "DISCOUNT" | "FIXED" | "PRODUCT";
   discountPercent: number | null;
-  fixedAmount: number | null;
+  fixedAmount: number | null
   maxUsage: number | null;
   currentUsage: number;
   maxUsagePerUser: number | null;
@@ -309,4 +309,135 @@ sameDayCutoffTime?: string;
 priority: number;
 isActive: boolean;
 exceptions: RestrictionException[]
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  isAvailable: boolean;
+  orderItems: OrderItem[];
+  createdAt: string;
+  availabilityRule: any | null;
+  updatedAt: string;
+}
+
+
+export interface OrderItem {
+  id: string
+  name: string
+  description: string
+  price: number
+  imageUrl: string
+  createdAt: string
+  updatedAt: string
+  isAvailable: boolean
+}
+
+// Location type definition
+export interface Location {
+  id: string
+  name: string
+  orderCategories: Category[]
+  createdAt: string
+  updatedAt: string
+}
+
+
+export interface Notification {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  type: string;
+  dueDate?: string;
+  createdAt: string;
+  attachments?: any[];
+  createdByUserId: string;
+}
+
+
+export interface KitchenOrder {
+  id: string;
+  orderId: string;
+  items: any[];
+  locationName: string;
+  status: string;
+  createdAt: string;
+  assignedToKitchen?: string;
+  customerName?: string;
+  total?: number;
+}
+
+
+export interface AutomatedTaskRule {
+  id: string;
+  name: string;
+  description?: string;
+  taskTitle: string;
+  taskDescription?: string;
+  triggerType: string;
+  triggerDay?: number;
+  triggerTime?: string;
+  assignedRole: string;
+  roomScope: string;
+  roomIds: string[];
+  priority: string;
+  dueDateOffset?: number;
+  isActive: boolean;
+}
+
+export interface BookingItem {
+  checkIn: string;
+  checkOut: string;
+  selectedRoom: string;
+  rooms: number;
+  adults: number;
+  selectedEnhancements: Enhancement[];
+  roomDetails?: Room;
+  error?: string;
+  selectedRateOption?: any;
+  totalPrice?: number;
+}
+
+export interface CustomerDetails {
+  firstName: string
+  middleName: string
+  lastName: string
+  email: string
+  phone: string
+  nationality: string
+  specialRequests: string
+}
+
+
+
+export interface GeneralSettings { // Represents the actual data structure from/to the backend
+  id: string;
+  minStayDays: number;
+  taxPercentage: number;
+  chargePaymentConfig?: string;
+  // Dahua Camera Settings
+  dahuaApiUrl?: string;
+  dahuaUsername?: string;
+  dahuaPassword?: string;
+  dahuaIsEnabled?: boolean;
+  dahuaGateId?: string;
+  dahuaLicensePlateExpiryHours?: number;
+  // Add other settings properties here as they are defined in the backend model
+}
+
+// Represents the state of the form inputs, typically strings
+export interface SettingsFormValues {
+  minStayDays?: string;
+  taxPercentage?: string;
+  // Dahua Camera Settings
+  dahuaApiUrl?: string;
+  dahuaUsername?: string;
+  dahuaPassword?: string;
+  dahuaIsEnabled?: boolean;
+  dahuaGateId?: string;
+  dahuaLicensePlateExpiryHours?: string;
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Dashboard from "./Dashboard";
 import Users from "./user/Users";
@@ -6,20 +6,42 @@ import Rooms from "./room/Rooms";
 import Bookings from ".//bookings/Bookings";
 import Settings from "./settings/Settings";
 import Profile from "./Profile";
-import Header from "../Header";
+import AdminHeader from "./AdminHeader";
 import Enhancements from "./enhancements/Enhancements";
 import Ratepolicy from "./ratepolicies/Ratepolicy";
 import Voucher from "./voucher/Voucher";
 import Customer from "./customers/Customer";
+import NotificationList from "./notifications/NotificationList";
+import AutomatedTaskRules from './automated/AutomatedTaskRules';
+import OrderItems from "./orderItems/OrderItems";
+import KitchenOrders from "./kitchen/KitchenOrders";
+import WaiterOrders from "./waiter/WaiterOrders";
+import { initAdminWebSocket, subscribeWebSocket, unsubscribeWebSocket } from "../../utils/websocket";
+import { useAuth } from "../../context/AuthContext";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const { isAuthenticated: isAdminAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAdminAuthenticated) return;
+
+    initAdminWebSocket();
+
+    const handleMessage = (data: any) => {
+      // Handle admin events here
+      console.log("Admin WS event:", data);
+    };
+
+    subscribeWebSocket(handleMessage);
+    return () => unsubscribeWebSocket(handleMessage);
+  }, [isAdminAuthenticated]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
-      <Header />
+      <AdminHeader onViewAllNotifications={() => setCurrentPage('notifications')} />
       
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
@@ -45,6 +67,11 @@ export default function AdminDashboard() {
           {currentPage === "ratepolicies" && <Ratepolicy />}
           {currentPage === "vouchers" && <Voucher />}
           {currentPage === "customers" && <Customer />}
+          {currentPage === "notifications" && <NotificationList />}
+          {currentPage === "automated-task-rules" && <AutomatedTaskRules />}
+          {currentPage === "order-items" && <OrderItems />}
+          {currentPage === "kitchen-orders" && <KitchenOrders />}
+          {currentPage === "waiter-orders" && <WaiterOrders />}
         </div>
       </div>
     </div>

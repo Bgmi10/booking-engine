@@ -24,7 +24,8 @@ export default function Details({
         email: "",
         phone: "",
         nationality: "",
-        specialRequests: ""
+        specialRequests: "",
+        carNumberPlate: ""  // Add license plate field
     });    
 
     // Voucher states
@@ -422,6 +423,7 @@ const validateForm = () => {
                     phone: formData.phone.trim(),
                     nationality: formData.nationality,
                     specialRequests: formData.specialRequests,
+                    carNumberPlate: formData.carNumberPlate.trim() || null,
                     receiveMarketing: receiveMarketing
                 },
                 bookingItems: allItems,
@@ -630,6 +632,24 @@ const validateForm = () => {
                             aria-describedby={errors.phone ? "phone-error" : undefined}
                         />
                         {errors.phone && <p id="phone-error" className="text-red-500 text-xs mt-1" role="alert">{errors.phone}</p>}
+                    </div>
+
+                    <div className="text-left">
+                        <label htmlFor="carNumberPlate" className="block text-sm font-medium text-gray-700">
+                            Car License Plate <span className="text-gray-500 text-xs">(optional)</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="carNumberPlate" 
+                            value={formData.carNumberPlate}
+                            onChange={(e) => handleInputChange('carNumberPlate', e.target.value.toUpperCase())}
+                            className="mt-1 block w-full rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm px-4 py-2 outline-none border border-gray-300"
+                            placeholder="e.g., ABC123"
+                            maxLength={10}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            For automatic gate access during your stay
+                        </p>
                     </div>
 
                     <div className="text-left col-span-1 lg:col-span-2">

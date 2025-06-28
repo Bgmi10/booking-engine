@@ -4,7 +4,7 @@ import { BiLoader } from "react-icons/bi"
 import "react-datepicker/dist/react-datepicker.css"
 import { baseUrl } from "../../../utils/constants"
 import countryList from "country-list-with-dial-code-and-flag"
-import type { Enhancement, Room } from "../../../types/types"
+import type { BookingItem, CustomerDetails, Enhancement, Room } from "../../../types/types"
 import { addDays, differenceInHours } from "date-fns"
 import CustomerDetailsForm from "./CustomerDetailsForm"
 import BookingItemsList from "./BookingItemsList"
@@ -12,28 +12,6 @@ import TotalAmountSummary from "./TotalAmountSummary"
 import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
 
-interface BookingItem {
-  checkIn: string
-  checkOut: string
-  selectedRoom: string
-  rooms: number
-  adults: number
-  selectedEnhancements: Enhancement[]
-  roomDetails?: Room
-  error?: string
-  selectedRateOption?: any
-  totalPrice?: number
-}
-
-interface CustomerDetails {
-  firstName: string
-  middleName: string
-  lastName: string
-  email: string
-  phone: string
-  nationality: string
-  specialRequests: string
-}
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void

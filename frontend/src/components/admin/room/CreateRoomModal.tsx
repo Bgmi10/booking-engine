@@ -12,6 +12,8 @@ import { baseUrl } from "../../../utils/constants"
 import { PlusCircleIcon } from "lucide-react"
 import type { RatePolicy } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
+import { useImageUpload } from "../../../hooks/useImageUpload"
+
 interface Room {
   id: string
   name: string
@@ -42,12 +44,9 @@ export function CreateRoomModal({
   const [price, setPrice] = useState("")
   const [description, setDescription] = useState("")
   const [capacity, setCapacity] = useState("")
-  const [images, setImages] = useState<string[]>([])
-  const [imageUrls, setImageUrls] = useState<string[]>([])
   const [loadingAction, setLoadingAction] = useState(false)
   const [localError, setLocalError] = useState("")
   const [localSuccess, setLocalSuccess] = useState("")
-  const [uploadingImage, setUploadingImage] = useState(false)
   const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
   const [ratepolicies, setRatepolicies] = useState<{
     singlePolicy: RatePolicy[];
@@ -60,132 +59,27 @@ export function CreateRoomModal({
   const [newAmenity, setNewAmenity] = useState("");
   const [isDiscountTab, setIsDiscountTab] = useState(false)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
 
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-  
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const event = {
-        target: {
-          files: e.dataTransfer.files
-        }
-      } as React.ChangeEvent<HTMLInputElement>;
-      handleImageUpload(event);
-    }
-  };
+  // Use the custom image upload hook
+  const {
+    //@ts-ignore
+    imageUrls,
+    images,
+    uploadingImage,
+    isDragging,
+    uploadImages,
+    removeImage,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+  } = useImageUpload()
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-  
     const files = Array.from(e.target.files);
-    setUploadingImage(true);
-    setLocalError("");
-  
-    try {
-      const uploadResults = await Promise.all(
-        files.map(async (file) => {
-          // Step 1: Request pre-signed upload URL from backend
-          const res = await fetch(`${baseUrl}/admin/upload-url`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              url: file.name,
-              fileType: file.type,
-            }),
-          });
-  
-          const data = await res.json();
-  
-          if (!res.ok) {
-            throw new Error(data.message || "Failed to get upload URL");
-          }
-  
-          const uploadUrl = data.data.uploadUrl;
-          const finalUrl = data.data.fileUrl;
-  
-          // Step 2: Upload file to S3 using the signed URL
-          const uploadRes = await fetch(uploadUrl, {
-            method: "PUT",
-            body: file,
-            headers: {
-              "Content-Type": file.type,
-            },
-          });
-  
-          if (!uploadRes.ok) {
-            throw new Error(`Failed to upload ${file.name}`);
-          }
-  
-          // Step 3: Create preview URL
-          const objectUrl = URL.createObjectURL(file);
-  
-          return {
-            previewUrl: objectUrl,
-            s3Url: finalUrl,
-          };
-        })
-      );
-  
-      // Step 4: Update state with all uploaded URLs
-      const uploadedObjectUrls = uploadResults.map(r => r.previewUrl);
-      const uploadedS3Urls = uploadResults.map(r => r.s3Url);
-  
-      setImageUrls(prev => [...prev, ...uploadedObjectUrls]);
-      setImages(prev => [...prev, ...uploadedS3Urls]);
-  
-    } catch (error) {
-      console.error(error);
-      setLocalError("Failed to upload one or more images. Please try again.");
-    } finally {
-      setUploadingImage(false);
-    }
+    await uploadImages(files);
   };
-  
-  const removeImage = async (index: number) => {
-    const newImageUrls = [...imageUrls]
-    const res = await fetch(`${baseUrl}/admin/delete-image`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-        body: JSON.stringify({ url: images[index] }),
-    })
-    if (!res.ok) {
-      throw new Error("Failed to delete image")
-    }
-    if (res.status === 200) {
-      newImageUrls.splice(index, 1)
-      setImageUrls(newImageUrls)
-      
-      const newImages = [...images]
-      newImages.splice(index, 1)
-      setImages(newImages)
-    }
-  }
 
   const createRoom = async () => {
     // Validation
@@ -577,7 +471,7 @@ export function CreateRoomModal({
           </div>
               {imageUrls.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-4">
-                  {imageUrls.map((url, index) => (
+                  {imageUrls.map((url: string, index: number) => (
                     <div key={index} className="relative group">
                       <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-md bg-gray-200">
                         <img

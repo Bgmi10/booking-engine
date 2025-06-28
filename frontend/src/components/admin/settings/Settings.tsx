@@ -1,26 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { RiSave3Line, RiErrorWarningLine, RiCheckLine } from 'react-icons/ri';
+import { RiSave3Line, RiErrorWarningLine, RiCheckLine, RiSettings3Line } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl } from '../../../utils/constants';
 import { Template as TemplateComponent } from './templates/Template';
 import type { Template, Variable } from './templates/types';
 import CalendarRestriction from './CalendarRestriction';
+import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
 
-interface GeneralSettings { // Represents the actual data structure from/to the backend
-  id: string;
-  minStayDays: number;
-  taxPercentage: number;
-  // Add other settings properties here as they are defined in the backend model
-}
-
-// Represents the state of the form inputs, typically strings
-interface SettingsFormValues {
-  minStayDays?: string;
-  taxPercentage?: string;
-  // Add other settings form fields here, e.g., someOtherSetting?: string;
+interface PaymentConfig {
+  qr_code: boolean;
+  hosted_invoice: boolean;
+  manual_charge: boolean;
+  manual_transaction_id: boolean;
 }
 
 type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications' | 'restriction';
+
+const paymentMethods = [
+  {
+    id: 'qr_code',
+    title: 'QR Code',
+    description: 'Customer scans a QR code to pay.',
+  },
+  {
+    id: 'hosted_invoice',
+    title: 'Hosted Invoice',
+    description: 'Email your customer a payment link to pay later.',
+  },
+  {
+    id: 'manual_charge',
+    title: 'Manually Charge Card',
+    description: 'Enter card information or select a saved card.',
+  },
+  {
+    id: 'manual_transaction_id',
+    title: 'Manual Transaction ID',
+    description: 'Enter transaction ID from stripe',
+  }
+];
 
 export default function Settings() {
   // General settings state
@@ -31,6 +48,16 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Payment config state
+  const [showPaymentConfig, setShowPaymentConfig] = useState(false);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({
+    qr_code: true,
+    hosted_invoice: true,
+    manual_charge: true,
+    manual_transaction_id: true
+  });
+  const [isSavingPaymentConfig, setIsSavingPaymentConfig] = useState(false);
 
   // Template state
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -58,9 +85,31 @@ export default function Settings() {
         setInitialSettings(currentSettings);
         setFormValues({ 
           minStayDays: String(currentSettings.minStayDays),
-          taxPercentage: String((currentSettings.taxPercentage || 0) * 100)
+          taxPercentage: String((currentSettings.taxPercentage || 0) * 100),
+          dahuaApiUrl: currentSettings.dahuaApiUrl || '',
+          dahuaUsername: currentSettings.dahuaUsername || '',
+          dahuaPassword: currentSettings.dahuaPassword || '',
+          dahuaIsEnabled: currentSettings.dahuaIsEnabled || false,
+          dahuaGateId: currentSettings.dahuaGateId || '',
+          dahuaLicensePlateExpiryHours: String(currentSettings.dahuaLicensePlateExpiryHours || 24)
         });
         setSettingsId(currentSettings.id);
+
+        // Parse payment config
+        if (currentSettings.chargePaymentConfig) {
+          try {
+            const parsedConfig = JSON.parse(currentSettings.chargePaymentConfig);
+            setPaymentConfig(parsedConfig);
+          } catch (e) {
+            console.error('Failed to parse payment config:', e);
+            setPaymentConfig({
+              qr_code: true,
+              hosted_invoice: true,
+              manual_charge: true,
+              manual_transaction_id: true
+            });
+          }
+        }
       } else {
         setInitialSettings(null);
         setFormValues({ 
@@ -76,6 +125,46 @@ export default function Settings() {
       setFormValues({});
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePaymentConfigToggle = (methodId: keyof PaymentConfig) => {
+    setPaymentConfig(prev => ({
+      ...prev,
+      [methodId]: !prev[methodId]
+    }));
+  };
+
+  const handleSavePaymentConfig = async () => {
+    setIsSavingPaymentConfig(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${baseUrl}/admin/settings`, {
+        method: 'PUT',
+        credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: settingsId,
+          chargePaymentConfig: JSON.stringify(paymentConfig),
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      setSuccess('Payment configuration updated successfully!');
+      setShowPaymentConfig(false);
+    } catch (err: any) {
+      console.error("Failed to save payment config:", err);
+      setError(err.message || 'Failed to save payment configuration.');
+    } finally {
+      setIsSavingPaymentConfig(false);
     }
   };
 
@@ -249,6 +338,13 @@ export default function Settings() {
           id: settingsId,
           minStayDays: Number(formValues.minStayDays),
           taxPercentage: Number(formValues.taxPercentage) / 100,
+          // Dahua Camera Settings
+          dahuaApiUrl: formValues.dahuaApiUrl || null,
+          dahuaUsername: formValues.dahuaUsername || null,
+          dahuaPassword: formValues.dahuaPassword || null,
+          dahuaIsEnabled: formValues.dahuaIsEnabled === true,
+          dahuaGateId: formValues.dahuaGateId || null,
+          dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24
         }),
       });
       
@@ -345,8 +441,219 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+
+                {/* Payment Configuration Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">Payment Configuration</h4>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700">Configure which payment methods are available for charges</p>
+                      <p className="text-xs text-gray-500 mt-1">Control which payment options customers can use</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentConfig(true)}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <RiSettings3Line className="w-4 h-4 mr-2" />
+                      Configure Payment Methods
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dahua Camera Configuration Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">Dahua Camera Integration</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-700">Enable automatic gate access via license plate recognition</p>
+                        <p className="text-xs text-gray-500 mt-1">Automatically add/remove license plates for guest access</p>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="dahuaIsEnabled"
+                          name="dahuaIsEnabled"
+                          checked={formValues.dahuaIsEnabled === true}
+                          onChange={(e) => {
+                            setFormValues(prev => ({
+                              ...prev,
+                              dahuaIsEnabled: e.target.checked
+                            }));
+                            setSuccess(null);
+                            setError(null);
+                          }}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="dahuaIsEnabled" className="ml-2 text-sm text-gray-700">
+                          Enable Dahua Integration
+                        </label>
+                      </div>
+                    </div>
+
+                    {formValues.dahuaIsEnabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <label htmlFor="dahuaApiUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                            Dahua API URL
+                          </label>
+                          <input
+                            id="dahuaApiUrl"
+                            name="dahuaApiUrl"
+                            type="url"
+                            value={formValues.dahuaApiUrl || ''}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="https://camera-ip:port"
+                            disabled={isLoading}
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="dahuaGateId" className="block text-sm font-medium text-gray-700 mb-2">
+                            Gate ID
+                          </label>
+                          <input
+                            id="dahuaGateId"
+                            name="dahuaGateId"
+                            type="text"
+                            value={formValues.dahuaGateId || ''}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="1"
+                            disabled={isLoading}
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="dahuaUsername" className="block text-sm font-medium text-gray-700 mb-2">
+                            Username
+                          </label>
+                          <input
+                            id="dahuaUsername"
+                            name="dahuaUsername"
+                            type="text"
+                            value={formValues.dahuaUsername || ''}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="admin"
+                            disabled={isLoading}
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="dahuaPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                            Password
+                          </label>
+                          <input
+                            id="dahuaPassword"
+                            name="dahuaPassword"
+                            type="password"
+                            value={formValues.dahuaPassword || ''}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="••••••••"
+                            disabled={isLoading}
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="dahuaLicensePlateExpiryHours" className="block text-sm font-medium text-gray-700 mb-2">
+                            License Plate Expiry (hours)
+                          </label>
+                          <input
+                            id="dahuaLicensePlateExpiryHours"
+                            name="dahuaLicensePlateExpiryHours"
+                            type="number"
+                            value={formValues.dahuaLicensePlateExpiryHours || ''}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            min="1"
+                            max="168"
+                            placeholder="24"
+                            disabled={isLoading}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Hours after checkout to automatically remove license plate
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Payment Config Popover */}
+            {showPaymentConfig && (
+              <div className="fixed inset-0 bg-gray-600/40 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-gray-900">Payment Methods Configuration</h3>
+                      <button
+                        onClick={() => setShowPaymentConfig(false)}
+                        className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {paymentMethods.map(method => (
+                        <div key={method.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{method.title}</p>
+                            <p className="text-sm text-gray-500">{method.description}</p>
+                          </div>
+                          <div className="ml-4">
+                            <button
+                              type="button"
+                              onClick={() => handlePaymentConfigToggle(method.id as keyof PaymentConfig)}
+                              className={`cursor-pointer relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                paymentConfig[method.id as keyof PaymentConfig] ? 'bg-blue-600' : 'bg-gray-200'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  paymentConfig[method.id as keyof PaymentConfig] ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end space-x-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentConfig(false)}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer "
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSavePaymentConfig}
+                        disabled={isSavingPaymentConfig}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer  focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {isSavingPaymentConfig ? (
+                          <BiLoader className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <RiSave3Line className="w-4 h-4 mr-2" />
+                        )}
+                        {isSavingPaymentConfig ? 'Saving...' : 'Save Configuration'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       case 'templates':

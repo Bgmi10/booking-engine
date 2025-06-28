@@ -74,11 +74,18 @@ createUser()
   .finally(() => prisma.$disconnect());
 
 const createSettings = async () => {
-  await prisma.generalSettings.create({
-    data: {
+  await prisma.generalSettings.upsert({
+    where: { id: "1"},
+    create: {
       id: "1",
       minStayDays: 2,
+      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, manual_charge: true, manual_transaction_id: true })
     },
+    update: {
+      id: "1",
+      minStayDays: 2,
+      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, manual_charge: true, manual_transaction_id: true })
+    }
   });
   console.log("✅ Settings created");
 };
@@ -1775,6 +1782,53 @@ async function main() {
         chargeDate: { type: 'string', description: 'Date when charge was added', example: 'January 1, 2024' },
         paymentLink: { type: 'string', description: 'Payment link URL', example: 'https://example.com/pay' },
         expiresAt: { type: 'string', description: 'Payment link expiry date', example: 'January 1, 2024 6:00 PM' }
+      }
+    },
+    {
+      name: 'Customer Email Verification',
+      type: 'CUSTOMER_EMAIL_VERIFICATION',
+      subject: 'Verify your email for La Torre',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+          <div style="background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px; border-radius: 0 0 16px 16px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🔐</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Verify your email</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Click the button below to verify your email and continue your booking.
+            </p>
+          </div>
+          <div style="padding: 0 32px 32px; text-align: center;">
+            <a href="{{verifyUrl}}" style="display:inline-block;padding:16px 32px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;margin:24px 0;font-size:18px;">Verify Email</a>
+            <p style="font-size: 14px; color: #64748b; margin-top: 16px;">
+              This link will expire in 15 minutes.
+            </p>
+          </div>
+          <hr style="margin: 32px 0; border: none; border-top: 1px solid #e2e8f0;" />
+          <div style="text-align: center; color: #94a3b8; font-size: 12px; padding-bottom: 24px;">
+            If you didn't request this, you can safely ignore this email.<br />
+            © {{year}} La Torre. All rights reserved.
+          </div>
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        verifyUrl: { type: 'string', description: 'Verification link', example: 'https://your-frontend.com/verify?token=...' },
+        year: { type: 'number', description: 'Current year', example: 2024 },
+        name: { type: 'string', description: 'Customer name', example: 'John Doe', optional: true }
       }
     }
   ];

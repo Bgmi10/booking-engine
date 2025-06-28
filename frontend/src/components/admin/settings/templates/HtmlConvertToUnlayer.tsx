@@ -45,6 +45,7 @@ export interface UnlayerContent {
 }
 
 export class HtmlToUnlayerConverter {
+  //@ts-ignore
   private variables: Record<string, Variable>
   private rowCounter = 0
   private columnCounter = 0
@@ -187,9 +188,7 @@ export class HtmlToUnlayerConverter {
 
   private convertElementToRow(element: HTMLElement): UnlayerRow | null {
     const tagName = element.tagName.toLowerCase()
-    const styles = this.parseInlineStyles(element.getAttribute("style") || "")
-
-    // Handle table rows
+    
     if (tagName === "tr") {
       return this.convertTableRowToUnlayerRow(element)
     }
@@ -295,7 +294,6 @@ export class HtmlToUnlayerConverter {
 
   private convertElementToContent(element: HTMLElement): UnlayerContent | null {
     const tagName = element.tagName.toLowerCase()
-    const styles = this.parseInlineStyles(element.getAttribute("style") || "")
 
     switch (tagName) {
       case "h1":

@@ -40,8 +40,6 @@ const DateSelector = ({
   calenderOpen, 
   setCalenderOpen,
   minStayDays = 2,
-  selectedRoomId,
-  selectedRatePolicyId
 }: DateSelectorProps) => {
   
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({

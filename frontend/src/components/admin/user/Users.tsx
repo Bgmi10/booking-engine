@@ -343,8 +343,11 @@ export default function Users() {
                 disabled={loadingAction}
               >
                 <option value="">Select a role</option>
-                <option value="USER">USER</option>
+                <option value="MANAGER">MANAGER</option>
+                <option value="RECEPTION">RECEPTION</option>
                 <option value="ADMIN">ADMIN</option>
+                <option value="WAITER">WAITER</option>
+                <option value="KITCHEN">KITCHEN</option>
               </select>
             </div>
           </div>

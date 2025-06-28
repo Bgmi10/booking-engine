@@ -1,14 +1,5 @@
 import React from "react";
-
-interface CustomerDetails {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  nationality: string;
-  specialRequests: string;
-}
+import type { CustomerDetails } from "../../../types/types";
 
 interface Country {
   code: string;

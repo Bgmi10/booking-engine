@@ -42,6 +42,7 @@
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8",
     "react-email-editor": "^1.7.11",
+    "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.0",
     "tailwindcss": "^4.1.7",

@@ -2,20 +2,8 @@ import React from "react";
 import DatePicker from "react-datepicker";
 import { RiSubtractLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
-import type { Enhancement, Room } from "../../../types/types";
+import type { BookingItem, Enhancement, Room } from "../../../types/types";
 
-interface BookingItem {
-  checkIn: string;
-  checkOut: string;
-  selectedRoom: string;
-  rooms: number;
-  adults: number;
-  selectedEnhancements: Enhancement[];
-  roomDetails?: Room;
-  error?: string;
-  selectedRateOption?: any;
-  totalPrice?: number;
-}
 
 interface BookingItemCardProps {
   item: BookingItem;

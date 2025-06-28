@@ -48,6 +48,7 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
     const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
     const [currency, setCurrency] = useState(currencies[0]);
     const [isProcessing, setIsProcessing] = useState(false);
+    //@ts-ignore
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
 
     const handleNumpadClick = (value: string) => {
@@ -193,7 +194,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onBack={handleBack}
                         onNext={handlePaymentMethodNext}
                         isProcessing={isProcessing}
                     />
@@ -203,7 +203,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onBack={handleBack}
                         onNext={handlePaymentMethodSelect}
                         isProcessing={isProcessing}
                     />
@@ -213,7 +212,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onBack={handleBack}
                         onNext={handlePaymentMethodSelect}
                         isProcessing={isProcessing}
                     />

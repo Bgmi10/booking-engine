@@ -4,7 +4,7 @@ import Loader from "../Loader";
 import type { User } from "../../types/types";
 
 export default function AdminProtectedRoutes() {
-    const { isAuthenticated, user, isLoading }: { isAuthenticated: boolean, user: User | null, isLoading: boolean } = useAuth();
+    const { isAuthenticated, isLoading }: { isAuthenticated: boolean, user: User | null, isLoading: boolean } = useAuth();
 
     if (!isLoading) {
         return <Loader />;
@@ -12,7 +12,7 @@ export default function AdminProtectedRoutes() {
 
     return (
         <div>
-            {isAuthenticated  && user?.role === "ADMIN" ? <Outlet /> : <Navigate to="/admin/login" />}
+            {isAuthenticated ? <Outlet /> : <Navigate to="/admin/login" />}
         </div>
     )
 }

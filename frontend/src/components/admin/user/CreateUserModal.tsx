@@ -185,8 +185,12 @@ import { BiLoader } from "react-icons/bi";
                   onChange={handleInputChange}
                   className={`mt-1 border-gray-300 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                 >
-                  <option value="USER">USER</option>
-                  <option value="ADMIN">ADMIN</option>
+                <option value="">Select a role</option>
+                <option value="RECEPTION">RECEPTION</option>
+                <option value="MANAGER">MANAGER</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="WAITER">WAITER</option>
+                <option value="KITCHEN">KITCHEN</option>
                 </select>
               </div>
             </div>

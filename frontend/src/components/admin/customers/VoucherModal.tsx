@@ -1,43 +1,7 @@
 import { useEffect, useState } from "react";
 import { Gift, Calendar, Users, Package, Percent, DollarSign, Tag, Clock, CheckCircle, XCircle, X } from "lucide-react";
 import { baseUrl } from "../../../utils/constants";
-
-// Define the Voucher type based on your data structure
-type Product = {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl: string;
-  value: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type Voucher = {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
-  type: string;
-  createdAt: string;
-  createdBy: string | null;
-  currentUsage: number;
-  discountPercent: number | null;
-  fixedAmount: number | null;
-  isActive: boolean;
-  maxUsage: number;
-  maxUsagePerUser: number;
-  productIds: string[];
-  products?: Product[];
-  ratePolicyIds: string[];
-  rateScope: string;
-  roomIds: string[];
-  roomScope: string;
-  updatedAt: string;
-  validFrom: string;
-  validTill: string;
-};
+import type { Voucher } from "../../../types/types";
 
 export default function VoucherModal({ 
   voucherId, 
@@ -225,7 +189,8 @@ export default function VoucherModal({
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${(voucher.currentUsage / voucher.maxUsage) * 100}%` }}
+                    //@ts-ignore
+                    style={{ width: `${(voucher?.currentUsage / voucher?.maxUsage) * 100}%` }}
                   ></div>
                 </div>
               </div>
