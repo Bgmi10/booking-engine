@@ -16,64 +16,107 @@ import AutomatedTaskRules from './automated/AutomatedTaskRules';
 import OrderItems from "./orderItems/OrderItems";
 import KitchenOrders from "./kitchen/KitchenOrders";
 import WaiterOrders from "./waiter/WaiterOrders";
-import { initAdminWebSocket, subscribeWebSocket, unsubscribeWebSocket } from "../../utils/websocket";
+import { initAdminWebSocket } from "../../utils/websocket";
 import { useAuth } from "../../context/AuthContext";
+import CreateOrderModal from "./orders/CreateOrderModal";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState("dashboard");
-  const { isAuthenticated: isAdminAuthenticated } = useAuth();
+  const { isAuthenticated: isAdminAuthenticated, user } = useAuth();
+  const params = new URLSearchParams(window.location.search);
+  const sidebar = params.get("sidebar");
+  const [isNotificationsSheetOpen, setIsNotificationsSheetOpen] = useState(false);
+  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (sidebar) {
+      setCurrentPage(sidebar);
+    }
+  }, [sidebar]);
 
   useEffect(() => {
     if (!isAdminAuthenticated) return;
-
     initAdminWebSocket();
-
-    const handleMessage = (data: any) => {
-      // Handle admin events here
-      console.log("Admin WS event:", data);
-    };
-
-    subscribeWebSocket(handleMessage);
-    return () => unsubscribeWebSocket(handleMessage);
   }, [isAdminAuthenticated]);
+
+  const handleSidebarItemClick = (viewName: any) => {
+    setCurrentPage(viewName);
+    setIsNotificationsSheetOpen(false);
+  };
+
+  const handleViewAllNotifications = () => {
+    setIsNotificationsSheetOpen(true);
+  };
+
+  const renderActiveView = () => {
+    if (isNotificationsSheetOpen) {
+      return <NotificationList />;
+    }
+
+    switch (currentPage) {
+      case "dashboard":
+        return <Dashboard />;
+      case "users":
+        return <Users />;
+      case "rooms":
+        return <Rooms />;
+      case "bookings":
+        return <Bookings />;
+      case "enhancements":
+        return <Enhancements />;
+      case "settings":
+        return <Settings />;
+      case "profile":
+        return <Profile />;
+      case "ratepolicies":
+        return <Ratepolicy />;
+      case "vouchers":
+        return <Voucher />;
+      case "customers":
+        return <Customer />;
+      case "automated-task-rules":
+        return <AutomatedTaskRules />;
+      case "order-items":
+        return <OrderItems />;
+      case "kitchen-orders":
+        return <KitchenOrders />;
+      case "waiter-orders":
+        return <WaiterOrders />;
+      default:
+        if (user?.role === 'WAITER') return <WaiterOrders />;
+        if (user?.role === 'KITCHEN') return <KitchenOrders />;
+        return <div className="p-6 text-gray-700">Select an option from the sidebar.</div>;
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
-      <AdminHeader onViewAllNotifications={() => setCurrentPage('notifications')} />
+      <AdminHeader 
+        onViewAllNotifications={handleViewAllNotifications} 
+        onCreateOrder={() => setIsCreateOrderModalOpen(true)}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+      />
       
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className={`${isSidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 bg-white shadow-md`}>
+        <div className={`fixed md:relative z-40 h-full transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}>
           <Sidebar 
             isSidebarOpen={isSidebarOpen} 
             setIsSidebarOpen={setIsSidebarOpen} 
             currentPage={currentPage} 
-            setCurrentPage={setCurrentPage} 
+            setCurrentPage={handleSidebarItemClick} 
           /> 
         </div>
         
         {/* Page Content */}
-        <div className="flex-1 overflow-auto p-4 bg-gray-50">
-          {currentPage === "dashboard" && <Dashboard />}
-          {currentPage === "users" && <Users />}
-          {currentPage === "rooms" && <Rooms />}
-          {currentPage === "bookings" && <Bookings />}
-          {currentPage === "enhancements" && <Enhancements />}
-          {currentPage === "settings" && <Settings />}
-          {currentPage === "profile" && <Profile />}
-          {currentPage === "ratepolicies" && <Ratepolicy />}
-          {currentPage === "vouchers" && <Voucher />}
-          {currentPage === "customers" && <Customer />}
-          {currentPage === "notifications" && <NotificationList />}
-          {currentPage === "automated-task-rules" && <AutomatedTaskRules />}
-          {currentPage === "order-items" && <OrderItems />}
-          {currentPage === "kitchen-orders" && <KitchenOrders />}
-          {currentPage === "waiter-orders" && <WaiterOrders />}
-        </div>
+        <main className="flex-1 overflow-auto p-4 bg-gray-50">
+          {renderActiveView()}
+        </main>
       </div>
+      {isCreateOrderModalOpen && <CreateOrderModal onClose={() => setIsCreateOrderModalOpen(false)} />}
     </div>
   );
 }

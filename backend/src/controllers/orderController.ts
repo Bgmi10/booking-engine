@@ -60,6 +60,7 @@ export const getKitchenOrdersByUserId = async (req: express.Request, res: expres
             guestMiddleName: true,
           }
         },
+        temporaryCustomer: true,
         charge: {
           select: { id: true }
         }
@@ -90,6 +91,7 @@ export const getWaiterOrdersByUserId = async (req: express.Request, res: express
             guestMiddleName: true,
           }
         },
+        temporaryCustomer: true,
         charge: {
           select: { id: true }
         }
@@ -161,4 +163,80 @@ export const getPendingHybridOrdersForWaiter = async (req: express.Request, res:
     console.error(e);
     handleError(res, e as Error);
   }
+};
+
+export const createAdminOrder = async (req: express.Request, res: express.Response) => {
+    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationName } = req.body;
+    //@ts-ignore
+    const { id: adminId } = req.user;
+
+
+    if (!items || !paymentMethod || !locationName) {
+      responseHandler(res, 400, "Missing required fields: items, paymentMethod, locationName are required.");
+      return;
+    }
+    if (!customerId && !temporaryCustomerSurname) {
+      responseHandler(res, 400, "Either customerId or temporaryCustomerSurname must be provided.");
+      return;
+    }
+    if (customerId && temporaryCustomerSurname) {
+      responseHandler(res, 400, "Provide either customerId or temporaryCustomerSurname, not both.");
+      return;
+    }
+    if (paymentMethod === 'ASSIGN_TO_ROOM' && !customerId) {
+      responseHandler(res, 400, "ASSIGN_TO_ROOM payment method is only for existing customers.");
+      return;
+    }
+
+    try {
+        let tempCustomerId: string | undefined;
+
+        if (temporaryCustomerSurname) {
+            const tempCustomer = await prisma.temporaryCustomer.create({
+                data: {
+                    surname: temporaryCustomerSurname,
+                },
+            });
+            tempCustomerId = tempCustomer.id;
+        }
+        
+        const total = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+
+        const newOrder = await prisma.order.create({
+            data: {
+                items,
+                total,
+                status: 'PENDING',
+                locationName,
+                customerId: customerId,
+                temporaryCustomerId: tempCustomerId
+            }
+        });
+        
+        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId) {
+            await prisma.charge.create({
+                data: {
+                    amount: total,
+                    description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
+                    status: 'PENDING',
+                    customerId: customerId,
+                    orderId: newOrder.id,
+                    createdBy: adminId
+                }
+            });
+        }
+        
+        const orderEventService = (global as any).orderEventService;
+        if (orderEventService) {
+            await orderEventService.orderCreated(newOrder.id);
+        } else {
+            console.error("orderEventService not found, could not send real-time order notification.");
+        }
+
+        responseHandler(res, 201, "Order created successfully", newOrder);
+
+    } catch (error) {
+        console.error("Error creating admin order:", error);
+        handleError(res, error as Error);
+    }
 };

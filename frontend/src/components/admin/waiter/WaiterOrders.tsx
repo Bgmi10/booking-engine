@@ -30,6 +30,7 @@ interface TakenInfo {
 
 export default function WaiterOrders() {
   const [openOrders, setOpenOrders] = useState<WaiterOrder[]>([]);
+  //@ts-ignore
   const [recentlyTaken, setRecentlyTaken] = useState<TakenInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'open' | 'mine'>('open');
   const [myOrders, setMyOrders] = useState<WaiterOrder[]>([]);
@@ -89,7 +90,7 @@ export default function WaiterOrders() {
       waiterAssignedAt: order.waiterAssignedAt || order.pickedAt,
       assignedToWaiter: order.assignedToWaiter || order.assignedTo,
       assignedToWaiterName: order.assignedToWaiterName || order.assignedToName,
-      customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}` : ''),
+      customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}`.trim() : (order.temporaryCustomer ? `Guest ${order.temporaryCustomer.surname || ''}`.trim() : 'Unknown Guest')),
       total: order.total || 0,
       hasKitchenItems: hasKitchenItems,
       hasWaiterItems: hasWaiterItems,
@@ -106,7 +107,7 @@ export default function WaiterOrders() {
           const newOrder = normalizeOrder(data.data);
           setOpenOrders(prev => [newOrder, ...prev.filter(o => o.id !== newOrder.id)]);
           toast.success("New hybrid order received.");
-          playSound();
+            playSound();
         }
       }
       // An order is marked as READY by the kitchen
@@ -135,14 +136,14 @@ export default function WaiterOrders() {
         // no waiter has seen before.
         if (!wasAlreadyAcknowledged) {
           toast.success("Order ready for pickup!");
-          playSound();
-          showPushNotification(newOrder);
+        playSound();
+        showPushNotification(newOrder);
         }
       }
       // A waiter (could be anyone) accepted an order
       if (data.type === "order:assigned_waiter") {
         const updatedOrder = normalizeOrder({ ...data.data, id: data.orderId });
-
+        
         if (data.data.assignedTo === user?.id) {
           // It's me who acknowledged it. Remove it from my open list.
           setOpenOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
@@ -459,24 +460,24 @@ export default function WaiterOrders() {
                       <ul className="space-y-2 mt-1 opacity-70">
                         {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
                           <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
-                            <img
-                              src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                              alt={item.name}
-                              className="w-12 h-12 object-cover rounded border"
-                              onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                            />
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                              <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                        <img
+                          src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded border"
+                          onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                        />
+                        <div>
+                          <div className="font-medium">{item.name}</div>
+                          {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                          <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                   )}
 
-                </div>
+                    </div>
                 
                 <div className="mb-2 text-gray-600">Total: <span className="font-semibold">€{selectedMyOrder.total?.toFixed(2)}</span></div>
                 {selectedMyOrder.status !== 'DELIVERED' && (

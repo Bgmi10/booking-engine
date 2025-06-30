@@ -80,7 +80,7 @@ export default function KitchenOrders() {
       status: order.status,
       createdAt: order.createdAt,
       assignedToKitchen: order.assignedToKitchen || order.assignedTo,
-      customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}` : ''),
+      customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}`.trim() : (order.temporaryCustomer ? `Guest ${order.temporaryCustomer.surname || ''}`.trim() : 'Unknown Guest')),
       total: order.total || 0,
       hasWaiterItems: hasWaiterItems,
       hasKitchenItems: hasKitchenItems,

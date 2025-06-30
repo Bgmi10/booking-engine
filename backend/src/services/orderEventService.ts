@@ -138,8 +138,8 @@ class OrderEventService {
         console.log(`Order ${orderId} has kitchen items. Starting kitchen flow.`);
         
         this.kitchenQueue.set(order.id, {
-            orderId: order.id,
-            status: order.status,
+        orderId: order.id,
+        status: order.status,
             createdAt: order.createdAt
         });
 
@@ -180,14 +180,13 @@ class OrderEventService {
         type: 'order:created',
         orderId: order.id,
             data: { ...order, customerName },
-            timestamp: new Date()
-        });
+        timestamp: new Date()
+      });
 
-        // Do NOT broadcast the queue here. The `order:created` event is now the
         // single source of truth for a new order, preventing a race condition
         // with the queue update on the client-side. The queue will sync on the
         // next periodic refresh or other event.
-        // this.broadcastKitchenQueue();
+        this.broadcastKitchenQueue();
 
       // Flow 2: Order is waiter-only (no kitchen items)
       } else if (hasWaiterItems) {
@@ -196,7 +195,7 @@ class OrderEventService {
         const updatedOrder = await prisma.order.update({
             where: { id: orderId },
             data: { status: 'READY', deliveryItems: waiterItems },
-            include: { customer: true, temporaryCustomer: true, location: true }
+            include: { customer: true, temporaryCustomer: true, location: true, charge: true }
         });
 
         this.waiterQueue.set(updatedOrder.id, {
@@ -205,12 +204,27 @@ class OrderEventService {
             createdAt: updatedOrder.createdAt,
         });
 
+        const customerName = updatedOrder.customer 
+          ? `${updatedOrder.customer.guestFirstName} ${updatedOrder.customer.guestLastName}`
+          : updatedOrder.temporaryCustomer 
+            ? `Guest ${updatedOrder.temporaryCustomer.surname}`
+            : 'Unknown Guest';
+
+        const eventData = { ...updatedOrder, customerName, hasKitchenItems: false, hasWaiterItems: true };
+
         this.wsManager.sendToRoom('WAITER', {
             type: 'order:ready',
             orderId: updatedOrder.id,
-            data: updatedOrder,
-        timestamp: new Date()
-      });
+            data: eventData,
+            timestamp: new Date()
+        });
+        
+        this.wsManager.sendToRoom('ADMIN', {
+            type: 'order:created',
+            orderId: updatedOrder.id,
+            data: eventData,
+            timestamp: new Date()
+        });
 
         await TelegramService.notifyWaiterOrder(order.id, {
             total: order.total,
@@ -218,22 +232,8 @@ class OrderEventService {
             hasKitchenItems: false,
             itemCount: waiterItems.length
         });
-
-        this.wsManager.sendToRoom('KITCHEN', {
-          type: 'order:created',
-          orderId: order.id,
-            data: { ...order, customerName },
-          timestamp: new Date()
-        });
-          await TelegramService.notifyNewOrder(order.id, {
-            total: order.total,
-            locationName: order.locationName,
-            hasKitchenItems: true,
-            hasWaiterItems: false,
-            itemCount: 0
-        });
-        // Do NOT broadcast here either for the same reason.
-        // this.broadcastKitchenQueue();
+        
+        this.broadcastWaiterQueue();
       
       // Flow 3: Order has no items, default to kitchen to be safe
       } else {
@@ -257,10 +257,10 @@ class OrderEventService {
             itemCount: 0
         });
         // Do NOT broadcast here either for the same reason.
-        // this.broadcastKitchenQueue();
+        this.broadcastKitchenQueue();
       }
 
-    } catch (error) {
+      } catch (error) {
       console.error('Error in orderCreated:', error);
     }
   }
@@ -308,7 +308,8 @@ class OrderEventService {
         },
         include: {
           customer: true,
-          kitchenStaff: true
+          kitchenStaff: true,
+          temporaryCustomer: true
         }
       });
 
@@ -321,10 +322,16 @@ class OrderEventService {
         assignedAt: new Date()
       });
 
+      const customerName = order.customer
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
+
       const eventData: OrderEventData = {
         orderId: order.id,
         status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
+        customerName: customerName,
         assignedTo: kitchenUserId,
         assignedToName: kitchenUserName,
         items: order.items as any[],
@@ -393,7 +400,14 @@ class OrderEventService {
       // Remove kitchen assignment tracking
       this.kitchenAssignments.delete(orderId);
 
-      const eventData = order; // Send the full order object.
+      const customerName = order.customer
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
+
+      // Send the full order object.
+      const eventData = { ...order, customerName };
 
       // Send to waiter room
       this.wsManager.sendToRoom('WAITER', {
@@ -424,16 +438,16 @@ class OrderEventService {
 
       // Send Telegram notification to Waiter ONLY if no waiter has acknowledged it yet.
       if (!order.assignedToWaiter) {
-        try {
-          const notificationSent = await TelegramService.notifyOrderReadyForPickup(order.id);
-          
-          if (notificationSent) {
-            console.log(`Telegram notification sent for ready order: ${orderId}`);
-          } else {
-            console.warn(`Failed to send Telegram notification for ready order: ${orderId}`);
-          }
-        } catch (error) {
-          console.error(`Error sending Telegram notification for ready order: ${orderId}`, error);
+      try {
+        const notificationSent = await TelegramService.notifyOrderReadyForPickup(order.id);
+        
+        if (notificationSent) {
+          console.log(`Telegram notification sent for ready order: ${orderId}`);
+        } else {
+          console.warn(`Failed to send Telegram notification for ready order: ${orderId}`);
+        }
+      } catch (error) {
+        console.error(`Error sending Telegram notification for ready order: ${orderId}`, error);
         }
       }
 
@@ -496,7 +510,7 @@ class OrderEventService {
       if (currentOrder.status === 'READY') {
       this.waiterQueue.delete(orderId);
       }
-      
+
       // If order is ready, it's a delivery assignment.
       // Otherwise, it's just an acknowledgement.
       if (currentOrder.status === 'READY') {
@@ -506,10 +520,16 @@ class OrderEventService {
       });
       }
 
+      const customerName = order.customer
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
+
       const eventData: OrderEventData = {
         orderId: order.id,
         status: order.status,
-        customerName: order.customer ? `${order.customer.guestFirstName} ${order.customer.guestLastName}` : `Guest ${order.temporaryCustomer.surname}`,
+        customerName: customerName,
         assignedTo: waiterUserId,
         assignedToName: waiterUserName,
         items: order.items as any[],
@@ -569,10 +589,16 @@ class OrderEventService {
       this.kitchenAssignments.delete(orderId);
       this.waiterAssignments.delete(orderId);
 
+      const customerName = order.customer
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
+
       const eventData: OrderEventData = {
         orderId: order.id,
         status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
+        customerName: customerName,
         assignedTo: order.waiter?.name,
         deliveredAt: order.deliveredAt
       };
@@ -608,7 +634,8 @@ class OrderEventService {
           status: 'CANCELLED'
         },
         include: {
-          customer: true
+          customer: true,
+          temporaryCustomer: true
         }
       });
 
@@ -618,10 +645,16 @@ class OrderEventService {
       this.kitchenAssignments.delete(orderId);
       this.waiterAssignments.delete(orderId);
 
+      const customerName = order.customer
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
+
       const eventData: OrderEventData = {
         orderId: order.id,
         status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
+        customerName: customerName,
       };
 
       // Send to all relevant rooms
@@ -760,10 +793,10 @@ class OrderEventService {
       
       if (queue.length === 0) {
         const emptyQueueEvent: QueueUpdateEvent = {
-          type: 'queue:waiter_update',
+        type: 'queue:waiter_update',
           data: { queue: [] },
-          timestamp: new Date()
-        };
+        timestamp: new Date()
+      };
         this.wsManager.sendToRoom('WAITER', emptyQueueEvent);
         return;
       }
