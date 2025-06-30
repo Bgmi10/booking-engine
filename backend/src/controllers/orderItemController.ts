@@ -3,10 +3,10 @@ import { handleError, responseHandler } from "../utils/helper";
 import prisma from "../prisma";
 
 export const createOrderItem = async (req: express.Request, res: express.Response) => {
-    const { name, description, price, imageUrl } = req.body;
+    const { name, description, price, imageUrl, role } = req.body;
 
-    if (!name || !description || !price || !imageUrl) {
-        responseHandler(res, 400, "Missing body");
+    if (!name || !description || !price || !imageUrl || !role) {
+        responseHandler(res, 400, "Missing required fields");
         return;
     }
 
@@ -17,7 +17,8 @@ export const createOrderItem = async (req: express.Request, res: express.Respons
                 imageUrl,
                 description,
                 price,
-            }
+                role,
+            } as any
         });
         responseHandler(res, 201, "OrderItem created successfully");
     } catch (e) {
@@ -27,7 +28,7 @@ export const createOrderItem = async (req: express.Request, res: express.Respons
 }
 
 export const updateOrderItem = async (req: express.Request, res: express.Response) => {
-    const { name, description, price, imageUrl, isAvailable } = req.body;
+    const { name, description, price, imageUrl, isAvailable, role } = req.body;
     const { id } = req.params;
 
     if (!id) {
@@ -42,6 +43,7 @@ export const updateOrderItem = async (req: express.Request, res: express.Respons
     if (price !== undefined) updateData.price = price;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
     if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
+    if (role !== undefined) updateData.role = role;
 
     if (Object.keys(updateData).length === 0) {
         responseHandler(res, 400, "No valid fields to update");

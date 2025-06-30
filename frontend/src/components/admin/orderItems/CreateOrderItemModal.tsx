@@ -11,6 +11,7 @@ interface CreateOrderItemModalProps {
     description: string
     price: number
     imageUrl: string
+    role: string
   }) => Promise<void>
   loading: boolean
 }
@@ -24,7 +25,8 @@ export default function CreateOrderItemModal({
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: ''
+    price: '',
+    role: 'KITCHEN' // Default to KITCHEN role
   })
 
 
@@ -42,7 +44,7 @@ export default function CreateOrderItemModal({
     resetImages
   } = useImageUpload()
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -104,14 +106,15 @@ export default function CreateOrderItemModal({
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      imageUrl: images[0] // Use the first uploaded image
+      imageUrl: images[0], // Use the first uploaded image
+      role: formData.role
     })
-    setFormData({ name: '', description: '', price: '' })
+    setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
     resetImages()
   }
 
   const handleClose = () => {
-    setFormData({ name: '', description: '', price: '' })
+    setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
     resetImages()
     onClose()
   }
@@ -120,7 +123,7 @@ export default function CreateOrderItemModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 mt-20">
         <div className="flex justify-between items-center border-b p-4">
           <h3 className="text-xl font-semibold text-gray-900">Create New Order Item</h3>
           <button
@@ -163,6 +166,22 @@ export default function CreateOrderItemModal({
                 placeholder="0.00"
                 required
               />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role *
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                required
+              >
+                <option value="KITCHEN">Kitchen</option>
+                <option value="WAITER">Waiter</option>
+              </select>
             </div>
             
             <div className="md:col-span-2">

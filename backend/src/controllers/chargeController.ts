@@ -248,7 +248,7 @@ export const createQrSession = async (req: express.Request, res: express.Respons
 
     responseHandler(res, 201, "QR Code session created successfully.", {
       chargeId: charge.id,
-      expiresAt: charge.expiredAt.toISOString(), 
+      expiresAt: charge?.expiredAt?.toISOString(), 
     });
 
   } catch (e: any) {
@@ -322,7 +322,7 @@ export const checkChargeStatus = async (req: express.Request, res: express.Respo
         }
 
         const currentTime = new Date();
-        const expiredAt = new Date(charge.expiredAt);
+        const expiredAt = new Date(charge.expiredAt ? charge?.expiredAt : "");
         
         if (currentTime > expiredAt) {
             responseHandler(res, 400, "Charge is expired");

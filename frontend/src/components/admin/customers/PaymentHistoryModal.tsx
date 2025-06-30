@@ -1,8 +1,9 @@
-import { X, CreditCard, Calendar, Clock, RefreshCw, User } from "lucide-react";
+import { X, CreditCard, Calendar, Clock, RefreshCw, User, FileText } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import { baseUrl } from "../../../utils/constants";
 import CreatorInfoModal from "./CreatorInfoModal";
+import OrderDetailsModal from "./OrderDetailsModal";
 
 interface PaymentHistoryModalProps {
     customer: CustomerType;
@@ -12,15 +13,16 @@ interface PaymentHistoryModalProps {
 interface PaymentRecord {
     id: string;
     amount: number;
-    currency: string;
+    currency: string | null;
     description: string | null;
     status: string;
-    expiredAt: string;
+    expiredAt: string | null;
     createdAt: string;
-    paymentMethod: string;
-    paymentUrl: string;
+    paymentMethod: string | null;
+    paymentUrl: string | null;
     createdBy: string;
     adminNotes?: string;
+    orderId?: string;
 }
 
 export default function PaymentHistoryModal({ customer, onClose }: PaymentHistoryModalProps) {
@@ -28,6 +30,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
     const [loading, setLoading] = useState(true);
     const [refundingId, setRefundingId] = useState<string | null>(null);
     const [creatorIdForModal, setCreatorIdForModal] = useState<string | null>(null);
+    const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
     const fetchPaymentHistory = useCallback(async () => {
         setLoading(true);
@@ -138,7 +141,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {payments.map((payment) => (
+                            {payments && payments?.map((payment) => (
                                 <div key={payment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="flex items-center gap-3">
@@ -147,7 +150,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                                                     {payment.description || `Charge #${payment.id.slice(-8)}`}
                                                 </h4>
                                                 <p className="text-sm text-gray-600">
-                                                    Method: {payment.paymentMethod.replace("_", " ")}
+                                                    Method: {payment.paymentMethod ? payment.paymentMethod.replace("_", " ") : 'Room Charge'}
                                                 </p>
                                             </div>
                                         </div>
@@ -160,7 +163,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-600">Amount:</span>
                                             <span className="font-medium text-gray-900">
-                                                {payment.currency.toUpperCase()} {payment.amount}
+                                                {payment.currency && `${payment.currency.toUpperCase()} `}{payment.amount}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -212,6 +215,15 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                                                 Created By
                                             </button>
                                         )}
+                                        {payment.orderId && (
+                                            <button 
+                                                onClick={() => setViewingOrderId(payment.orderId!)}
+                                                className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-200 rounded-md hover:bg-blue-200"
+                                            >
+                                                <FileText className="h-4 w-4 mr-2" />
+                                                View Order
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -223,6 +235,12 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                 <CreatorInfoModal 
                     userId={creatorIdForModal} 
                     onClose={() => setCreatorIdForModal(null)} 
+                />
+            )}
+            {viewingOrderId && (
+                <OrderDetailsModal 
+                    orderId={viewingOrderId}
+                    onClose={() => setViewingOrderId(null)}
                 />
             )}
         </div>

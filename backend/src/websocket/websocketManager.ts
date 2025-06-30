@@ -16,7 +16,7 @@ interface ConnectedUser {
 
 interface OrderEvent {
   type: string;
-  orderId: string;
+  orderId?: string;
   data: any;
   timestamp: Date;
 }
@@ -29,7 +29,7 @@ interface JWTPayload {
   exp: number;
 }
 
-class WebSocketManager {
+export default class WebSocketManager {
   private wss: WebSocketServer;
   private connectedUsers: Map<string, ConnectedUser> = new Map();
   private rooms: Map<string, Set<string>> = new Map();
@@ -48,7 +48,6 @@ class WebSocketManager {
       const token = url.searchParams.get('token');
 
       if (!token || token === 'undefined' || token === 'null') {
-        console.log('WebSocket connection rejected: No token provided');
         callback(false, 4000, 'No Token Provided');
         return;
       }
@@ -56,7 +55,6 @@ class WebSocketManager {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JWTPayload;
 
-        console.log(decoded)
         if (decoded.role) {
           // User with role (staff)
           (info.req as any).user = {
@@ -76,16 +74,13 @@ class WebSocketManager {
             };
             callback(true);
           } else {
-            console.log('WebSocket connection rejected: Customer not found');
             callback(false, 4004, 'Customer Not Found');
           }
         }
       } catch (jwtError) {
-        console.log('WebSocket connection rejected: Invalid token');
         callback(false, 4001, 'Invalid Token');
       }
     } catch (error) {
-      console.log('WebSocket connection rejected: Token verification error');
       callback(false, 4002, 'Token Verification Error');
     }
   }
@@ -100,7 +95,6 @@ class WebSocketManager {
 
       if (user.role) {
         // Staff user
-        console.log(`New WebSocket connection established for user: ${user.id} (${user.role})`);
         const connectedUser: ConnectedUser = {
           id: user.id,
           role: user.role,
@@ -109,9 +103,22 @@ class WebSocketManager {
         };
         this.connectedUsers.set(user.id, connectedUser);
         this.joinRoom(ws, { room: user.role });
+        
+        // Send initial queue data based on role after a short delay
+        setTimeout(() => {
+          const orderEventService = (global as any).orderEventService;
+          if (orderEventService) {
+            if (user.role === 'KITCHEN' || user.role === 'ADMIN') {
+              orderEventService.broadcastKitchenQueue();
+            }
+            
+            if (user.role === 'WAITER' || user.role === 'ADMIN') {
+              orderEventService.broadcastWaiterQueue();
+            }
+          }
+        }, 1000); // Small delay to ensure connection is fully established
       } else if (user.isCustomer) {
         // Customer user
-        console.log(`New WebSocket connection established for customer: ${user.id}`);
         const connectedUser: ConnectedUser = {
           id: user.id,
           ws: ws,
@@ -159,10 +166,11 @@ class WebSocketManager {
         this.leaveRoom(ws, data);
         break;
       case 'ping':
-        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
-        break;
-      case 'create_order':
-        this.handleCreateOrder(ws, data);
+        ws.send(JSON.stringify({ 
+          type: 'pong', 
+          data: { timestamp: Date.now() }, 
+          timestamp: new Date() 
+        }));
         break;
       case 'accept_kitchen_order':
         this.handleAcceptKitchenOrder(ws, data);
@@ -177,25 +185,8 @@ class WebSocketManager {
         this.handleMarkOrderDelivered(ws, data);
         break;
       default:
-        console.log('Unknown message type:', data.type);
-    }
-  }
-
-  private async handleCreateOrder(ws: WebSocket, data: any) {
-    try {
-      const user = this.findUserByWebSocket(ws);
-      if (!user || !user.isCustomer) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated as customer' }));
-        return;
-      }
-      const orderEventService = (global as any).orderEventService;
-      const order = await orderEventService.createOrderFromWebSocket({
-        ...data.order,
-        customerId: user.id
-      });
-      ws.send(JSON.stringify({ type: 'order_created', data: order }));
-    } catch (error: any) {
-      ws.send(JSON.stringify({ type: 'error', message: error.message || 'Order creation failed' }));
+        // Ignore unknown message type
+        break;
     }
   }
 
@@ -284,8 +275,6 @@ class WebSocketManager {
       room,
       message: `Joined room: ${room}`
     }));
-
-    console.log(`User ${user.id} joined room: ${room}`);
   }
 
   private leaveRoom(ws: WebSocket, data: any) {
@@ -305,8 +294,6 @@ class WebSocketManager {
       room,
       message: `Left room: ${room}`
     }));
-
-    console.log(`User ${user.id} left room: ${room}`);
   }
 
   private handleDisconnection(ws: WebSocket) {
@@ -322,8 +309,6 @@ class WebSocketManager {
 
       // Remove from connected users
       this.connectedUsers.delete(user.id);
-
-      console.log(`User ${user.id} disconnected`);
     }
   }
 
@@ -340,30 +325,27 @@ class WebSocketManager {
 
   public sendToRoom(room: string, event: OrderEvent) {
     if (!this.rooms.has(room)) {
-      console.log(`Room ${room} doesn't exist`);
-      return;
+      // Create the room if it doesn't exist, but no users are in it yet
+      this.rooms.set(room, new Set());
     }
 
     const message = JSON.stringify(event);
     const userIds = this.rooms.get(room)!;
 
+    if (userIds.size > 0) {
     userIds.forEach(userId => {
       const user = this.connectedUsers.get(userId);
       if (user && user.ws.readyState === WebSocket.OPEN) {
         user.ws.send(message);
       }
     });
-
-    console.log(`Sent ${event.type} to room ${room}:`, event.orderId);
+    }
   }
 
   public sendToUser(userId: string, event: OrderEvent) {
     const user = this.connectedUsers.get(userId);
     if (user && user.ws.readyState === WebSocket.OPEN) {
       user.ws.send(JSON.stringify(event));
-      console.log(`Sent ${event.type} to user ${userId}:`, event.orderId);
-    } else {
-      console.log(`User ${userId} not connected or WebSocket not open`);
     }
   }
 
@@ -396,5 +378,3 @@ class WebSocketManager {
     }));
   }
 }
-
-export default WebSocketManager; 

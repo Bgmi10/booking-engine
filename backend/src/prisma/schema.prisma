@@ -18,7 +18,6 @@ model User {
   basePrice Float?
   updatedAt DateTime @updatedAt
   
-  // Notification relations
   assignedNotifications Notification[] @relation("AssignedNotifications")
   createdNotifications  Notification[] @relation("CreatedNotifications")
   completedNotifications Notification[] @relation("CompletedNotifications")
@@ -88,7 +87,7 @@ model Charge {
   description           String?
   gatekeeperUrl         String?
   status                ChargeStatus    @default(PENDING)
-  expiredAt             DateTime      
+  expiredAt             DateTime?      
   createdAt             DateTime        @default(now())
   paidAt                DateTime?
   stripePaymentIntentId String?
@@ -98,6 +97,8 @@ model Charge {
   customerId            String
   customer              Customer        @relation(fields: [customerId], references: [id])
   adminNotes            String?
+  orderId               String?         @unique
+  order                 Order?          @relation(fields: [orderId], references: [id])
 }
         
 model Booking {        
@@ -649,6 +650,14 @@ model AutomatedTaskRule {
   @@index([roomScope])
 }
 
+model TemporaryCustomer {
+  id        String   @id @default(uuid())
+  surname   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
 model Location {
   id              String          @id         @default(uuid())
   name            String          @unique
@@ -676,6 +685,7 @@ model OrderItem {
   price            Float
   isAvailable      Boolean?       @default(true)
   categories       OrderCategory[]
+  role             OrderItemRole
 }
 
 model AvailabilityRule {
@@ -696,12 +706,13 @@ model AvailabilityRule {
 model Order {
   id                 String         @id           @default(uuid())
   status             OrderStatus
-  customerId         String
+  customerId         String?
   total              Float          @default(0)
-  customer           Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer           Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   items              Json
+  deliveryItems      Json?          // Items for the waiter to deliver
   locationName       String
   location           Location       @relation(fields: [locationName], references: [name])
   assignedToKitchen  String?        
@@ -712,11 +723,15 @@ model Order {
   deliveredAt        DateTime?        
   kitchenStaff       User?          @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
   waiter             User?          @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
+  temporaryCustomerId String?
+  temporaryCustomer   TemporaryCustomer? @relation(fields: [temporaryCustomerId], references: [id], onDelete: Cascade)
+  charge             Charge?
   
   @@index([status])
   @@index([assignedToKitchen])
   @@index([assignedToWaiter])
   @@index([createdAt])
+  @@index([temporaryCustomerId])
 }
 
 enum OrderStatus {
@@ -765,4 +780,9 @@ enum AutomatedTaskTriggerType {
   MONTHLY         // Trigger monthly on specific date/time
   CHECK_IN        // Trigger on guest check-in
   CHECK_OUT       // Trigger on guest check-out
+}
+
+enum OrderItemRole {
+  KITCHEN
+  WAITER
 }

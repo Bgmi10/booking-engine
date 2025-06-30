@@ -2,11 +2,9 @@ import express from "express";
 import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
 import { stripe } from "../config/stripe";
-import { v4 as uuidv4 } from "uuid";
-import { addMinutes, isBefore } from "date-fns";
-import { EmailService } from "../services/emailService";
 import { generateToken } from "../utils/jwt";
 import dotenv from "dotenv";
+import TelegramService from "../services/telegramService";
 
 dotenv.config();
 
@@ -107,6 +105,89 @@ export const getAllCustomers = async (req: express.Request, res: express.Respons
         handleError(res, e as Error);
     }
 }
+
+export const getOccupiedRooms = async (req: express.Request, res: express.Response) => {
+    try {
+        const now = new Date();
+        const activeBookings = await prisma.booking.findMany({
+            where: {
+                status: 'CONFIRMED',
+                checkIn: { lte: now },
+                checkOut: { gte: now },
+            },
+            include: {
+                room: {
+                    select: {
+                        name: true,
+                    }
+                }
+            }
+        });
+
+        const occupiedRooms = activeBookings.map(booking => booking.room.name);
+        const uniqueOccupiedRooms = [...new Set(occupiedRooms)];
+
+        responseHandler(res, 200, "Successfully retrieved occupied rooms", uniqueOccupiedRooms);
+    } catch (e) {
+        console.log(e);
+        handleError(res, e as Error);
+    }
+};
+
+export const loginCustomer = async (req: express.Request, res: express.Response) => {
+    const { surname, roomName } = req.body;
+
+    if (!surname || !roomName) {
+        responseHandler(res, 400, "Surname and Room Name are required.");
+        return;
+    }
+
+    try {
+        const now = new Date();
+        const activeBooking = await prisma.booking.findFirst({
+            where: {
+                room: { name: roomName },
+                status: 'CONFIRMED',
+                checkIn: { lte: now },
+                checkOut: { gte: now },
+            },
+            include: {
+                customer: true,
+            },
+        });
+
+        let payload;
+        let customerData;
+
+        if (activeBooking && activeBooking.customer.guestLastName.toLowerCase() === surname.toLowerCase()) {
+            // Existing customer found
+            const customer = activeBooking.customer;
+            payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
+            customerData = customer;
+        } else {
+            // Temporary customer
+            const tempCustomer = await prisma.temporaryCustomer.create({
+                data: { surname },
+            });
+            payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER' };
+            customerData = tempCustomer;
+        }
+
+        const tokenJwt = generateToken(payload);
+        res.cookie("customertoken", tokenJwt, {
+            domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm",
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        });
+        
+        responseHandler(res, 200, "Verification successful", { user: customerData, token: tokenJwt });
+
+    } catch (e) {
+        console.log(e);
+        handleError(res, e as Error);
+    }
+};
 
 export const getCustomerBookings = async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
@@ -231,6 +312,14 @@ export const getOrderItemsByLocation =  async (req: express.Request, res: expres
     try {
         const orderItems = await prisma.location.findUnique({
             where: { name: location as string },
+            include: {
+                orderCategories: {
+                    include: {
+                        orderItems: true,
+                        availabilityRule: true
+                    }
+                }
+            }
         });
 
         if (!orderItems) {
@@ -245,86 +334,26 @@ export const getOrderItemsByLocation =  async (req: express.Request, res: expres
     }
 }
 
-export const requestVerification = async (req: express.Request, res: express.Response) => {
-    const { email } = req.body;
-    if (!email) {
-        responseHandler(res, 400, "Email is required");
-        return;
-    }
-    try {
-        let customer = await prisma.customer.findUnique({ where: { guestEmail: email } });
-        if (!customer) {
-            responseHandler(res, 404, "User not found please contact latorre for more information Or try with email which you you provided to bookings");
-            return;
-        }
-        const otp = uuidv4();
-        const expiresAt = addMinutes(new Date(), 15);
-        await prisma.otp.upsert({
-            where: { email },
-            update: { otp, expiresAt },
-            create: { email, otp, expiresAt },
-        });
-        const verifyUrl = `${process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL}/customers/verify?token=${otp}`;
-        await EmailService.sendEmail({
-            to: { email, name: customer.guestFirstName || "Customer" },
-            subject: "Verify your email for La Torre", // Will be overridden by template
-            templateType: "CUSTOMER_EMAIL_VERIFICATION",
-            templateData: {
-                verifyUrl,
-                year: new Date().getFullYear(),
-                name: customer.guestFirstName || "Customer"
-            },
-        });
-        responseHandler(res, 200, "Verification email sent");
-    } catch (e) {
-        console.log(e);
-        handleError(res, e as Error);
-    }
-};
-
-export const verifyCustomer = async (req: express.Request, res: express.Response) => {
-    const { token } = req.query;
-    if (!token || typeof token !== "string") {
-        responseHandler(res, 400, "Token is required");
-        return;
-    }
-    try {
-        const otpRecord = await prisma.otp.findFirst({ where: { otp: token } });
-        if (!otpRecord) {
-            responseHandler(res, 400, "Invalid or expired token");
-            return;
-        }
-        if (isBefore(otpRecord.expiresAt, new Date())) {
-            responseHandler(res, 400, "Token expired");
-            return;
-        }
-        const customer = await prisma.customer.findUnique({ where: { guestEmail: otpRecord.email } });
-        if (!customer) {
-            responseHandler(res, 404, "Customer not found");
-            return;
-        }
-        const payload = { id: customer.id, email: customer.guestEmail };
-        const tokenJwt = generateToken(payload);
-        await prisma.otp.deleteMany({ where: { otp: token } });
-        res.cookie("customertoken", tokenJwt, {
-            domain: process.env.NODE_ENV === "local" ?  "localhost" : "latorre.farm",
-            httpOnly: false, 
-            secure: process.env.NODE_ENV === "production", 
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        })
-        responseHandler(res, 200, "Verification successful");
-    } catch (e) {
-        console.log(e);
-        handleError(res, e as Error);
-    }
-}; 
-
 export const getCustomerProfile = async(req: express.Request, res: express.Response) => {
     //@ts-ignore
-    const { id } = req.user;
+    const { id, type } = req.user;
 
     try {
-        const customer = await prisma.customer.findUnique({ where: { id } });
+        let customer;
+        if (type === 'CUSTOMER') {
+            customer = await prisma.customer.findUnique({ where: { id } });
+        } else if (type === 'TEMP_CUSTOMER') {
+            customer = await prisma.temporaryCustomer.findUnique({ where: { id } });
+        } else {
+            responseHandler(res, 403, "Invalid user type in token");
+            return;
+        }
+        
+        if (!customer) {
+            responseHandler(res, 404, "User profile not found");
+            return;
+        }
+
         responseHandler(res, 200, "success", customer);
     } catch (e) {
         console.log(e);
@@ -341,11 +370,86 @@ export const customerLogout = async(req: express.Request, res: express.Response)
 }
 
 export const createOrder = async(req: express.Request, res: express.Response) => {
-    const { items, total, location, email } = req.body;
+    //@ts-ignore
+    const { id: userId, type: userType } = req.user;
+    const { items, total, location, paymentMethod } = req.body;
 
-    if (!items || !total || !location || !email) {
-        responseHandler(res, 400, "missing body");
+    if (!items || !total || !location || !paymentMethod) {
+        responseHandler(res, 400, "Missing required order information: items, total, location, and paymentMethod are required.");
         return;
     }
 
+    try {
+        const orderData: any = {
+            status: 'PENDING',
+            items: items,
+            total,
+            locationName: location,
+        };
+
+        if (userType === 'CUSTOMER') {
+            orderData.customerId = userId;
+        } else if (userType === 'TEMP_CUSTOMER') {
+            if (paymentMethod !== 'PAY_AT_WAITER') {
+                responseHandler(res, 403, "Temporary customers can only use the 'Pay at Waiter' payment method.");
+                return;
+            }
+            orderData.temporaryCustomerId = userId;
+        } else {
+            responseHandler(res, 403, "Invalid user type.");
+            return;
+        }
+
+        const newOrder = await prisma.order.create({
+            data: orderData
+        });
+
+        if (paymentMethod === 'ASSIGN_TO_ROOM') {
+            if (userType !== 'CUSTOMER') {
+                responseHandler(res, 403, "Only registered customers can assign charges to their room.");
+                return;
+            }
+
+            await prisma.charge.create({
+                data: {
+                    amount: total,
+                    description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
+                    status: 'PENDING',
+                    customerId: userId,
+                    orderId: newOrder.id,
+                    createdBy: userId
+                }
+            });
+        }
+
+        // Notify all services (WebSockets, Telegram, etc) via order event service
+        try {
+            // Always use the orderEventService for consistent handling
+            const orderEventService = (global as any).orderEventService;
+            if (orderEventService) {
+                await orderEventService.orderCreated(newOrder.id);
+                console.log(`Order ${newOrder.id} created and notifications sent via orderEventService`);
+            } else {
+                console.error("orderEventService not found in global context");
+                // Fallback to direct Telegram notification if orderEventService is not available
+                const hasKitchenItems = items.some((item: any) => !item.role || item.role === 'KITCHEN');
+                const hasWaiterItems = items.some((item: any) => item.role === 'WAITER');
+            await TelegramService.notifyNewOrder(newOrder.id, {
+                total: newOrder.total,
+                    locationName: newOrder.locationName,
+                    hasKitchenItems,
+                    hasWaiterItems
+            });
+            }
+        } catch (error) {
+            console.error("Failed to send order notifications:", error);
+            // Continue since the order was created successfully
+        }
+
+        responseHandler(res, 201, "Order created successfully", newOrder);
+
+    } catch (error) {
+        console.error("Error creating order:", error);
+        handleError(res, error as Error);
+    }
 }

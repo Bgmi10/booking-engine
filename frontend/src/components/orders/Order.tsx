@@ -1,600 +1,395 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { baseUrl } from "../../utils/constants";
 import { useCustomer } from "../../context/CustomerContext";
-import { ShoppingBasket } from "lucide-react";
-import { getTokenFromCookie, initCustomerWebSocket, subscribeWebSocket, unsubscribeWebSocket, sendWebSocketMessage } from "../../utils/websocket";
-import type { OrderItem } from "../../types/types";
+import { ShoppingBasket, ArrowLeft } from "lucide-react";
+import type { OrderItem, OrderCategory } from "../../types/types";
+import CustomerVerify from './CustomerVerify';
 
 interface CartItem extends OrderItem {
-  quantity: number;
-}
-
-interface Order {
-  id: string;
-  items: CartItem[];
-  total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed';
-  createdAt: string;
-  sessionId: string;
-}
-
-interface CustomerVerification {
-  isVerified: boolean;
-  email: string;
+    quantity: number;
 }
 
 export default function Order() {
-  const location = new URLSearchParams(window.location.search).get("location");
-  const verificationToken = new URLSearchParams(window.location.search).get("token");
+    const location = new URLSearchParams(window.location.search).get("location");
+    const { customer, isAuthenticated, isLoading, refresh, logout } = useCustomer();
+
+    const [categories, setCategories] = useState<OrderCategory[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState<OrderCategory | null>(null);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [showCheckout, setShowCheckout] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | ''>('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    useEffect(() => {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) setCart(JSON.parse(savedCart));
+    }, []);
+
+    useEffect(() => {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    }, [cart]);
+
+    const fetchOrderCategories = async () => {
+        try {
+            const response = await fetch(`${baseUrl}/customers/order-items?location=${location}`);
+            const data = await response.json();
+            if (response.ok) {
+                setCategories(data.data.orderCategories || []);
+            }
+        } catch (e) {
+            console.error("Failed to fetch order categories:", e);
+        }
+    };
+
+    useEffect(() => {
+        if (location) {
+            fetchOrderCategories();
+        }
+    }, [location]);
+
+    const isCategoryAvailable = (category: OrderCategory): boolean => {
+        if (category.isAvailable === false) {
+            return false;
+        }
+
+        const rule = category.availabilityRule;
+        if (!rule || !rule.isActive) {
+            return true;
+        }
+
+        const now = new Date();
+        const currentDay = now.getDay();
+        const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+        if (!rule.daysOfWeek.includes(currentDay)) {
+            return false;
+        }
+
+        if (currentTime < rule.startTime || currentTime > rule.endTime) {
+            return false;
+        }
+
+        return true;
+    };
+
+    const { availableCategories, unavailableCategories } = useMemo(() => {
+        const available: OrderCategory[] = [];
+        const unavailable: OrderCategory[] = [];
+
+        categories.forEach(category => {
+            if (isCategoryAvailable(category)) {
+                available.push(category);
+            } else {
+                unavailable.push(category);
+            }
+        });
+
+        return { availableCategories: available, unavailableCategories: unavailable };
+    }, [categories]);
+
+    const addToCart = (item: OrderItem) => {
+        setCart(prevCart => {
+            const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+            if (existingItem) {
+                return prevCart.map(cartItem =>
+                    cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
+                );
+            } else {
+                return [...prevCart, { ...item, quantity: 1 }];
+            }
+        });
+    };
   
-  // Email validation regex
-  const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-  // States
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  //@ts-ignore
-  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [orderTracking, setOrderTracking] = useState<Order | null>(null);
-  const [customerVerification, setCustomerVerification] = useState<CustomerVerification>({ isVerified: false, email: "" });
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [verificationEmail, setVerificationEmail] = useState("");
-  const [verificationStatus, setVerificationStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [verificationError, setVerificationError] = useState<string>("");
-  const customerToken = getTokenFromCookie('customertoken');
-  const { customer, isAuthenticated: customerAuth, logout: customerLogout } = useCustomer();
-
-  const isUserVerified = customerAuth || customerVerification.isVerified;
-
-  // Load cart from localStorage
-  useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
-  }, []);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
-
-  // Handle verification token if present
-  useEffect(() => {
-    if (verificationToken) {
-      verifyCustomerEmail(verificationToken);
-    }
-  }, [verificationToken]);
-
-  // Verify customer email
-  const verifyCustomerEmail = async (token: string) => {
-    try {
-      const response = await fetch(`${baseUrl}/customers/verify?token=${token}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setCustomerVerification({ isVerified: true, email: data.data?.email || "" });
-        // If we have items in cart, proceed with order
-        if (cart.length > 0) {
-          submitOrder();
+    const removeFromCart = (itemId: string) => {
+        setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+    };
+  
+    const updateQuantity = (itemId: string, quantity: number) => {
+        if (quantity <= 0) {
+            removeFromCart(itemId);
+            return;
         }
-      } else {
-        setVerificationError(data.message || "Verification failed. Please try again.");
-      }
-    } catch (e) {
-      console.error("Failed to verify email:", e);
-      setVerificationError("Network error. Please try again.");
-    }
-  };
-
-  // Handle email change
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVerificationEmail(e.target.value);
-    // Clear error when user starts typing
-    if (verificationError) {
-      setVerificationError("");
-    }
-  };
-
-  // Validate email
-  const validateEmail = (email: string): boolean => {
-    if (!email) {
-      setVerificationError("Please enter your email address.");
-      return false;
-    }
-    if (!EMAIL_REGEX.test(email)) {
-      setVerificationError("Please enter a valid email address.");
-      return false;
-    }
-    return true;
-  };
-
-  // Request verification email
-  const requestVerificationEmail = async () => {
-    // Validate email format first
-    if (!validateEmail(verificationEmail)) {
-      return;
-    }
-
-    try {
-      setVerificationStatus("sending");
-      setVerificationError("");
-      
-      // Store current URL for redirect after verification
-      if (typeof window !== 'undefined') {
-        if (localStorage.getItem('redirectAfterVerify')) {
-          localStorage.removeItem('redirectAfterVerify');
-        }
-        localStorage.setItem('redirectAfterVerify', window.location.href);
-      }
-
-      const response = await fetch(`${baseUrl}/customers/request-verification`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: verificationEmail.trim().toLowerCase() }), // Normalize email
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setVerificationStatus("sent");
-        setVerificationError("");
-      } else {
-        setVerificationStatus("error");
-        if (data.message.includes("not found")) {
-          setVerificationError("This email doesn't match our records. Please use the email you provided during booking.");
-        } else {
-          setVerificationError(data.message || "Failed to send verification email.");
-        }
-      }
-    } catch (e) {
-      console.error("Failed to request verification:", e);
-      setVerificationStatus("error");
-      setVerificationError("Network error. Please try again.");
-    }
-  };
-
-  // Reset verification state
-  const resetVerification = () => {
-    setVerificationStatus("idle");
-    setVerificationError("");
-    setShowVerificationModal(false);
-  };
-
-  const fetchOrderItems = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${baseUrl}/customers/order-items?location=${location}`, {
-        method: "GET",
-        credentials: "include", // Include cookies for authentication
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setOrderItems(data.data.orderItem || []);
-      }
-    } catch (e) {
-      console.error("Failed to fetch order items:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add item to cart
-  const addToCart = (item: OrderItem) => {
-    setCart(prevCart => {
-      const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
-      if (existingItem) {
-        return prevCart.map(cartItem =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
+        setCart(prevCart =>
+            prevCart.map(item =>
+                item.id === itemId ? { ...item, quantity } : item
+            )
         );
-      } else {
-        return [...prevCart, { ...item, quantity: 1 }];
-      }
-    });
-  };
-
-  // Remove item from cart
-  const removeFromCart = (itemId: string) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== itemId));
-  };
-
-  // Update item quantity
-  const updateQuantity = (itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(itemId);
-      return;
-    }
-    setCart(prevCart =>
-      prevCart.map(item =>
-        item.id === itemId ? { ...item, quantity } : item
-      )
-    );
-  };
-
-  // Calculate cart total
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-
-  // Place order via WebSocket
-  const submitOrderViaWebSocket = () => {
-    if (!isUserVerified) {
-      setShowVerificationModal(true);
-      return;
-    }
-    const orderData = {
-      items: cart.map(item => ({
-        image: item.imageUrl,
-        description: item.description,
-        name: item.name,
-        orderItemId: item.id,
-        quantity: item.quantity,
-        price: item.price
-      })),
-      total: cartTotal,
-      location: location,
-      customerId: customer?.id
     };
-    sendWebSocketMessage({
-      type: "create_order",
-      order: orderData
-    });
-  };
-
-  // Listen for WebSocket order_created event
-  useEffect(() => {
-    const handleMessage = (data: any) => {
-      if (data.type === "order_created") {
-        setCurrentOrder(data.data);
-        setCart([]);
-        localStorage.removeItem('cart');
-        setShowCheckout(false);
-        startOrderTracking(data.data.id);
-      }
-      if (data.type === "error" && data.message?.includes("Order creation")) {
-        alert("Order creation failed: " + data.message);
-      }
-    };
-    subscribeWebSocket(handleMessage);
-    return () => unsubscribeWebSocket(handleMessage);
-  }, []);
-
-  // Submit order (WebSocket only)
-  const submitOrder = async () => {
-    if (cart.length === 0) return;
-    if (!isUserVerified) {
-      setShowVerificationModal(true);
-      return;
-    }
-    submitOrderViaWebSocket();
-  };
-
-  // Track order status
-  const startOrderTracking = (orderId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`${baseUrl}/customers/orders/${orderId}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-          setOrderTracking(data.data);
-          
-          // Stop polling if order is completed
-          if (data.data.status === 'completed') {
-            clearInterval(pollInterval);
-          }
+  
+    const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    
+    const submitOrder = async () => {
+        if (cart.length === 0) return;
+        if (!paymentMethod) {
+            alert("Please select a payment method.");
+            return;
         }
-      } catch (e) {
-        console.error("Failed to track order:", e);
-      }
-    }, 5000); // Poll every 5 seconds
-
-    // Cleanup after 30 minutes
-    setTimeout(() => clearInterval(pollInterval), 30 * 60 * 1000);
-  };
-
-  // Load order items on component mount
-  useEffect(() => {
-    if (location) {
-      fetchOrderItems();
-    }
-  }, [location]);
-
-  // Verification Modal
-  const VerificationModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">One Last Step!</h2>
-        {verificationStatus === "sent" ? (
-          <div className="text-center py-4">
-            <svg className="w-16 h-16 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Verification Email Sent!</h3>
-            <p className="text-gray-600">
-              Please check your email and click the verification link to complete your order.
-              The link will expire in 15 minutes.
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="text-gray-600 mb-4">
-              To place your order, please enter the email address you used for your booking.
-              This helps us keep track of your orders and provide better service.
-            </p>
-            <div className="relative mb-8">
-              <input
-                type="email"
-                placeholder="Enter your booking email"
-                value={verificationEmail}
-                onChange={handleEmailChange}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !verificationError && EMAIL_REGEX.test(verificationEmail)) {
-                    requestVerificationEmail();
-                  }
-                }}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 
-                  ${verificationError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-indigo-500'}`}
-                autoFocus
-              />
-              {verificationError && (
-                <p className=" left-0 text-red-500 text-sm">
-                  {verificationError}
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={resetVerification}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={requestVerificationEmail}
-                disabled={verificationStatus === "sending" || !EMAIL_REGEX.test(verificationEmail)}
-                className={`px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 
-                  ${(verificationStatus === "sending" || !EMAIL_REGEX.test(verificationEmail)) ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {verificationStatus === "sending" ? "Sending..." :
-                 verificationStatus === "error" ? "Try Again" :
-                 "Send Verification"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  // Checkout Modal
-  const CheckoutModal = () => (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Checkout</h2>
-          
-          {/* Cart Items */}
-          {cart.length === 0 ? (
-            <p className="text-gray-600 text-center py-8">Your cart is empty</p>
-          ) : (
-            <>
-              <div className="space-y-3 mb-6">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gray-200 rounded-md overflow-hidden">
-                        {item.imageUrl && (
-                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">{item.name}</h4>
-                        <p className="text-sm text-gray-600">€{item.price.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Total */}
-              <div className="border-t pt-4 mb-6">
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total:</span>
-                  <span>€{cartTotal.toFixed(2)}</span>
+        setIsSubmitting(true);
+        try {
+            const orderData = {
+                items: cart,
+                total: cartTotal,
+                location: location,
+                paymentMethod: paymentMethod,
+            };
+            const response = await fetch(`${baseUrl}/customers/orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData),
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to place order.');
+            }
+            alert("Order placed successfully!");
+            setCart([]);
+            setShowCheckout(false);
+            setPaymentMethod('');
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    if (!location) {
+        return (
+            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div className="text-center p-4">
+                    <h1 className="text-2xl font-bold text-gray-800 mb-4">No Location Specified</h1>
+                    <p className="text-gray-600">Please scan a QR code to access the order menu.</p>
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowCheckout(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Continue Shopping
-                </button>
-                <button
-                  onClick={submitOrder}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                >
-                  Place Order
-                </button>
-              </div>
-            </>
-          )}
+            </div>
+        );
+    }
+    
+    const CheckoutModal = () => (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                    {isLoading ? (
+                         <div className="flex justify-center items-center py-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+                        </div>
+                    ) : !isAuthenticated ? (
+                        <CustomerVerify onVerificationSuccess={refresh} />
+                    ) : (
+                        <>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Order</h2>
+                            {cart.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-600 mb-6">Your cart is empty.</p>
+                                    <button 
+                                        onClick={() => setShowCheckout(false)} 
+                                        className="px-6 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                                    >
+                                        Continue Shopping
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-4 mb-6">
+                                        {cart.map((item: CartItem) => (
+                                            <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div className="flex items-center space-x-4">
+                                                    <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
+                                                    <div>
+                                                        <h4 className="font-semibold text-gray-800">{item.name}</h4>
+                                                        <p className="text-sm text-gray-500">€{item.price.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">-</button>
+                                                    <span className="w-8 text-center font-medium text-gray-800">{item.quantity}</span>
+                                                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">+</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="border-t border-gray-200 pt-4 mb-6">
+                                        <div className="flex justify-between text-lg font-bold text-gray-800">
+                                            <span>Total:</span>
+                                            <span>€{cartTotal.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mb-6">
+                                        <h4 className="text-lg font-semibold text-gray-800 mb-3">Payment Method</h4>
+                                        <div className="space-y-3">
+                                            {customer && 'guestEmail' in customer && (
+                                                <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                                                    <input type="radio" name="paymentMethod" value="ASSIGN_TO_ROOM" checked={paymentMethod === 'ASSIGN_TO_ROOM'} onChange={(e) => setPaymentMethod(e.target.value as any)} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                                    <span className="ml-4 text-gray-800 font-medium">Assign to Room</span>
+                                                </label>
+                                            )}
+                                            <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                                                <input type="radio" name="paymentMethod" value="PAY_AT_WAITER" checked={paymentMethod === 'PAY_AT_WAITER'} onChange={(e) => setPaymentMethod(e.target.value as any)} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                                <span className="ml-4 text-gray-800 font-medium">Pay at Waiter</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex space-x-3">
+                                        <button onClick={() => setShowCheckout(false)} className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Back</button>
+                                        <button onClick={submitOrder} disabled={!paymentMethod || isSubmitting} className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors">{isSubmitting ? 'Placing Order...' : 'Place Order'}</button>
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 
-  useEffect(() => {
-    if (!customerAuth || !customerToken) return;
+    const renderHeader = () => (
+        <div className="bg-white/80 backdrop-blur-lg shadow-sm border-b z-30 sticky top-0">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div className="flex justify-between items-center">
+                    {selectedCategory ? (
+                         <button onClick={() => setSelectedCategory(null)} className="flex items-center space-x-2 text-gray-700 hover:text-black font-medium">
+                            <ArrowLeft size={20} />
+                            <span>Menu</span>
+                        </button>
+                    ) : (
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800">Menu</h1>
+                            <p className="text-gray-500">Location: {location}</p>
+                        </div>
+                    )}
+                    <div className="flex items-center space-x-4">
+                        {isAuthenticated && customer && (
+                            <div className="relative group">
+                                <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
+                                    <span className="font-medium">{'guestFirstName' in customer ? `${customer.guestFirstName}` : customer.surname}</span>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                    <div className="px-4 py-3 border-b"><p className="text-sm text-gray-600 truncate">{'guestEmail' in customer ? customer.guestEmail : 'Temporary Guest'}</p></div>
+                                    <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</button>
+                                </div>
+                            </div>
+                        )}
+                        <button onClick={() => setShowCheckout(true)} className="relative p-2 text-gray-600 hover:text-black">
+                            <ShoppingBasket />
+                            {cart.length > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{cart.reduce((total, item) => total + item.quantity, 0)}</span>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
-    initCustomerWebSocket(customerToken);
+    const renderCategories = () => (
+        <>
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Available Menus</h2>
+            {availableCategories.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {availableCategories.map((category) => (
+                        <div key={category.id} onClick={() => setSelectedCategory(category)} className="bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-transform duration-300 group">
+                            <div className="h-48 relative">
+                                <img src={category.imageUrl} alt={category.name} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                                <h3 className="absolute bottom-0 left-0 p-4 text-2xl font-bold text-white">{category.name}</h3>
+                            </div>
+                            <p className="p-4 text-gray-600 text-sm">{category.description}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-gray-500">No menus are currently available.</p>
+            )}
 
-    const handleMessage = (data: any) => {
-      // Handle customer events here
-      console.log("Customer WS event:", data);
+            {unavailableCategories.length > 0 && (
+                <>
+                    <h2 className="text-3xl font-bold text-gray-800 mt-12 mb-6">Unavailable Menus</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {unavailableCategories.map((category) => (
+                             <div key={category.id} className="bg-white rounded-xl shadow-lg overflow-hidden relative cursor-not-allowed">
+                                <div className="h-48 relative filter grayscale">
+                                    <img src={category.imageUrl} alt={category.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/50"></div>
+                                </div>
+                                <div className="p-4">
+                                     <h3 className="font-bold text-gray-500">{category.name}</h3>
+                                     <p className="text-gray-400 text-sm">{category.description}</p>
+                                </div>
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                                     <span className="bg-gray-800/70 text-white font-semibold px-4 py-2 rounded-md">UNAVAILABLE</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </>
+    );
+
+    const renderItemsForCategory = (category: OrderCategory) => {
+        const sortedItems = [...category.orderItems].sort((a, b) => {
+            const aAvailable = a.isAvailable !== false;
+            const bAvailable = b.isAvailable !== false;
+            return (bAvailable ? 1 : 0) - (aAvailable ? 1 : 0);
+        });
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sortedItems.map((item: OrderItem) => {
+                    const isAvailable = item.isAvailable !== false;
+                    const cartItem = cart.find(ci => ci.id === item.id);
+                    const quantity = cartItem ? cartItem.quantity : 0;
+
+                    return (
+                        <div key={item.id} className={`bg-white rounded-xl shadow-lg overflow-hidden flex flex-col transition-all duration-300 ${!isAvailable ? 'filter grayscale' : ''}`}>
+                             <div className="h-48 bg-gray-200 relative">
+                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                {!isAvailable && (
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                        <span className="bg-gray-800/70 text-white font-semibold px-4 py-2 rounded-md">UNAVAILABLE</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4 flex flex-col flex-grow">
+                                <h3 className={`text-lg font-bold mb-2 ${isAvailable ? 'text-gray-800' : 'text-gray-500'}`}>{item.name}</h3>
+                                <p className={`text-sm mb-4 flex-grow ${isAvailable ? 'text-gray-600' : 'text-gray-400'}`}>{item.description}</p>
+                                <div className="flex justify-between items-center mt-auto">
+                                    <span className={`text-xl font-bold ${isAvailable ? 'text-black' : 'text-gray-500'}`}>€{item.price.toFixed(2)}</span>
+                                    {quantity > 0 ? (
+                                        <div className="flex items-center space-x-2">
+                                            <button onClick={() => updateQuantity(item.id, quantity - 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">-</button>
+                                            <span className="w-8 text-center font-medium text-gray-800">{quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, quantity + 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">+</button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => isAvailable && addToCart(item)}
+                                            disabled={!isAvailable}
+                                            className={`text-white px-5 py-2 rounded-lg font-semibold transition-colors ${
+                                                isAvailable
+                                                ? 'bg-black hover:bg-gray-800'
+                                                : 'bg-gray-300 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            Add
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
     };
 
-    subscribeWebSocket(handleMessage);
-    return () => unsubscribeWebSocket(handleMessage);
-  }, [customerAuth, customerToken]);
-
-  if (!location) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">No Location Specified</h1>
-          <p className="text-gray-600">Please scan a QR code to access order items</p>
+        <div className="min-h-screen bg-gray-100">
+            {renderHeader()}
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {selectedCategory ? renderItemsForCategory(selectedCategory) : renderCategories()}
+            </div>
+            {showCheckout && <CheckoutModal />}
         </div>
-      </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b z-30 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Order Items</h1>
-              <p className="text-gray-600">Location: {location}</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              {customerAuth && customer ? (
-                <div className="relative group">
-                  <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
-                    <span className="font-medium">{customer.guestFirstName + customer.guestLastName}</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
-                  </button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-2 transition-all duration-200 z-50">
-                    <div className="px-4 py-3 border-b">
-                      <p className="text-sm text-gray-600">{customer.guestEmail.slice(0, 20)}....</p>
-                    </div>
-                    <button
-                      onClick={customerLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {/* Cart Icon */}
-              <button
-                onClick={() => setShowCheckout(true)}
-                className="relative p-2 text-gray-600 hover:text-gray-900"
-              >
-                <ShoppingBasket />
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {cart.reduce((total, item) => total + item.quantity, 0)}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-20">
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading order items...</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {orderItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="h-48 bg-gray-200">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-indigo-600">
-                      €{item.price.toFixed(2)}
-                    </span>
-                    <button
-                      onClick={() => addToCart(item)}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
-                    >
-                      Add to Cart
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Modals */}
-      {showVerificationModal && <VerificationModal />}
-      {showCheckout && <CheckoutModal />}
-
-      {/* Order Tracking */}
-      {orderTracking && (
-        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-40">
-          <h3 className="font-semibold text-gray-900 mb-2">Order Status</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Order ID:</span>
-              <span className="text-sm font-medium">{orderTracking.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Status:</span>
-              <span className={`text-sm font-medium ${
-                orderTracking.status === 'ready' ? 'text-green-600' :
-                orderTracking.status === 'preparing' ? 'text-yellow-600' :
-                'text-gray-600'
-              }`}>
-                {orderTracking.status.charAt(0).toUpperCase() + orderTracking.status.slice(1)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Total:</span>
-              <span className="text-sm font-medium">€{orderTracking.total.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }

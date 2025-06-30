@@ -469,9 +469,9 @@ export function CreateRoomModal({
             </div>
             
           </div>
-              {imageUrls.length > 0 && (
+              {imageUrls?.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-4">
-                  {imageUrls.map((url: string, index: number) => (
+                  {imageUrls?.map((url: string, index: number) => (
                     <div key={index} className="relative group">
                       <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-md bg-gray-200">
                         <img

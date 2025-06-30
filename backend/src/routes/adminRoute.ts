@@ -22,7 +22,7 @@ import { getNotifications, getNotificationById, createNotification, updateNotifi
 import { getAutomatedTaskRules, createAutomatedTaskRule, updateAutomatedTaskRule, deleteAutomatedTaskRule } from '../controllers/automatedTaskRuleController';
 import { createLocation, deleteLocation, getAllLocations, updateLocation } from "../controllers/locationController";
 import { createOrderItem, deleteOrderItem, getAllOrderItem, updateOrderItem } from "../controllers/orderItemController";
-import { getAllAssignedCustomersOrders, getAllPendingCustomersOrders, getKitchenOrdersByUserId, getWaiterOrdersByUserId } from "../controllers/orderController";
+import { getAllAssignedCustomersOrders, getAllPendingCustomersOrders, getKitchenOrdersByUserId, getOrderById, getWaiterOrdersByUserId, getPendingHybridOrdersForWaiter } from "../controllers/orderController";
 import { createOrderCategory, deleteOrderCategory, getAllOrderCategories, updateOrderCategory } from "../controllers/orderCategoryController";
 
 const adminRouter = Router();
@@ -237,5 +237,9 @@ adminRouter.get('/kitchen/orders', authMiddleware, getKitchenOrdersByUserId);
 adminRouter.get('/customers/orders/assigned/all', authMiddleware, getAllAssignedCustomersOrders);
 
 adminRouter.get('/waiter/orders', authMiddleware, getWaiterOrdersByUserId);
+
+adminRouter.get('/waiter/orders/pending-hybrid', authMiddleware, getPendingHybridOrdersForWaiter);
+
+adminRouter.get('/orders/:id', authMiddleware, getOrderById);
 
 export default adminRouter;

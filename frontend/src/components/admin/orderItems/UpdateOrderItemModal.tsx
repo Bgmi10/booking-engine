@@ -11,6 +11,7 @@ interface OrderItem {
   imageUrl: string
   createdAt: string
   updatedAt: string
+  role?: string
 }
 
 interface UpdateOrderItemModalProps {
@@ -21,6 +22,7 @@ interface UpdateOrderItemModalProps {
     description: string
     price: number
     imageUrl: string
+    role: string
   }) => Promise<void>
   orderItem: OrderItem | null
   loading: boolean
@@ -36,7 +38,8 @@ export default function UpdateOrderItemModal({
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: ''
+    price: '',
+    role: 'KITCHEN'
   })
 
   const {
@@ -57,18 +60,19 @@ export default function UpdateOrderItemModal({
       setFormData({
         name: orderItem.name,
         description: orderItem.description,
-        price: orderItem.price.toString()
+        price: orderItem.price.toString(),
+        role: orderItem.role || 'KITCHEN' // Default to KITCHEN if not set
       })
       if (orderItem.imageUrl) {
         setInitialImages([orderItem.imageUrl])
       }
     } else if (!isOpen) {
-      setFormData({ name: '', description: '', price: '' })
+      setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
       resetImages()
     }
   }, [isOpen, orderItem, setInitialImages, resetImages])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -133,7 +137,8 @@ export default function UpdateOrderItemModal({
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      imageUrl: imageUrl
+      imageUrl: imageUrl,
+      role: formData.role
     })
   }
 
@@ -148,7 +153,7 @@ export default function UpdateOrderItemModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 mt-52">
         <div className="flex justify-between items-center border-b p-4">
           <h3 className="text-xl font-semibold text-gray-900">Update Order Item</h3>
           <button
@@ -206,6 +211,22 @@ export default function UpdateOrderItemModal({
                 placeholder="Enter item description"
                 required
               />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role *
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                required
+              >
+                <option value="KITCHEN">KITCHEN</option>
+                <option value="WAITER">WAITER</option>
+              </select>
             </div>
             
             <div className="md:col-span-2">

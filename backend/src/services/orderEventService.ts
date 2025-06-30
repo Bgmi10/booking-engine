@@ -1,6 +1,6 @@
 import prisma from '../prisma';
 import WebSocketManager from '../websocket/websocketManager';
-
+import TelegramService from './telegramService';
 interface OrderEventData {
   orderId: string;
   status: string;
@@ -13,13 +13,18 @@ interface OrderEventData {
   readyAt?: Date;
   deliveredAt?: Date;
   queuePosition?: number;
+  paymentMethod?: string;
+  hasKitchenItems?: boolean;
+  hasWaiterItems?: boolean;
+  kitchenItems?: any[];
+  waiterItems?: any[];
 }
 
 interface OrderQueueItem {
   orderId: string;
   status: string;
   createdAt: Date;
-  assignedTo?: string;
+  assignedTo?: string | null;
 }
 
 interface QueueUpdateEvent {
@@ -32,11 +37,13 @@ class OrderEventService {
   private wsManager: WebSocketManager;
   private kitchenQueue: Map<string, OrderQueueItem> = new Map();
   private waiterQueue: Map<string, OrderQueueItem> = new Map();
-  private orderAssignments: Map<string, { userId: string; assignedAt: Date }> = new Map();
+  private kitchenAssignments: Map<string, { userId: string; assignedAt: Date }> = new Map();
+  private waiterAssignments: Map<string, { userId: string; assignedAt: Date }> = new Map();
 
   constructor(wsManager: WebSocketManager) {
     this.wsManager = wsManager;
     this.initializeQueues();
+    this.startPeriodicRefresh();
   }
 
   private async initializeQueues() {
@@ -77,66 +84,193 @@ class OrderEventService {
     }
   }
 
+  private startPeriodicRefresh() {
+    // Refresh queues every 30 seconds to keep clients in sync
+    setInterval(() => {
+      try {
+        this.broadcastKitchenQueue();
+        this.broadcastWaiterQueue();
+        
+        // Send heartbeat to all rooms to keep connections alive
+        const heartbeat = {
+          type: 'heartbeat',
+          data: { timestamp: Date.now() },
+          timestamp: new Date()
+        };
+        this.wsManager.sendToRoom('KITCHEN', heartbeat);
+        this.wsManager.sendToRoom('WAITER', heartbeat);
+        this.wsManager.sendToRoom('ADMIN', heartbeat);
+      } catch (error) {
+        console.error("Error in periodic refresh:", error);
+      }
+    }, 30000); // 30 seconds
+  }
+
   // Order created - notify kitchen and add to queue
   async orderCreated(orderId: string) {
     try {
-      const order = await (prisma as any).order.findUnique({
+      const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: {
           customer: true,
-          location: true
+          location: true,
+          charge: true,
+          temporaryCustomer: true
         }
       });
 
       if (!order) return;
 
-      // Add to kitchen queue
-      this.kitchenQueue.set(order.id, {
-        orderId: order.id,
-        status: order.status,
-        createdAt: order.createdAt
-      });
+      const allItems = order.items as any[];
+      const kitchenItems = allItems.filter(item => !item.role || item.role === 'KITCHEN');
+      const waiterItems = allItems.filter(item => item.role === 'WAITER');
+      const hasKitchenItems = kitchenItems.length > 0;
+      const hasWaiterItems = waiterItems.length > 0;
+      
+      const customerName = order.customer 
+        ? `${order.customer.guestFirstName} ${order.customer.guestLastName}`
+        : order.temporaryCustomer 
+          ? `Guest ${order.temporaryCustomer.surname}`
+          : 'Unknown Guest';
 
-      const eventData: OrderEventData = {
-        orderId: order.id,
-        status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
-        items: order.items as any[],
-        total: order.total,
-        queuePosition: this.getQueuePosition(order.id, 'kitchen')
-      };
+      // Flow 1: Order has kitchen items (can be kitchen-only or hybrid)
+      if (hasKitchenItems) {
+        console.log(`Order ${orderId} has kitchen items. Starting kitchen flow.`);
+        
+        this.kitchenQueue.set(order.id, {
+            orderId: order.id,
+            status: order.status,
+            createdAt: order.createdAt
+        });
 
-      // Send to kitchen room with queue update
-      this.wsManager.sendToRoom('KITCHEN', {
+        // Notify Kitchen staff
+        this.wsManager.sendToRoom('KITCHEN', {
+          type: 'order:created',
+          orderId: order.id,
+            data: { ...order, hasKitchenItems: true, hasWaiterItems, customerName },
+          timestamp: new Date()
+        });
+        
+        await TelegramService.notifyNewOrder(order.id, {
+            total: order.total,
+            locationName: order.locationName,
+            hasKitchenItems: true,
+            hasWaiterItems,
+            itemCount: kitchenItems.length
+        });
+
+        // If it's a HYBRID order, also notify Waiter staff as a heads-up
+      if (hasWaiterItems) {
+            console.log(`Order ${orderId} is hybrid. Notifying waiters.`);
+        this.wsManager.sendToRoom('WAITER', {
+          type: 'order:created',
+          orderId: order.id,
+                data: { ...order, hasKitchenItems, hasWaiterItems, customerName },
+          timestamp: new Date()
+        });
+            await TelegramService.notifyWaiterOrder(order.id, {
+                total: order.total,
+                locationName: order.locationName,
+                hasKitchenItems: true,
+                itemCount: waiterItems.length
+            });
+        }
+        
+      this.wsManager.sendToRoom('ADMIN', {
         type: 'order:created',
         orderId: order.id,
-        data: eventData,
+            data: { ...order, customerName },
+            timestamp: new Date()
+        });
+
+        // Do NOT broadcast the queue here. The `order:created` event is now the
+        // single source of truth for a new order, preventing a race condition
+        // with the queue update on the client-side. The queue will sync on the
+        // next periodic refresh or other event.
+        // this.broadcastKitchenQueue();
+
+      // Flow 2: Order is waiter-only (no kitchen items)
+      } else if (hasWaiterItems) {
+        console.log(`Order ${orderId} is waiter-only. Skipping kitchen.`);
+        
+        const updatedOrder = await prisma.order.update({
+            where: { id: orderId },
+            data: { status: 'READY', deliveryItems: waiterItems },
+            include: { customer: true, temporaryCustomer: true, location: true }
+        });
+
+        this.waiterQueue.set(updatedOrder.id, {
+            orderId: updatedOrder.id,
+            status: updatedOrder.status,
+            createdAt: updatedOrder.createdAt,
+        });
+
+        this.wsManager.sendToRoom('WAITER', {
+            type: 'order:ready',
+            orderId: updatedOrder.id,
+            data: updatedOrder,
         timestamp: new Date()
       });
 
-      // Send to customer room
-      this.wsManager.sendToRoom(`customer:${order.customerId}`, {
-        type: 'order:created',
-        orderId: order.id,
-        data: eventData,
-        timestamp: new Date()
-      });
+        await TelegramService.notifyWaiterOrder(order.id, {
+            total: order.total,
+            locationName: order.locationName,
+            hasKitchenItems: false,
+            itemCount: waiterItems.length
+        });
 
-      // Send queue update to all kitchen users
-      this.broadcastKitchenQueue();
+        this.wsManager.sendToRoom('KITCHEN', {
+          type: 'order:created',
+          orderId: order.id,
+            data: { ...order, customerName },
+          timestamp: new Date()
+        });
+          await TelegramService.notifyNewOrder(order.id, {
+            total: order.total,
+            locationName: order.locationName,
+            hasKitchenItems: true,
+            hasWaiterItems: false,
+            itemCount: 0
+        });
+        // Do NOT broadcast here either for the same reason.
+        // this.broadcastKitchenQueue();
+      
+      // Flow 3: Order has no items, default to kitchen to be safe
+      } else {
+        console.log(`Order ${orderId} has no specific items, defaulting to kitchen flow.`);
+        this.kitchenQueue.set(order.id, {
+            orderId: order.id,
+            status: order.status,
+            createdAt: order.createdAt
+        });
+        this.wsManager.sendToRoom('KITCHEN', {
+            type: 'order:created',
+            orderId: order.id,
+            data: { ...order, customerName },
+            timestamp: new Date()
+        });
+        await TelegramService.notifyNewOrder(order.id, {
+            total: order.total,
+            locationName: order.locationName,
+            hasKitchenItems: true,
+            hasWaiterItems: false,
+            itemCount: 0
+        });
+        // Do NOT broadcast here either for the same reason.
+        // this.broadcastKitchenQueue();
+      }
 
-      console.log(`Order created and added to kitchen queue: ${orderId}`);
     } catch (error) {
-      console.error('Error sending order created notification:', error);
+      console.error('Error in orderCreated:', error);
     }
   }
 
   // Kitchen picks up order (with concurrent prevention)
   async orderAssignedToKitchen(orderId: string, kitchenUserId: string, kitchenUserName: string) {
     try {
-      // Check if order is already assigned
-      if (this.orderAssignments.has(orderId)) {
-        const assignment = this.orderAssignments.get(orderId);
+      // Check if order is already assigned to a kitchen member
+      if (this.kitchenAssignments.has(orderId)) {
+        const assignment = this.kitchenAssignments.get(orderId);
         if (assignment && assignment.userId !== kitchenUserId) {
           throw new Error(`Order ${orderId} is already assigned to another user`);
         }
@@ -144,7 +278,25 @@ class OrderEventService {
 
       // Check if order is in kitchen queue
       if (!this.kitchenQueue.has(orderId)) {
+        // Check if order exists in database with PENDING status before failing
+        const orderExists = await prisma.order.findFirst({
+          where: { 
+            id: orderId,
+            status: 'PENDING'
+          }
+        });
+        
+        if (orderExists) {
+          // If order exists in database but not in queue, add it to the queue
+          console.log(`Order ${orderId} found in database but not in queue. Adding to queue now.`);
+          this.kitchenQueue.set(orderId, {
+            orderId,
+            status: orderExists.status,
+            createdAt: orderExists.createdAt
+          });
+        } else {
         throw new Error(`Order ${orderId} is not available in kitchen queue`);
+        }
       }
 
       const order = await (prisma as any).order.update({
@@ -163,8 +315,8 @@ class OrderEventService {
       // Remove from kitchen queue
       this.kitchenQueue.delete(orderId);
 
-      // Track assignment
-      this.orderAssignments.set(orderId, {
+      // Track assignment for kitchen
+      this.kitchenAssignments.set(orderId, {
         userId: kitchenUserId,
         assignedAt: new Date()
       });
@@ -220,31 +372,28 @@ class OrderEventService {
         where: { id: orderId },
         data: {
           status: 'READY',
-          readyAt: new Date()
+          readyAt: new Date(),
+          deliveryItems: (await prisma.order.findUnique({ where: { id: orderId } }))?.items,
         },
         include: {
           customer: true,
-          kitchenStaff: true
+          kitchenStaff: true,
+          temporaryCustomer: true,
+          location: true
         }
       });
 
-      // Add to waiter queue
+      // Add to waiter queue - all ready orders should be in waiter queue
       this.waiterQueue.set(order.id, {
         orderId: order.id,
         status: order.status,
         createdAt: order.createdAt
       });
 
-      // Remove assignment tracking
-      this.orderAssignments.delete(orderId);
+      // Remove kitchen assignment tracking
+      this.kitchenAssignments.delete(orderId);
 
-      const eventData: OrderEventData = {
-        orderId: order.id,
-        status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
-        items: order.items as any[],
-        readyAt: order.readyAt
-      };
+      const eventData = order; // Send the full order object.
 
       // Send to waiter room
       this.wsManager.sendToRoom('WAITER', {
@@ -273,6 +422,21 @@ class OrderEventService {
       // Update waiter queue for all users
       this.broadcastWaiterQueue();
 
+      // Send Telegram notification to Waiter ONLY if no waiter has acknowledged it yet.
+      if (!order.assignedToWaiter) {
+        try {
+          const notificationSent = await TelegramService.notifyOrderReadyForPickup(order.id);
+          
+          if (notificationSent) {
+            console.log(`Telegram notification sent for ready order: ${orderId}`);
+          } else {
+            console.warn(`Failed to send Telegram notification for ready order: ${orderId}`);
+          }
+        } catch (error) {
+          console.error(`Error sending Telegram notification for ready order: ${orderId}`, error);
+        }
+      }
+
       console.log(`Order ready and added to waiter queue: ${orderId}`);
     } catch (error) {
       console.error('Error marking order as ready:', error);
@@ -282,45 +446,70 @@ class OrderEventService {
   // Waiter picks up order (with concurrent prevention)
   async orderAssignedToWaiter(orderId: string, waiterUserId: string, waiterUserName: string) {
     try {
-      // Check if order is already assigned
-      if (this.orderAssignments.has(orderId)) {
-        const assignment = this.orderAssignments.get(orderId);
+      const currentOrder = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!currentOrder) {
+        throw new Error(`Order ${orderId} not found.`);
+      }
+
+      // CRITICAL: Check if another waiter has already been assigned in the DB.
+      // This prevents race conditions for both acknowledgements and pickups.
+      if (currentOrder.assignedToWaiter && currentOrder.assignedToWaiter !== waiterUserId) {
+          throw new Error(`Order ${orderId} is already assigned to another waiter.`);
+      }
+
+      // If the order is READY, it's a delivery assignment. Check waiterAssignments map for in-memory safety.
+      if (currentOrder.status === 'READY') {
+        if (this.waiterAssignments.has(orderId)) {
+          const assignment = this.waiterAssignments.get(orderId);
         if (assignment && assignment.userId !== waiterUserId) {
-          throw new Error(`Order ${orderId} is already assigned to another waiter`);
+            throw new Error(`Order ${orderId} is already assigned to another waiter for delivery`);
+          }
         }
       }
 
-      // Check if order is in waiter queue
-      if (!this.waiterQueue.has(orderId)) {
-        throw new Error(`Order ${orderId} is not available in waiter queue`);
+      // A waiter can be assigned to PENDING, PREPARING, or READY orders.
+      const isAssignable = ['PENDING', 'PREPARING', 'READY'].includes(currentOrder.status);
+      if (!isAssignable) {
+        throw new Error(`Order ${orderId} is in status ${currentOrder.status} and cannot be assigned.`);
       }
+
+      // The status only becomes 'ASSIGNED' if the order was already 'READY' for pickup.
+      // Otherwise, it remains in its current state (e.g., 'PENDING', 'PREPARING').
+      const newStatus = currentOrder.status === 'READY' ? 'ASSIGNED' : currentOrder.status;
 
       const order = await (prisma as any).order.update({
         where: { id: orderId },
         data: {
-          status: 'ASSIGNED',
+          status: newStatus,
           assignedToWaiter: waiterUserId,
           waiterAssignedAt: new Date()
         },
         include: {
           customer: true,
-          waiter: true
+          waiter: true,
+          temporaryCustomer: true,
+          location: true
         }
       });
 
-      // Remove from waiter queue
+      // Remove from waiter queue only if it was ready and in the queue
+      if (currentOrder.status === 'READY') {
       this.waiterQueue.delete(orderId);
-
-      // Track assignment
-      this.orderAssignments.set(orderId, {
+      }
+      
+      // If order is ready, it's a delivery assignment.
+      // Otherwise, it's just an acknowledgement.
+      if (currentOrder.status === 'READY') {
+          this.waiterAssignments.set(orderId, {
         userId: waiterUserId,
         assignedAt: new Date()
       });
+      }
 
       const eventData: OrderEventData = {
         orderId: order.id,
         status: order.status,
-        customerName: `${order.customer.guestFirstName} ${order.customer.guestLastName}`,
+        customerName: order.customer ? `${order.customer.guestFirstName} ${order.customer.guestLastName}` : `Guest ${order.temporaryCustomer.surname}`,
         assignedTo: waiterUserId,
         assignedToName: waiterUserName,
         items: order.items as any[],
@@ -376,8 +565,9 @@ class OrderEventService {
         }
       });
 
-      // Remove assignment tracking
-      this.orderAssignments.delete(orderId);
+      // Remove assignment tracking for both
+      this.kitchenAssignments.delete(orderId);
+      this.waiterAssignments.delete(orderId);
 
       const eventData: OrderEventData = {
         orderId: order.id,
@@ -425,7 +615,8 @@ class OrderEventService {
       // Remove from queues
       this.kitchenQueue.delete(orderId);
       this.waiterQueue.delete(orderId);
-      this.orderAssignments.delete(orderId);
+      this.kitchenAssignments.delete(orderId);
+      this.waiterAssignments.delete(orderId);
 
       const eventData: OrderEventData = {
         orderId: order.id,
@@ -467,6 +658,19 @@ class OrderEventService {
       this.broadcastKitchenQueue();
       this.broadcastWaiterQueue();
 
+      // Send Telegram notification to all staff
+      try {
+        const notificationSent = await TelegramService.notifyOrderCancelled(order.id);
+        
+        if (notificationSent) {
+          console.log(`Telegram notification sent for cancelled order: ${orderId}`);
+        } else {
+          console.warn(`Failed to send Telegram notification for cancelled order: ${orderId}`);
+        }
+      } catch (error) {
+        console.error(`Error sending Telegram notification for cancelled order: ${orderId}`, error);
+      }
+
       console.log(`Order cancelled: ${orderId}`);
     } catch (error) {
       console.error('Error cancelling order:', error);
@@ -490,17 +694,40 @@ class OrderEventService {
   }
 
   // Broadcast kitchen queue to all kitchen users
-  private async broadcastKitchenQueue() {
+  public async broadcastKitchenQueue() {
+    try {
     // Fetch all orders in the kitchen queue with full details
     const queue = Array.from(this.kitchenQueue.values());
+      
+      if (queue.length === 0) {
+        const emptyQueueEvent: QueueUpdateEvent = {
+          type: 'queue:kitchen_update',
+          data: { queue: [] },
+          timestamp: new Date()
+        };
+        this.wsManager.sendToRoom('KITCHEN', emptyQueueEvent);
+        return;
+      }
+      
     const orderIds = queue.map(q => q.orderId);
+      
     const orders = await prisma.order.findMany({
       where: { id: { in: orderIds } },
-      include: { location: true, customer: true }
+        include: { location: true, customer: true, temporaryCustomer: true, charge: true }
     });
+      
     // Map to detailed queue items
     const detailedQueue = queue.map(q => {
       const order = orders.find(o => o.id === q.orderId);
+        
+        // Handle customer name properly with fallbacks
+        let customerName = 'Unknown Guest';
+        if (order?.customer) {
+          customerName = `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}`.trim();
+        } else if (order?.temporaryCustomer) {
+          customerName = `Guest ${order.temporaryCustomer.surname || ''}`.trim();
+        }
+        
       return {
         orderId: q.orderId,
         status: q.status,
@@ -508,29 +735,84 @@ class OrderEventService {
         assignedToKitchen: q.assignedTo,
         locationName: order?.locationName || '',
         items: order?.items || [],
-        customerName: order ? `${order.customer?.guestFirstName || ''} ${order.customer?.guestLastName || ''}` : '',
-        total: order?.total || 0
+          customerName: customerName,
+          total: order?.total || 0,
+          charge: order?.charge || null
       };
     });
+      
     const queueEvent: QueueUpdateEvent = {
       type: 'queue:kitchen_update',
       data: { queue: detailedQueue },
       timestamp: new Date()
     };
-    (this.wsManager as any).sendToRoom('KITCHEN', queueEvent);
+      
+      this.wsManager.sendToRoom('KITCHEN', queueEvent);
+    } catch (error) {
+      console.error('Error broadcasting kitchen queue:', error);
+    }
   }
 
   // Broadcast waiter queue to all waiter users
-  private broadcastWaiterQueue() {
-    this.getWaiterQueue().then(queue => {
+  public async broadcastWaiterQueue() {
+    try {
+      const queue = Array.from(this.waiterQueue.values());
+      
+      if (queue.length === 0) {
+        const emptyQueueEvent: QueueUpdateEvent = {
+          type: 'queue:waiter_update',
+          data: { queue: [] },
+          timestamp: new Date()
+        };
+        this.wsManager.sendToRoom('WAITER', emptyQueueEvent);
+        return;
+      }
+      
+      const orderIds = queue.map(q => q.orderId);
+      
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        include: { location: true, customer: true, temporaryCustomer: true, charge: true }
+      });
+      
+      // Map to detailed queue items with charge information
+      const detailedQueue = queue.map(q => {
+        const order = orders.find(o => o.id === q.orderId);
+        
+        // Handle customer name properly with fallbacks
+        let customerName = 'Unknown Guest';
+        if (order?.customer) {
+          customerName = `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}`.trim();
+        } else if (order?.temporaryCustomer) {
+          customerName = `Guest ${order.temporaryCustomer.surname || ''}`.trim();
+        }
+        
+        return {
+          orderId: q.orderId,
+          status: q.status,
+          createdAt: q.createdAt,
+          assignedToWaiter: q.assignedTo,
+          locationName: order?.locationName || '',
+          items: order?.items || [],
+          customerName: customerName,
+          total: order?.total || 0,
+          charge: order?.charge || null
+        };
+      });
+      
+      // Sort by created time
+      const sortedQueue = detailedQueue.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      
       const queueEvent: QueueUpdateEvent = {
         type: 'queue:waiter_update',
-        data: { queue },
+        data: { queue: sortedQueue },
         timestamp: new Date()
       };
-      // Use any to bypass the type check for queue updates
-      (this.wsManager as any).sendToRoom('WAITER', queueEvent);
-    });
+      
+      this.wsManager.sendToRoom('WAITER', queueEvent);
+    } catch (error) {
+      console.error('Error broadcasting waiter queue:', error);
+    }
   }
 
   // Get queue position for an order
@@ -546,13 +828,19 @@ class OrderEventService {
 
   // Check if order is available for pickup
   isOrderAvailable(orderId: string, queueType: 'kitchen' | 'waiter'): boolean {
-    const queue = queueType === 'kitchen' ? this.kitchenQueue : this.waiterQueue;
-    return queue.has(orderId) && !this.orderAssignments.has(orderId);
+    if (queueType === 'kitchen') {
+        return this.kitchenQueue.has(orderId) && !this.kitchenAssignments.has(orderId);
+    }
+    // For waiters, "available" means in the ready queue and not assigned for delivery
+    return this.waiterQueue.has(orderId) && !this.waiterAssignments.has(orderId);
   }
 
   // Get order assignment info
   getOrderAssignment(orderId: string) {
-    return this.orderAssignments.get(orderId);
+    return {
+        kitchen: this.kitchenAssignments.get(orderId),
+        waiter: this.waiterAssignments.get(orderId)
+    };
   }
 
   // Get connected users count for monitoring
@@ -574,24 +862,98 @@ class OrderEventService {
       waiter: {
         total: this.waiterQueue.size
       },
-      assignments: this.orderAssignments.size
+      assignments: {
+        kitchen: this.kitchenAssignments.size,
+        waiter: this.waiterAssignments.size
+      }
     };
   }
 
-  async createOrderFromWebSocket({ items, total, location, customerId }: { items: any[]; total: number; location: string; customerId: string }) {
-    // Create order in DB
-    const order = await (prisma as any).order.create({
-      data: {
-        status: 'PENDING',
-        items: items,
-        total,
-        locationName: location,
-        customerId
-      }
-    });
-    // Broadcast order created event
-    await this.orderCreated(order.id);
-    return order;
+  // Synchronize queues with database to ensure consistency
+  async synchronizeQueues() {
+    try {
+      console.log("Starting queue synchronization with database...");
+      
+      // Clear existing queues
+      this.kitchenQueue.clear();
+      this.waiterQueue.clear();
+      
+      // Reload pending orders into kitchen queue
+      const pendingOrders = await prisma.order.findMany({
+        where: { status: 'PENDING' }
+      });
+
+      pendingOrders.forEach(order => {
+        this.kitchenQueue.set(order.id, {
+          orderId: order.id,
+          status: order.status,
+          createdAt: order.createdAt,
+          assignedTo: order.assignedToKitchen
+        });
+      });
+
+      // Reload ready orders into waiter queue
+      const readyOrders = await prisma.order.findMany({
+        where: { status: 'READY' }
+      });
+
+      readyOrders.forEach(order => {
+        this.waiterQueue.set(order.id, {
+          orderId: order.id,
+          status: order.status,
+          createdAt: order.createdAt,
+          assignedTo: order.assignedToWaiter
+        });
+      });
+      
+      // Reset assignments to ensure they match reality
+      this.kitchenAssignments.clear();
+      this.waiterAssignments.clear();
+      const assignedOrders = await prisma.order.findMany({
+        where: {
+          OR: [
+            { status: 'PREPARING', NOT: { assignedToKitchen: null } },
+            { status: 'ASSIGNED', NOT: { assignedToWaiter: null } }
+          ]
+        }
+      });
+      
+      assignedOrders.forEach(order => {
+        if (order.status === 'PREPARING' && order.assignedToKitchen) {
+          this.kitchenAssignments.set(order.id, {
+            userId: order.assignedToKitchen as string,
+            assignedAt: order.kitchenAssignedAt || new Date()
+          });
+        }
+        // A waiter can be assigned to a PENDING/PREPARING order (acknowledged)
+        if (order.assignedToWaiter && ['PENDING', 'PREPARING'].includes(order.status)) {
+            // This is an acknowledgement, not a delivery assignment, so we don't add to waiterAssignments map.
+            // The DB is the source of truth for this state.
+        }
+        // A waiter can be assigned to a READY order (for delivery)
+        else if (order.status === 'ASSIGNED' && order.assignedToWaiter) {
+          this.waiterAssignments.set(order.id, {
+            userId: order.assignedToWaiter as string,
+            assignedAt: order.waiterAssignedAt || new Date()
+          });
+        }
+      });
+
+      console.log(`Queue synchronization complete: ${this.kitchenQueue.size} kitchen orders, ${this.waiterQueue.size} waiter orders, ${this.kitchenAssignments.size} kitchen assignments, ${this.waiterAssignments.size} waiter assignments`);
+      
+      // Broadcast updated queues
+      this.broadcastKitchenQueue();
+      this.broadcastWaiterQueue();
+      
+      return {
+        kitchen: this.kitchenQueue.size,
+        waiter: this.waiterQueue.size,
+        assignments: this.kitchenAssignments.size + this.waiterAssignments.size
+      };
+    } catch (error) {
+      console.error('Error synchronizing queues:', error);
+      throw error;
+    }
   }
 }
 

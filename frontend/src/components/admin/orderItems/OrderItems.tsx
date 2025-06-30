@@ -185,6 +185,7 @@ export default function OrderItems() {
     description: string
     price: number
     imageUrl: string
+    role: string
   }) => {
     setLoadingAction(true)
     setError("")
@@ -201,7 +202,8 @@ export default function OrderItems() {
           name: formData.name,
           description: formData.description,
           price: formData.price,
-          imageUrl: formData.imageUrl
+          imageUrl: formData.imageUrl,
+          role: formData.role
         }),
       })
       
@@ -231,6 +233,7 @@ export default function OrderItems() {
     description: string
     price: number
     imageUrl: string
+    role: string
   }) => {
     if (!selectedOrderItem) return
     
@@ -249,7 +252,8 @@ export default function OrderItems() {
           name: formData.name,
           description: formData.description,
           price: formData.price,
-          imageUrl: formData.imageUrl
+          imageUrl: formData.imageUrl,
+          role: formData.role
         }),
       })
       
@@ -877,6 +881,12 @@ export default function OrderItems() {
                         scope="col"
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
+                        Role
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
                         Created
                       </th>
                       <th
@@ -925,6 +935,9 @@ export default function OrderItems() {
                               ? `${item.description.substring(0, 50)}...` 
                               : item.description}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.role}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(item.createdAt)}

@@ -325,6 +325,7 @@ export interface Category {
 
 
 export interface OrderItem {
+  role: string;
   id: string
   name: string
   description: string
@@ -369,6 +370,10 @@ export interface KitchenOrder {
   assignedToKitchen?: string;
   customerName?: string;
   total?: number;
+  hasWaiterItems?: boolean;
+  hasKitchenItems?: boolean;
+  requiresKitchen?: boolean;
+  paymentMethod?: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER';
 }
 
 
@@ -440,4 +445,23 @@ export interface SettingsFormValues {
   dahuaIsEnabled?: boolean;
   dahuaGateId?: string;
   dahuaLicensePlateExpiryHours?: string;
+}
+
+export interface AvailabilityRule {
+  id: string;
+  name: string;
+  startTime: string; // "HH:MM"
+  endTime: string; // "HH:MM"
+  daysOfWeek: number[]; // [0-6]
+  isActive: boolean;
+}
+
+export interface OrderCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string;
+  orderItems: OrderItem[];
+  isAvailable: boolean | null;
+  availabilityRule: AvailabilityRule | null;
 }

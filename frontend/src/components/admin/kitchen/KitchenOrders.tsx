@@ -18,7 +18,8 @@ export default function KitchenOrders() {
   const [selectedMyOrder, setSelectedMyOrder] = useState<KitchenOrder | null>(null);
   const { user } = useAuth();
 
-  console.log(recentlyTaken);
+  console.log(selectedMyOrder)
+
 
   // Play notification sound
   const playSound = () => {
@@ -30,29 +31,62 @@ export default function KitchenOrders() {
   const showPushNotification = (order: any) => {
     console.log(order);
     if (window.Notification && Notification.permission === "granted") {
-      new Notification("New Kitchen Order", {
+      const notification = new Notification("New Kitchen Order", {
         body: `Order #${order.orderId?.slice(-6) || order.id?.slice(-6)} at ${order.locationName}`,
       });
+
+      notification.onclick = () => {
+        const targetUrl = `${window.location.origin}/admin/dashboard?sidebar=kitchen-orders`;
+        window.open(targetUrl, "_self");
+      };
     }
   };
 
   // Normalize order data from API or WS
-  const normalizeOrder = (order: any): KitchenOrder => ({
-    id: order.id || order.orderId,
-    orderId: order.orderId || order.id,
-    items: Array.isArray(order.items)
-      ? order.items.filter(Boolean).map((item: any) => ({
-          ...item,
-          imageUrl: item.imageUrl || item.image || '/assets/placeholder.png',
-        }))
-      : [],
-    locationName: order.locationName || (order.location && order.location.name) || '',
-    status: order.status,
-    createdAt: order.createdAt,
-    assignedToKitchen: order.assignedToKitchen || order.assignedTo,
-    customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}` : ''),
-    total: order.total || 0
-  });
+  const normalizeOrder = (order: any): KitchenOrder => {
+    // Get all items first
+    const allItems = Array.isArray(order.items) ? order.items : [];
+    
+    // Filter kitchen items for display
+    const kitchenItems = allItems.filter((item: any) => 
+      item && (!item.role || item.role === 'KITCHEN')
+    );
+    const hasKitchenItems = kitchenItems.length > 0;
+    
+    // Count waiter items to determine if there are any
+    const waiterItems = allItems.filter((item: any) => item && item.role === 'WAITER');
+    const hasWaiterItems = waiterItems.length > 0;
+    
+    // Use kitchen items if available, otherwise fall back to allItems or kitchenItems from event data
+    const displayItems = kitchenItems.length > 0
+      ? kitchenItems
+      : Array.isArray(order.kitchenItems) && order.kitchenItems.length > 0
+      ? order.kitchenItems
+      : [];
+
+    // Determine payment method based on charge object existence
+    const paymentMethod = order.charge || (order.data && order.data.charge) 
+      ? 'ASSIGN_TO_ROOM' 
+      : 'PAY_AT_WAITER';
+    
+    return {
+      id: order.id || order.orderId,
+      orderId: order.orderId || order.id,
+      items: displayItems.filter(Boolean).map((item: any) => ({
+        ...item,
+        imageUrl: item.imageUrl || item.image || '/assets/placeholder.png',
+      })),
+      locationName: order.locationName || (order.location && order.location.name) || '',
+      status: order.status,
+      createdAt: order.createdAt,
+      assignedToKitchen: order.assignedToKitchen || order.assignedTo,
+      customerName: order.customerName || (order.customer ? `${order.customer.guestFirstName || ''} ${order.customer.guestLastName || ''}` : ''),
+      total: order.total || 0,
+      hasWaiterItems: hasWaiterItems,
+      hasKitchenItems: hasKitchenItems,
+      paymentMethod: paymentMethod
+    };
+  };
 
   // Fetch initial orders
   useEffect(() => {
@@ -75,10 +109,23 @@ export default function KitchenOrders() {
         setOrders((data.data.queue || []).map(normalizeOrder));
       }
       if (data.type === "order:created") {
-        const newOrder = normalizeOrder(data.data);
-        toast.success("New order received!");
-        playSound();
-        showPushNotification(newOrder);
+        // This event is now the source of truth for a new order.
+        // We add it to the list immediately for a responsive UI.
+        if (data.data.hasKitchenItems) {
+          const newOrder = normalizeOrder(data.data);
+            
+            setOrders(prevOrders => {
+              // Prevent duplicates if the event is somehow processed more than once.
+              if (prevOrders.some(o => o.id === newOrder.id)) {
+                return prevOrders;
+              }
+              return [newOrder, ...prevOrders];
+            });
+
+            toast.success("New order received!");
+            playSound();
+            showPushNotification(newOrder);
+        }
       }
       if (data.type === "order:assigned_kitchen") {
         const pickedBy = data.data.assignedTo === user?.id 
@@ -164,9 +211,18 @@ export default function KitchenOrders() {
                   className="bg-white rounded-lg shadow-md p-4 flex flex-col md:flex-row md:items-center justify-between transition-all animate-fade-in"
                 >
                   <div>
-                    <div className="font-semibold text-lg">Order #{order.orderId.slice(-6)}</div>
+                    <div className="font-semibold text-lg flex items-center">
+                      Order #{order.orderId.slice(-6)}
+                      {order.hasWaiterItems && (
+                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          + Waiter Items
+                        </span>
+                      )}
+                    </div>
                     <div className="text-gray-600 text-sm mb-2">Location: {order.locationName}</div>
-                    <div className="text-gray-700 text-sm mb-2">Items: {order.items?.length || 0}</div>
+                    <div className="text-gray-700 text-sm mb-2">
+                      Items: {order.items?.length || 0}
+                    </div>
                     <div className="text-xs text-gray-400">Created: {new Date(order.createdAt).toLocaleTimeString()}</div>
                   </div>
                   <div className="flex space-x-2 mt-4 md:mt-0">
@@ -199,6 +255,11 @@ export default function KitchenOrders() {
                   <div>
                     <div className="font-semibold text-lg flex items-center gap-2">
                       Order #{order.orderId.slice(-6)}
+                      {order.hasWaiterItems && (
+                        <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          + Waiter Items
+                        </span>
+                      )}
                       <span className={`inline-block px-2 py-1 rounded text-xs font-bold ml-2 ${
                         order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                         order.status === 'PREPARING' ? 'bg-blue-100 text-blue-800' :
@@ -209,7 +270,9 @@ export default function KitchenOrders() {
                       </span>
                     </div>
                     <div className="text-gray-600 text-sm mb-2">Location: {order.locationName}</div>
-                    <div className="text-gray-700 text-sm mb-2">Items: {order.items?.length || 0}</div>
+                    <div className="text-gray-700 text-sm mb-2">
+                      Items: {order.items?.length || 0}
+                    </div>
                     <div className="text-xs text-gray-400">Created: {new Date(order.createdAt).toLocaleTimeString()}</div>
                   </div>
                   <div className="flex space-x-2 mt-4 md:mt-0">
@@ -241,9 +304,14 @@ export default function KitchenOrders() {
                 >
                   &times;
                 </button>
-                <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap">
                   Order #{selectedMyOrder.orderId.slice(-6)}
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ml-2 ${
+                  {selectedMyOrder.hasWaiterItems && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      + Waiter Items
+                    </span>
+                  )}
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
                     selectedMyOrder.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                     selectedMyOrder.status === 'PREPARING' ? 'bg-blue-100 text-blue-800' :
                     selectedMyOrder.status === 'READY' ? 'bg-green-100 text-green-800' :
@@ -254,11 +322,56 @@ export default function KitchenOrders() {
                 </h3>
                 <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
                 <div className="text-gray-700 mb-2">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
+                
+                {/* Payment Method Indicator */}
+                <div className={`mb-4 p-3 rounded-lg ${
+                  selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                    ? 'bg-purple-50 border border-purple-100' 
+                    : 'bg-green-50 border border-green-100'
+                }`}>
+                  <div className="font-semibold">
+                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                      ? 'Payment: Room Charge' 
+                      : 'Payment: Pay at Waiter'}
+                  </div>
+                </div>
+                
                 <div className="mb-4">
-                  <div className="font-semibold mb-1">Items:</div>
-                  <ul className="space-y-2">
-                    {selectedMyOrder.items?.map((item, idx) => (
-                      <li key={idx} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50">
+                  <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
+
+                  {/* Kitchen Items */}
+                  <div className="mb-3">
+                    <p className="font-medium text-gray-700">Your Items to Prepare</p>
+                    {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').length > 0 ? (
+                      <ul className="space-y-2 mt-1">
+                        {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
+                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-green-50">
+                            <img
+                              src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                              alt={item.name}
+                              className="w-12 h-12 object-cover rounded border"
+                              onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                            />
+                            <div>
+                              <div className="font-medium">{item.name}</div>
+                              {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                              <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic mt-1">No specific kitchen items in this order.</p>
+                    )}
+                  </div>
+
+                  {/* Waiter Items */}
+                  {selectedMyOrder.hasWaiterItems && (
+                    <div>
+                      <p className="font-medium text-gray-700">Waiter Items (For Reference)</p>
+                      <ul className="space-y-2 mt-1 opacity-70">
+                        {selectedMyOrder.items?.filter(item => item.role === 'WAITER').map((item, idx) => (
+                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
                         <img
                           src={item.imageUrl || item.image || '/assets/placeholder.png'}
                           alt={item.name}
@@ -274,6 +387,9 @@ export default function KitchenOrders() {
                     ))}
                   </ul>
                 </div>
+                  )}
+                </div>
+
                 <div className="mb-2 text-gray-600">Total: <span className="font-semibold">€{selectedMyOrder.total?.toFixed(2)}</span></div>
                 {selectedMyOrder.status !== 'READY' && (
                   <button

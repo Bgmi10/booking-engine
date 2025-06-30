@@ -1,112 +1,120 @@
-import { useEffect, useState } from "react";
-import { baseUrl } from "../../utils/constants";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { baseUrl } from '../../utils/constants';
 
-export default function CustomerVerify() {
-  const navigate = useNavigate();
-  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
-  const [message, setMessage] = useState<string>("Verifying your email, please wait...");
-  const redirectUrl = localStorage.getItem('redirectAfterVerify');
+const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVerificationSuccess }) => {
+    const [surname, setSurname] = useState('');
+    const [roomName, setRoomName] = useState('');
+    const [occupiedRooms, setOccupiedRooms] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("token");
+    useEffect(() => {
+        const fetchOccupiedRooms = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`${baseUrl}/customers/occupied-rooms`);
+                const data = await response.json();
+                if (response.ok) {
+                    setOccupiedRooms(data.data);
+                } else {
+                    throw new Error(data.message || 'Failed to load rooms.');
+                }
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-    if (!token) {
-      setStatus("error");
-      setMessage("Invalid verification link. Token is missing.");
-      return;
-    }
+        fetchOccupiedRooms();
+    }, []);
 
-    const verify = async () => {
-      try {
-        const response = await fetch(`${baseUrl}/customers/verify?token=${token}`, {
-          method: "GET",
-          credentials: "include",
-        });
-        const data = await response.json();
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
 
-        if (response.ok) {
-          setStatus("success");
-          setMessage("Your email has been successfully verified!");
-          
-          if (redirectUrl) {
-            localStorage.removeItem('redirectAfterVerify');
-            window.location.href = redirectUrl;
-          }
-        } else {
-          setStatus("error");
-          setMessage(data.message || "Verification failed. The link may have expired.");
+        if (!surname || !roomName) {
+            setError('Please provide your surname and select a room.');
+            return;
         }
-      } catch (e) {
-        console.error(e);
-        setStatus("error");
-        setMessage("Network error. Please try again later.");
-      }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${baseUrl}/customers/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ surname, roomName }),
+                credentials: 'include',
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Verification successful!');
+                onVerificationSuccess();
+            } else {
+                throw new Error(data.message || 'Verification failed.');
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    verify();
-  }, [navigate]);
+    return (
+        <div className="bg-white shadow-md rounded-lg p-8 max-w-md w-full">
+            <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Welcome</h2>
+            <p className="text-center text-gray-600 mb-6">Please verify your stay to place an order.</p>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                    <label htmlFor="surname" className="block text-sm font-medium text-gray-700">
+                        Surname
+                    </label>
+                    <input
+                        id="surname"
+                        type="text"
+                        value={surname}
+                        onChange={(e) => setSurname(e.target.value)}
+                        placeholder="Enter your surname (last name)"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        disabled={isLoading}
+                    />
+                </div>
+                <div>
+                    <label htmlFor="roomName" className="block text-sm font-medium text-gray-700">
+                        Room
+                    </label>
+                    <select
+                        id="roomName"
+                        value={roomName}
+                        onChange={(e) => setRoomName(e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        disabled={isLoading || occupiedRooms.length === 0}
+                    >
+                        <option value="">{isLoading ? 'Loading rooms...' : 'Select your room'}</option>
+                        {occupiedRooms.map((room) => (
+                            <option key={room} value={room}>
+                                {room}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                <div>
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                        {isLoading ? 'Verifying...' : 'Continue'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
 
-  const manualRedirect = () => {
-    if (redirectUrl) {
-      localStorage.removeItem('redirectAfterVerify');
-      window.location.href = redirectUrl;
-    } else {
-      navigate("/");
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="bg-white shadow-md rounded-lg p-8 max-w-md w-full text-center">
-        {status === "verifying" && (
-          <>
-            <div className="flex justify-center mb-4">
-              <svg className="w-12 h-12 text-indigo-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" strokeWidth="4" className="opacity-25" />
-                <path d="M4 12a8 8 0 018-8" strokeWidth="4" className="opacity-75" />
-              </svg>
-            </div>
-            <p className="text-gray-700">{message}</p>
-          </>
-        )}
-
-        {status === "success" && (
-          <>
-            <div className="flex justify-center mb-4">
-              <svg className="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Verification Successful!</h2>
-            <p className="text-gray-700 mb-6">You can now return to your order.</p>
-            <button
-              onClick={manualRedirect}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Go Back
-            </button>
-          </>
-        )}
-
-        {status === "error" && (
-          <>
-            <div className="flex justify-center mb-4">
-              <svg className="w-16 h-16 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Verification Failed</h2>
-            <p className="text-gray-700 mb-6">{message}</p>
-            <button
-              onClick={manualRedirect}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Go Home
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+export default CustomerVerify;

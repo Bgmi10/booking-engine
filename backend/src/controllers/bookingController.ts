@@ -200,7 +200,6 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       payment_method_types: ["card"],
       mode: "payment",
       line_items,
-      customer_email: customerDetails.email,
       metadata: {
         pendingBookingId: pendingBooking.id,
         customerEmail: customerDetails.email,
@@ -256,6 +255,8 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
 
     if (customer?.stripeCustomerId) {
       sessionConfig.customer = customer.stripeCustomerId;
+    } else {
+      sessionConfig.customer_email = customerDetails.email;
     }
 
     // Save payment method for future use
