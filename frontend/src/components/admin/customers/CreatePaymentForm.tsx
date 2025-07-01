@@ -77,66 +77,56 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
         setView('payment_method');
     };
 
-    const handlePaymentMethodSelect = (methodId: string) => {
+    const handlePaymentMethodSelected = async (methodId: string, data?: any) => {
         setSelectedPaymentMethod(methodId);
+
+        if (methodId === 'cash') {
+            if (data?.success) {
+                onClose(); // Close the modal since payment is done
+            }
+            // If not successful, the user stays on the payment selection screen
+            // and the toast message is already shown by the child component.
+            return;
+        }
         
         if (methodId === 'manual_transaction_id') {
             setView('manual_transaction');
         } else if (methodId === 'hosted_invoice') {
             setView('hosted_invoice');
         } else if (methodId === 'qr_code') {
-            setView('qr_code');
+            setIsProcessing(true);
+            try {
+                const response = await fetch(baseUrl + `/admin/charges/create-qr-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        customerId: customer.id,
+                        amount: amount,
+                        description: description,
+                        currency: currency.code,
+                    }),
+                });
+    
+                const responseData = await response.json();
+    
+                if (!response.ok) {
+                    alert(responseData.message || 'Failed to create QR session.');
+                    return;
+                }
+                
+                window.location.href = `/qr/${responseData.data.chargeId}`;
+    
+            } catch (error) {
+                console.error('Error creating QR session:', error);
+                alert('An unexpected error occurred while creating the QR session.');
+            } finally {
+                setIsProcessing(false);
+            }
         } else if (methodId === 'manual_charge') {
             setView('card_entry');
-        }
-    };
-
-    const handlePaymentMethodNext = async (selectedMethodId: string) => {
-        if (selectedMethodId === 'manual_transaction_id') {
-            setView('manual_transaction');
-            return;
-        }
-
-        if (selectedMethodId === 'hosted_invoice') {
-            setView('hosted_invoice');
-            return;
-        }
-
-        if (selectedMethodId !== 'qr_code') {
-            alert('This payment method is not implemented yet.');
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const response = await fetch(baseUrl + `/admin/charges/create-qr-session`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    customerId: customer.id,
-                    amount: amount,
-                    description: description,
-                    currency: currency.code,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                alert(data.message || 'Failed to create QR session.');
-                return;
-            }
-            
-            window.location.href = `/qr/${data.data.chargeId}`;
-
-        } catch (error) {
-            console.error('Error creating QR session:', error);
-            alert('An unexpected error occurred while creating the QR session.');
-        } finally {
-            setIsProcessing(false);
         }
     };
 
@@ -194,17 +184,24 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onNext={handlePaymentMethodNext}
+                        onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
+                        customerId={customer.id}
+                        description={description}
                     />
                 );
             case 'qr_code':
+                 // This view is now handled directly by the logic in handlePaymentMethodSelected
+                 // We can show a processing indicator or redirect message if needed.
+                 // For now, let's keep the user on the payment method selection screen while processing.
                 return (
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onNext={handlePaymentMethodSelect}
+                        onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
+                        customerId={customer.id}
+                        description={description}
                     />
                 );
             case 'card_entry':
@@ -212,8 +209,10 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <PaymentMethodSelection
                         amount={displayAmount}
                         currency={currency}
-                        onNext={handlePaymentMethodSelect}
+                        onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
+                        customerId={customer.id}
+                        description={description}
                     />
                 );
             case 'amount_entry':

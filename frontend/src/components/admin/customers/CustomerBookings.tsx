@@ -18,8 +18,6 @@ export default function CustomerBookings({ customer, onClose }: CustomerBookings
   const [bookingDetailsModal, setBookingDetailsModal] = useState<{ open: boolean; details: any[] | null; status?: string }>({ open: false, details: null, status: undefined });
   const [paymentDetailsModal, setPaymentDetailsModal] = useState<{ open: boolean; details: any | null }>({ open: false, details: null });
 
-  console.log(voucherModal.voucher)
-
   useEffect(() => {
     setLoading(true);
     fetch(baseUrl + `/admin/customers/${customer.id}/bookings`, { credentials: "include" })

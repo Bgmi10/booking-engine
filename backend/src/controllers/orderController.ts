@@ -240,3 +240,93 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
         handleError(res, error as Error);
     }
 };
+
+export const editOrder = async (req: express.Request, res: express.Response) => {
+    const { id: orderId } = req.params;
+    const { items } = req.body;
+  
+    if (!items || !Array.isArray(items)) {
+     handleError(res, new Error("Invalid 'items' provided. It should be an array."));
+     return;
+    }
+    try {
+      const existingOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { charge: true }
+      });
+  
+      if (!existingOrder) {
+       responseHandler(res, 404, "Order not found.");
+       return;
+      }
+
+      // Ensure every item has a quantity for calculation and for saving.
+      const itemsToSave = items.map((item: any) => ({
+        ...item,
+        quantity: item.quantity || 1,
+      }));
+      
+      const newTotal = itemsToSave.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+  
+      await prisma.$transaction(async (tx) => {
+        // 1. Update the order itself
+        const updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            items: itemsToSave,
+            deliveryItems: itemsToSave,
+            total: newTotal,
+          }
+        });
+  
+        // 2. If there's a charge associated with this order, update it
+        if (existingOrder.charge) {
+          await tx.charge.update({
+            where: { id: existingOrder.charge.id },
+            data: {
+              amount: newTotal,
+              description: `(Edited) Room charge for order #${orderId.substring(0, 8)}`,
+            }
+          });
+        }
+        return updatedOrder;
+      });
+      
+      responseHandler(res, 200, "Order updated successfully.");
+  
+    } catch (error) {
+      console.error("Error editing order:", error);
+      handleError(res, error as Error);
+    }
+};
+
+export const cancelOrder = async (req: express.Request, res: express.Response) => {
+  const { id: orderId } = req.params;
+  try {
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+    if (!existingOrder) {
+      responseHandler(res, 404, "Order not found.");
+      return;
+    }
+    if (existingOrder.status === 'CANCELLED' || existingOrder.status === 'DELIVERED') {
+      responseHandler(res, 400, `Order is already ${existingOrder.status} and cannot be cancelled.`);
+      return;
+    }
+    const orderEventService = (global as any).orderEventService;
+    if (orderEventService) {
+      await orderEventService.orderCancelled(orderId);
+    } else {
+      console.error("orderEventService not found, could not send real-time order cancellation.");
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' }
+      });
+    }
+    responseHandler(res, 200, "Order cancelled successfully.");
+  } catch (error) {
+    handleError(res, error as Error);
+    console.error("Error cancelling order:", error);
+  }
+}

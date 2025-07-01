@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RiSave3Line, RiErrorWarningLine, RiCheckLine, RiSettings3Line } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
-import { baseUrl } from '../../../utils/constants';
+import { baseUrl, paymentMethods } from '../../../utils/constants';
 import { Template as TemplateComponent } from './templates/Template';
 import type { Template, Variable } from './templates/types';
 import CalendarRestriction from './CalendarRestriction';
@@ -15,29 +15,6 @@ interface PaymentConfig {
 }
 
 type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications' | 'restriction';
-
-const paymentMethods = [
-  {
-    id: 'qr_code',
-    title: 'QR Code',
-    description: 'Customer scans a QR code to pay.',
-  },
-  {
-    id: 'hosted_invoice',
-    title: 'Hosted Invoice',
-    description: 'Email your customer a payment link to pay later.',
-  },
-  {
-    id: 'manual_charge',
-    title: 'Manually Charge Card',
-    description: 'Enter card information or select a saved card.',
-  },
-  {
-    id: 'manual_transaction_id',
-    title: 'Manual Transaction ID',
-    description: 'Enter transaction ID from stripe',
-  }
-];
 
 export default function Settings() {
   // General settings state

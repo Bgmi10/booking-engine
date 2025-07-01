@@ -57,13 +57,18 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
         fetchPaymentHistory();
     }, [fetchPaymentHistory]);
 
-    const handleRefund = async (paymentId: string) => {
+    const handleRefund = async (payment: PaymentRecord) => {
         if (!window.confirm("Are you sure you want to refund this payment? This action cannot be undone.")) {
             return;
         }
-        setRefundingId(paymentId);
+        setRefundingId(payment.id);
         try {
-            const response = await fetch(`${baseUrl}/admin/charges/${paymentId}/refund`, {
+            let refundUrl = `${baseUrl}/admin/charges/${payment.id}/refund`;
+            if (payment.paymentMethod?.toLowerCase() === 'cash') {
+                refundUrl += '?paymentMethod=cash';
+            }
+
+            const response = await fetch(refundUrl, {
                 method: "POST",
                 credentials: "include",
             });
@@ -196,7 +201,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                                     <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-4">
                                         {(payment.status === 'SUCCEEDED' || payment.status === 'PAID') && (
                                             <button 
-                                                onClick={() => handleRefund(payment.id)}
+                                                onClick={() => handleRefund(payment)}
                                                 disabled={refundingId === payment.id}
                                                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
                                             >

@@ -196,3 +196,29 @@ export const nationalities = [
     "Zimbabwean"
 ];
 
+export const paymentMethods = [
+    {
+        id: 'qr_code',
+        title: 'QR Code',
+        description: 'Customer scans a QR code to pay.',
+    },
+    {
+        id: 'hosted_invoice',
+        title: 'Hosted Invoice',
+        description: 'Email your customer a payment link to pay later.',
+    },
+    {
+        id: 'cash',
+        title: 'Collect Cash',
+        description: 'Record a cash payment made directly by the customer.',
+    },
+    {
+        id: 'manual_transaction_id',
+        title: 'Manual Transaction ID',
+        description: 'Manually enter a Stripe transaction ID (pi_... or ch_...).'
+    }
+];
+
+export const roomAmenities = [
+    // ... existing code ...
+];

@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
-import type { OrderCategory, OrderItem as OrderItemType, AvailabilityRule } from "../../../types/types";
-import { baseUrl } from "../../../utils/constants";
+import { useState, useMemo } from "react";
+import type { OrderItem as OrderItemType, AvailabilityRule } from "../../../types/types";
 import { FaRegClock } from "react-icons/fa";
 import { BsCheckCircleFill, BsCircle, BsPlus, BsDash } from 'react-icons/bs';
 import { ArrowLeft } from 'lucide-react';
+import { useOrderCategories } from "../../../hooks/useOrderCategories";
 
 // Helper to check time-based rules
 const isWithinTime = (rule: AvailabilityRule | null | undefined): boolean => {
@@ -28,23 +28,8 @@ interface ProductSelectionStepProps {
 
 export default function ProductSelectionStep({ cart, setCart }: ProductSelectionStepProps) {
   const [internalView, setInternalView] = useState<'categories' | 'products'>('categories');
-  const [allCategories, setAllCategories] = useState<OrderCategory[]>([]);
+  const { categories: allCategories, loading, error } = useOrderCategories();
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    // Fetch categories and items
-    fetch(`${baseUrl}/admin/order-categories/all`, {
-        method: "GET",
-        credentials: "include"
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.data) {
-          const sortedCategories = data.data.sort((a: OrderCategory, b: OrderCategory) => a.name.localeCompare(b.name));
-          setAllCategories(sortedCategories);
-        }
-      });
-  }, []);
 
   const toggleCategory = (categoryId: string, isAvailable: boolean) => {
     if (!isAvailable) return;
@@ -126,7 +111,9 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
             <h3 className="text-lg font-semibold text-center text-gray-800">Select Categories</h3>
         </div>
         <div className="flex-grow overflow-y-auto">
-            {allCategories.map(category => {
+            {loading && <div className="p-4 text-center">Loading categories...</div>}
+            {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
+            {!loading && !error && allCategories.map(category => {
                 const isCatAvailable = (category.isAvailable ?? false) && isWithinTime(category.availabilityRule);
                 const isSelected = selectedCategories.has(category.id);
                 return (

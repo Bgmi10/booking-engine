@@ -16,7 +16,7 @@ import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCusto
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { createBookingsGroup } from "../controllers/groupController";
-import { chargeNewCard, chargeSaveCard, createQrSession, getChargeById, refundCharge } from "../controllers/chargeController";
+import { chargeNewCard, chargeSaveCard, collectCashFromCustomer, createQrSession, getChargeById, refundCharge } from "../controllers/chargeController";
 import { createManualTransactionCharge } from "../controllers/chargeController";
 import { getNotifications, getNotificationById, createNotification, updateNotification, completeNotification, deleteNotification, getDailyActionList, deleteNotificationAttachment } from '../controllers/notificationController';
 import { getAutomatedTaskRules, createAutomatedTaskRule, updateAutomatedTaskRule, deleteAutomatedTaskRule } from '../controllers/automatedTaskRuleController';
@@ -24,6 +24,7 @@ import { createLocation, deleteLocation, getAllLocations, updateLocation } from 
 import { createOrderItem, deleteOrderItem, getAllOrderItem, updateOrderItem } from "../controllers/orderItemController";
 import { createAdminOrder, getAllAssignedCustomersOrders, getAllPendingCustomersOrders, getKitchenOrdersByUserId, getOrderById, getWaiterOrdersByUserId, getPendingHybridOrdersForWaiter } from "../controllers/orderController";
 import { createOrderCategory, deleteOrderCategory, getAllOrderCategories, updateOrderCategory } from "../controllers/orderCategoryController";
+import { editOrder, cancelOrder } from "../controllers/orderController";
 
 const adminRouter = Router();
 
@@ -170,6 +171,8 @@ adminRouter.post('/bookings/group', authMiddleware, createBookingsGroup);
 
 adminRouter.post('/customers/:id/payment-methods', authMiddleware, getPaymentMethodsForCustomer);
 
+adminRouter.post('/charges/cash', authMiddleware, collectCashFromCustomer);
+
 adminRouter.post('/charges/charge-save-card', authMiddleware, chargeSaveCard);
 
 adminRouter.post('/charges/charge-new-card', authMiddleware, chargeNewCard);
@@ -243,5 +246,9 @@ adminRouter.get('/waiter/orders/pending-hybrid', authMiddleware, getPendingHybri
 adminRouter.get('/orders/:id', authMiddleware, getOrderById);
 
 adminRouter.post('/orders/create', authMiddleware, createAdminOrder);
+
+adminRouter.put('/orders/:id/edit', authMiddleware, editOrder);
+
+adminRouter.put('/orders/:id/cancel', authMiddleware, cancelOrder);
 
 export default adminRouter;

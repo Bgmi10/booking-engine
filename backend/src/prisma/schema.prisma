@@ -81,24 +81,26 @@ model Customer {
 }
 
 model Charge {
-  id                    String          @id   @default(uuid())
-  amount                Float 
-  currency              String          @default("eur")
-  description           String?
-  gatekeeperUrl         String?
-  status                ChargeStatus    @default(PENDING)
-  expiredAt             DateTime?      
-  createdAt             DateTime        @default(now())
-  paidAt                DateTime?
-  stripePaymentIntentId String?
-  paymentMethod         String?
-  paymentUrl            String?         
-  createdBy             String
-  customerId            String
-  customer              Customer        @relation(fields: [customerId], references: [id])
-  adminNotes            String?
-  orderId               String?         @unique
-  order                 Order?          @relation(fields: [orderId], references: [id])
+  id                    String             @id   @default(uuid())
+  amount                Float    
+  currency              String             @default("eur")
+  description           String?   
+  gatekeeperUrl         String?   
+  status                ChargeStatus       @default(PENDING)
+  expiredAt             DateTime?         
+  createdAt             DateTime           @default(now())
+  paidAt                DateTime?   
+  stripePaymentIntentId String?   
+  paymentMethod         String?   
+  paymentUrl            String?            
+  createdBy             String   
+  customerId            String   
+  customer              Customer           @relation(fields: [customerId], references: [id])
+  adminNotes            String?   
+  orderId               String?            @unique
+  order                 Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tempCustomerId        String
+  tempCustomer          TemporaryCustomer  @relation(fields: [tempCustomerId], references: [id])  
 }
         
 model Booking {        
@@ -125,7 +127,7 @@ model Booking {
   groupId             String?
   carNumberPlate      String?           // License plate for Dahua camera integration
   notifications       Notification[]
-  @@index([roomId, checkIn, checkOut])
+  @@index([roomId, checkIn, checkOut, status])
 }
 
 model Enhancement {
@@ -174,7 +176,7 @@ model TemporaryHold {
   paymentIntentId String?
   paymentIntent   PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
 
-  @@index([expiresAt])
+  @@index([expiresAt, checkIn, checkOut, roomId])
 }
 
 // NEW: PaymentIntent model to track the entire payment lifecycle
@@ -656,6 +658,7 @@ model TemporaryCustomer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
+  charges   Charge[]
 }
 
 model Location {
@@ -704,29 +707,28 @@ model AvailabilityRule {
 }
 
 model Order {
-  id                 String         @id           @default(uuid())
-  status             OrderStatus
-  customerId         String?
-  total              Float          @default(0)
-  customer           Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  items              Json
-  deliveryItems      Json?          // Items for the waiter to deliver
-  locationName       String
-  location           Location       @relation(fields: [locationName], references: [name])
-  assignedToKitchen  String?        
-  assignedToWaiter   String?      
-  kitchenAssignedAt  DateTime?    
-  readyAt            DateTime?    
-  waiterAssignedAt   DateTime?     
-  deliveredAt        DateTime?        
-  kitchenStaff       User?          @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
-  waiter             User?          @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
+  id                  String         @id           @default(uuid())
+  status              OrderStatus
+  customerId          String?
+  total               Float          @default(0)
+  customer            Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  items               Json
+  deliveryItems       Json?          // Items for the waiter to deliver
+  locationName        String
+  location            Location       @relation(fields: [locationName], references: [name])
+  assignedToKitchen   String?        
+  assignedToWaiter    String?      
+  kitchenAssignedAt   DateTime?    
+  readyAt             DateTime?    
+  waiterAssignedAt    DateTime?     
+  deliveredAt         DateTime?        
+  kitchenStaff        User?          @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
+  waiter              User?          @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
   temporaryCustomerId String?
   temporaryCustomer   TemporaryCustomer? @relation(fields: [temporaryCustomerId], references: [id], onDelete: Cascade)
-  charge             Charge?
-  
+  charge              Charge?        
   @@index([status])
   @@index([assignedToKitchen])
   @@index([assignedToWaiter])

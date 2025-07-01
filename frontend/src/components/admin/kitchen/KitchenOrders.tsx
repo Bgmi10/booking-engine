@@ -18,10 +18,6 @@ export default function KitchenOrders() {
   const [selectedMyOrder, setSelectedMyOrder] = useState<KitchenOrder | null>(null);
   const { user } = useAuth();
 
-  console.log(selectedMyOrder)
-
-
-  // Play notification sound
   const playSound = () => {
     const audio = new Audio("/assets/notification_sound.wav");
     audio.play();
@@ -294,114 +290,122 @@ export default function KitchenOrders() {
               onClick={() => setSelectedMyOrder(null)}
             >
               <div 
-                className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg relative animate-fade-in"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg relative animate-fade-in flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-3xl font-bold"
-                  onClick={() => setSelectedMyOrder(null)}
-                  aria-label="Close"
-                >
-                  &times;
-                </button>
-                <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap">
-                  Order #{selectedMyOrder.orderId.slice(-6)}
-                  {selectedMyOrder.hasWaiterItems && (
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      + Waiter Items
+                {/* Header */}
+                <div className="p-6 border-b border-gray-200 relative">
+                  <button
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+                    onClick={() => setSelectedMyOrder(null)}
+                    aria-label="Close"
+                  >
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                  <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap pr-8">
+                    Order #{selectedMyOrder.orderId.slice(-6)}
+                    {selectedMyOrder.hasWaiterItems && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        + Waiter Items
+                      </span>
+                    )}
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                      selectedMyOrder.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedMyOrder.status === 'PREPARING' ? 'bg-blue-100 text-blue-800' :
+                      selectedMyOrder.status === 'READY' ? 'bg-green-100 text-green-800' :
+                      selectedMyOrder.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedMyOrder.status}
                     </span>
-                  )}
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                    selectedMyOrder.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                    selectedMyOrder.status === 'PREPARING' ? 'bg-blue-100 text-blue-800' :
-                    selectedMyOrder.status === 'READY' ? 'bg-green-100 text-green-800' :
-                    selectedMyOrder.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {selectedMyOrder.status}
-                  </span>
-                </h3>
-                <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
-                <div className="text-gray-700 mb-2">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
-                
-                {/* Payment Method Indicator */}
-                <div className={`mb-4 p-3 rounded-lg ${
-                  selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                    ? 'bg-purple-50 border border-purple-100' 
-                    : 'bg-green-50 border border-green-100'
-                }`}>
-                  <div className="font-semibold">
-                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                      ? 'Payment: Room Charge' 
-                      : 'Payment: Pay at Waiter'}
-                  </div>
+                  </h3>
+                  <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
+                  <div className="text-gray-700">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
                 </div>
-                
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
 
-                  {/* Kitchen Items */}
-                  <div className="mb-3">
-                    <p className="font-medium text-gray-700">Your Items to Prepare</p>
-                    {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').length > 0 ? (
-                      <ul className="space-y-2 mt-1">
-                        {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
-                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-green-50">
-                            <img
-                              src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                              alt={item.name}
-                              className="w-12 h-12 object-cover rounded border"
-                              onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                            />
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                              <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic mt-1">No specific kitchen items in this order.</p>
+                {/* Scrollable Body */}
+                <div className="p-6 flex-grow overflow-y-auto">
+                  {/* Payment Method Indicator */}
+                  <div className={`mb-4 p-3 rounded-lg ${
+                    selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                      ? 'bg-purple-50 border border-purple-100' 
+                      : 'bg-green-50 border border-green-100'
+                  }`}>
+                    <div className="font-semibold">
+                      {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                        ? 'Payment: Room Charge' 
+                        : 'Payment: Pay at Waiter'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
+                    {/* Kitchen Items */}
+                    <div className="mb-3">
+                      <p className="font-medium text-gray-700">Your Items to Prepare</p>
+                      {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').length > 0 ? (
+                        <ul className="space-y-2 mt-1">
+                          {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
+                            <li key={idx} className="flex items-center gap-3 p-2 rounded bg-green-50">
+                              <img
+                                src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                                alt={item.name}
+                                className="w-12 h-12 object-cover rounded border"
+                                onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                              />
+                              <div>
+                                <div className="font-medium">{item.name}</div>
+                                {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                                <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic mt-1">No specific kitchen items in this order.</p>
+                      )}
+                    </div>
+
+                    {/* Waiter Items */}
+                    {selectedMyOrder.hasWaiterItems && (
+                      <div>
+                        <p className="font-medium text-gray-700">Waiter Items (For Reference)</p>
+                        <ul className="space-y-2 mt-1 opacity-70">
+                          {selectedMyOrder.items?.filter(item => item.role === 'WAITER').map((item, idx) => (
+                            <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
+                          <img
+                            src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                            alt={item.name}
+                            className="w-12 h-12 object-cover rounded border"
+                            onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                          />
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                            <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                     )}
                   </div>
-
-                  {/* Waiter Items */}
-                  {selectedMyOrder.hasWaiterItems && (
-                    <div>
-                      <p className="font-medium text-gray-700">Waiter Items (For Reference)</p>
-                      <ul className="space-y-2 mt-1 opacity-70">
-                        {selectedMyOrder.items?.filter(item => item.role === 'WAITER').map((item, idx) => (
-                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
-                        <img
-                          src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                          alt={item.name}
-                          className="w-12 h-12 object-cover rounded border"
-                          onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                        />
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                          <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
+
+                {/* Footer */}
+                <div className="p-6 bg-gray-50 border-t border-gray-200">
+                  <div className="mb-4 text-gray-600 text-lg">Total: <span className="font-bold text-gray-900">€{selectedMyOrder.total?.toFixed(2)}</span></div>
+                  {selectedMyOrder.status !== 'READY' && (
+                    <button
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold"
+                      onClick={() => {
+                        sendWebSocketMessage({ type: "mark_kitchen_ready", orderId: selectedMyOrder.id });
+                        setSelectedMyOrder(null);
+                      }}
+                    >
+                      Mark as Ready
+                    </button>
                   )}
                 </div>
-
-                <div className="mb-2 text-gray-600">Total: <span className="font-semibold">€{selectedMyOrder.total?.toFixed(2)}</span></div>
-                {selectedMyOrder.status !== 'READY' && (
-                  <button
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-semibold mt-4"
-                    onClick={() => {
-                      sendWebSocketMessage({ type: "mark_kitchen_ready", orderId: selectedMyOrder.id });
-                      setSelectedMyOrder(null);
-                    }}
-                  >
-                    Mark as Ready
-                  </button>
-                )}
               </div>
             </div>
           )}

@@ -465,3 +465,21 @@ export interface OrderCategory {
   isAvailable: boolean | null;
   availabilityRule: AvailabilityRule | null;
 }
+
+export interface WaiterOrder {
+  id: string;
+  orderId: string;
+  items: any[];
+  locationName: string;
+  status: string;
+  createdAt: string;
+  waiterAssignedAt?: string;
+  assignedToWaiter?: string;
+  assignedToWaiterName?: string;
+  customerName?: string;
+  total?: number;
+  hasKitchenItems?: boolean;
+  hasWaiterItems?: boolean;
+  requiresKitchen?: boolean;
+  paymentMethod?: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER';
+}

@@ -79,12 +79,12 @@ const createSettings = async () => {
     create: {
       id: "1",
       minStayDays: 2,
-      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, manual_charge: true, manual_transaction_id: true })
+      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, cash: true, manual_transaction_id: true })
     },
     update: {
       id: "1",
       minStayDays: 2,
-      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, manual_charge: true, manual_transaction_id: true })
+      chargePaymentConfig: JSON.stringify({ qr_code: true, hosted_invoice: true, cash: true, manual_transaction_id: true })
     }
   });
   console.log("✅ Settings created");

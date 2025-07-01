@@ -3,25 +3,8 @@ import { subscribeWebSocket, unsubscribeWebSocket, sendWebSocketMessage } from "
 import toast from "react-hot-toast";
 import { baseUrl } from "../../../utils/constants";
 import { useAuth } from "../../../context/AuthContext";
-
-// Enhanced interface with new fields
-interface WaiterOrder {
-  id: string;
-  orderId: string;
-  items: any[];
-  locationName: string;
-  status: string;
-  createdAt: string;
-  waiterAssignedAt?: string;
-  assignedToWaiter?: string;
-  assignedToWaiterName?: string;
-  customerName?: string;
-  total?: number;
-  hasKitchenItems?: boolean;
-  hasWaiterItems?: boolean;
-  requiresKitchen?: boolean;
-  paymentMethod?: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER';
-}
+import EditOrderModal from "./EditOrderModal";
+import type { WaiterOrder } from "../../../types/types";
 
 interface TakenInfo {
   orderId: string;
@@ -35,9 +18,9 @@ export default function WaiterOrders() {
   const [activeTab, setActiveTab] = useState<'open' | 'mine'>('open');
   const [myOrders, setMyOrders] = useState<WaiterOrder[]>([]);
   const [selectedMyOrder, setSelectedMyOrder] = useState<WaiterOrder | null>(null);
-  const { user } = useAuth();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { user } = useAuth(); 
 
-  // Play notification sound
   const playSound = () => {
     const audio = new Audio("/assets/notification_sound.wav");
     audio.play();
@@ -82,6 +65,7 @@ export default function WaiterOrders() {
       orderId: order.orderId || order.id,
       items: (itemsToDisplay || []).filter(Boolean).map((item: any) => ({
         ...item,
+        quantity: item.quantity || 1,
         imageUrl: item.imageUrl || item.image || '/assets/placeholder.png',
       })),
       locationName: order.locationName || (order.location && order.location.name) || '',
@@ -168,6 +152,20 @@ export default function WaiterOrders() {
           setMyOrders(prev => prev.filter(o => o.id !== data.orderId));
           setOpenOrders(prev => prev.filter(o => o.id !== data.orderId));
       }
+      if (data.type === "order:updated") {
+        const updatedOrder = normalizeOrder(data.data);
+        
+        const updateList = (list: WaiterOrder[]) => list.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+
+        setOpenOrders(updateList);
+        setMyOrders(updateList);
+
+        // If the currently selected order is the one that was updated, refresh its state
+        if (selectedMyOrder && selectedMyOrder.id === updatedOrder.id) {
+          setSelectedMyOrder(updatedOrder);
+        }
+        toast.success(`Order #${updatedOrder.orderId.slice(-6)} has been updated.`);
+      }
     };
     subscribeWebSocket(handleMessage);
     return () => unsubscribeWebSocket(handleMessage);
@@ -212,6 +210,49 @@ export default function WaiterOrders() {
       setOpenOrders(combinedOrders);
     }).catch(error => console.error("Failed to fetch open orders:", error));
   }
+
+  const handleOrderUpdated = (updatedItems: any[]) => {
+    if (!selectedMyOrder) return;
+
+    const newTotal = updatedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+
+    const updatedOrder = {
+      ...selectedMyOrder,
+      items: updatedItems,
+      deliveryItems: updatedItems,
+      total: newTotal,
+    };
+    
+    setMyOrders(prevOrders => prevOrders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    
+    setSelectedMyOrder(updatedOrder);
+
+    setIsEditModalOpen(false);
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm("Are you sure you want to cancel this order? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/admin/orders/${orderId}/cancel`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to cancel order');
+      }
+
+      toast.success('Order cancelled successfully.');
+      setSelectedMyOrder(null); 
+      // The websocket event `order:cancelled` will remove it from the list.
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
@@ -383,119 +424,152 @@ export default function WaiterOrders() {
               onClick={() => setSelectedMyOrder(null)}
             >
               <div 
-                className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg relative animate-fade-in"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg relative animate-fade-in flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-3xl font-bold"
-                  onClick={() => setSelectedMyOrder(null)}
-                  aria-label="Close"
-                >
-                  &times;
-                </button>
-                <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap">
-                  Order #{selectedMyOrder.orderId.slice(-6)}
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                    selectedMyOrder.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-800' :
-                    selectedMyOrder.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {selectedMyOrder.status}
-                  </span>
-                </h3>
-                <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
-                <div className="text-gray-700 mb-2">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
-                
-                {/* Payment Method Banner */}
-                <div className={`mb-4 p-3 rounded-lg ${
-                  selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                    ? 'bg-purple-50 border border-purple-100' 
-                    : 'bg-green-50 border border-green-100'
-                }`}>
-                  <div className="font-semibold text-lg mb-1">
-                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                      ? 'Payment: Room Charge' 
-                      : 'Payment: Collect from Customer'}
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                      ? 'This order has been charged to the customer\'s room bill.' 
-                      : 'Please collect payment from the customer when delivering this order.'}
-                  </p>
+                {/* Header */}
+                <div className="p-6 border-b border-gray-200 relative">
+                  <button
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+                    onClick={() => setSelectedMyOrder(null)}
+                    aria-label="Close"
+                  >
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                  <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap pr-8">
+                    Order #{selectedMyOrder.orderId.slice(-6)}
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                      selectedMyOrder.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-800' :
+                      selectedMyOrder.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedMyOrder.status}
+                    </span>
+                  </h3>
+                  <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
+                  <div className="text-gray-700">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
                 </div>
 
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
-                  
-                  {/* Waiter Items */}
-                  <div className="mb-3">
-                    <p className="font-medium text-gray-700">Your Items to Deliver</p>
-                    {selectedMyOrder.items?.filter(item => item.role === 'WAITER').length > 0 ? (
-                      <ul className="space-y-2 mt-1">
-                        {selectedMyOrder.items?.filter(item => item.role === 'WAITER').map((item, idx) => (
-                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-green-50">
-                            <img
-                              src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                              alt={item.name}
-                              className="w-12 h-12 object-cover rounded border"
-                              onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                            />
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                              <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic mt-1">No specific items for you in this order.</p>
+                {/* Scrollable Body */}
+                <div className="p-6 flex-grow overflow-y-auto">
+                  {/* Payment Method Banner */}
+                  <div className={`mb-4 p-3 rounded-lg ${
+                    selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                      ? 'bg-purple-50 border border-purple-100' 
+                      : 'bg-green-50 border border-green-100'
+                  }`}>
+                    <div className="font-semibold text-lg mb-1">
+                      {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                        ? 'Payment: Room Charge' 
+                        : 'Payment: Collect from Customer'}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                        ? `This order has been charged to the customer's room bill.` 
+                        : `Please collect payment of €${selectedMyOrder.total?.toFixed(2)} from the customer when delivering this order.`}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
+                    
+                    {/* Waiter Items */}
+                    <div className="mb-3">
+                      <p className="font-medium text-gray-700">Your Items to Deliver</p>
+                      {selectedMyOrder.items?.filter(item => item.role === 'WAITER').length > 0 ? (
+                        <ul className="space-y-2 mt-1">
+                          {selectedMyOrder.items?.filter(item => item.role === 'WAITER').map((item, idx) => (
+                            <li key={idx} className="flex items-center gap-3 p-2 rounded bg-green-50">
+                              <img
+                                src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                                alt={item.name}
+                                className="w-12 h-12 object-cover rounded border"
+                                onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                              />
+                              <div>
+                                <div className="font-medium">{item.name}</div>
+                                {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                                <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic mt-1">No specific items for you in this order.</p>
+                      )}
+                    </div>
+
+                    {/* Kitchen Items */}
+                    {selectedMyOrder.hasKitchenItems && (
+                      <div>
+                        <p className="font-medium text-gray-700">Kitchen Items (In Preparation)</p>
+                        <ul className="space-y-2 mt-1 opacity-70">
+                          {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
+                            <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
+                          <img
+                            src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                            alt={item.name}
+                            className="w-12 h-12 object-cover rounded border"
+                            onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                          />
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                            <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                     )}
                   </div>
-
-                  {/* Kitchen Items */}
-                  {selectedMyOrder.hasKitchenItems && (
-                    <div>
-                      <p className="font-medium text-gray-700">Kitchen Items (In Preparation)</p>
-                      <ul className="space-y-2 mt-1 opacity-70">
-                        {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
-                          <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
-                        <img
-                          src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                          alt={item.name}
-                          className="w-12 h-12 object-cover rounded border"
-                          onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                        />
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                          <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
-                  )}
-
-                    </div>
                 
-                <div className="mb-2 text-gray-600">Total: <span className="font-semibold">€{selectedMyOrder.total?.toFixed(2)}</span></div>
-                {selectedMyOrder.status !== 'DELIVERED' && (
-                  <button
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-semibold mt-4"
-                    onClick={() => {
-                      sendWebSocketMessage({ type: "mark_order_delivered", orderId: selectedMyOrder.id });
-                      setSelectedMyOrder(null);
-                    }}
-                  >
-                    Mark as Delivered
-                  </button>
-                )}
+                {/* Footer */}
+                <div className="p-6 bg-gray-50 border-t border-gray-200">
+                  <div className="mb-4 text-gray-600 text-lg">Total: <span className="font-bold text-gray-900">€{selectedMyOrder.total?.toFixed(2)}</span></div>
+                  <div className="flex gap-4">
+                    {selectedMyOrder.status !== 'DELIVERED' && selectedMyOrder.status !== 'CANCELLED' && (
+                       <button
+                         className="w-full bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-lg font-semibold"
+                         onClick={() => setIsEditModalOpen(true)}
+                       >
+                         Edit Order
+                       </button>
+                    )}
+                    {selectedMyOrder.status !== 'DELIVERED' && selectedMyOrder.status !== 'CANCELLED' && (
+                      <button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold"
+                        onClick={() => {
+                          sendWebSocketMessage({ type: "mark_order_delivered", orderId: selectedMyOrder.id });
+                          setSelectedMyOrder(null);
+                        }}
+                      >
+                        Mark as Delivered
+                      </button>
+                    )}
+                  </div>
+                   {selectedMyOrder.status !== 'DELIVERED' && selectedMyOrder.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleCancelOrder(selectedMyOrder.id)}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-semibold mt-2"
+                    >
+                      Cancel Order
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+          )}
+          {isEditModalOpen && selectedMyOrder && (
+            <EditOrderModal 
+              order={selectedMyOrder}
+              onClose={() => setIsEditModalOpen(false)}
+              onOrderUpdated={handleOrderUpdated}
+            />
           )}
         </>
       )}
     </div>
   );
-} 
+}

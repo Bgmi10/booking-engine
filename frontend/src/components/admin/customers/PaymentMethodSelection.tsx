@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { baseUrl } from '../../../utils/constants';
+import toast from 'react-hot-toast';
+import { baseUrl, paymentMethods } from '../../../utils/constants';
 
 interface PaymentMethodSelectionProps {
     amount: string;
@@ -7,8 +8,10 @@ interface PaymentMethodSelectionProps {
         code: string;
         symbol: string;
     };
-    onNext: (selectedMethodId: string) => void;
+    onNext: (selectedMethodId: string, data?: any) => void;
     isProcessing: boolean;
+    customerId: string;
+    description?: string;
 }
 
 interface PaymentConfig {
@@ -16,38 +19,18 @@ interface PaymentConfig {
     hosted_invoice: boolean;
     manual_charge: boolean;
     manual_transaction_id: boolean;
+    cash: boolean;
 }
 
-const paymentMethods = [
-    {
-        id: 'qr_code',
-        title: 'QR Code',
-        description: 'Customer scans a QR code to pay.',
-    },
-    {
-        id: 'hosted_invoice',
-        title: 'Hosted Invoice',
-        description: 'Email your customer a payment link to pay later.',
-    },
-    {
-        id: 'manual_charge',
-        title: 'Manually Charge Card',
-        description: 'Enter card information or select a saved card.',
-    },
-    {
-        id: 'manual_transaction_id',
-        title: 'Manual Transaction ID',
-        description: 'Enter transaction ID from stripe',
-    }
-];
 
-export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing }: PaymentMethodSelectionProps) {
+export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing, customerId, description }: PaymentMethodSelectionProps) {
     const [selectedMethod, setSelectedMethod] = useState<string>('');
     const [config, setConfig] = useState<PaymentConfig>({
         qr_code: true,
         hosted_invoice: true,
         manual_charge: true,
-        manual_transaction_id: true
+        manual_transaction_id: true,
+        cash: true,
     });
     const [isLoading, setIsLoading] = useState(true);
     
@@ -60,10 +43,10 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
 
             const data = await response.json();
             const paymentConfig = JSON.parse(data.data?.[0]?.chargePaymentConfig || '{}');
-            setConfig(paymentConfig);
+            setConfig(prev => ({...prev, ...paymentConfig}));
             
             // Set the first active method as default selection
-            const activeMethods = paymentMethods.filter(method => paymentConfig[method.id as keyof PaymentConfig]);
+            const activeMethods = paymentMethods.filter(method => paymentConfig[method.id as keyof PaymentConfig] !== false);
             if (activeMethods.length > 0) {
                 setSelectedMethod(activeMethods[0].id);
             }
@@ -74,7 +57,8 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
                 qr_code: true,
                 hosted_invoice: true,
                 manual_charge: true,
-                manual_transaction_id: true
+                manual_transaction_id: true,
+                cash: true,
             });
             setSelectedMethod(paymentMethods[0].id);
         } finally {
@@ -86,6 +70,37 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
         fetchConfigSettings();
     }, []);
 
+    const handleNextClick = async () => {
+        if (selectedMethod === 'cash') {
+            try {
+                const response = await fetch(`${baseUrl}/admin/charges/cash`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        customerId,
+                        amount: parseFloat(amount),
+                        description
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to record cash payment');
+                }
+                
+                toast.success("Cash payment recorded successfully!");
+                onNext('cash', { success: true });
+
+            } catch (error) {
+                toast.error((error as Error).message);
+                onNext('cash', { success: false, error: (error as Error).message });
+            }
+        } else {
+            onNext(selectedMethod);
+        }
+    }
+
     if (isLoading) {
         return (
             <div className="flex flex-col h-full p-6 bg-white overflow-y-auto">
@@ -96,7 +111,7 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
         );
     }
 
-    const hasActiveMethods = paymentMethods.some(method => config[method.id as keyof PaymentConfig]);
+    const hasActiveMethods = paymentMethods.some(method => config[method.id as keyof PaymentConfig] !== false);
 
     return (
         <div className="flex flex-col h-full p-6 bg-white overflow-y-auto">
@@ -105,7 +120,7 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
 
                 <div className="space-y-3 overflow-y-auto">
                     {paymentMethods.map(method => {
-                        const isActive = config[method.id as keyof PaymentConfig];
+                        const isActive = config[method.id as keyof PaymentConfig] !== false;
                         const isSelected = selectedMethod === method.id;
                         
                         return (
@@ -156,7 +171,7 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
                     {currency.symbol}{amount} will be charged to the payment method.
                 </p>
                 <button
-                    onClick={() => onNext(selectedMethod)}
+                    onClick={handleNextClick}
                     disabled={isProcessing || !selectedMethod || !hasActiveMethods}
                     className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors text-lg cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                 >

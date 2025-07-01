@@ -3,7 +3,7 @@ import { handleError, responseHandler } from "../utils/helper";
 import { stripe } from "../config/stripe";
 import prisma from "../prisma";
 import { findOrCreatePrice } from "./adminController";
-import { sendPaymentLinkEmail, sendChargeConfirmationEmail } from "../services/emailTemplate";
+import { sendChargeConfirmationEmail } from "../services/emailTemplate";
 
 export const chargeSaveCard = async (req: express.Request, res: express.Response) => {
    const { customerId, paymentMethodId, amount, description, currency } = req.body;
@@ -344,6 +344,7 @@ export const checkChargeStatus = async (req: express.Request, res: express.Respo
 
 export const refundCharge = async (req: express.Request, res: express.Response) => {
     const { id } = req.params; 
+    const { paymentMethod } = req.query;
 
     try {
         const charge = await prisma.charge.findUnique({ where: { id } });
@@ -353,13 +354,26 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
             return;
         }
 
-        if (!charge.stripePaymentIntentId) {
-            responseHandler(res, 400, "Charge cannot be refunded as it has no successful payment associated.");
+        if (charge.status !== 'SUCCEEDED') {
+            responseHandler(res, 400, "Only successful charges can be refunded.");
             return;
         }
 
-        if (charge.status !== 'SUCCEEDED') {
-            responseHandler(res, 400, "Only successful charges can be refunded.");
+        // Handle cash refund
+        if (paymentMethod === 'cash' && charge.paymentMethod?.toLowerCase() === 'cash') {
+            const refundedCharge = await prisma.charge.update({
+                where: { id },
+                data: {
+                    status: "REFUNDED",
+                    adminNotes: (charge.adminNotes ? charge.adminNotes + "\n" : "") + `Cash refund processed on ${new Date().toISOString()}.`
+                }
+            });
+            responseHandler(res, 200, "Cash charge refunded successfully.", { chargeId: refundedCharge.id, status: refundedCharge.status });
+            return;
+        }
+
+        if (!charge.stripePaymentIntentId) {
+            responseHandler(res, 400, "Charge cannot be refunded as it has no successful payment associated.");
             return;
         }
 
@@ -504,7 +518,35 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
         });
 
     } catch (error) {
-        console.error("Error creating manual transaction charge:", error);
-        handleError(res, error as Error);
+      console.error("Error creating manual transaction charge:", error);
+      handleError(res, error as Error);
     }
 };
+
+export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
+  const { customerId, amount, description } = req.body;
+//@ts-ignore
+  const { id } = req.user;
+
+  if (!customerId || !amount) {
+    responseHandler(res, 400, "customer id and amount is required");
+    return;
+  }
+
+  try {
+    await prisma.charge.create({
+      data: {
+        customerId,
+        description: description || null,
+        amount,
+        paymentMethod: "cash",
+        status: "SUCCEEDED",
+        createdBy: id
+      }
+    });
+    responseHandler(res, 200, "success");
+  } catch (error) {
+    console.error("Error creating cash charge:", error);
+    handleError(res, error as Error);
+  }
+}
