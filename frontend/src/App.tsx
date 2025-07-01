@@ -34,8 +34,8 @@ function App() {
         <Route path="/customers/verify" element={<CustomerVerify />} /> 
         <Route element={<AdminProtectedRoutes />}>  
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/qr/:id" element={<Qrcode />} />
         </Route>
+        <Route path="/qr/:id" element={<Qrcode />} />
         <Route path="/admin/login" element={<AdminLogin />} />
       </Routes>
 

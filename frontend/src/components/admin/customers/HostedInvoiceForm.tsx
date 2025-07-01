@@ -14,15 +14,18 @@ interface HostedInvoiceFormProps {
     onClose: () => void;
     isProcessing: boolean;
     description: string;
+    chargeType?: string;
+    orderId?: string;
 }
 
-export default function HostedInvoiceForm({ customer, amount, currency, onBack, onClose, isProcessing, description }: HostedInvoiceFormProps) {
+export default function HostedInvoiceForm({ customer, amount, currency, onBack, onClose, isProcessing, description, chargeType, orderId }: HostedInvoiceFormProps) {
     const [expiresAt, setExpiresAt] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState('12:00');
+    const [localIsProcessing, setLocalIsProcessing] = useState(false);
 
     // Calendar state
     const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -115,6 +118,7 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
             return;
         }
 
+        setLocalIsProcessing(true);
         try {
             const response = await fetch(`${baseUrl}/admin/charges/create-qr-session`, {
                 method: 'POST',
@@ -128,7 +132,9 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
                     description: description.trim() || `Hosted Invoice - ${currency.symbol}${amount}`,
                     currency: currency.code.toLowerCase(),
                     isHostedInvoice: true,
-                    expiresAt: selectedDateTime.toISOString()
+                    expiresAt: selectedDateTime.toISOString(),
+                    type: chargeType,
+                    orderId: orderId
                 }),
             });
 
@@ -145,6 +151,8 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
         } catch (error) {
             console.error('Error creating hosted invoice:', error);
             setError('An error occurred while creating the hosted invoice');
+        } finally {
+            setLocalIsProcessing(false);
         }
     };
 
@@ -195,7 +203,7 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
                                 type="button"
                                 onClick={() => setShowCalendar(!showCalendar)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between"
-                                disabled={isProcessing}
+                                disabled={isProcessing || localIsProcessing}
                             >
                                 <span className={selectedDate ? 'text-gray-900' : 'text-gray-500'}>
                                     {selectedDate ? `${formatDate(selectedDate)} at ${formatTime(selectedTime)}` : 'Select date and time'}
@@ -331,17 +339,17 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
                             <button
                                 type="button"
                                 onClick={onBack}
-                                disabled={isProcessing}
+                                disabled={isProcessing || localIsProcessing}
                                 className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                             >
                                 Back
                             </button>
                             <button
                                 type="submit"
-                                disabled={isProcessing || !expiresAt}
+                                disabled={isProcessing || localIsProcessing || !expiresAt}
                                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                             >
-                                {isProcessing ? 'Creating...' : 'Send Invoice'}
+                                {isProcessing || localIsProcessing ? 'Creating...' : 'Send Invoice'}
                             </button>
                         </div>
                     </form>

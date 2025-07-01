@@ -5,6 +5,7 @@ import { stripe } from "../config/stripe";
 import { generateToken } from "../utils/jwt";
 import dotenv from "dotenv";
 import TelegramService from "../services/telegramService";
+import { customerSchema, updateCustomerSchema } from "../zod/customer.schema";
 
 dotenv.config();
 
@@ -165,11 +166,22 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
             customerData = customer;
         } else {
-            // Temporary customer
-            const tempCustomer = await prisma.temporaryCustomer.create({
-                data: { surname },
+            const stripeCustomer = await stripe.customers.create({
+                name: `Temporary Guest - ${surname}`,
+                metadata: {
+                    source: 'POS Login',
+                    roomName: roomName
+                }
             });
-            payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER' };
+
+            const tempCustomer = await prisma.temporaryCustomer.create({
+                data: { 
+                    surname,
+                    stripeCustomerId: stripeCustomer.id
+                },
+            });
+            
+            payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER', stripeCustomerId: tempCustomer.stripeCustomerId };
             customerData = tempCustomer;
         }
 
@@ -453,3 +465,29 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
         handleError(res, error as Error);
     }
 }
+
+export const getCustomerById = async (req: express.Request, res: express.Response) => {
+    const { id } = req.params;
+    try {
+        const customer = await prisma.customer.findUnique({
+            where: { id },
+            select: {
+                guestEmail: true,
+                guestFirstName: true,
+                guestLastName: true,
+                guestMiddleName: true,
+                id: true
+            }
+        });
+
+        if (!customer) {
+            responseHandler(res, 404, "Customer not found");
+            return;
+        }
+
+        responseHandler(res, 200, "success", customer);
+    } catch (error) {
+        console.error(`Error fetching customer ${id}:`, error);
+        handleError(res, error as Error);
+    }
+};

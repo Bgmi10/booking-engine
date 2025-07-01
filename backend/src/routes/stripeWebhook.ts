@@ -235,7 +235,7 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
         const stripePaymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
 
         if (session.metadata?.chargeId) {
-            await processChargeSuccess(session.metadata.chargeId, stripePaymentIntent);
+            await processChargeSuccess(session.metadata.chargeId, stripePaymentIntent, session.metadata.orderId, session.metadata.type);
             return;
         }
 
@@ -289,10 +289,9 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
 async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
-    
     try {
         if (paymentIntent.metadata?.chargeId) {
-            await processChargeSuccess(paymentIntent.metadata.chargeId, paymentIntent);
+            await processChargeSuccess(paymentIntent.metadata.chargeId, paymentIntent, paymentIntent.metadata.orderId, paymentIntent.metadata.type);
             return;
         }
 
@@ -699,7 +698,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
     }
 }
 
-async function processChargeSuccess(chargeId: string, stripePayment: Stripe.PaymentIntent) {
+async function processChargeSuccess(chargeId: string, stripePayment: Stripe.PaymentIntent, orderId?: string, type?: string) {
     try {
         const charge = await prisma.charge.findUnique({ where: { id: chargeId } });
 
@@ -719,8 +718,16 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
                 status: "SUCCEEDED",
                 stripePaymentIntentId: stripePayment.id,
                 paidAt: new Date(),
+                orderId
             },
         });
+
+        if (orderId && type === "product_charge") {
+            await prisma.order.update({
+                where: { id: orderId },
+                data: { status: "DELIVERED" }
+            });
+        }
 
         console.log(`Successfully processed charge ${chargeId}`);
 

@@ -12,7 +12,7 @@ import { refund } from "../controllers/adminController";
 import { bookingRestrictionSchema, bookingRestrictionUpdateSchema } from "../zod/booking.schema";
 import { createVoucher, createVoucherProduct, deleteVoucher, deleteVoucherProduct, editVoucher, editVoucherProduct, getAllVoucherProducts, getAllVouchers, getVouchers } from "../controllers/voucherController";
 import { updateVoucherProductSchema, updateVoucherSchema, voucherProductSchema, voucherSchema } from "../zod/voucher.scheme";
-import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getPaymentMethodsForCustomer } from "../controllers/customerController";
+import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer } from "../controllers/customerController";
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { createBookingsGroup } from "../controllers/groupController";
@@ -25,6 +25,7 @@ import { createOrderItem, deleteOrderItem, getAllOrderItem, updateOrderItem } fr
 import { createAdminOrder, getAllAssignedCustomersOrders, getAllPendingCustomersOrders, getKitchenOrdersByUserId, getOrderById, getWaiterOrdersByUserId, getPendingHybridOrdersForWaiter } from "../controllers/orderController";
 import { createOrderCategory, deleteOrderCategory, getAllOrderCategories, updateOrderCategory } from "../controllers/orderCategoryController";
 import { editOrder, cancelOrder } from "../controllers/orderController";
+import { getAllTempCustomers, getTempCustomerChargePayments, getTempCustomerOrders } from "../controllers/tempCustomerController";
 
 const adminRouter = Router();
 
@@ -159,13 +160,21 @@ adminRouter.post('/customers', authMiddleware, validateMiddleware(customerSchema
 
 adminRouter.get('/customers/all', authMiddleware, getAllCustomers);
 
+adminRouter.get('/customers/:id', authMiddleware, getCustomerById);
+
 adminRouter.delete('/customers/:id', authMiddleware, deleteCustomer);
 
 adminRouter.put('/customers/:id', authMiddleware, validateMiddleware(updateCustomerSchema), editCustomer);
 
 adminRouter.get('/customers/:id/bookings', authMiddleware, getCustomerBookings);
 
+adminRouter.get('/temp-customers/all', authMiddleware, getAllTempCustomers);
+
 adminRouter.get('/customers/:id/charge-payments', authMiddleware, getCustomerChargePayments);
+
+adminRouter.get('/temp-customers/:id/charge-payments', authMiddleware, getTempCustomerChargePayments);
+
+adminRouter.get('/temp-customers/:id/orders', authMiddleware, getTempCustomerOrders);
 
 adminRouter.post('/bookings/group', authMiddleware, createBookingsGroup);
 

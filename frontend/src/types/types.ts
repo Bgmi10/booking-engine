@@ -476,10 +476,11 @@ export interface WaiterOrder {
   waiterAssignedAt?: string;
   assignedToWaiter?: string;
   assignedToWaiterName?: string;
-  customerName?: string;
-  total?: number;
-  hasKitchenItems?: boolean;
-  hasWaiterItems?: boolean;
-  requiresKitchen?: boolean;
-  paymentMethod?: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER';
+  customerName: string;
+  total: number;
+  hasKitchenItems: boolean;
+  hasWaiterItems: boolean;
+  paymentMethod: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER';
+  customerId?: string;
+  temporaryCustomerId?: string;
 }

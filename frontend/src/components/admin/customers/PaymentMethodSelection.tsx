@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
 import { baseUrl, paymentMethods } from '../../../utils/constants';
 
 interface PaymentMethodSelectionProps {
@@ -23,7 +22,7 @@ interface PaymentConfig {
 }
 
 
-export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing, customerId, description }: PaymentMethodSelectionProps) {
+export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing }: PaymentMethodSelectionProps) {
     const [selectedMethod, setSelectedMethod] = useState<string>('');
     const [config, setConfig] = useState<PaymentConfig>({
         qr_code: true,
@@ -71,34 +70,7 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
     }, []);
 
     const handleNextClick = async () => {
-        if (selectedMethod === 'cash') {
-            try {
-                const response = await fetch(`${baseUrl}/admin/charges/cash`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        customerId,
-                        amount: parseFloat(amount),
-                        description
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to record cash payment');
-                }
-                
-                toast.success("Cash payment recorded successfully!");
-                onNext('cash', { success: true });
-
-            } catch (error) {
-                toast.error((error as Error).message);
-                onNext('cash', { success: false, error: (error as Error).message });
-            }
-        } else {
-            onNext(selectedMethod);
-        }
+        onNext(selectedMethod);
     }
 
     if (isLoading) {

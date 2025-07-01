@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
+import { stripe } from "../config/stripe";
 
 export const getAllPendingCustomersOrders = async (req: express.Request, res: express.Response) => {
   try {
@@ -22,6 +23,7 @@ export const getAllPendingCustomersOrders = async (req: express.Request, res: ex
     handleError(res, e as Error);
   }
 }  
+
 export const getAllAssignedCustomersOrders = async (req: express.Request, res: express.Response) => {
   try {
     const pendingOrders = await prisma.order.findMany({
@@ -192,10 +194,14 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
         let tempCustomerId: string | undefined;
 
         if (temporaryCustomerSurname) {
+            const stripeCustomer = await stripe.customers.create({
+              name: `Temporary Guest - ${temporaryCustomerSurname}`,
+           });
             const tempCustomer = await prisma.temporaryCustomer.create({
-                data: {
-                    surname: temporaryCustomerSurname,
-                },
+              data: {
+                surname: temporaryCustomerSurname,
+                stripeCustomerId: stripeCustomer.id
+              },
             });
             tempCustomerId = tempCustomer.id;
         }
@@ -330,3 +336,4 @@ export const cancelOrder = async (req: express.Request, res: express.Response) =
     console.error("Error cancelling order:", error);
   }
 }
+

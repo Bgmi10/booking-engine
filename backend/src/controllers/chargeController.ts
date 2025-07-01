@@ -6,7 +6,7 @@ import { findOrCreatePrice } from "./adminController";
 import { sendChargeConfirmationEmail } from "../services/emailTemplate";
 
 export const chargeSaveCard = async (req: express.Request, res: express.Response) => {
-   const { customerId, paymentMethodId, amount, description, currency } = req.body;
+   const { customerId, paymentMethodId, amount, description, currency, orderId } = req.body;
    //@ts-ignore
    const { id: userId } = req.user;;
 
@@ -34,6 +34,7 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
             createdBy: userId,
             expiredAt: new Date(Date.now() + 10 * 60 * 1000),
             paymentMethod: "CARD",
+            orderId,
         }
       })
       const stripePaymentIntents = await stripe.paymentIntents.create({
@@ -148,7 +149,7 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
 };
 
 export const createQrSession = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt } = req.body;
+  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt, type, orderId, isTemporaryCustomer = false } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;
 
@@ -158,23 +159,31 @@ export const createQrSession = async (req: express.Request, res: express.Respons
   }
 
   // 2. Find the customer in your local DB to ensure they exist
-  const existingCustomer = await prisma.customer.findUnique({ 
-    where: { id: customerId }, 
-    select: { 
-      guestEmail: true, 
-      guestFirstName: true, 
-      guestLastName: true, 
-      guestPhone: true,
-      guestNationality: true,
-      id: true 
-    } 
-  });
+  let customerDetails: any;
 
-  if (!existingCustomer) {
+  if (isTemporaryCustomer) {
+    customerDetails = await prisma.temporaryCustomer.findUnique({
+      where: { id: customerId }
+    });
+  } else {
+    customerDetails = await prisma.customer.findUnique({ 
+      where: { id: customerId }, 
+      select: { 
+        guestEmail: true, 
+        guestFirstName: true, 
+        guestLastName: true, 
+        guestPhone: true,
+        guestNationality: true,
+        id: true 
+      } 
+    });
+  }
+
+  if (!customerDetails) {
     responseHandler(res, 404, "Customer not found in our system.");
     return;
   }
-
+  
   let charge;
   try {
     // 3. Create a local charge record to track this transaction
@@ -187,7 +196,8 @@ export const createQrSession = async (req: express.Request, res: express.Respons
       data: {
         amount: parseFloat(amount),
         description: description || (isHostedInvoice ? "Hosted Invoice Payment" : "QR Code Payment"),
-        customerId: existingCustomer.id,
+        customerId: isTemporaryCustomer ? undefined : customerId,
+        tempCustomerId: isTemporaryCustomer ? customerId : undefined,
         currency: currency || "eur",
         status: "PENDING",
         createdBy: userId,
@@ -211,7 +221,9 @@ export const createQrSession = async (req: express.Request, res: express.Respons
         },
       ],
       metadata: {
-        chargeId: charge.id, // CRITICAL: Link to our internal record
+        chargeId: charge.id, 
+        type, 
+        orderId: orderId
       },
     });
 
@@ -225,14 +237,14 @@ export const createQrSession = async (req: express.Request, res: express.Respons
        },
     });
 
-    if (isHostedInvoice && existingCustomer.guestEmail) {
+    if (isHostedInvoice && !isTemporaryCustomer && customerDetails.guestEmail) {
         await sendChargeConfirmationEmail(
           {
-            guestEmail: existingCustomer.guestEmail as string,
-            guestFirstName: existingCustomer.guestFirstName,
-            guestLastName: existingCustomer.guestLastName,
-            guestPhone: existingCustomer.guestPhone || undefined,
-            guestNationality: existingCustomer.guestNationality || undefined,
+            guestEmail: customerDetails.guestEmail as string,
+            guestFirstName: customerDetails.guestFirstName,
+            guestLastName: customerDetails.guestLastName,
+            guestPhone: customerDetails.guestPhone || undefined,
+            guestNationality: customerDetails.guestNationality || undefined,
           },
           {
             id: charge.id,
@@ -391,162 +403,170 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
 }
 
 export const createManualTransactionCharge = async (req: express.Request, res: express.Response) => {
-    const { customerId, transactionId, description } = req.body;
-    // @ts-ignore
-    const { id: userId } = req.user;
-
-    if (!customerId || !transactionId) {
-        responseHandler(res, 400, "Customer ID and Transaction ID are required.");
+  const { customerId, transactionId, description, orderId } = req.body;
+  // @ts-ignore
+  const { id: userId } = req.user;
+  if (!customerId || !transactionId) {
+    responseHandler(res, 400, "Customer ID and Transaction ID are required.");
+    return;
+  }
+  try {
+      // Find the customer
+      const existingCustomer = await prisma.customer.findUnique({ where: { id: customerId } });
+      if (!existingCustomer) {
+        responseHandler(res, 404, "Customer not found.");
         return;
-    }
-
-    try {
-        // Find the customer
-        const existingCustomer = await prisma.customer.findUnique({ where: { id: customerId } });
-        if (!existingCustomer) {
-            responseHandler(res, 404, "Customer not found.");
-            return;
+      }
+      // Determine if it's a Payment Intent (pi_) or Charge (ch_) and fetch accordingly
+      let paymentData: any;
+      let stripePaymentIntentId: string;
+      let chargeAmount: number;
+      let chargeCurrency: string;
+      let chargeStatus: string;
+      let chargeCreated: number;
+      let chargeDescription: string | null;
+      if (transactionId.startsWith('pi_')) {
+        try {
+          // It's a Payment Intent
+          const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
+          
+          if (paymentIntent.status !== 'succeeded') {
+              responseHandler(res, 400, `Payment is not successful. Current status: ${paymentIntent.status}`);
+              return;
+          }
+          paymentData = paymentIntent;
+          stripePaymentIntentId = transactionId;
+          chargeAmount = paymentIntent.amount;
+          chargeCurrency = paymentIntent.currency;
+          chargeStatus = paymentIntent.status;
+          chargeCreated = paymentIntent.created;
+          chargeDescription = paymentIntent.description;
+          } catch (stripeError: any) {
+            if (stripeError.type === 'StripeInvalidRequestError') {
+              responseHandler(res, 400, "Invalid Payment Intent ID. Please check the ID and try again.");
+              return;
+            }
+            throw stripeError;
+          }
+      } else if (transactionId.startsWith('ch_')) {
+          // It's a Charge
+          try {
+            const charge = await stripe.charges.retrieve(transactionId);
+            
+            if (charge.status !== 'succeeded') {
+              responseHandler(res, 400, `Payment is not successful. Current status: ${charge.status}`);
+              return;
+            }
+            paymentData = charge;
+            stripePaymentIntentId = charge.payment_intent as string;
+            chargeAmount = charge.amount;
+            chargeCurrency = charge.currency;
+            chargeStatus = charge.status;
+            chargeCreated = charge.created;
+            chargeDescription = charge.description;
+          } catch (stripeError: any) {
+            if (stripeError.type === 'StripeInvalidRequestError') {
+              responseHandler(res, 400, "Invalid Charge ID. Please check the ID and try again.");
+              return;
+            }
+            throw stripeError;
+          }
+      } else {
+        responseHandler(res, 400, "Invalid transaction ID format. Must start with 'pi_' (Payment Intent) or 'ch_' (Charge).");
+        return;
+      }
+      // Check if this payment is already associated with a charge
+      const existingCharge = await prisma.charge.findFirst({
+        where: { 
+          OR: [
+            { stripePaymentIntentId: stripePaymentIntentId },
+            { stripePaymentIntentId: transactionId }
+          ]
         }
-
-        // Determine if it's a Payment Intent (pi_) or Charge (ch_) and fetch accordingly
-        let paymentData: any;
-        let stripePaymentIntentId: string;
-        let chargeAmount: number;
-        let chargeCurrency: string;
-        let chargeStatus: string;
-        let chargeCreated: number;
-        let chargeDescription: string | null;
-
-        if (transactionId.startsWith('pi_')) {
-            // It's a Payment Intent
-            try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
-                
-                if (paymentIntent.status !== 'succeeded') {
-                    responseHandler(res, 400, `Payment is not successful. Current status: ${paymentIntent.status}`);
-                    return;
-                }
-
-                paymentData = paymentIntent;
-                stripePaymentIntentId = transactionId;
-                chargeAmount = paymentIntent.amount;
-                chargeCurrency = paymentIntent.currency;
-                chargeStatus = paymentIntent.status;
-                chargeCreated = paymentIntent.created;
-                chargeDescription = paymentIntent.description;
-
-            } catch (stripeError: any) {
-                if (stripeError.type === 'StripeInvalidRequestError') {
-                    responseHandler(res, 400, "Invalid Payment Intent ID. Please check the ID and try again.");
-                    return;
-                }
-                throw stripeError;
-            }
-        } else if (transactionId.startsWith('ch_')) {
-            // It's a Charge
-            try {
-                const charge = await stripe.charges.retrieve(transactionId);
-                
-                if (charge.status !== 'succeeded') {
-                    responseHandler(res, 400, `Payment is not successful. Current status: ${charge.status}`);
-                    return;
-                }
-
-                paymentData = charge;
-                stripePaymentIntentId = charge.payment_intent as string;
-                chargeAmount = charge.amount;
-                chargeCurrency = charge.currency;
-                chargeStatus = charge.status;
-                chargeCreated = charge.created;
-                chargeDescription = charge.description;
-
-            } catch (stripeError: any) {
-                if (stripeError.type === 'StripeInvalidRequestError') {
-                    responseHandler(res, 400, "Invalid Charge ID. Please check the ID and try again.");
-                    return;
-                }
-                throw stripeError;
-            }
-        } else {
-            responseHandler(res, 400, "Invalid transaction ID format. Must start with 'pi_' (Payment Intent) or 'ch_' (Charge).");
-            return;
+      });
+      if (existingCharge) {
+        responseHandler(res, 400, "This transaction is already recorded in our system.");
+        return;
+      }
+      // Create charge record
+      const charge = await prisma.charge.create({
+        data: {
+          amount: chargeAmount / 100, // Convert from cents
+          description: description || chargeDescription || `Manual transaction: ${transactionId}`,
+          customerId: existingCustomer.id,
+          currency: chargeCurrency,
+          status: "SUCCEEDED", // Already paid
+          createdBy: userId,
+          orderId,
+          expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+          paymentMethod: "MANUAL_TRANSACTION",
+          stripePaymentIntentId: stripePaymentIntentId,
+          paidAt: new Date(chargeCreated * 1000), // Convert from Unix timestamp
+          adminNotes: `Manually recorded transaction ID: ${transactionId} (${transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge'}). Stripe metadata stored for refund processing.`
         }
-
-        // Check if this payment is already associated with a charge
-        const existingCharge = await prisma.charge.findFirst({
-            where: { 
-                OR: [
-                    { stripePaymentIntentId: stripePaymentIntentId },
-                    { stripePaymentIntentId: transactionId }
-                ]
-            }
+      });
+      if (orderId) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: "DELIVERED" }
         });
-
-        if (existingCharge) {
-            responseHandler(res, 400, "This transaction is already recorded in our system.");
-            return;
-        }
-
-        // Create charge record
-        const charge = await prisma.charge.create({
-            data: {
-                amount: chargeAmount / 100, // Convert from cents
-                description: description || chargeDescription || `Manual transaction: ${transactionId}`,
-                customerId: existingCustomer.id,
-                currency: chargeCurrency,
-                status: "SUCCEEDED", // Already paid
-                createdBy: userId,
-                expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-                paymentMethod: "MANUAL_TRANSACTION",
-                stripePaymentIntentId: stripePaymentIntentId,
-                paidAt: new Date(chargeCreated * 1000), // Convert from Unix timestamp
-                adminNotes: `Manually recorded transaction ID: ${transactionId} (${transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge'}). Stripe metadata stored for refund processing.`
-            }
-        });
-
-        responseHandler(res, 201, "Manual transaction recorded successfully.", {
-            chargeId: charge.id,
-            amount: charge.amount,
-            currency: charge.currency,
-            status: charge.status,
-            stripeData: {
-                originalTransactionId: transactionId,
-                paymentIntentId: stripePaymentIntentId,
-                transactionType: transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge',
-                receiptUrl: paymentData.receipt_url || null
-            }
-        });
-
-    } catch (error) {
-      console.error("Error creating manual transaction charge:", error);
-      handleError(res, error as Error);
-    }
+      }
+      responseHandler(res, 201, "Manual transaction recorded successfully.", {
+          chargeId: charge.id,
+          amount: charge.amount,
+          currency: charge.currency,
+          status: charge.status,
+          stripeData: {
+            originalTransactionId: transactionId,
+            paymentIntentId: stripePaymentIntentId,
+            transactionType: transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge',
+            receiptUrl: paymentData.receipt_url || null
+          }
+      });
+  } catch (error) {
+    console.error("Error creating manual transaction charge:", error);
+    handleError(res, error as Error);
+  }
 };
 
 export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description } = req.body;
-//@ts-ignore
-  const { id } = req.user;
-
+  const { customerId, amount, description, orderId } = req.body;
+  //@ts-ignore
+  const { id: adminId } = req.user;
   if (!customerId || !amount) {
-    responseHandler(res, 400, "customer id and amount is required");
+    responseHandler(res, 400, "Customer ID and amount are required.");
     return;
   }
-
   try {
     await prisma.charge.create({
       data: {
         customerId,
-        description: description || null,
         amount,
-        paymentMethod: "cash",
-        status: "SUCCEEDED",
-        createdBy: id
+        description,
+        orderId: orderId,
+        status: 'SUCCEEDED',
+        paymentMethod: 'cash',
+        paidAt: new Date(),
+        createdBy: adminId
       }
     });
-    responseHandler(res, 200, "success");
+    // If an orderId is provided, trigger the order delivered event
+    if (orderId) {
+      const orderEventService = (global as any).orderEventService;
+      if (orderEventService) {
+        await orderEventService.orderDelivered(orderId);
+      } else {
+        console.error(`orderEventService not found, could not mark order ${orderId} as delivered.`);
+        // As a fallback, update the order status directly
+        await prisma.order.update({
+            where: { id: orderId },
+            data: { status: 'DELIVERED', deliveredAt: new Date() }
+        });
+      }
+    }
+    responseHandler(res, 200, "Cash payment recorded successfully.");
   } catch (error) {
-    console.error("Error creating cash charge:", error);
     handleError(res, error as Error);
+    console.error("Error collecting cash:", error);
   }
-}
+};

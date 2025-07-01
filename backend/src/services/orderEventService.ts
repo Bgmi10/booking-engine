@@ -220,10 +220,10 @@ class OrderEventService {
         });
         
         this.wsManager.sendToRoom('ADMIN', {
-            type: 'order:created',
+          type: 'order:created',
             orderId: updatedOrder.id,
             data: eventData,
-            timestamp: new Date()
+          timestamp: new Date()
         });
 
         await TelegramService.notifyWaiterOrder(order.id, {
@@ -581,9 +581,23 @@ class OrderEventService {
         },
         include: {
           customer: true,
-          waiter: true
+          waiter: true,
+          temporaryCustomer: true,
+          charge: true
         }
       });
+
+      // If there's a charge associated, mark it as succeeded
+      if (order.charge) {
+        await prisma.charge.update({
+          where: { id: order.charge.id },
+          data: {
+            status: 'SUCCEEDED',
+            paidAt: new Date(),
+            paymentMethod: 'cash'
+          }
+        });
+      }
 
       // Remove assignment tracking for both
       this.kitchenAssignments.delete(orderId);

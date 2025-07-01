@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, CreditCard, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import type { Customer } from '../../../hooks/useCustomers';
 
@@ -8,11 +8,13 @@ interface ManualTransactionFormProps {
     onBack: () => void;
     onClose: () => void;
     isProcessing: boolean;
+    amount?: string;
+    description?: string;
+    orderId?: string;
 }
 
-export default function ManualTransactionForm({ customer, onBack, onClose, isProcessing }: ManualTransactionFormProps) {
+export default function ManualTransactionForm({ customer, onBack, onClose, isProcessing, amount, description, orderId }: ManualTransactionFormProps) {
     const [transactionId, setTransactionId] = useState('');
-    const [description, setDescription] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
@@ -35,7 +37,9 @@ export default function ManualTransactionForm({ customer, onBack, onClose, isPro
                 body: JSON.stringify({
                     customerId: customer.id,
                     transactionId: transactionId.trim(),
-                    description: description.trim() || undefined
+                    amount: amount ? parseFloat(amount) : undefined,
+                    description: description,
+                    orderId: orderId
                 }),
             });
 
@@ -94,21 +98,6 @@ export default function ManualTransactionForm({ customer, onBack, onClose, isPro
                 </div>
 
                 <div className="p-6">
-                    <div className="mb-6">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                                <div>
-                                    <h4 className="text-sm font-medium text-blue-900 mb-1">How this works</h4>
-                                    <p className="text-sm text-blue-800">
-                                        Enter a Stripe transaction ID (starts with "pi_" for Payment Intent or "ch_" for Charge) to record a payment that was made outside this system. 
-                                        This allows you to track and refund the payment later.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label htmlFor="transactionId" className="block text-sm font-medium text-gray-700 mb-2">
@@ -128,20 +117,6 @@ export default function ManualTransactionForm({ customer, onBack, onClose, isPro
                             </p>
                         </div>
 
-                        <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                                Description (Optional)
-                            </label>
-                            <input
-                                type="text"
-                                id="description"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="e.g., PayPal payment for extra services"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                disabled={isProcessing}
-                            />
-                        </div>
 
                         {error && (
                             <div className="bg-red-50 border border-red-200 rounded-md p-3">

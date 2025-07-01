@@ -82,25 +82,25 @@ model Customer {
 
 model Charge {
   id                    String             @id   @default(uuid())
-  amount                Float    
+  amount                Float 
   currency              String             @default("eur")
-  description           String?   
-  gatekeeperUrl         String?   
+  description           String?
+  gatekeeperUrl         String?
   status                ChargeStatus       @default(PENDING)
-  expiredAt             DateTime?         
+  expiredAt             DateTime?      
   createdAt             DateTime           @default(now())
-  paidAt                DateTime?   
-  stripePaymentIntentId String?   
-  paymentMethod         String?   
-  paymentUrl            String?            
-  createdBy             String   
-  customerId            String   
-  customer              Customer           @relation(fields: [customerId], references: [id])
-  adminNotes            String?   
+  paidAt                DateTime?
+  stripePaymentIntentId String?
+  paymentMethod         String?
+  paymentUrl            String?         
+  createdBy             String
+  customerId            String?   
+  customer              Customer?           @relation(fields: [customerId], references: [id])
+  adminNotes            String?
   orderId               String?            @unique
   order                 Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  tempCustomerId        String
-  tempCustomer          TemporaryCustomer  @relation(fields: [tempCustomerId], references: [id])  
+  tempCustomerId        String?
+  tempCustomer          TemporaryCustomer?  @relation(fields: [tempCustomerId], references: [id])  
 }
         
 model Booking {        
@@ -659,6 +659,7 @@ model TemporaryCustomer {
   updatedAt DateTime @updatedAt
   orders    Order[]
   charges   Charge[]
+  stripeCustomerId String?
 }
 
 model Location {

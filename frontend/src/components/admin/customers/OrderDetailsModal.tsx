@@ -88,7 +88,7 @@ const OrderDetailsModal = ({ orderId, onClose }: OrderDetailsModalProps) => {
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div className="flex items-center gap-2"><Hash className="h-4 w-4 text-gray-500" /><span>Order ID:</span><span className="font-medium text-gray-800">{order.id}</span></div>
-                                <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-gray-500" /><span>Status:</span><span className="font-medium text-gray-800 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">{order.status}</span></div>
+                                <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-gray-500" /><span>Status:</span><span className="font-medium text-gray-800 px-2 py-0.5 rounded-full bg-blue-100">{order.status}</span></div>
                                 <div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-gray-500" /><span>Total:</span><span className="font-medium text-gray-800">{order.total}</span></div>
                                 <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-gray-500" /><span>Location:</span><span className="font-medium text-gray-800">{order.locationName}</span></div>
                                 <div className="flex items-center gap-2 col-span-1 md:col-span-2"><Calendar className="h-4 w-4 text-gray-500" /><span>Created At:</span><span className="font-medium text-gray-800">{formatDate(order.createdAt)}</span></div>

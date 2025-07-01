@@ -5,8 +5,15 @@ import { baseUrl } from "../../../utils/constants";
 import CreatorInfoModal from "./CreatorInfoModal";
 import OrderDetailsModal from "./OrderDetailsModal";
 
+interface TempCustomer {
+    id: string;
+    surname: string;
+    guestEmail?: string;
+}
+
 interface PaymentHistoryModalProps {
-    customer: CustomerType;
+    customer: CustomerType | TempCustomer;
+    customerType: 'regular' | 'temporary';
     onClose: () => void;
 }
 
@@ -25,17 +32,31 @@ interface PaymentRecord {
     orderId?: string;
 }
 
-export default function PaymentHistoryModal({ customer, onClose }: PaymentHistoryModalProps) {
+export default function PaymentHistoryModal({ customer, customerType, onClose }: PaymentHistoryModalProps) {
     const [payments, setPayments] = useState<PaymentRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [refundingId, setRefundingId] = useState<string | null>(null);
     const [creatorIdForModal, setCreatorIdForModal] = useState<string | null>(null);
     const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
+    const renderCustomerInfo = () => {
+        if (customerType === 'regular') {
+            const regularCustomer = customer as CustomerType;
+            return `${regularCustomer.guestFirstName} ${regularCustomer.guestLastName} • ${regularCustomer.guestEmail}`;
+        } else {
+            const tempCustomer = customer as TempCustomer;
+            return `${tempCustomer.surname} ${tempCustomer.guestEmail ? `• ${tempCustomer.guestEmail}` : ''}`;
+        }
+    }
+
     const fetchPaymentHistory = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${baseUrl}/admin/customers/${customer.id}/charge-payments`, {
+            const endpoint = customerType === 'regular'
+                ? `${baseUrl}/admin/customers/${customer.id}/charge-payments`
+                : `${baseUrl}/admin/temp-customers/${customer.id}/charge-payments`;
+            
+            const response = await fetch(endpoint, {
                 credentials: "include",
             });
             if (response.ok) {
@@ -51,7 +72,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
         } finally {
             setLoading(false);
         }
-    }, [customer.id]);
+    }, [customer.id, customerType]);
 
     useEffect(() => {
         fetchPaymentHistory();
@@ -121,7 +142,7 @@ export default function PaymentHistoryModal({ customer, onClose }: PaymentHistor
                             Charge History
                         </h2>
                         <p className="text-sm text-gray-600 mt-1">
-                            {customer.guestFirstName} {customer.guestLastName} • {customer.guestEmail}
+                            {renderCustomerInfo()}
                         </p>
                     </div>
                     <button

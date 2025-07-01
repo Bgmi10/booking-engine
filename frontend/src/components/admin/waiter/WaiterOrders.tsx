@@ -5,6 +5,7 @@ import { baseUrl } from "../../../utils/constants";
 import { useAuth } from "../../../context/AuthContext";
 import EditOrderModal from "./EditOrderModal";
 import type { WaiterOrder } from "../../../types/types";
+import CollectPaymentModal from "./CollectPaymentModal";
 
 interface TakenInfo {
   orderId: string;
@@ -19,7 +20,9 @@ export default function WaiterOrders() {
   const [myOrders, setMyOrders] = useState<WaiterOrder[]>([]);
   const [selectedMyOrder, setSelectedMyOrder] = useState<WaiterOrder | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const { user } = useAuth(); 
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [orderForPayment, setOrderForPayment] = useState<WaiterOrder | null>(null);
+  const { user } = useAuth();
 
   const playSound = () => {
     const audio = new Audio("/assets/notification_sound.wav");
@@ -78,7 +81,9 @@ export default function WaiterOrders() {
       total: order.total || 0,
       hasKitchenItems: hasKitchenItems,
       hasWaiterItems: hasWaiterItems,
-      paymentMethod: paymentMethod
+      paymentMethod: paymentMethod,
+      customerId: order.customerId,
+      temporaryCustomerId: order.temporaryCustomerId,
     };
   };
 
@@ -228,6 +233,33 @@ export default function WaiterOrders() {
     setSelectedMyOrder(updatedOrder);
 
     setIsEditModalOpen(false);
+  };
+
+  const handleDeliverClick = (order: WaiterOrder) => {
+    if (order.paymentMethod === 'PAY_AT_WAITER' && order.status !== 'DELIVERED') {
+      setOrderForPayment(order);
+      setIsPaymentModalOpen(true);
+    } else {
+      orderDelivered(order.id);
+    }
+  };
+
+  const orderDelivered = (orderId: string) => {
+    // Optimistically remove the order from the list for an instant UI update
+    setMyOrders(prev => prev.filter(o => o.id !== orderId));
+    
+    // Send the message to the backend to finalize the status
+    sendWebSocketMessage({ type: "order_delivered", orderId });
+    toast.success("Order marked as delivered!");
+    setSelectedMyOrder(null);
+  };
+
+  const handlePaymentSuccess = () => {
+    if (orderForPayment) {
+      orderDelivered(orderForPayment.id);
+    }
+    setIsPaymentModalOpen(false);
+    setOrderForPayment(null);
   };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -429,46 +461,46 @@ export default function WaiterOrders() {
               >
                 {/* Header */}
                 <div className="p-6 border-b border-gray-200 relative">
-                  <button
+                <button
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
-                    onClick={() => setSelectedMyOrder(null)}
-                    aria-label="Close"
-                  >
+                  onClick={() => setSelectedMyOrder(null)}
+                  aria-label="Close"
+                >
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
+                </button>
                   <h3 className="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap pr-8">
-                    Order #{selectedMyOrder.orderId.slice(-6)}
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                      selectedMyOrder.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-800' :
-                      selectedMyOrder.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {selectedMyOrder.status}
-                    </span>
-                  </h3>
-                  <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
+                  Order #{selectedMyOrder.orderId.slice(-6)}
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                    selectedMyOrder.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-800' :
+                    selectedMyOrder.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedMyOrder.status}
+                  </span>
+                </h3>
+                <div className="text-gray-600 mb-2">Location: {selectedMyOrder.locationName}</div>
                   <div className="text-gray-700">Customer: {selectedMyOrder.customerName || 'N/A'}</div>
                 </div>
-
+                
                 {/* Scrollable Body */}
                 <div className="p-6 flex-grow overflow-y-auto">
-                  {/* Payment Method Banner */}
-                  <div className={`mb-4 p-3 rounded-lg ${
-                    selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                      ? 'bg-purple-50 border border-purple-100' 
-                      : 'bg-green-50 border border-green-100'
-                  }`}>
-                    <div className="font-semibold text-lg mb-1">
-                      {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
-                        ? 'Payment: Room Charge' 
-                        : 'Payment: Collect from Customer'}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                {/* Payment Method Banner */}
+                <div className={`mb-4 p-3 rounded-lg ${
+                  selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                    ? 'bg-purple-50 border border-purple-100' 
+                    : 'bg-green-50 border border-green-100'
+                }`}>
+                  <div className="font-semibold text-lg mb-1">
+                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
+                      ? 'Payment: Room Charge' 
+                      : 'Payment: Collect from Customer'}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {selectedMyOrder.paymentMethod === 'ASSIGN_TO_ROOM' 
                         ? `This order has been charged to the customer's room bill.` 
                         : `Please collect payment of €${selectedMyOrder.total?.toFixed(2)} from the customer when delivering this order.`}
-                    </p>
-                  </div>
+                  </p>
+                </div>
 
                   <div>
                     <h4 className="font-semibold mb-2 text-gray-800">Order Items:</h4>
@@ -506,24 +538,24 @@ export default function WaiterOrders() {
                         <ul className="space-y-2 mt-1 opacity-70">
                           {selectedMyOrder.items?.filter(item => item.role !== 'WAITER').map((item, idx) => (
                             <li key={idx} className="flex items-center gap-3 p-2 rounded bg-gray-100">
-                          <img
-                            src={item.imageUrl || item.image || '/assets/placeholder.png'}
-                            alt={item.name}
-                            className="w-12 h-12 object-cover rounded border"
-                            onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
-                          />
-                          <div>
-                            <div className="font-medium">{item.name}</div>
-                            {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
-                            <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                        <img
+                          src={item.imageUrl || item.image || '/assets/placeholder.png'}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded border"
+                          onError={e => (e.currentTarget.src = '/assets/placeholder.png')}
+                        />
+                        <div>
+                          <div className="font-medium">{item.name}</div>
+                          {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                          <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                     )}
                   </div>
-                </div>
+                    </div>
                 
                 {/* Footer */}
                 <div className="p-6 bg-gray-50 border-t border-gray-200">
@@ -540,23 +572,20 @@ export default function WaiterOrders() {
                     {selectedMyOrder.status !== 'DELIVERED' && selectedMyOrder.status !== 'CANCELLED' && (
                       <button
                         className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold"
-                        onClick={() => {
-                          sendWebSocketMessage({ type: "mark_order_delivered", orderId: selectedMyOrder.id });
-                          setSelectedMyOrder(null);
-                        }}
+                        onClick={() => handleDeliverClick(selectedMyOrder)}
                       >
-                        Mark as Delivered
+                        Mark Delivered
                       </button>
                     )}
                   </div>
                    {selectedMyOrder.status !== 'DELIVERED' && selectedMyOrder.status !== 'CANCELLED' && (
-                    <button
+                  <button
                       onClick={() => handleCancelOrder(selectedMyOrder.id)}
                       className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-semibold mt-2"
                     >
                       Cancel Order
-                    </button>
-                  )}
+                  </button>
+                )}
                 </div>
               </div>
             </div>
@@ -568,8 +597,15 @@ export default function WaiterOrders() {
               onOrderUpdated={handleOrderUpdated}
             />
           )}
+          {isPaymentModalOpen && orderForPayment && (
+            <CollectPaymentModal
+              order={orderForPayment}
+              onClose={() => setIsPaymentModalOpen(false)}
+              onPaymentSuccess={handlePaymentSuccess}
+            />
+          )}
         </>
       )}
     </div>
   );
-}
+} 
