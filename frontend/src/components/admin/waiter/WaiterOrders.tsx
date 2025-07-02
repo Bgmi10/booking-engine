@@ -245,12 +245,9 @@ export default function WaiterOrders() {
   };
 
   const orderDelivered = (orderId: string) => {
-    // Optimistically remove the order from the list for an instant UI update
-    setMyOrders(prev => prev.filter(o => o.id !== orderId));
-    
-    // Send the message to the backend to finalize the status
-    sendWebSocketMessage({ type: "order_delivered", orderId });
+    sendWebSocketMessage({ type: "mark_order_delivered", orderId });
     toast.success("Order marked as delivered!");
+    setMyOrders(prev => prev.filter(o => o.id !== orderId));
     setSelectedMyOrder(null);
   };
 

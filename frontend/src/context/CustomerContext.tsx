@@ -79,8 +79,6 @@ export const CustomerProvider = ({ children }: { children: React.ReactNode }) =>
     }
   };
 
-  // On initial load, always try to fetch the customer profile
-  // This will determine if a valid cookie exists
   useEffect(() => {
     fetchCustomer();
   }, []);

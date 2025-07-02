@@ -31,7 +31,9 @@ function App() {
         <Route path="/booking/success" element={<Success />} />
         <Route path="/booking/failure" element={<Failure />} />
         <Route path="/customers/order-items" element={<Order />} /> 
-        <Route path="/customers/verify" element={<CustomerVerify />} /> 
+        <Route path="/customers/verify" element={
+          //@ts-ignore
+          <CustomerVerify />} /> 
         <Route element={<AdminProtectedRoutes />}>  
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Route>

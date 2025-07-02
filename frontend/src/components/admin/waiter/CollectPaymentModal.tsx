@@ -60,7 +60,8 @@ export default function CollectPaymentModal({ order, onClose, onPaymentSuccess }
                         customerId: order.customerId || order.temporaryCustomerId,
                         amount: order.total,
                         description: `Payment for Order #${order.id.slice(-6)}`,
-                        orderId: order.id
+                        orderId: order.id,
+                        isTemporaryCustomer: !!order.temporaryCustomerId
                     })
                 });
 

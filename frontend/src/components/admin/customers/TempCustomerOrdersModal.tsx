@@ -1,4 +1,4 @@
-import { X, Calendar, Hash, Package, DollarSign, ListOrdered, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Package, ListOrdered, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { baseUrl } from '../../../utils/constants';
 
@@ -6,11 +6,6 @@ interface TempCustomer {
     id: string;
     surname: string;
     guestEmail?: string;
-}
-
-interface MenuItem {
-    name: string;
-    price: number;
 }
 
 interface OrderItem {

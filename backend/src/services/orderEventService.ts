@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import WebSocketManager from '../websocket/websocketManager';
 import TelegramService from './telegramService';
+
 interface OrderEventData {
   orderId: string;
   status: string;
@@ -587,19 +588,6 @@ class OrderEventService {
         }
       });
 
-      // If there's a charge associated, mark it as succeeded
-      if (order.charge) {
-        await prisma.charge.update({
-          where: { id: order.charge.id },
-          data: {
-            status: 'SUCCEEDED',
-            paidAt: new Date(),
-            paymentMethod: 'cash'
-          }
-        });
-      }
-
-      // Remove assignment tracking for both
       this.kitchenAssignments.delete(orderId);
       this.waiterAssignments.delete(orderId);
 

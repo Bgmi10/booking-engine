@@ -46,6 +46,7 @@ export default function Customer() {
     const [search, setSearch] = useState("");
     const [vipFilter, setVipFilter] = useState("ALL");
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
+    //@ts-ignore
     const [viewUserModal, setViewUserModal] = useState<{ open: boolean; user: CustomerType | null }>({ open: false, user: null });
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const [isPaymentHistoryModalOpen, setIsPaymentHistoryModalOpen] = useState(false);

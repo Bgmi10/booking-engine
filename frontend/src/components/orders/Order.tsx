@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import toast from "react-hot-toast";
 import { baseUrl } from "../../utils/constants";
 import { useCustomer } from "../../context/CustomerContext";
 import { ShoppingBasket, ArrowLeft } from "lucide-react";
@@ -121,7 +122,7 @@ export default function Order() {
     const submitOrder = async () => {
         if (cart.length === 0) return;
         if (!paymentMethod) {
-            alert("Please select a payment method.");
+            toast.error("Please select a payment method.");
             return;
         }
         setIsSubmitting(true);
@@ -142,12 +143,12 @@ export default function Order() {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to place order.');
             }
-            alert("Order placed successfully!");
+            toast.success("Order placed successfully!");
             setCart([]);
             setShowCheckout(false);
             setPaymentMethod('');
         } catch (error: any) {
-            alert(error.message);
+            toast.error(error.message);
         } finally {
             setIsSubmitting(false);
         }

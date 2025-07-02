@@ -403,7 +403,7 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
 }
 
 export const createManualTransactionCharge = async (req: express.Request, res: express.Response) => {
-  const { customerId, transactionId, description, orderId } = req.body;
+  const { customerId, transactionId, description, orderId, isTemporaryCustomer } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;
   if (!customerId || !transactionId) {
@@ -412,8 +412,14 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
   }
   try {
       // Find the customer
-      const existingCustomer = await prisma.customer.findUnique({ where: { id: customerId } });
-      if (!existingCustomer) {
+      let customerDetails: any;
+      if (isTemporaryCustomer) {
+        customerDetails = await prisma.temporaryCustomer.findUnique({ where: { id: customerId }});
+      } else {
+        customerDetails = await prisma.customer.findUnique({ where: { id: customerId } });
+      }
+      
+      if (!customerDetails) {
         responseHandler(res, 404, "Customer not found.");
         return;
       }
@@ -493,7 +499,8 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
         data: {
           amount: chargeAmount / 100, // Convert from cents
           description: description || chargeDescription || `Manual transaction: ${transactionId}`,
-          customerId: existingCustomer.id,
+          customerId: isTemporaryCustomer ? undefined : customerId,
+          tempCustomerId: isTemporaryCustomer ? customerId : undefined,
           currency: chargeCurrency,
           status: "SUCCEEDED", // Already paid
           createdBy: userId,
@@ -506,10 +513,17 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
         }
       });
       if (orderId) {
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { status: "DELIVERED" }
-        });
+        const orderEventService = (global as any).orderEventService;
+        if (orderEventService) {
+          await orderEventService.orderDelivered(orderId);
+        } else {
+          console.error(`orderEventService not found, could not mark order ${orderId} as delivered.`);
+          // As a fallback, update the order status directly
+          await prisma.order.update({
+              where: { id: orderId },
+              data: { status: 'DELIVERED', deliveredAt: new Date() }
+          });
+        }
       }
       responseHandler(res, 201, "Manual transaction recorded successfully.", {
           chargeId: charge.id,
@@ -530,7 +544,7 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
 };
 
 export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, orderId } = req.body;
+  const { customerId, amount, description, orderId, isTemporaryCustomer } = req.body;
   //@ts-ignore
   const { id: adminId } = req.user;
   if (!customerId || !amount) {
@@ -540,7 +554,8 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
   try {
     await prisma.charge.create({
       data: {
-        customerId,
+        customerId: isTemporaryCustomer ? undefined : customerId,
+        tempCustomerId: isTemporaryCustomer ? customerId : undefined,
         amount,
         description,
         orderId: orderId,

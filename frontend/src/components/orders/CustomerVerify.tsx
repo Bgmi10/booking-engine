@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { baseUrl } from '../../utils/constants';
 
 const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVerificationSuccess }) => {
@@ -52,7 +53,7 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
             const data = await response.json();
 
             if (response.ok) {
-                alert('Verification successful!');
+                toast.success('Verification successful!');
                 onVerificationSuccess();
             } else {
                 throw new Error(data.message || 'Verification failed.');

@@ -110,11 +110,21 @@ export const getAllCustomers = async (req: express.Request, res: express.Respons
 export const getOccupiedRooms = async (req: express.Request, res: express.Response) => {
     try {
         const now = new Date();
+
+        // Get today's date as YYYY-MM-DD only
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Strip time → 2025-07-02T00:00:00.000Z
+
         const activeBookings = await prisma.booking.findMany({
             where: {
                 status: 'CONFIRMED',
-                checkIn: { lte: now },
-                checkOut: { gte: now },
+                checkIn: {
+                    lte: now,
+                },
+                checkOut: {
+                    // Check if checkout is today or later (so still occupied)
+                    gte: today,
+                },
             },
             include: {
                 room: {
@@ -130,10 +140,11 @@ export const getOccupiedRooms = async (req: express.Request, res: express.Respon
 
         responseHandler(res, 200, "Successfully retrieved occupied rooms", uniqueOccupiedRooms);
     } catch (e) {
-        console.log(e);
+        console.error(e);
         handleError(res, e as Error);
     }
 };
+
 
 export const loginCustomer = async (req: express.Request, res: express.Response) => {
     const { surname, roomName } = req.body;
@@ -145,7 +156,9 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
 
     try {
         const now = new Date();
-        const activeBooking = await prisma.booking.findFirst({
+        
+        // Get ALL active bookings for the room, then find the one with matching surname
+        const activeBookings = await prisma.booking.findMany({
             where: {
                 room: { name: roomName },
                 status: 'CONFIRMED',
@@ -157,15 +170,21 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             },
         });
 
+        // Find the booking with matching surname
+        const activeBooking = activeBookings.find(booking => 
+            booking.customer.guestLastName.toLowerCase() === surname.toLowerCase()
+        );
+
         let payload;
         let customerData;
 
-        if (activeBooking && activeBooking.customer.guestLastName.toLowerCase() === surname.toLowerCase()) {
-            // Existing customer found
+        if (activeBooking) {
+            // Existing customer found with matching surname
             const customer = activeBooking.customer;
             payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
             customerData = customer;
         } else {
+            // No matching booking found, create temporary customer
             const stripeCustomer = await stripe.customers.create({
                 name: `Temporary Guest - ${surname}`,
                 metadata: {
@@ -175,12 +194,12 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             });
 
             const tempCustomer = await prisma.temporaryCustomer.create({
-                data: { 
+                data: {
                     surname,
                     stripeCustomerId: stripeCustomer.id
                 },
             });
-            
+                     
             payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER', stripeCustomerId: tempCustomer.stripeCustomerId };
             customerData = tempCustomer;
         }
@@ -192,7 +211,7 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             secure: process.env.NODE_ENV === "production",
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
-        
+                 
         responseHandler(res, 200, "Verification successful", { user: customerData, token: tokenJwt });
 
     } catch (e) {
