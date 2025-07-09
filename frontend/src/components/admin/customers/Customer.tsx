@@ -167,58 +167,58 @@ export default function Customer() {
 
     const renderRegularCustomers = () => (
         <>
-            <div className="flex flex-wrap gap-4 items-center mb-2">
-                <input
-                    type="text"
+        <div className="flex flex-wrap gap-4 items-center mb-2">
+          <input
+            type="text"
                     placeholder="Search by name, email, phone..."
-                    className="border rounded px-3 py-2 w-72"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <select
-                    className="border rounded px-3 py-2"
-                    value={vipFilter}
-                    onChange={e => setVipFilter(e.target.value)}
-                >
-                    <option value="ALL">All VIP Status</option>
-                    <option value="VIP">VIP Only</option>
-                    <option value="NON_VIP">Non-VIP Only</option>
-                </select>
-            </div>
-            <div className="bg-white rounded-lg shadow mt-6">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VIP</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {loading ? (
+            className="border rounded px-3 py-2 w-72"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select
+            className="border rounded px-3 py-2"
+            value={vipFilter}
+            onChange={e => setVipFilter(e.target.value)}
+          >
+            <option value="ALL">All VIP Status</option>
+            <option value="VIP">VIP Only</option>
+            <option value="NON_VIP">Non-VIP Only</option>
+          </select>
+        </div>
+        <div className="bg-white rounded-lg shadow mt-6">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VIP</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
                             <tr><td colSpan={5} className="text-center py-8">Loading...</td></tr>
-                        ) : (
-                            customers
+              ) : (
+                customers
                                 .filter(c => (vipFilter === "ALL" || (vipFilter === "VIP" && c.vipStatus) || (vipFilter === "NON_VIP" && !c.vipStatus)))
                                 .filter(c => [c.guestFirstName, c.guestLastName, c.guestEmail, c.guestPhone].some(field => field?.toLowerCase().includes(search.toLowerCase())))
-                                .map((customer) => (
-                                    <tr key={customer.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">{customer.guestFirstName} {customer.guestLastName}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{customer.guestEmail}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{customer.guestPhone}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                  .map((customer) => (
+                    <tr key={customer.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">{customer.guestFirstName} {customer.guestLastName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{customer.guestEmail}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{customer.guestPhone}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                                             {customer.vipStatus ? <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">VIP</span> : <span className="inline-block px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">No</span>}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="relative dropdown-container">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="relative dropdown-container">
                                                 <button onClick={() => toggleDropdown(customer.id.toString())} className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full">
-                                                    <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                                                </button>
-                                                {openDropdown === customer.id.toString() && (
+                            <MoreHorizontal className="h-4 w-4 text-gray-600" />
+                          </button>
+                          {openDropdown === customer.id.toString() && (
                                                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border z-10">
-                                                        <div className="py-1">
+                              <div className="py-1">
                                                             <button onClick={() => handleEdit(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit className="h-4 w-4 mr-3 text-yellow-600" />Edit</button>
                                                             <button onClick={() => handleShowBookings(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Calendar className="h-4 w-4 mr-3 text-blue-600" />Bookings</button>
                                                             <button onClick={() => handleCharge(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><CreditCard className="h-4 w-4 mr-3 text-purple-600" />Charge</button>
@@ -274,29 +274,29 @@ export default function Customer() {
                                             <div className="relative dropdown-container">
                                                 <button onClick={() => toggleDropdown(customer.id)} className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full">
                                                     <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                                                </button>
+                                </button>
                                                 {openDropdown === customer.id && (
                                                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border z-10">
                                                         <div className="py-1">
                                                             <button onClick={() => handleTempViewOrders(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                                                 <ListOrdered className="h-4 w-4 mr-3 text-blue-600" />
                                                                 View Orders
-                                                            </button>
+                                </button>
                                                             <button onClick={() => handleTempPaymentHistory(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                                <History className="h-4 w-4 mr-3 text-green-600" />
+                                  <History className="h-4 w-4 mr-3 text-green-600" />
                                                                 History
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
         </>
     );
 
@@ -316,15 +316,15 @@ export default function Customer() {
                         Refresh
                     </button>
                     {activeTab === 'regular' && (
-                         <button
+              <button
                             onClick={() => setIsCreateModalOpen(true)}
                             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                         >
+              >
                             <Plus className={`h-4 w-4 mr-2`} />
                             Create Customer
-                        </button>
+              </button>
                     )}
-                </div>
+              </div>
             </div>
             
             <CustomerTypeSwitch activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSearch(''); }} />
@@ -354,7 +354,7 @@ export default function Customer() {
                         setSelectedTempCustomer(null);
                     }}
                 />
-            )}
+        )}
         </div>
     );
 }

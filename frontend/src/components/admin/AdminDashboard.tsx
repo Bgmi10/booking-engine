@@ -19,6 +19,7 @@ import WaiterOrders from "./waiter/WaiterOrders";
 import { initAdminWebSocket } from "../../utils/websocket";
 import { useAuth } from "../../context/AuthContext";
 import CreateOrderModal from "./orders/CreateOrderModal";
+import WeddingProposals from "./wedding-proposals/WeddingProposals";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -83,6 +84,8 @@ export default function AdminDashboard() {
         return <KitchenOrders />;
       case "waiter-orders":
         return <WaiterOrders />;
+      case "wedding-proposals":
+        return <WeddingProposals />;
       default:
         if (user?.role === 'WAITER') return <WaiterOrders />;
         if (user?.role === 'KITCHEN') return <KitchenOrders />;
@@ -110,7 +113,7 @@ export default function AdminDashboard() {
             setCurrentPage={handleSidebarItemClick} 
           /> 
         </div>
- 
+        
         <main className="flex-1 overflow-auto p-4 bg-gray-50">
           {renderActiveView()}
         </main>

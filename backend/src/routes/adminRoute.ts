@@ -26,6 +26,10 @@ import { createAdminOrder, getAllAssignedCustomersOrders, getAllPendingCustomers
 import { createOrderCategory, deleteOrderCategory, getAllOrderCategories, updateOrderCategory } from "../controllers/orderCategoryController";
 import { editOrder, cancelOrder } from "../controllers/orderController";
 import { getAllTempCustomers, getTempCustomerChargePayments, getTempCustomerOrders } from "../controllers/tempCustomerController";
+import { createProduct, deleteProduct, getAllProducts, getProductById, updateProduct } from "../controllers/productController";
+import { createProductSchema, updateProductSchema } from "../zod/product.schema";
+import { createProposal, getAllProposals, getProposalById, updateProposal, updateProposalStatus, deleteProposal, updateItineraryItems, generateProposalPDF, sendProposalEmail } from '../controllers/proposalController';
+import { createProposalSchema, updateProposalSchema, updateProposalStatusSchema } from "../zod/proposal.schema";
 
 const adminRouter = Router();
 
@@ -242,6 +246,16 @@ adminRouter.put('/order-items/:id', authMiddleware, updateOrderItem);
 
 adminRouter.delete('/order-items/:id', authMiddleware, deleteOrderItem);
 
+adminRouter.get('/products/all', authMiddleware, getAllProducts);
+
+adminRouter.get('/products/:id', authMiddleware, getProductById);
+
+adminRouter.post('/products', authMiddleware, validateMiddleware(createProductSchema), createProduct);
+
+adminRouter.put('/products/:id', authMiddleware, validateMiddleware(updateProductSchema), updateProduct);
+
+adminRouter.delete('/products/:id', authMiddleware, deleteProduct);
+
 adminRouter.get('/customers/orders/pending/all', authMiddleware, getAllPendingCustomersOrders);
 
 adminRouter.get('/kitchen/orders', authMiddleware, getKitchenOrdersByUserId);
@@ -259,5 +273,23 @@ adminRouter.post('/orders/create', authMiddleware, createAdminOrder);
 adminRouter.put('/orders/:id/edit', authMiddleware, editOrder);
 
 adminRouter.put('/orders/:id/cancel', authMiddleware, cancelOrder);
+
+adminRouter.post('/wedding-proposals', authMiddleware, validateMiddleware(createProposalSchema), createProposal);
+
+adminRouter.get('/wedding-proposals', authMiddleware, getAllProposals);
+
+adminRouter.get('/wedding-proposals/:id', authMiddleware, getProposalById);
+
+adminRouter.put('/wedding-proposals/:id', authMiddleware, validateMiddleware(updateProposalSchema), updateProposal);
+
+adminRouter.put('/wedding-proposals/:id/status', authMiddleware, validateMiddleware(updateProposalStatusSchema), updateProposalStatus);
+
+adminRouter.delete('/wedding-proposals/:id', authMiddleware, deleteProposal);
+
+adminRouter.put('/wedding-proposals/:proposalId/days/:dayId/items', authMiddleware, updateItineraryItems);
+
+adminRouter.get('/wedding-proposals/:id/pdf', authMiddleware, generateProposalPDF);
+
+adminRouter.post('/wedding-proposals/:id/send-email', authMiddleware, sendProposalEmail);
 
 export default adminRouter;

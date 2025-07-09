@@ -484,3 +484,98 @@ export interface WaiterOrder {
   customerId?: string;
   temporaryCustomerId?: string;
 }
+
+// Updated Product type that combines both definitions
+export type Product = {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  pricingModel: 'FIXED' | 'PER_PERSON';
+  type: 'REGULAR' | 'WEDDING' | 'RESTAURANT';
+  category: string;
+  sampleMenu?: any;
+  image?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// Wedding Proposal Types
+export type ItineraryItemStatus = 'CONFIRMED' | 'OPTIONAL';
+
+export type ItineraryItem = {
+  id: string;
+  dayId: string;
+  productId: string;
+  product: Product;
+  guestCount: number;
+  status: ItineraryItemStatus;
+  price: number;
+  notes?: string;
+  customMenu?: any;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ItineraryDay = {
+  id: string;
+  dayNumber: number;
+  date: string;
+  proposalId: string;
+  items: ItineraryItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentStageStatus = 'PENDING' | 'PROCESSING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+
+export type PaymentPlanStage = {
+  id?: string;
+  description: string;
+  amount: number;
+  dueDate: string;
+  status?: PaymentStageStatus;
+  stripePaymentIntentId?: string;
+  stripePaymentUrl?: string;
+  reminderSent?: boolean;
+  paidAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  paymentPlan?: PaymentPlan;
+};
+
+export type PaymentPlan = {
+  id: string;
+  proposalId: string;
+  totalAmount: number;
+  currency: string;
+  stages: PaymentPlanStage[];
+  createdAt: string;
+  updatedAt: string;
+  proposal?: WeddingProposal;
+};
+
+export type ProposalStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+
+export type WeddingProposal = {
+  id: string;
+  name: string;
+  status: ProposalStatus;
+  weddingDate: string;
+  mainGuestCount: number;
+  termsAndConditions?: string;
+  customerId: string;
+  customer: {
+    guestFirstName: string;
+    guestLastName: string;
+    guestEmail: string;
+  };
+  itineraryDays: ItineraryDay[];
+  paymentPlan?: PaymentPlan;
+  holdExpiresAt?: string;
+  sentEmailCount?: number;
+  lastEmailSentAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};

@@ -1,7 +1,7 @@
 import express from "express";
 import { handleError, responseHandler } from "../utils/helper";
 import prisma from "../prisma";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 
 export const checkPaymentIntentStatus = async (req: express.Request, res: express.Response) => {
     const { id } = req.params;

@@ -1,11 +1,13 @@
 import express from "express";
 import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 import { generateToken } from "../utils/jwt";
 import dotenv from "dotenv";
 import TelegramService from "../services/telegramService";
-import { customerSchema, updateCustomerSchema } from "../zod/customer.schema";
+import { CustomerPortalService } from "../services/customerPortalService";
+import { CustomerAuthService } from '../services/customerAuthService';
+import { loginSchema, resetPasswordSchema, activateAccountSchema } from '../zod/auth.schema';
 
 dotenv.config();
 
@@ -372,7 +374,14 @@ export const getCustomerProfile = async(req: express.Request, res: express.Respo
     try {
         let customer;
         if (type === 'CUSTOMER') {
-            customer = await prisma.customer.findUnique({ where: { id } });
+            customer = await prisma.customer.findUnique({ 
+                where: { id }, 
+                include: { 
+                    weddingProposals: {
+                        select: { id: true }
+                    } 
+                }
+            });
         } else if (type === 'TEMP_CUSTOMER') {
             customer = await prisma.temporaryCustomer.findUnique({ where: { id } });
         } else {
@@ -507,6 +516,245 @@ export const getCustomerById = async (req: express.Request, res: express.Respons
         responseHandler(res, 200, "success", customer);
     } catch (error) {
         console.error(`Error fetching customer ${id}:`, error);
+        handleError(res, error as Error);
+    }
+};
+
+// Customer Portal Functions
+export const getProposalDetails = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const customerId = req.user.id;
+        const { proposalId } = req.params;
+        const proposal = await CustomerPortalService.getProposalDetails(customerId, proposalId);
+        responseHandler(res, 200, "Proposal details retrieved successfully", proposal);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const acceptProposal = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const customerId = req.user.id;
+        const { proposalId } = req.params;
+        const result = await CustomerPortalService.acceptProposal(customerId, proposalId);
+        responseHandler(res, 200, "Proposal accepted successfully", result);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const getPaymentPlan = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const customerId = req.user.id;
+        const { proposalId } = req.params;
+        const paymentPlan = await CustomerPortalService.getPaymentPlan(customerId, proposalId);
+        responseHandler(res, 200, "Payment plan retrieved successfully", paymentPlan);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const confirmFinalGuestNumbers = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const customerId = req.user.id;
+        const { proposalId } = req.params;
+        const proposal = await CustomerPortalService.confirmFinalGuestNumbers(customerId, proposalId);
+        responseHandler(res, 200, "Final guest numbers confirmed successfully", proposal);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+// Wedding Portal Authentication Functions
+export const weddingPortalLogin = async (req: express.Request, res: express.Response) => {
+    try {
+        const { email, password } = loginSchema.parse(req.body);
+        const result = await CustomerAuthService.login(email, password);
+        
+        res.cookie("customertoken", result.token, {
+            domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm",
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        });
+
+        responseHandler(res, 200, "Login successful", { user: result.customer });
+    } catch (error) {
+        if (error instanceof Error) {
+            switch(error.message) {
+                case 'Invalid credentials':
+                    responseHandler(res, 401, "Invalid email or password", { error: 'INVALID_CREDENTIALS' });
+                    break;
+                case 'Invalid credentials or account not activated':
+                    responseHandler(res, 403, "Account not activated or invalid credentials", { 
+                        error: 'ACCOUNT_NOT_ACTIVATED',
+                        message: 'Please activate your account or check your credentials'
+                    });
+                    break;
+                default:
+                    handleError(res, error);
+            }
+        } else {
+            handleError(res, error as Error);
+        }
+    }
+};
+
+export const weddingPortalActivateAccount = async (req: express.Request, res: express.Response) => {
+    try {
+        const { email, password, token } = activateAccountSchema.parse(req.body);
+        const result = await CustomerAuthService.activateAccount(email, password, token);
+        
+        res.cookie("customertoken", result.token, {
+            domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm",
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        responseHandler(res, 200, "Account activated successfully", { user: result.customer });
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const weddingPortalInitiatePasswordReset = async (req: express.Request, res: express.Response) => {
+    try {
+        const { email } = req.body;
+        const result = await CustomerAuthService.initiatePasswordReset(email);
+        
+        if (result.success) {
+            responseHandler(res, 200, "Password reset code has been sent");
+        } else {
+            responseHandler(res, 404, "User not found", { error: 'USER_NOT_FOUND' });
+        }
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const weddingPortalResetPassword = async (req: express.Request, res: express.Response) => {
+    try {
+        const { email, otp, newPassword } = resetPasswordSchema.parse(req.body);
+        await CustomerAuthService.resetPassword(email, otp, newPassword);
+        responseHandler(res, 200, "Password reset successful");
+    } catch (error) {
+        if (error instanceof Error) {
+            switch(error.message) {
+                case 'OTP_EXPIRED':
+                    responseHandler(res, 400, "OTP has expired. Please request a new code.", { error: 'OTP_EXPIRED' });
+                    break;
+                case 'INVALID_OTP':
+                    responseHandler(res, 400, "Invalid OTP. Please check and try again.", { error: 'INVALID_OTP' });
+                    break;
+                case 'CUSTOMER_NOT_FOUND':
+                    responseHandler(res, 404, "No account found with this email.", { error: 'CUSTOMER_NOT_FOUND' });
+                    break;
+                default:
+                    handleError(res, error);
+            }
+        } else {
+            handleError(res, error as Error);
+        }
+    }
+};
+
+export const getAllCustomerProposals = async (req: express.Request, res: express.Response) => {
+    try {
+        // Get the authenticated customer's ID from the request
+        //@ts-ignore
+        const customerId = req.user?.id;
+
+        if (!customerId) {
+            responseHandler(res, 401, "Unauthorized");
+            return;
+        }
+
+        // Fetch all proposals for the customer with full details
+        const proposals = await prisma.weddingProposal.findMany({
+            where: { 
+                customerId: customerId 
+            },
+            include: {
+                customer: true,
+                itineraryDays: {
+                    include: {
+                        items: {
+                            include: {
+                                product: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        dayNumber: 'asc'
+                    }
+                },
+                paymentPlan: {
+                    include: {
+                        stages: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        responseHandler(res, 200, "Successfully retrieved customer proposals", proposals);
+    } catch (error) {
+        console.error("Error fetching customer proposals:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const updateItinerary = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const customerId = req.user.id;
+        const { proposalId } = req.params;
+        const { itineraryDays } = req.body;
+
+        if (!itineraryDays || !Array.isArray(itineraryDays)) {
+            responseHandler(res, 400, "Invalid itinerary data. Expected an array of itinerary days.");
+            return;
+        }
+
+        const updatedProposal = await CustomerPortalService.updateItinerary(
+            customerId,
+            proposalId,
+            itineraryDays
+        );
+
+        responseHandler(res, 200, "Itinerary updated successfully", updatedProposal);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const updateMainGuestCount = async (req: express.Request, res: express.Response) => {
+    try {
+        const { proposalId } = req.params;
+        const { mainGuestCount } = req.body;
+        //@ts-ignore
+        const customerId = req.user?.id;
+
+        if (!mainGuestCount || isNaN(Number(mainGuestCount)) || Number(mainGuestCount) <= 0) {
+            responseHandler(res, 400, 'Invalid guest count');
+            return;
+        }
+
+        const updatedProposal = await CustomerPortalService.updateMainGuestCount(
+            customerId,
+            proposalId,
+            Number(mainGuestCount)
+        );
+
+        responseHandler(res, 200, 'Guest count updated successfully', updatedProposal);
+    } catch (error) {
         handleError(res, error as Error);
     }
 };

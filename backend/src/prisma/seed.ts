@@ -4,7 +4,7 @@ import { hashPassword } from '../utils/bcrypt';
 
 dotenv.config();
 
-const adminEmail = ["scottpauladams@gmail.com", "subashchandraboseravi45@gmail.com"];
+export const adminEmails = ["scottpauladams@gmail.com", "subashchandraboseravi45@gmail.com"];
 
 // Shared email styles
 const emailStyles = {
@@ -30,7 +30,7 @@ const generateEmailFooter = () => `
           <div style="margin-bottom: 8px;"><span style="font-size: 16px;">📍</span> Via Francigena, Historic Center</div>
           <div style="margin-bottom: 8px;"><span style="font-size: 16px;">📞</span> +39 123 456 7890</div>
           <div style="margin-bottom: 8px;"><span style="font-size: 16px;">📧</span> info@latorresullaviafrancigena.com</div>
-          <div><span style="font-size: 16px;">🌐</span> www.latorresullaviafrancigena.com</div>
+          <div><span style="font-size: 16px;">🌐</span> www.latorre.farm/weddings</div>
         </div>
       </div>
       
@@ -55,7 +55,7 @@ const createUser = async () => {
   const randomPassword = Math.random().toString(36).substring(2, 15);
   const hashedPassword = await hashPassword(randomPassword);
 
-  for (const email of adminEmail) {
+  for (const email of adminEmails) {
     await prisma.user.create({
       data: {
         name: "Admin",
@@ -95,8 +95,50 @@ createSettings()
   .finally(() => prisma.$disconnect());
 
 async function main() {
-  // Seed email templates
   const templates = [
+    {
+      name: 'Password Reset OTP',
+      type: 'PASSWORD_RESET_OTP',
+      subject: 'Password Reset - Your OTP Code',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+          <div style="max-width: 600px; margin: auto; background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: center;">
+            <!-- Logo -->
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="height: 48px; margin-bottom: 24px;" />
+
+            <!-- Heading -->
+            <h2 style="color: #0f172a; font-size: 20px; margin-bottom: 16px;">🔐 Password Reset OTP</h2>
+
+            <!-- Message -->
+            <p style="font-size: 16px; margin-bottom: 12px; color: #334155;">
+              Use the following OTP to reset your password with <strong>La Torre</strong>.
+            </p>
+
+            <!-- OTP Code -->
+            <div style="font-size: 32px; font-weight: 700; color: #1d4ed8; margin: 24px 0;">{{otp}}</div>
+
+            <!-- Expiry Notice -->
+            <p style="font-size: 14px; color: #64748b;">
+              This code will expire in <strong>15 minutes</strong>.
+            </p>
+
+            <hr style="margin: 32px 0; border: none; border-top: 1px solid #e2e8f0;" />
+
+            <!-- Footer -->
+            <p style="font-size: 12px; color: #94a3b8;">
+              If you didn't request this code, you can safely ignore this email.<br />
+              © {{year}} La Torre. All rights reserved.
+            </p>
+          </div>
+        </div>
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        otp: 'string',
+        year: 'number'
+      }
+    },
     {
       name: 'Booking Confirmation',
       type: 'BOOKING_CONFIRMATION',
@@ -1499,129 +1541,438 @@ async function main() {
       }
     },
     {
-      name: 'Charge Refund Confirmation',
-      type: 'CHARGE_REFUND_CONFIRMATION',
-      subject: 'Refund Processed for Your Payment to La Torre',
+      name: 'Wedding Proposal PDF',
+      type: 'WEDDING_PROPOSAL_PDF',
+      subject: 'Wedding Proposal - La Torre',
       html: `<!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Refund Confirmation - La Torre</title>
+        <title>Wedding Proposal - {{name}}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body {
+            font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+          }
+          .header img {
+            width: 120px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            font-size: 28px;
+            color: #1a202c;
+            margin-bottom: 5px;
+          }
+          .header p {
+            color: #4a5568;
+            font-size: 16px;
+            margin: 5px 0;
+          }
+          .proposal-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: capitalize;
+            margin-top: 10px;
+          }
+          .proposal-status.draft {
+            background-color: #e2e8f0;
+            color: #4a5568;
+          }
+          .proposal-status.sent {
+            background-color: #bee3f8;
+            color: #2c5282;
+          }
+          .proposal-status.accepted {
+            background-color: #c6f6d5;
+            color: #276749;
+          }
+          .proposal-status.confirmed {
+            background-color: #b2f5ea;
+            color: #234e52;
+          }
+          .proposal-status.completed {
+            background-color: #e9d8fd;
+            color: #553c9a;
+          }
+          .proposal-status.cancelled {
+            background-color: #fed7d7;
+            color: #9b2c2c;
+          }
+          .section {
+            margin-bottom: 30px;
+          }
+          .section-title {
+            font-size: 20px;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+          }
+          .customer-info {
+            background-color: #f7fafc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+          }
+          .customer-info p {
+            margin: 5px 0;
+          }
+          .itinerary-day {
+            margin-bottom: 25px;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+          }
+          .day-header {
+            background-color: #f7fafc;
+            padding: 15px;
+            font-weight: 600;
+            color: #2d3748;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .day-items {
+            padding: 0;
+          }
+          .item {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .item:last-child {
+            border-bottom: none;
+          }
+          .item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+          }
+          .item-name {
+            font-weight: 600;
+            color: #2d3748;
+          }
+          .item-price {
+            font-weight: 600;
+            color: #2d3748;
+          }
+          .item-details {
+            color: #4a5568;
+            font-size: 14px;
+          }
+          .item-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+          }
+          .item-status.confirmed {
+            background-color: #c6f6d5;
+            color: #276749;
+          }
+          .item-status.optional {
+            background-color: #e2e8f0;
+            color: #4a5568;
+          }
+          .summary {
+            background-color: #f7fafc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .summary-row:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            color: #2d3748;
+            padding-top: 15px;
+          }
+          .terms {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f7fafc;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #4a5568;
+          }
+          .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+          }
+          
+          /* Payment Plan Styles */
+          .payment-plan {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f7fafc;
+            border-radius: 5px;
+          }
+          
+          .payment-plan h3 {
+            margin-top: 0;
+            color: #2d3748;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+          }
+          
+          .payment-stage {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          
+          .payment-stage:last-child {
+            border-bottom: none;
+          }
+          
+          .payment-stage-description {
+            font-weight: 500;
+          }
+          
+          .payment-stage-amount {
+            font-weight: bold;
+          }
+          
+          .payment-stage-date {
+            color: #718096;
+            font-size: 0.9em;
+          }
+        </style>
       </head>
-      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
-        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
-          <!-- Logo -->
-          <div style="text-align: center; padding: 32px;">
-            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" />
+            <h1>Wedding Proposal</h1>
+            <p>{{name}}</p>
+            <p>Created: {{createdAt}}</p>
+            <div class="proposal-status {{status}}">{{status}}</div>
           </div>
-    
-          <!-- Refund Hero -->
-          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
-            <div style="font-size: 44px; margin-bottom: 16px;">💰</div>
-            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Refund Processed</h2>
-            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
-              We have successfully processed your refund.
-            </p>
+          
+          <div class="customer-info">
+            <h2 class="section-title">Customer Information</h2>
+            <p><strong>Name:</strong> {{customer.guestFirstName}} {{customer.guestLastName}}</p>
+            <p><strong>Email:</strong> {{customer.guestEmail}}</p>
+            <p><strong>Wedding Date:</strong> {{weddingDate}}</p>
+            <p><strong>Main Guest Count:</strong> {{mainGuestCount}}</p>
           </div>
-    
-          <!-- Main Content -->
-          <div style="padding: 0 32px 32px;">
-            <!-- Personal Greeting -->
-            <div style="margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
-              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
-                This email is to confirm that we have processed a refund for your recent payment.
-              </p>
-            </div>
-    
-            <!-- Refund Summary -->
-            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Refund Details</h3>
-              <div style="background: white; border-radius: 8px; padding: 20px;">
-                <div style="display: grid; gap: 16px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Amount:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{refundCurrency}} {{refundAmount}}</span>
+          
+          <div class="section">
+            <h2 class="section-title">Itinerary</h2>
+            
+            {{#each itineraryDays}}
+            <div class="itinerary-day">
+              <div class="day-header">
+                Day {{dayNumber}} - {{formatDate date}}
+              </div>
+              <div class="day-items">
+                {{#each items}}
+                <div class="item">
+                  <div class="item-header">
+                    <span class="item-name">{{product.name}} <span class="item-status {{status}}">{{status}}</span></span>
+                    <span class="item-price">€{{price}}</span>
                   </div>
-                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Original Charge:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{chargeDescription}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Transaction Date:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{transactionDate}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund ID:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{refundId}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Reason:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{refundReason}}</span>
+                  <div class="item-details">
+                    <p>{{product.description}}</p>
+                    <p><strong>Guests:</strong> {{guestCount}}</p>
+                    {{#if notes}}
+                    <p><strong>Notes:</strong> {{notes}}</p>
+                    {{/if}}
                   </div>
                 </div>
+                {{/each}}
               </div>
             </div>
-    
-            <!-- Refund Processing Note -->
-            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
-              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
-                Refund Processing Information
-              </h3>
-              <div style="background: white; padding: 16px; border-radius: 8px;">
-                <p style="color: #a16207; margin: 0; font-size: 15px; line-height: 1.7;">
-                  This email is to confirm that your refund has been issued by <strong>La Torre sulla via Francigena</strong>. 
-                  It can take approximately <strong>10 days</strong> to appear on your statement. If it takes longer, 
-                  please contact your bank for assistance.
-                </p>
-              </div>
+            {{/each}}
+          </div>
+          
+          <div class="summary">
+            <h2 class="section-title">Price Summary</h2>
+            
+            {{#each itineraryDays}}
+            <div class="summary-row">
+              <span>Day {{dayNumber}}</span>
+              <span>€{{calculateDayTotal this}}</span>
             </div>
-    
-            <!-- Contact Information -->
-            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
-              <div style="background: white; padding: 20px; border-radius: 8px;">
-                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
-                  If you have any questions about this refund, our team is here to help:
-                </p>
-                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
-                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
-                  <li><strong>Phone:</strong> +39 0577 123456</li>
-                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
-                </ul>
-              </div>
+            {{/each}}
+            
+            <div class="summary-row">
+              <span><strong>Total</strong></span>
+              <span><strong>€{{calculateTotalPrice}}</strong></span>
             </div>
           </div>
-    
-          ${generateEmailFooter()}
+          
+          {{#if paymentPlan}}
+          <div class="payment-plan">
+            <h3>Payment Schedule</h3>
+            <p>The following payment schedule has been arranged for your wedding:</p>
+            
+            {{#each paymentPlan.stages}}
+            <div class="payment-stage">
+              <div>
+                <div class="payment-stage-description">{{description}}</div>
+                <div class="payment-stage-date">Due: {{formatDate dueDate}}</div>
+              </div>
+              <div class="payment-stage-amount">€{{amount}}</div>
+            </div>
+            {{/each}}
+            
+            <div class="payment-stage" style="margin-top: 10px; border-top: 2px solid #e2e8f0; padding-top: 10px;">
+              <div class="payment-stage-description">Total</div>
+              <div class="payment-stage-amount">€{{paymentPlan.totalAmount}}</div>
+            </div>
+          </div>
+          {{/if}}
+          
+          {{#if termsAndConditions}}
+          <div class="terms">
+            <h2 class="section-title">Terms & Conditions</h2>
+            <p>{{termsAndConditions}}</p>
+          </div>
+          {{/if}}
+          
+          <div class="footer">
+            <p>La Torre sulla via Francigena</p>
+            <p>Contact: info@latorresullaviafrancigena.com | +39 123 456 7890</p>
+            <p>&copy; {{currentYear}} La Torre. All rights reserved.</p>
+          </div>
         </div>
       </body>
       </html>`,
       isActive: true,
       version: 1,
       variables: {
-        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
-        refundAmount: { type: 'number', description: 'The amount refunded', example: 50.00 },
-        refundCurrency: { type: 'string', description: 'The currency of the refund', example: 'EUR' },
-        chargeDescription: { type: 'string', description: 'Description of the original charge', example: 'Extra services' },
-        transactionDate: { type: 'string', description: 'Date of the original charge', example: 'January 1, 2024' },
-        refundId: { type: 'string', description: 'The ID of the refund transaction', example: 're_123456789' },
-        refundReason: { type: 'string', description: 'The reason for the refund', example: 'Service not rendered' },
+        id: { type: 'string', description: 'Proposal ID', example: '123e4567-e89b-12d3-a456-426614174000' },
+        name: { type: 'string', description: 'Proposal name', example: 'Smith & Jones Wedding' },
+        status: { type: 'string', description: 'Proposal status', example: 'DRAFT' },
+        weddingDate: { type: 'string', description: 'Wedding date', example: 'June 15, 2024' },
+        mainGuestCount: { type: 'number', description: 'Main guest count', example: 80 },
+        createdAt: { type: 'string', description: 'Creation date', example: 'January 1, 2024' },
+        customer: { type: 'object', description: 'Customer information', example: '{ "guestFirstName": "John", "guestLastName": "Doe", "guestEmail": "john@example.com" }' },
+        itineraryDays: { type: 'array', description: 'Itinerary days', example: '[{ "dayNumber": 1, "date": "2024-06-15", "items": [...] }]' },
+        termsAndConditions: { type: 'string', description: 'Terms and conditions', example: 'Standard terms and conditions apply...' },
+        paymentPlan: { type: 'object', description: 'Payment plan information', example: '{ "totalAmount": 5000, "stages": [{ "description": "Deposit", "amount": 1000, "dueDate": "2023-12-15" }] }' },
+        calculateTotalPrice: { type: 'function', description: 'Function to calculate total price', example: '5000.00' }
       }
     },
     {
-      name: 'Charge Confirmation',
-      type: 'CHARGE_CONFIRMATION',
-      subject: 'Extra Charges - La Torre (#{{chargeId}})',
+      name: 'Wedding Final Guest Count',
+      type: 'WEDDING_FINAL_GUEST_COUNT',
+      subject: 'Final Guest Count Confirmation Required for Your Wedding',
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Name of the customer' },
+        weddingName: { type: 'string', required: true, description: 'Name of the wedding' },
+        weddingDate: { type: 'string', required: true, description: 'Date of the wedding' },
+        currentMaxGuests: { type: 'number', required: true, description: 'Current maximum guest count' },
+        updateLink: { type: 'string', required: true, description: 'Link to update guest count' },
+        daysRemaining: { type: 'number', required: true, description: 'Days remaining until wedding' },
+        isUrgent: { type: 'boolean', required: true, description: 'Whether the request is urgent' },
+        currentYear: { type: 'number', required: true, description: 'Current year for copyright' }
+      },
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Final Guest Count Confirmation</title>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+          <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+              <!-- Logo -->
+              <div style="text-align: center; padding: 32px;">
+                  <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+              </div>
+      
+              <!-- Hero Section -->
+              <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+                  <div style="font-size: 44px; margin-bottom: 16px;">🗓️</div>
+                  <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">
+                      Final Guest Count Confirmation
+                  </h2>
+                  <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+                      Please confirm your final guest count for {{weddingName}}
+                  </p>
+              </div>
+      
+              <!-- Main Content -->
+              <div style="padding: 0 32px 32px;">
+                  <div style="margin-bottom: 32px;">
+                      <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+                      <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                          Your wedding is approaching in {{daysRemaining}} days, and we need to finalize the guest count for your event.
+                          Currently, we have {{currentMaxGuests}} guests registered for your wedding on {{weddingDate}}.
+                      </p>
+                      <p style="color: ${emailStyles.secondaryColor}; margin-top: 16px; font-size: 16px; line-height: 1.7;">
+                          Please confirm if this is your final guest count or update it if needed. This information is crucial for our planning and preparation.
+                      </p>
+                  </div>
+      
+                  <!-- CTA -->
+                  <div style="text-align: center; margin: 32px 0;">
+                      <a href="{{updateLink}}" style="display: inline-block; background-color: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                          Update Guest Count
+                      </a>
+                  </div>
+      
+                  <!-- Outro -->
+                  <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.7;">
+                      If you have any questions or need assistance, please don't hesitate to contact us.
+                  </p>
+                  <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.7; margin-top: 24px;">
+                      Best regards,<br>The Wedding Team
+                  </p>
+              </div>
+      
+              ${generateEmailFooter()}
+          </div>
+      </body>
+      </html>`,
+      isActive: true
+    },
+    {
+      name: 'Wedding Final Guest Count Follow-up',
+      type: 'WEDDING_FINAL_GUEST_COUNT_FOLLOWUP',
+      subject: 'Urgent: Final Guest Count Confirmation Still Required for Your Wedding',
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Name of the customer' },
+        isUrgent: { type: 'boolean', required: true, description: 'Whether the follow-up is urgent (less than 2 weeks before wedding)' },
+        portalLink: { type: 'string', required: true, description: 'Link to the wedding portal' },
+        currentYear: { type: 'number', required: true, description: 'Current year for copyright' }
+      },
       html: `<!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Extra Charges - La Torre</title>
+        <title>Final Guest Count Follow-up - La Torre</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       </head>
       <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
@@ -1630,161 +1981,45 @@ async function main() {
           <div style="text-align: center; padding: 32px;">
             <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
           </div>
-    
-          <!-- Extra Charges Hero -->
-          <div style="background: linear-gradient(135deg, ${emailStyles.warningColor} 0%, #f97316 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
-            <div style="font-size: 44px; margin-bottom: 16px;">💳</div>
-            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Extra Charges</h2>
-            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
-              Additional charges have been added to your account
-            </p>
-          </div>
-    
+
           <!-- Main Content -->
           <div style="padding: 0 32px 32px;">
-            <!-- Personal Greeting -->
-            <div style="margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
-              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
-                Additional charges have been added to your account during your stay at La Torre sulla via Francigena. Please review the details below and complete your payment.
+            <h1 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin-bottom: 24px;">Final Guest Count Follow-up</h1>
+            
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+              Dear {{customerName}},
+            </p>
+            
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+              <span style="color: #ef4444; font-weight: 600;">{{#if isUrgent}}URGENT: {{/if}}</span>
+              We are following up on our previous email regarding the final guest count confirmation for your wedding.
+            </p>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 32px 0;">
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 16px;">
+                Please log in to your wedding portal and confirm your final guest count as soon as possible:
               </p>
+              <a href="{{portalLink}}" 
+                 style="display: inline-block; background: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                Access Wedding Portal
+              </a>
             </div>
 
-            <!-- Charge Details -->
-            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Charge Details</h3>
-              <div style="background: white; border-radius: 8px; padding: 20px;">
-                <div style="display: grid; gap: 16px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Charge ID:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">#{{chargeId}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Amount:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Description:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{description}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Charge Date:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{chargeDate}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Status:</span>
-                    <span style="background: ${emailStyles.warningColor}; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">PENDING</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Payment Link Card -->
-            <div style="background: #fff7ed; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: #9a3412; margin: 0 0 20px 0; font-size: 20px;">🔒 Secure Payment</h3>
-              <div style="background: white; border-radius: 8px; padding: 24px; text-align: center;">
-                <p style="color: #9a3412; margin: 0 0 20px 0; font-size: 15px;">
-                  Click the button below to complete your payment securely:
-                </p>
-                <a href="{{paymentLink}}" style="display: inline-block; background: ${emailStyles.warningColor}; color: white; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; margin-bottom: 20px;">
-                  Pay Now
-                </a>
-                <p style="color: #9a3412; margin: 0; font-size: 14px;">
-                  This payment link will expire on {{expiresAt}}
-                </p>
-              </div>
-            </div>
-
-            <!-- Customer Information -->
-            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">👤 Customer Information</h3>
-              <div style="background: white; border-radius: 8px; padding: 20px;">
-                <div style="display: grid; gap: 16px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
-                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Name:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerName}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
-                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Email:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerEmail}}</span>
-                  </div>
-                  {{#if customerPhone}}
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
-                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Phone:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerPhone}}</span>
-                  </div>
-                  {{/if}}
-                  {{#if customerNationality}}
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
-                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Nationality:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerNationality}}</span>
-                  </div>
-                  {{/if}}
-                </div>
-              </div>
-            </div>
-
-            <!-- Security Notice -->
-            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">🛡️ Secure Transaction</h3>
-              <div style="background: white; border-radius: 8px; padding: 20px;">
-                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
-                  <li>All payments are processed securely through Stripe</li>
-                  <li>Your payment information is encrypted end-to-end</li>
-                  <li>We never store your card details</li>
-                  <li>Look for the padlock icon in your browser</li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- Contact Information -->
-            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
-              <div style="background: white; padding: 20px; border-radius: 8px;">
-                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
-                  If you have any questions about these charges or need assistance with the payment process, our team is here to help:
-                </p>
-                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
-                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
-                  <li><strong>Phone:</strong> +39 0577 123456</li>
-                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- Final Message -->
-            <div style="text-align: center; padding: 32px 24px; background: linear-gradient(135deg, ${emailStyles.backgroundColor} 0%, #f1f5f9 100%); border-radius: 16px; margin-bottom: 24px;">
-              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 26px; font-weight: 700;">Thank You!</h3>
-              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 17px; line-height: 1.7;">
-                We appreciate your business and look forward to serving you again at La Torre sulla via Francigena.
-              </p>
-              <div style="color: ${emailStyles.infoColor}; font-size: 18px; font-weight: 600;">
-                We hope to see you soon! 🌟
-              </div>
-            </div>
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+              If you have any questions or need assistance, please don't hesitate to contact us.
+            </p>
           </div>
-    
+
           ${generateEmailFooter()}
         </div>
       </body>
       </html>`,
       isActive: true,
       version: 1,
-      variables: {
-        chargeId: { type: 'string', description: 'Charge ID', example: 'CHG123' },
-        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
-        customerEmail: { type: 'string', description: 'Customer email', example: 'john@example.com' },
-        customerPhone: { type: 'string', description: 'Customer phone number', example: '+1234567890', optional: true },
-        customerNationality: { type: 'string', description: 'Customer nationality', example: 'Italian', optional: true },
-        amount: { type: 'number', description: 'Charge amount', example: 50.00 },
-        currency: { type: 'string', description: 'Charge currency', example: 'EUR' },
-        description: { type: 'string', description: 'Charge description', example: 'Extra services during stay' },
-        chargeDate: { type: 'string', description: 'Date when charge was added', example: 'January 1, 2024' },
-        paymentLink: { type: 'string', description: 'Payment link URL', example: 'https://example.com/pay' },
-        expiresAt: { type: 'string', description: 'Payment link expiry date', example: 'January 1, 2024 6:00 PM' }
-      }
+      
     }
-  ];
+  ]
 
   for (const template of templates) {
     await prisma.emailTemplate.upsert({

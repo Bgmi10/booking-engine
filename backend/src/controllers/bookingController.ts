@@ -3,12 +3,11 @@ import { TEMP_HOLD_DURATION_MINUTES } from "../utils/constants";
 import prisma from "../prisma";
 import dotenv from "dotenv";
 import { calculateNights, handleError, responseHandler } from "../utils/helper";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 import Stripe from "stripe";
+import { getBaseUrl } from "../config/stripeConfig";
 
 dotenv.config();
-const devUrl = "https://localhost:5173";
-const prodUrl = process.env.FRONTEND_PROD_URL;
 
 export const createCheckoutSession = async (req: express.Request, res: express.Response) => {
   const { 
@@ -209,9 +208,9 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         ...(voucherDiscount && { voucherDiscount: voucherDiscount.toString() }),
         ...(originalAmount && { originalAmount: originalAmount.toString() }),
       },
-      expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // 30 minutes from now
-      success_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/failure`,
+      expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), // Using the shared config value
+      success_url: `${getBaseUrl()}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${getBaseUrl()}/booking/failure`,
     };
 
     // Handle voucher discounts based on type

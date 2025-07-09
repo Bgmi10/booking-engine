@@ -3,6 +3,8 @@ import prisma from "../prisma";
 import { licensePlateCleanupService } from "../services/licensePlateCleanupService";
 import { dahuaService } from "../services/dahuaService";
 import { notificationService } from "../services/notificationService";
+import { PaymentReminderService } from "../services/paymentReminderService";
+import { WeddingReminderService } from "../services/weddingReminderService";
 
 const now = new Date();
 
@@ -96,6 +98,43 @@ export const triggerAutomatedTasks = () => {
       console.log(`[Cron] Automated task triggering completed. Created ${triggeredTasks.length} tasks`);
     } catch (error) {
       console.error("[Cron] Automated task triggering failed:", error);
+    }
+  });
+};
+
+export const schedulePaymentReminders = () => {
+  // Check for upcoming payments daily at 9 AM
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      console.log("[Cron] Starting upcoming payment reminders check...");
+      const remindersSent = await PaymentReminderService.sendUpcomingPaymentReminders();
+      console.log(`[Cron] Sent ${remindersSent} upcoming payment reminders`);
+    } catch (error) {
+      console.error("[Cron] Failed to send upcoming payment reminders:", error);
+    }
+  });
+
+  // Check for overdue payments daily at 10 AM
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      console.log("[Cron] Starting overdue payment reminders check...");
+      const remindersSent = await PaymentReminderService.sendOverduePaymentReminders();
+      console.log(`[Cron] Sent ${remindersSent} overdue payment reminders`);
+    } catch (error) {
+      console.error("[Cron] Failed to send overdue payment reminders:", error);
+    }
+  });
+};
+
+// Schedule wedding final guest count reminders - runs daily at 9 AM
+export const scheduleWeddingReminders = () => {
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      console.log("[Cron] Starting wedding final guest count reminder check...");
+      const remindersSent = await WeddingReminderService.checkAndSendReminders();
+      console.log(`[Cron] Sent ${remindersSent} wedding guest count reminders`);
+    } catch (error) {
+      console.error("[Cron] Error in wedding reminder job:", error);
     }
   });
 };

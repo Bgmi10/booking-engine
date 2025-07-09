@@ -1,7 +1,7 @@
 import express from "express";
 import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 
 export const getAllPendingCustomersOrders = async (req: express.Request, res: express.Response) => {
   try {

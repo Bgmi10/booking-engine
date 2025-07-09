@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, initializeDahuaService, triggerAutomatedTasks } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, initializeDahuaService, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
@@ -15,6 +15,7 @@ import chargeRouter from "./routes/chargeRoute";
 import customerRouter from "./routes/customerRoute";
 import WebSocketManager from "./websocket/websocketManager";
 import OrderEventService from "./services/orderEventService";
+import paymentPlanRouter from "./routes/paymentPlanRoute";
 
 dotenv.config();
 
@@ -40,12 +41,15 @@ app.use("/api/v1/payment-intent", paymentIntentRouter);
 app.use("/api/v1/vouchers", voucherRouter);
 app.use("/api/v1/charges", chargeRouter);
 app.use("/api/v1/customers", customerRouter);
+app.use("/api/v1/payment-plans", paymentPlanRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();
 cleanupExpiredLicensePlates();
 initializeDahuaService();
 triggerAutomatedTasks();
+schedulePaymentReminders();
+scheduleWeddingReminders() 
 
 // Create HTTP server
 const server = app.listen(PORT, () => {

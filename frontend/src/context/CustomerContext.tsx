@@ -1,17 +1,9 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { baseUrl } from "../utils/constants";
-import type { Customer } from "../hooks/useCustomers";
-
-// Define the shape of a temporary customer based on our schema
-export interface TemporaryCustomer {
-  id: string;
-  surname: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { createContext, useContext } from "react";
+import { useAuth } from "../hooks/useAuth";
+import type { CustomerData } from "../types/types";
 
 interface CustomerContextProps {
-  customer: Customer | TemporaryCustomer | null;
+  customer: CustomerData | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   refresh: () => Promise<void>;
@@ -21,70 +13,30 @@ interface CustomerContextProps {
 export const CustomerContext = createContext<CustomerContextProps>({
   customer: null,
   isAuthenticated: false,
-  isLoading: true, // Start with loading true
+  isLoading: true,
   refresh: async () => {},
   logout: async () => {},
 });
 
 export const CustomerProvider = ({ children }: { children: React.ReactNode }) => {
-  const [customer, setCustomer] = useState<Customer | TemporaryCustomer | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Initially loading
-
-  const fetchCustomer = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`${baseUrl}/customers/profile`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (res.status === 401) { // Specifically check for unauthorized
-        setCustomer(null);
-        setIsAuthenticated(false);
-        return;
-      }
-
-      const data = await res.json();
-      if (res.ok) {
-        setCustomer(data.data);
-        setIsAuthenticated(true);
-      } else {
-        setCustomer(null);
-        setIsAuthenticated(false);
-      }
-    } catch (e) {
-      console.error(e);
-      setCustomer(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
+  const { user, isAuthenticated, isLoading, refresh, logout } = useAuth<CustomerData>({
+    // Only fetch user if we're on a route that requires customer authentication
+    autoFetch: () => {
+      const pathname = window.location.pathname;
+      return pathname.startsWith("/customers");
     }
-  };
-
-  const logout = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/customers/logout`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        setCustomer(null);
-        setIsAuthenticated(false);
-        window.location.reload(); // Reload to clear all state
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchCustomer();
-  }, []);
+  });
 
   return (
-    <CustomerContext.Provider value={{ customer, isAuthenticated, isLoading, refresh: fetchCustomer, logout }}>
+    <CustomerContext.Provider 
+      value={{ 
+        customer: user, 
+        isAuthenticated, 
+        isLoading, 
+        refresh, 
+        logout 
+      }}
+    >
       {children}
     </CustomerContext.Provider>
   );

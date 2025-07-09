@@ -16,7 +16,9 @@ import {
   RiRobot2Line,
   RiOrderPlayFill,
   RiKnifeLine,
-  RiCupLine
+  RiCupLine,
+  RiVipDiamondLine,
+  RiStore3Line
 } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import { Ticket, Users2 } from "lucide-react";
@@ -48,6 +50,7 @@ export default function Sidebar({
     { id: 2, title: "Users", path: "users", icon: <RiUser3Line size={20} /> },
     { id: 3, title: "Rooms", path: "rooms", icon: <RiHotelBedLine size={20} /> },
     { id: 4, title: "Bookings", path: "bookings", icon: <RiCalendarCheckLine size={20} /> },
+    { id: 16, title: "Wedding", path: "wedding-proposals", icon: <RiVipDiamondLine size={20} /> },
     { id: 111, title: "Notifications", path: "notifications", icon: <RiNotification3Line size={20} /> },
     { id: 5, title: "Enhancements", path: "enhancements", icon: <RiShoppingBasketLine size={20} /> },
     { id: 6, title: "Settings", path: "settings", icon: <RiSettings4Line size={20} /> },
@@ -68,6 +71,9 @@ export default function Sidebar({
     }
     if (user?.role === 'WAITER') {
       return menus.filter(menu => ['waiter-orders', 'profile', 'notifications'].includes(menu.path));
+    }
+    if (user?.role !== 'ADMIN') {
+      return menus.filter(menu => menu.path !== 'wedding-proposals');
     }
     return menus;
   };

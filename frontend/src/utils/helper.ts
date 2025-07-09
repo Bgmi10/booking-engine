@@ -37,3 +37,8 @@ export function getStatusColor(status: string) {
         return "bg-gray-100 text-gray-800"
     }
 }
+
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email);
+};

@@ -1,15 +1,12 @@
 import { Request, Response } from "express";
 import prisma from "../prisma";
 import { responseHandler } from "../utils/helper";
-import { stripe } from "../config/stripe"
-import puppeteer from 'puppeteer';
+import { stripe } from "../config/stripeConfig"
 import dotenv from "dotenv";
 import Handlebars from 'handlebars';
-import NodeCache from 'node-cache';
+import { generatePDF, compileTemplate, getOrGeneratePDF } from "../utils/pdfGenerator";
 
 dotenv.config();
-
-const pdfCache = new NodeCache({ stdTTL: 24 * 60 * 60 });
 
 // Register Handlebars helpers
 Handlebars.registerHelper('eq', function(a, b) {
@@ -88,29 +85,6 @@ export const sessionController = async (req: Request, res: Response) => {
     });
 };
 
-async function generatePDF(htmlContent: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    
-    const pdfBuffer = await page.pdf({ 
-        format: 'A4',
-        printBackground: true,
-        margin: {
-            top: '20px',
-            right: '20px',
-            bottom: '20px',
-            left: '20px'
-        }
-    });
-    
-    await browser.close();
-    return Buffer.from(pdfBuffer);
-}
-
 export const generateReceiptPDF = async (req: Request, res: Response) => {
     const { sessionId } = req.params;
 
@@ -120,16 +94,6 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
     }
 
     try {
-        // Check if PDF exists in cache
-        const cachedPDF = pdfCache.get<Buffer>(sessionId);
-        if (cachedPDF) {
-            console.log(`Serving cached PDF for session: ${sessionId}`);
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=receipt-${sessionId}.pdf`);
-            res.send(cachedPDF);
-            return;
-        }
-
         // Get session and charge details from Stripe
         const sessionDetails = await stripe.checkout.sessions.retrieve(sessionId);
         const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -316,9 +280,6 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
             throw new Error('No active receipt template found');
         }
 
-        // Compile the template with Handlebars
-        const compiledTemplate = Handlebars.compile(template.html);
-        
         // Calculate total guests across all rooms
         const totalGuests = processedBookings.reduce((sum: number, booking: { totalGuests: number }) => sum + booking.totalGuests, 0);
 
@@ -372,15 +333,37 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
             voucherInfo: voucherInfo
         };
 
-        // Generate HTML content using the compiled template
-        const htmlContent = compiledTemplate(templateData);
+        // Create a data object with only the parts that would affect the PDF content
+        const cacheData = {
+            paymentData: {
+                id: dbPaymentIntent.id,
+                status: dbPaymentIntent.status,
+                totalAmount: dbPaymentIntent.totalAmount,
+                taxAmount: dbPaymentIntent.taxAmount,
+                voucherCode: dbPaymentIntent.voucherCode,
+                voucherDiscount: dbPaymentIntent.voucherDiscount,
+                updatedAt: dbPaymentIntent.updatedAt,
+                bookings: bookingIds
+            },
+            chargeData: {
+                id: charge.id,
+                receipt_number: charge.receipt_number,
+                created: charge.created,
+                payment_method_details: charge.payment_method_details
+            },
+            templateData: {
+                id: template.id,
+                html: template.html,
+                version: template.version,
+                updatedAt: template.updatedAt
+            }
+        };
 
-        // Generate PDF
-        const pdf = await generatePDF(htmlContent);
-
-        // Store in cache
-        pdfCache.set(sessionId, pdf);
-        console.log(`Cached PDF for session: ${sessionId}`);
+        // Get or generate the PDF with proper cache validation
+        const pdf = await getOrGeneratePDF(sessionId, cacheData, async () => {
+            const htmlContent = compileTemplate(template.html, templateData);
+            return await generatePDF(htmlContent);
+        });
 
         // Send response
         res.setHeader('Content-Type', 'application/pdf');

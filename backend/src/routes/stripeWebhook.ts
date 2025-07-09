@@ -4,7 +4,7 @@ import prisma from "../prisma";
 import dotenv from "dotenv";
 import { handleError, responseHandler } from "../utils/helper";
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 import { dahuaService } from "../services/dahuaService";
 
 dotenv.config();
@@ -290,6 +290,49 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 async function handlePaymentIntentSucceeded(event: Stripe.Event) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     try {
+        // Check if this is a payment for a payment stage
+        if (paymentIntent.metadata?.paymentStageId) {
+            const paymentStageId = paymentIntent.metadata.paymentStageId;
+            
+            // Update the payment stage
+            await prisma.paymentStage.update({
+                where: { id: paymentStageId },
+                data: {
+                    status: "PAID",
+                    paidAt: new Date()
+                }
+            });
+            
+            // Check if all stages are paid to update proposal status
+            const paymentStage = await prisma.paymentStage.findUnique({
+                where: { id: paymentStageId },
+                include: {
+                    paymentPlan: {
+                        include: {
+                            stages: true,
+                            proposal: true
+                        }
+                    }
+                }
+            });
+            
+            if (paymentStage) {
+                const allStages = paymentStage.paymentPlan.stages;
+                const allPaid = allStages.every(stage => stage.status === 'PAID');
+                
+                // If all stages are paid, update the proposal status
+                if (allPaid && paymentStage.paymentPlan.proposal.status === 'ACCEPTED') {
+                    await prisma.weddingProposal.update({
+                        where: { id: paymentStage.paymentPlan.proposalId },
+                        data: { status: 'CONFIRMED' }
+                    });
+                }
+            }
+            
+            console.log(`Payment stage ${paymentStageId} successfully marked as paid`);
+            return;
+        }
+
         if (paymentIntent.metadata?.chargeId) {
             await processChargeSuccess(paymentIntent.metadata.chargeId, paymentIntent, paymentIntent.metadata.orderId, paymentIntent.metadata.type);
             return;

@@ -7,7 +7,6 @@
     "test:watch": "jest --watchAll",
     "test:coverage": "jest --coverage",
     "nd": "nodemon --exec ts-node src/index.ts",
-    "email:worker": "nodemon --exec ts-node src/workers/emailQueueProcessor.ts",
     "start": "node dist/index.js",
     "seed": "ts-node src/prisma/seed.ts",
     "build": "tsc",

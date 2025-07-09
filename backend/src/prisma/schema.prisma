@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -7,40 +8,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {    
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  role      Role
-  phone     String?
-  basePrice Float?
-  updatedAt DateTime @updatedAt
-  
-  assignedNotifications Notification[] @relation("AssignedNotifications")
-  createdNotifications  Notification[] @relation("CreatedNotifications")
-  completedNotifications Notification[] @relation("CompletedNotifications")
-  notificationAttachments NotificationAttachment[]
-  
-  assignedAutomatedTasks AutomatedTaskRule[]
-  kitchenOrders Order[] @relation("KitchenOrders")
-  waiterOrders  Order[] @relation("WaiterOrders")
-}
+model User {             
+  id                        String                      @id @default(uuid())
+  name                      String                   
+  email                     String                      @unique
+  password                  String                   
+  createdAt                 DateTime                    @default(now())
+  role                      Role                   
+  phone                     String?                   
+  basePrice                 Float?                   
+  updatedAt                 DateTime                    @updatedAt
+  assignedNotifications     Notification[]              @relation("AssignedNotifications")
+  createdNotifications      Notification[]              @relation("CreatedNotifications")
+  completedNotifications    Notification[]              @relation("CompletedNotifications")
+  notificationAttachments   NotificationAttachment[]
+  assignedAutomatedTasks    AutomatedTaskRule[]
+  kitchenOrders             Order[]                     @relation("KitchenOrders")
+  waiterOrders              Order[]                     @relation("WaiterOrders")
+}            
 
 model Room {
-  id           String          @id @default(uuid())
-  name         String       
-  description  String       
-  amenities    String[]       
-  price        Float       
-  capacity     Int       
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  images       RoomImage[]
-  bookings     Booking[]
-  holds        TemporaryHold[]
-  RoomRate     RoomRate[]
+  id            String           @id @default(uuid())
+  name          String        
+  description   String        
+  amenities     String[]        
+  price         Float        
+  capacity      Int        
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  images        RoomImage[]
+  bookings      Booking[]
+  holds         TemporaryHold[]
+  RoomRate      RoomRate[]
   notifications Notification[]
 }
 
@@ -51,25 +50,34 @@ model RoomImage {
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
-model Customer {
-  id                  String        @id @default(uuid())
-  guestFirstName      String
-  guestMiddleName     String?
-  guestLastName       String
-  guestEmail          String        @unique
-  guestPhone          String 
-  guestNationality    String?
-  dob                 DateTime?
-  passportNumber      String?
-  vipStatus           Boolean       @default(false)
-  anniversaryDate     DateTime?
-  passportExpiry      DateTime?
-  totalNightStayed    Int           @default(0)
-  totalMoneySpent     Float         @default(0)
-  favoriteItems       Json?
-  stripeCustomerId    String?
-  updatedAt           DateTime      @updatedAt
-  createdAt           DateTime      @default(now())
+model Customer {      
+  id                  String              @id @default(uuid())
+  guestFirstName      String      
+  guestMiddleName     String?      
+  guestLastName       String      
+  guestEmail          String              @unique
+  guestPhone          String       
+  guestNationality    String?      
+  dob                 DateTime?      
+  passportNumber      String?      
+  vipStatus           Boolean             @default(false)
+  anniversaryDate     DateTime?      
+  passportExpiry      DateTime?      
+  totalNightStayed    Int                 @default(0)
+  totalMoneySpent     Float               @default(0)
+  favoriteItems       Json?      
+  stripeCustomerId    String?      
+  updatedAt           DateTime            @updatedAt
+  createdAt           DateTime            @default(now())
+  
+  // Added authentication fields
+  accountActivated     Boolean             @default(false)
+  emailVerified        Boolean             @default(false)
+  emailVerifyToken     String?
+  lastLogin            DateTime?
+  password             String?
+  temporaryAccessToken String?
+
   bookings            Booking[]
   paymentIntents      PaymentIntent[]
   groupName           String?
@@ -77,30 +85,31 @@ model Customer {
   charges             Charge[]
   notifications       Notification[]
   orders              Order[]
+  weddingProposals    WeddingProposal[]
   @@index([guestEmail, guestFirstName])
 }
 
 model Charge {
-  id                    String             @id   @default(uuid())
-  amount                Float 
-  currency              String             @default("eur")
-  description           String?
-  gatekeeperUrl         String?
-  status                ChargeStatus       @default(PENDING)
-  expiredAt             DateTime?      
-  createdAt             DateTime           @default(now())
-  paidAt                DateTime?
-  stripePaymentIntentId String?
-  paymentMethod         String?
-  paymentUrl            String?         
-  createdBy             String
-  customerId            String?   
-  customer              Customer?           @relation(fields: [customerId], references: [id])
-  adminNotes            String?
-  orderId               String?            @unique
-  order                 Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  tempCustomerId        String?
-  tempCustomer          TemporaryCustomer?  @relation(fields: [tempCustomerId], references: [id])  
+  id                    String                @id   @default(uuid())
+  amount                Float    
+  currency              String                @default("eur")
+  description           String?   
+  gatekeeperUrl         String?   
+  status                ChargeStatus          @default(PENDING)
+  expiredAt             DateTime?         
+  createdAt             DateTime              @default(now())
+  paidAt                DateTime?   
+  stripePaymentIntentId String?   
+  paymentMethod         String?   
+  paymentUrl            String?            
+  createdBy             String   
+  customerId            String?      
+  customer              Customer?             @relation(fields: [customerId], references: [id])
+  adminNotes            String?   
+  orderId               String?               @unique
+  order                 Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tempCustomerId        String?  
+  tempCustomer          TemporaryCustomer?    @relation(fields: [tempCustomerId], references: [id])  
 }
         
 model Booking {        
@@ -121,11 +130,11 @@ model Booking {
   customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
   enhancementBookings EnhancementBooking[]
   voucherUsages       VoucherUsage[]
-  voucherCode         String?           // The voucher code used
-  voucherDiscount     Float?            // Discount amount applied from voucher
+  voucherCode         String?         
+  voucherDiscount     Float?           
   voucherProducts     Json?          
   groupId             String?
-  carNumberPlate      String?           // License plate for Dahua camera integration
+  carNumberPlate      String?          
   notifications       Notification[]
   @@index([roomId, checkIn, checkOut, status])
 }
@@ -175,55 +184,41 @@ model TemporaryHold {
   roomId          String
   paymentIntentId String?
   paymentIntent   PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
-
   @@index([expiresAt, checkIn, checkOut, roomId])
 }
 
-// NEW: PaymentIntent model to track the entire payment lifecycle
 model PaymentIntent {
   id                    String              @id @default(uuid())
-  stripePaymentIntentId String?         @unique
-  stripeSessionId       String?         @unique
-  stripePaymentLinkId   String?        
-  amount                Float
-  currency              String           @default("eur")
+  stripePaymentIntentId String?             @unique
+  stripeSessionId       String?             @unique
+  stripePaymentLinkId   String?            
+  amount                Float    
+  currency              String              @default("eur")
   status                PaymentIntentStatus @default(CREATED)
-  
-  // Booking data (preserved throughout lifecycle)
-  bookingData           String           // JSON string of booking items
-  customerData          String           // JSON string of customer details
+  bookingData           String           
+  customerData          String          
   taxAmount             Float
   totalAmount           Float
-  
-  // Admin tracking
-  createdByAdmin        Boolean          @default(false)
-  adminUserId           String?
-  adminNotes            String?
-  
-  // Expiration
-  expiresAt             DateTime?
-  
-  // Timestamps
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  createdByAdmin        Boolean             @default(false)
+  adminUserId           String?   
+  adminNotes            String?   
+  expiresAt             DateTime?   
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
   paidAt                DateTime?
-  
-  // Relations
-  customerId            String?
-  customer              Customer?         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId            String?  
+  customer              Customer?           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   bookings              Booking[]        
   temporaryHolds        TemporaryHold[]
   payments              Payment[] 
-  voucherCode           String?           // The voucher code used
-  voucherDiscount       Float?            // Discount amount applied from voucher
-  voucherUsages         VoucherUsage[]       // Can have multiple payment attempts
-
+  voucherCode           String?           
+  voucherDiscount       Float?            
+  voucherUsages         VoucherUsage[]    
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
   @@index([stripeSessionId])
 }
 
-// Keep existing Payment model for completed payments
 model Payment {
   id                    String           @id @default(uuid())
   stripeSessionId       String?          @unique
@@ -232,7 +227,6 @@ model Payment {
   currency              String
   status                PaymentStatus
   createdAt             DateTime         @default(now())
-  // Link to PaymentIntent
   paymentIntentId       String?
   paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
 }
@@ -261,23 +255,22 @@ model RoomRate {
   ratePolicy      RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
   ratePolicyId    String
   createdAt       DateTime   @default(now())
-
   @@index([roomId, ratePolicyId])
   @@unique([roomId, ratePolicyId])
 }
 
 model GeneralSettings {        
-  id                           String        @id         @default(uuid())
+  id                           String        @id            @default(uuid())
   minStayDays                  Int           @default(2)
   updatedAt                    DateTime      @updatedAt
   taxPercentage                Float?
   chargePaymentConfig          String?
-  dahuaApiUrl                  String?       // Dahua camera API endpoint
-  dahuaUsername                String?       // Dahua camera username
-  dahuaPassword                String?       // Dahua camera password
-  dahuaIsEnabled               Boolean       @default(false)  // Enable/disable Dahua integration
-  dahuaGateId                  String?       // Gate ID for automatic opening
-  dahuaLicensePlateExpiryHours Int           @default(24)    // Hours after checkout to remove license plate
+  dahuaApiUrl                  String?       
+  dahuaUsername                String?       
+  dahuaPassword                String?       
+  dahuaIsEnabled               Boolean       @default(false) 
+  dahuaGateId                  String?       
+  dahuaLicensePlateExpiryHours Int           @default(24)
 }
 
 model Otp {
@@ -287,100 +280,63 @@ model Otp {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
-
-model BookingRestriction {
-  id           String             @id @default(uuid())
-  name         String             // Descriptive name for the restriction
-  description  String?            // Optional description
-  
-  // Restriction type
-  type         RestrictionType
-  
-  // Date range
-  startDate    DateTime
-  endDate      DateTime
-  
-  // Days of week (if you want to apply only on specific days)
-  daysOfWeek   Int[]              // [0-6] where 0=Sunday, 1=Monday, etc.
-  
-  // Rate restrictions
-  rateScope    RateScope          @default(ALL_RATES)
-  ratePolicyIds String[]          // Specific rate policy IDs when rateScope is SPECIFIC_RATES
-  
-  // Room restrictions
-  roomScope    RoomScope          @default(ALL_ROOMS)
-  roomIds      String[]           // Specific room IDs when roomScope is SPECIFIC_ROOMS
-  
-  // Length restrictions
-  minLength    Int?               // Minimum nights
-  maxLength    Int?               // Maximum nights
-  
-  // Advance booking restrictions
-  minAdvance   Int?               // Minimum hours before check-in
-  maxAdvance   Int?               // Maximum days in advance
-  
-  // Same day booking cutoff time
-  sameDayCutoffTime String?       // Format: "15:00" (3 PM)
-  
-  // Priority for overlapping restrictions
-  priority     Int                @default(0)
-  
-  // Active status
-  isActive     Boolean            @default(true)
-  
-  // Exception rules
-  exceptions   RestrictionException[]
-  
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  
+       
+model BookingRestriction {       
+  id                                   String                    @id @default(uuid())
+  name                                 String                    
+  description                          String?                   
+  type                                 RestrictionType       
+  startDate                            DateTime       
+  endDate                              DateTime       
+  daysOfWeek                           Int[]          
+  rateScope                            RateScope                 @default(ALL_RATES)
+  ratePolicyIds                         String[]        
+  roomScope                            RoomScope                 @default(ALL_ROOMS)
+  roomIds                              String[]         
+  minLength                            Int?             
+  maxLength                            Int?             
+  minAdvance                           Int?        
+  maxAdvance                           Int?        
+  sameDayCutoffTime                    String?          
+  priority                             Int                       @default(0)
+  isActive                             Boolean                   @default(true)
+  exceptions                           RestrictionException[]
+  createdAt                            DateTime                  @default(now())
+  updatedAt                            DateTime                  @updatedAt
   @@index([startDate, endDate])
   @@index([type, isActive])
 }
 
 model RestrictionException {
-  id                    String             @id @default(uuid())
-  bookingRestriction    BookingRestriction @relation(fields: [bookingRestrictionId], references: [id], onDelete: Cascade)
-  bookingRestrictionId  String
-  
-  // Exception conditions
-  minLengthOverride     Int?               // Override minimum length for this exception
-  maxLengthOverride     Int?               // Override maximum length for this exception
-  
-  // Date range for this exception
-  exceptionStartDate    DateTime?
-  exceptionEndDate      DateTime?
-  
-  // Days of week for this exception
-  exceptionDaysOfWeek   Int[]
-  
-  // Rate overrides for this exception
-  rateScope             RateScope?
-  ratePolicyIds         String[]
-  
-  // Room overrides for this exception
-  roomScope             RoomScope?
-  roomIds               String[]
-  
-  isActive              Boolean            @default(true)
-  createdAt             DateTime           @default(now())
-  
+  id                                  String             @id @default(uuid())
+  bookingRestriction                  BookingRestriction @relation(fields: [bookingRestrictionId], references: [id], onDelete: Cascade)
+  bookingRestrictionId                String
+  minLengthOverride                   Int?  
+  maxLengthOverride                   Int?
+  exceptionStartDate                  DateTime?
+  exceptionEndDate                    DateTime?
+  exceptionDaysOfWeek                 Int[]
+  rateScope                           RateScope?
+  ratePolicyIds                       String[]
+  roomScope                           RoomScope?
+  roomIds                             String[]
+  isActive                            Boolean            @default(true)
+  createdAt                           DateTime           @default(now())
   @@index([exceptionStartDate, exceptionEndDate])
 }
 
 model EmailTemplate {
-  id          String      @id @default(cuid())
-  name        String      // e.g. "Booking Confirmation", "Admin Notification"
-  type        String      // e.g. "BOOKING_CONFIRMATION", "ADMIN_NOTIFICATION"
-  subject     String      // Email subject template
-  html        String      @db.Text  // The HTML template with placeholders
-  design      String?     @db.Text  // Store the Unlayer editor design JSON
-  isActive    Boolean     @default(false)
-  version     Int         @default(1)
-  variables   Json?       // Store template variables
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
+  id          String         @id @default(cuid())
+  name        String        
+  type        String        
+  subject     String        
+  html        String         @db.Text  
+  design      String?        @db.Text 
+  isActive    Boolean        @default(false)
+  version     Int            @default(1)
+  variables   Json?         
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   @@index([type, isActive])
 }
 
@@ -393,21 +349,20 @@ model VoucherProduct {
   isActive    Boolean
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  
   vouchers   Voucher[]    @relation("VoucherProducts")
   @@index([isActive])
 }
 
 model Voucher {
-  id                                String      @id @default(cuid())
-  code                              String      @unique
+  id                                String              @id @default(cuid())
+  code                              String              @unique
   name                              String
   description                       String?
   type                              VoucherType 
   discountPercent                   Float?
   fixedAmount                       Float?
   maxUsage                          Int?
-  currentUsage                      Int          @default(0)
+  currentUsage                      Int                 @default(0)
   maxUsagePerUser                   Int?
   validFrom                         DateTime
   validTill                         DateTime
@@ -428,50 +383,43 @@ model Voucher {
 }
 
 model VoucherUsage {
-  id                String              @id @default(uuid())
-  voucher           Voucher             @relation(fields: [voucherId], references: [id], onDelete: Cascade)
-  voucherId         String
-  
-  // Usage details
-  usedBy            String?             // User email or identifier
-  usedAt            DateTime            @default(now())
-  
-  // Booking context
-  booking           Booking?            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  bookingId         String?
-  paymentIntent     PaymentIntent?      @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
-  paymentIntentId   String?
-  
-  discountAmount    Float?        
-  originalAmount    Float?             
-  finalAmount       Float?            
-  productsReceived  Json?
-  status            VoucherUsageStatus  @default(APPLIED)
-  
+  id                           String              @id @default(uuid())
+  voucher                      Voucher             @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  voucherId                    String
+  usedBy                       String?            
+  usedAt                       DateTime            @default(now())
+  booking                      Booking?            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId                    String?
+  paymentIntent                PaymentIntent?      @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  paymentIntentId              String?
+  discountAmount               Float?        
+  originalAmount               Float?             
+  finalAmount                  Float?            
+  productsReceived             Json?
+  status                       VoucherUsageStatus  @default(APPLIED)
   @@index([voucherId, usedAt])
   @@index([bookingId])
   @@index([paymentIntentId])
 }
 
-// Enums for voucher system
 enum VoucherType {
-  DISCOUNT    // Percentage discount
-  FIXED       // Fixed amount discount
-  PRODUCT     // Free product(s)
+  DISCOUNT    
+  FIXED       
+  PRODUCT   
 }
 
 enum VoucherRoomScope {
-  ALL_ROOMS       // Apply to all rooms
-  SPECIFIC_ROOMS  // Apply to specific rooms only
+  ALL_ROOMS       
+  SPECIFIC_ROOMS 
 }
 
 enum VoucherRateScope {
-  ALL_RATES       // Apply to all rate policies
-  SPECIFIC_RATES  // Apply to specific rate policies only
+  ALL_RATES      
+  SPECIFIC_RATES
 }
 
 enum VoucherUsageStatus {
-  APPLIED     // Voucher was successfully applied
+  APPLIED     
   REFUNDED    // Voucher usage was refunded
   CANCELLED   // Voucher usage was cancelled
 }
@@ -692,16 +640,177 @@ model OrderItem {
   role             OrderItemRole
 }
 
+model Product {
+  id           String               @id @default(uuid())
+  name         String
+  description  String?
+  price        Float
+  pricingModel ProductPricingModel  @default(FIXED)
+  type         ProductType          @default(WEDDING)
+  category     String
+  sampleMenu   Json?
+  image        String?
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  itineraryItems ItineraryItem[]    // Add this relation
+}
+
+// Wedding Proposal System Models
+model WeddingProposal { 
+  id                             String           @id @default(uuid())
+  name                           String 
+  status                         ProposalStatus   @default(DRAFT)
+  weddingDate                    DateTime 
+  mainGuestCount                 Int 
+  termsAndConditions             String? 
+  customerId                     String 
+  customer                       Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  holdExpiresAt                  DateTime? 
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
+  itineraryDays                  ItineraryDay[]
+  paymentPlan                    PaymentPlan?
+  sentEmailCount                 Int              @default(0)
+  lastEmailSentAt                DateTime?       
+  finalGuestConfirmationSent     Boolean          @default(false)
+  finalGuestConfirmationSentAt   DateTime?       
+  finalGuestCountConfirmed       Boolean          @default(false)
+  finalGuestCountConfirmedAt     DateTime?
+  
+  @@map("wedding_proposals")
+  @@index([customerId])
+  @@index([status, weddingDate])
+}
+
+model ItineraryDay {
+  id          String   @id @default(uuid())
+  dayNumber   Int      // Day 1, Day 2, etc.
+  date        DateTime
+  
+  proposal    WeddingProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId  String
+  
+  items       ItineraryItem[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([proposalId, dayNumber])
+}
+
+model ItineraryItem {
+  id            String      @id @default(uuid())
+  
+  day           ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  dayId         String
+  
+  // Link to the product
+  product       Product     @relation(fields: [productId], references: [id])
+  productId     String
+  
+  // Specific details for this instance
+  guestCount    Int
+  status        ItineraryItemStatus @default(OPTIONAL)
+  price         Float       // The price for this specific item
+  notes         String?
+  
+  // Custom menu for this specific item
+  customMenu    Json?       // For storing the customized menu for this specific item
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PaymentPlan {
+  id          String      @id @default(uuid())
+  
+  proposal    WeddingProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId  String      @unique
+  
+  // Replace JSON field with a relationship
+  stages      PaymentStage[]
+  
+  totalAmount Float       // Total amount for the payment plan
+  currency    String      @default("eur")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PaymentStage {
+  id                    String               @id @default(uuid())
+  paymentPlan           PaymentPlan          @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  paymentPlanId         String
+  description           String      // e.g., "Initial deposit", "Accommodation payment"
+  amount                Float       // Fixed amount for this stage
+  dueDate               DateTime    // When this payment is due
+  status                PaymentStageStatus  @default(PENDING)
+  stripePaymentIntentId String?
+  stripePaymentUrl      String?
+  reminderSent    Boolean             @default(false)
+  paidAt          DateTime?
+  reminders       PaymentReminder[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model PaymentReminder {
+  id             String       @id @default(cuid())
+  paymentStageId String
+  paymentStage   PaymentStage @relation(fields: [paymentStageId], references: [id], onDelete: Cascade)
+  type           String       
+  sentAt         DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([paymentStageId])
+  @@index([type])
+  @@index([sentAt])
+}
+
+
+enum PaymentStageStatus {
+  PENDING
+  PROCESSING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ProposalStatus {
+  DRAFT       // Being built by admin
+  SENT        // Sent to customer
+  ACCEPTED    // Customer has accepted
+  CONFIRMED   // All items confirmed
+  COMPLETED   // Wedding has happened
+  CANCELLED
+}
+
+enum ItineraryItemStatus {
+  CONFIRMED
+  OPTIONAL
+}
+
+enum ProductType {
+  REGULAR
+  WEDDING
+  RESTAURANT
+}
+
+enum ProductPricingModel {
+  FIXED
+  PER_PERSON
+}
+
 model AvailabilityRule {
   id                String         @id @default(uuid())
   name              String         // e.g., "Weekday Mornings", "Weekend Brunch"
   orderCategoryId   String         @unique
   orderCategory     OrderCategory  @relation(fields: [orderCategoryId], references: [id], onDelete: Cascade)
-  
   startTime         String         // "HH:MM" format, e.g., "07:00"
   endTime           String         // "HH:MM" format, e.g., "11:00"
   daysOfWeek        Int[]          // [0-6] where 0=Sunday, 1=Monday, etc.
-  
   isActive          Boolean        @default(true)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -730,11 +839,6 @@ model Order {
   temporaryCustomerId String?
   temporaryCustomer   TemporaryCustomer? @relation(fields: [temporaryCustomerId], references: [id], onDelete: Cascade)
   charge              Charge?        
-  @@index([status])
-  @@index([assignedToKitchen])
-  @@index([assignedToWaiter])
-  @@index([createdAt])
-  @@index([temporaryCustomerId])
 }
 
 enum OrderStatus {

@@ -1,8 +1,8 @@
 import express from "express";
 import { handleError, responseHandler } from "../utils/helper";
-import { stripe } from "../config/stripe";
+import { stripe } from "../config/stripeConfig";
 import prisma from "../prisma";
-import { findOrCreatePrice } from "./adminController";
+import { findOrCreatePrice } from "../config/stripeConfig";
 import { sendChargeConfirmationEmail } from "../services/emailTemplate";
 
 export const chargeSaveCard = async (req: express.Request, res: express.Response) => {
@@ -167,23 +167,23 @@ export const createQrSession = async (req: express.Request, res: express.Respons
     });
   } else {
     customerDetails = await prisma.customer.findUnique({ 
-      where: { id: customerId }, 
-      select: { 
-        guestEmail: true, 
-        guestFirstName: true, 
-        guestLastName: true, 
-        guestPhone: true,
-        guestNationality: true,
-        id: true 
-      } 
-    });
+    where: { id: customerId }, 
+    select: { 
+      guestEmail: true, 
+      guestFirstName: true, 
+      guestLastName: true, 
+      guestPhone: true,
+      guestNationality: true,
+      id: true 
+    } 
+  });
   }
 
   if (!customerDetails) {
     responseHandler(res, 404, "Customer not found in our system.");
     return;
   }
-  
+
   let charge;
   try {
     // 3. Create a local charge record to track this transaction
@@ -404,14 +404,14 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
 
 export const createManualTransactionCharge = async (req: express.Request, res: express.Response) => {
   const { customerId, transactionId, description, orderId, isTemporaryCustomer } = req.body;
-  // @ts-ignore
-  const { id: userId } = req.user;
-  if (!customerId || !transactionId) {
-    responseHandler(res, 400, "Customer ID and Transaction ID are required.");
-    return;
-  }
-  try {
-      // Find the customer
+    // @ts-ignore
+    const { id: userId } = req.user;
+    if (!customerId || !transactionId) {
+        responseHandler(res, 400, "Customer ID and Transaction ID are required.");
+        return;
+    }
+    try {
+        // Find the customer
       let customerDetails: any;
       if (isTemporaryCustomer) {
         customerDetails = await prisma.temporaryCustomer.findUnique({ where: { id: customerId }});
@@ -420,98 +420,98 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
       }
       
       if (!customerDetails) {
-        responseHandler(res, 404, "Customer not found.");
-        return;
-      }
-      // Determine if it's a Payment Intent (pi_) or Charge (ch_) and fetch accordingly
-      let paymentData: any;
-      let stripePaymentIntentId: string;
-      let chargeAmount: number;
-      let chargeCurrency: string;
-      let chargeStatus: string;
-      let chargeCreated: number;
-      let chargeDescription: string | null;
-      if (transactionId.startsWith('pi_')) {
-        try {
-          // It's a Payment Intent
-          const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
-          
-          if (paymentIntent.status !== 'succeeded') {
-              responseHandler(res, 400, `Payment is not successful. Current status: ${paymentIntent.status}`);
-              return;
-          }
-          paymentData = paymentIntent;
-          stripePaymentIntentId = transactionId;
-          chargeAmount = paymentIntent.amount;
-          chargeCurrency = paymentIntent.currency;
-          chargeStatus = paymentIntent.status;
-          chargeCreated = paymentIntent.created;
-          chargeDescription = paymentIntent.description;
-          } catch (stripeError: any) {
-            if (stripeError.type === 'StripeInvalidRequestError') {
-              responseHandler(res, 400, "Invalid Payment Intent ID. Please check the ID and try again.");
-              return;
-            }
-            throw stripeError;
-          }
-      } else if (transactionId.startsWith('ch_')) {
-          // It's a Charge
-          try {
-            const charge = await stripe.charges.retrieve(transactionId);
-            
-            if (charge.status !== 'succeeded') {
-              responseHandler(res, 400, `Payment is not successful. Current status: ${charge.status}`);
-              return;
-            }
-            paymentData = charge;
-            stripePaymentIntentId = charge.payment_intent as string;
-            chargeAmount = charge.amount;
-            chargeCurrency = charge.currency;
-            chargeStatus = charge.status;
-            chargeCreated = charge.created;
-            chargeDescription = charge.description;
-          } catch (stripeError: any) {
-            if (stripeError.type === 'StripeInvalidRequestError') {
-              responseHandler(res, 400, "Invalid Charge ID. Please check the ID and try again.");
-              return;
-            }
-            throw stripeError;
-          }
-      } else {
-        responseHandler(res, 400, "Invalid transaction ID format. Must start with 'pi_' (Payment Intent) or 'ch_' (Charge).");
-        return;
-      }
-      // Check if this payment is already associated with a charge
-      const existingCharge = await prisma.charge.findFirst({
-        where: { 
-          OR: [
-            { stripePaymentIntentId: stripePaymentIntentId },
-            { stripePaymentIntentId: transactionId }
-          ]
+            responseHandler(res, 404, "Customer not found.");
+            return;
         }
-      });
-      if (existingCharge) {
-        responseHandler(res, 400, "This transaction is already recorded in our system.");
-        return;
-      }
-      // Create charge record
-      const charge = await prisma.charge.create({
-        data: {
-          amount: chargeAmount / 100, // Convert from cents
-          description: description || chargeDescription || `Manual transaction: ${transactionId}`,
+        // Determine if it's a Payment Intent (pi_) or Charge (ch_) and fetch accordingly
+        let paymentData: any;
+        let stripePaymentIntentId: string;
+        let chargeAmount: number;
+        let chargeCurrency: string;
+        let chargeStatus: string;
+        let chargeCreated: number;
+        let chargeDescription: string | null;
+        if (transactionId.startsWith('pi_')) {
+        try {
+            // It's a Payment Intent
+                const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
+                
+                if (paymentIntent.status !== 'succeeded') {
+                    responseHandler(res, 400, `Payment is not successful. Current status: ${paymentIntent.status}`);
+                    return;
+                }
+                paymentData = paymentIntent;
+                stripePaymentIntentId = transactionId;
+                chargeAmount = paymentIntent.amount;
+                chargeCurrency = paymentIntent.currency;
+                chargeStatus = paymentIntent.status;
+                chargeCreated = paymentIntent.created;
+                chargeDescription = paymentIntent.description;
+            } catch (stripeError: any) {
+                if (stripeError.type === 'StripeInvalidRequestError') {
+                    responseHandler(res, 400, "Invalid Payment Intent ID. Please check the ID and try again.");
+                    return;
+                }
+                throw stripeError;
+            }
+        } else if (transactionId.startsWith('ch_')) {
+            // It's a Charge
+            try {
+                const charge = await stripe.charges.retrieve(transactionId);
+                
+                if (charge.status !== 'succeeded') {
+                    responseHandler(res, 400, `Payment is not successful. Current status: ${charge.status}`);
+                    return;
+                }
+                paymentData = charge;
+                stripePaymentIntentId = charge.payment_intent as string;
+                chargeAmount = charge.amount;
+                chargeCurrency = charge.currency;
+                chargeStatus = charge.status;
+                chargeCreated = charge.created;
+                chargeDescription = charge.description;
+            } catch (stripeError: any) {
+                if (stripeError.type === 'StripeInvalidRequestError') {
+                    responseHandler(res, 400, "Invalid Charge ID. Please check the ID and try again.");
+                    return;
+                }
+                throw stripeError;
+            }
+        } else {
+            responseHandler(res, 400, "Invalid transaction ID format. Must start with 'pi_' (Payment Intent) or 'ch_' (Charge).");
+            return;
+        }
+        // Check if this payment is already associated with a charge
+        const existingCharge = await prisma.charge.findFirst({
+            where: { 
+                OR: [
+                    { stripePaymentIntentId: stripePaymentIntentId },
+                    { stripePaymentIntentId: transactionId }
+                ]
+            }
+        });
+        if (existingCharge) {
+            responseHandler(res, 400, "This transaction is already recorded in our system.");
+            return;
+        }
+        // Create charge record
+        const charge = await prisma.charge.create({
+            data: {
+                amount: chargeAmount / 100, // Convert from cents
+                description: description || chargeDescription || `Manual transaction: ${transactionId}`,
           customerId: isTemporaryCustomer ? undefined : customerId,
           tempCustomerId: isTemporaryCustomer ? customerId : undefined,
-          currency: chargeCurrency,
-          status: "SUCCEEDED", // Already paid
-          createdBy: userId,
+                currency: chargeCurrency,
+                status: "SUCCEEDED", // Already paid
+                createdBy: userId,
           orderId,
-          expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-          paymentMethod: "MANUAL_TRANSACTION",
-          stripePaymentIntentId: stripePaymentIntentId,
-          paidAt: new Date(chargeCreated * 1000), // Convert from Unix timestamp
-          adminNotes: `Manually recorded transaction ID: ${transactionId} (${transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge'}). Stripe metadata stored for refund processing.`
-        }
-      });
+                expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+                paymentMethod: "MANUAL_TRANSACTION",
+                stripePaymentIntentId: stripePaymentIntentId,
+                paidAt: new Date(chargeCreated * 1000), // Convert from Unix timestamp
+                adminNotes: `Manually recorded transaction ID: ${transactionId} (${transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge'}). Stripe metadata stored for refund processing.`
+            }
+        });
       if (orderId) {
         const orderEventService = (global as any).orderEventService;
         if (orderEventService) {
@@ -525,27 +525,27 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
           });
         }
       }
-      responseHandler(res, 201, "Manual transaction recorded successfully.", {
-          chargeId: charge.id,
-          amount: charge.amount,
-          currency: charge.currency,
-          status: charge.status,
-          stripeData: {
-            originalTransactionId: transactionId,
-            paymentIntentId: stripePaymentIntentId,
-            transactionType: transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge',
-            receiptUrl: paymentData.receipt_url || null
-          }
-      });
-  } catch (error) {
-    console.error("Error creating manual transaction charge:", error);
-    handleError(res, error as Error);
-  }
+        responseHandler(res, 201, "Manual transaction recorded successfully.", {
+            chargeId: charge.id,
+            amount: charge.amount,
+            currency: charge.currency,
+            status: charge.status,
+            stripeData: {
+                originalTransactionId: transactionId,
+                paymentIntentId: stripePaymentIntentId,
+                transactionType: transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge',
+                receiptUrl: paymentData.receipt_url || null
+            }
+        });
+    } catch (error) {
+      console.error("Error creating manual transaction charge:", error);
+      handleError(res, error as Error);
+    }
 };
 
 export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
   const { customerId, amount, description, orderId, isTemporaryCustomer } = req.body;
-  //@ts-ignore
+//@ts-ignore
   const { id: adminId } = req.user;
   if (!customerId || !amount) {
     responseHandler(res, 400, "Customer ID and amount are required.");
@@ -576,7 +576,7 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
         await prisma.order.update({
             where: { id: orderId },
             data: { status: 'DELIVERED', deliveredAt: new Date() }
-        });
+    });
       }
     }
     responseHandler(res, 200, "Cash payment recorded successfully.");
