@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { format, addMonths, addYears, parseISO, isBefore } from 'date-fns';
+import { format, addMonths, addYears, isBefore } from 'date-fns';
 import { HiOutlineTrash, HiOutlinePlus } from 'react-icons/hi';
 import { baseUrl } from '../../../utils/constants';
-import type { PaymentPlanStage, PaymentPlan } from '../../../types/types';
+import type { PaymentPlan } from '../../../types/types';
 
 type Props = {
   proposalId: string;
   weddingDate: string;
-  totalAmount: number;
+  totalAmount?: number;
   proposalName: string;
 };
 
 const PaymentPlanEditor: React.FC<Props> = ({ 
   proposalId, 
   weddingDate, 
-  totalAmount,
+  totalAmount = 0,
   proposalName
 }) => {
   const [loading, setLoading] = useState(false);
@@ -47,7 +47,6 @@ const PaymentPlanEditor: React.FC<Props> = ({
         setLoading(true);
         setError(null);
         
-        console.log('Fetching payment plan for proposal:', proposalId);
         const response = await fetch(`${baseUrl}/payment-plans/proposals/${proposalId}/payment-plan`, {
             method: "GET",
             credentials: "include"
@@ -100,11 +99,6 @@ const PaymentPlanEditor: React.FC<Props> = ({
     try {
       console.log('Creating default payment plan with wedding date:', weddingDate);
       const weddingDateObj = new Date(weddingDate);
-      
-      // Default stages:
-      // 1. Initial deposit (25%) - Due immediately
-      // 2. Accommodation payment (50%) - 1 year before wedding
-      // 3. Final payment (25%) - 3 months before wedding
       
       const today = new Date();
       const oneYearBefore = addYears(weddingDateObj, -1);
@@ -185,8 +179,6 @@ const PaymentPlanEditor: React.FC<Props> = ({
   // Remove a payment stage
   const removeStage = async (index: number) => {
     const stage = paymentPlan.stages[index];
-     console.log('id')
-    // If the stage has an ID, delete it from the backend
     if (stage.id) {
         try {
             setLoading(true);
@@ -247,7 +239,7 @@ const PaymentPlanEditor: React.FC<Props> = ({
   // Calculate the difference between the total amount and the sum of stages
   const getAmountDifference = () => {
     const stagesTotal = getTotalStagesAmount();
-    return Math.round((totalAmount - stagesTotal) * 100) / 100;
+    return Math.round(((totalAmount || 0) - stagesTotal) * 100) / 100;
   };
 
   // Refresh payment plan data from the server
@@ -267,28 +259,23 @@ const PaymentPlanEditor: React.FC<Props> = ({
       
       // First check if the response is OK
       if (!response.ok) {
+        // If the plan is not found (404), it's not an error to be displayed,
+        // it just means one hasn't been created yet. Silently fail.
+        if (response.status !== 404) {
         console.error('API refresh response not OK:', response.status);
         setError('Failed to refresh payment plan');
+        }
         return false;
       }
       
       // Parse the JSON response
       const data = await response.json();
-      console.log('Refresh payment plan response:', data);
-      
-      // Check if we have a successful response with data
-      if (!data || data.success !== true || !data.data) {
-        console.error('Invalid API refresh response structure:', data);
-        setError(data?.message || 'Failed to refresh payment plan');
-        return false;
-      }
       
       // We have valid data, now use it
       const plan = data.data;
-      console.log('Using refreshed payment plan from API:', plan);
       
       // Check if stages exist and are an array
-      if (!plan.stages || !Array.isArray(plan.stages)) {
+      if (!plan || !plan.stages || !Array.isArray(plan.stages)) {
         console.warn('No valid stages array in refresh response, using empty array');
         plan.stages = [];
       }
@@ -581,7 +568,7 @@ const PaymentPlanEditor: React.FC<Props> = ({
                   className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm"
                   disabled={loading || stage.status === 'PROCESSING'}
                 >
-                  {stage.status === 'PROCESSING' ? 'Processing...' : 'Payment Link'}
+                  {stage.status === 'PROCESSING' ? 'Processing...' : 'Create Link'}
                 </button>
               )}
             </div>
@@ -598,23 +585,23 @@ const PaymentPlanEditor: React.FC<Props> = ({
         </button>
       </div>
       
-      <div className="flex justify-between">
+      <div className="flex justify-between mt-6 pt-4 border-t">
         <button
           type="button"
           onClick={refreshPaymentPlan}
-          className="text-blue-600 hover:text-blue-800"
+          className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
           disabled={loading}
         >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
+          {loading ? 'Refreshing...' : 'Refresh Plan'}
         </button>
         
         <button
           type="button"
           onClick={savePaymentPlan}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
           disabled={loading}
         >
-          {loading ? 'Saving...' : 'Save Payment Plan'}
+          {loading ? 'Saving...' : 'Save Plan'}
         </button>
       </div>
     </div>

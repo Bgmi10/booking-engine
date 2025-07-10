@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeddingPortalAuth } from '../../context/WeddingPortalAuthContext';
 import { baseUrl } from '../../utils/constants';
@@ -21,65 +21,92 @@ import {
     RiAddLine,
     RiEditLine,
     RiMenuLine,
-    RiCloseLine
+    RiCloseLine,
+    RiToolsLine // For Service Requests
 } from 'react-icons/ri';
 
 export default function WeddingPortalDashboard() {
-    const { logout, user, isAuthenticated } = useWeddingPortalAuth();
+    const { logout, user, isAuthenticated }: { logout: () => void, user: any, isAuthenticated: boolean } = useWeddingPortalAuth();
+    const sidebarParams = new URLSearchParams(window.location.search).get("sidebar");
     const [proposals, setProposals] = useState<any[]>([]);
     const [selectedProposal, setSelectedProposal] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [downloadLoading, setDownloadLoading] = useState(false);
     const [acceptLoading, setAcceptLoading] = useState(false);
-    const [activeSection, setActiveSection] = useState<'overview' | 'itinerary' | 'payment' | 'guests' | 'vendors'>('overview');
+    const [activeSection, setActiveSection] = useState<'overview' | 'itinerary' | 'payment' | 'guests' | 'vendors' | 'services' | any >('overview');
+    
+    // State for modals
     const [isServiceRequestModalOpen, setIsServiceRequestModalOpen] = useState(false);
+    const [selectedServiceRequestId, setSelectedServiceRequestId] = useState<string | undefined>(undefined);
     const [isGuestProposalCreationModalOpen, setIsGuestProposalCreationModalOpen] = useState(false);
     const [isItineraryManagementModalOpen, setIsItineraryManagementModalOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isProfileOverlayOpen, setIsProfileOverlayOpen] = useState(false);
+    const profileOverlayRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
-    const [products, setProducts] = useState<any[]>([]);
-    const [loadingProducts, setLoadingProducts] = useState(false);
 
     useEffect(() => {
-        
+      if (sidebarParams)  {
+        setActiveSection(sidebarParams);
+      }
+    }, [sidebarParams]);
+
+    const fetchAllProposals = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${baseUrl}/customers/proposals`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                const fetchedProposals = data.data;
+                setProposals(fetchedProposals);
+                
+                if (fetchedProposals.length > 0) {
+                    // If a proposal is already selected, update it, otherwise set a new one
+                    const currentSelectedId = selectedProposal?.id;
+                    const updatedSelected = fetchedProposals.find((p: any) => p.id === currentSelectedId);
+                    if (updatedSelected) {
+                        setSelectedProposal(updatedSelected);
+                    } else {
+                        const activeProposal = fetchedProposals.find((p: any) => p.status !== 'COMPLETED') || fetchedProposals[0];
+                        setSelectedProposal(activeProposal);
+                    }
+                }
+            } else {
+                throw new Error(data.message || 'Failed to fetch proposals');
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'An error occurred while fetching proposals');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         if (!isAuthenticated) {
             navigate('/wedding-portal/login');
             return;
         }
+        fetchAllProposals();
+    }, [isAuthenticated, user, navigate]);
 
-        const fetchAllProposals = async () => {
-            try {
-                const response = await fetch(`${baseUrl}/customers/proposals`, {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    const fetchedProposals = data.data;
-                    setProposals(fetchedProposals);
-                    
-                    // Select the first proposal or the first non-completed proposal
-                    if (fetchedProposals.length > 0) {
-                        const activeProposal = fetchedProposals.find((p: any) => p.status !== 'COMPLETED') || fetchedProposals[0];
-                        setSelectedProposal(activeProposal);
-                    }
-                } else {
-                    throw new Error(data.message || 'Failed to fetch proposals');
-                }
-            } catch (error: any) {
-                toast.error(error.message || 'An error occurred while fetching proposals');
-            } finally {
-                setIsLoading(false);
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (profileOverlayRef.current && !profileOverlayRef.current.contains(event.target as Node)) {
+                setIsProfileOverlayOpen(false);
             }
         };
 
-        fetchAllProposals();
-    }, [isAuthenticated, user, navigate]);
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const handleLogout = async () => {
         try {
@@ -96,39 +123,16 @@ export default function WeddingPortalDashboard() {
             const response = await fetch(`${baseUrl}/customers/proposals/${selectedProposal.id}/accept`, {
                 method: 'POST',
                 credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
             });
 
             const data = await response.json();
 
             if (response.ok) {
                 toast.success('Proposal accepted successfully');
-                setSelectedProposal(prevProposal => ({
-                    ...prevProposal,
-                    status: 'ACCEPTED'
-                }));
-                
-                setProposals(prevProposals => 
-                    prevProposals.map(proposal => 
-                        proposal.id === selectedProposal.id 
-                            ? { ...proposal, status: 'ACCEPTED' } 
-                            : proposal
-                    )
-                );
+                fetchAllProposals(); // Re-fetch all data
             } else {
-                // More specific error handling
-                let errorMessage = 'Failed to accept proposal';
-                
-                // Check for specific error messages from the server
-                if (data.error === 'No payment plan found for this proposal') {
-                    errorMessage = 'Payment plan is not yet created or assigned. Please contact support to complete your proposal.';
-                } else if (data.message) {
-                    errorMessage = data.message;
-                }
-                
-                // Show a more detailed error toast
+                let errorMessage = data.message || 'Failed to accept proposal';
                 toast.error(
                     <div className="flex items-center">
                         <RiErrorWarningLine className="mr-2 text-xl" />
@@ -138,7 +142,6 @@ export default function WeddingPortalDashboard() {
                 );
             }
         } catch (error: any) {
-            // Fallback for network errors or unexpected issues
             toast.error(
                 <div className="flex items-center">
                     <RiErrorWarningLine className="mr-2 text-xl" />
@@ -151,6 +154,58 @@ export default function WeddingPortalDashboard() {
         }
     };
 
+    const handleDownloadProposal = async () => {
+        setDownloadLoading(true);
+        try {
+            const response = await fetch(`${baseUrl}/customers/proposals/${selectedProposal.id}/download`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Wedding_Proposal_${selectedProposal.name.replace(/ /g, '_')}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                toast.success('Proposal downloaded successfully');
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to download proposal');
+            }
+        } catch (error: any) {
+            toast.error(
+                <div className="flex items-center">
+                    <RiErrorWarningLine className="mr-2 text-xl" />
+                    <span>{error.message || 'An error occurred while downloading the proposal'}</span>
+                </div>,
+                { duration: 4000 }
+            );
+        } finally {
+            setDownloadLoading(false);
+        }
+    };
+
+    const handleProposalChange = (proposal: any) => {
+        setSelectedProposal(proposal);
+    };
+
+    const handleItineraryUpdate = (updatedProposal: any) => {
+        setSelectedProposal(updatedProposal);
+        setProposals(prevProposals => 
+            prevProposals.map(p => p.id === updatedProposal.id ? updatedProposal : p)
+        );
+    };
+    
+    const handleOpenServiceRequestModal = (requestId?: string) => {
+        setSelectedServiceRequestId(requestId);
+        setIsServiceRequestModalOpen(true);
+    };
+    
     const handleUpdateGuestCount = async (dayId: string, newCount: number) => {
         try {
             // If dayId matches the proposal ID, we're updating the main guest count
@@ -197,208 +252,157 @@ export default function WeddingPortalDashboard() {
         }
     };
 
-    const handleDownloadProposal = async () => {
-        setDownloadLoading(true);
-        try {
-            const response = await fetch(`${baseUrl}/customers/proposals/${selectedProposal.id}/download`, {
-                method: 'GET',
-                credentials: 'include',
-            });
-
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Wedding_Proposal_${selectedProposal.id}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-                toast.success('Proposal downloaded successfully');
-            } else {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to download proposal');
-            }
-        } catch (error: any) {
-            toast.error(
-                <div className="flex items-center">
-                    <RiErrorWarningLine className="mr-2 text-xl" />
-                    <span>{error.message || 'An error occurred while downloading the proposal'}</span>
-                </div>,
-                { duration: 4000 }
-            );
-        } finally {
-            setDownloadLoading(false);
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'PENDING': return { bg: 'bg-yellow-100', text: 'text-yellow-800' };
+            case 'QUOTED': return { bg: 'bg-blue-100', text: 'text-blue-800' };
+            case 'ACCEPTED': return { bg: 'bg-green-100', text: 'text-green-800' };
+            case 'REJECTED': return { bg: 'bg-red-100', text: 'text-red-800' };
+            case 'COMPLETED': return { bg: 'bg-teal-100', text: 'text-teal-800' };
+            case 'CANCELLED': return { bg: 'bg-gray-100', text: 'text-gray-800' };
+            case 'PAID': return { bg: 'bg-green-100', text: 'text-green-800' };
+            case 'OVERDUE': return { bg: 'bg-red-100', text: 'text-red-800' };
+            default: return { bg: 'bg-gray-100', text: 'text-gray-800' };
         }
     };
+    
+    // --- RENDER SECTIONS ---
 
-    const handleProposalChange = (proposal: any) => {
-        setSelectedProposal(proposal);
-    };
-
-    const handleItineraryUpdate = (updatedItinerary: any) => {
-        // Update the local state with the updated itinerary
-        setSelectedProposal(prevProposal => ({
-            ...prevProposal,
-            itineraryDays: updatedItinerary
-        }));
-        
-        // Update the proposal in the proposals array
-        setProposals(prevProposals => 
-            prevProposals.map(proposal => 
-                proposal.id === selectedProposal.id 
-                    ? { 
-                        ...proposal, 
-                        itineraryDays: updatedItinerary 
-                    } 
-                    : proposal
-            )
-        );
-    };
-
-
-    const renderActiveSection = () => {
-        switch (activeSection) {
-            case 'overview':
-                return renderOverviewSection();
-            case 'itinerary':
-                return renderItinerarySection();
-            case 'payment':
-                return renderPaymentSection();
-            case 'guests':
-                return renderGuestManagementSection();
-            case 'vendors':
-                return renderVendorInformationSection();
-            default:
-                return renderOverviewSection();
-        }
-    };
-
-    const renderOverviewSection = () => {
-        return (
-            <div className="w-full max-w-md mx-auto space-y-6">
-                {proposals.length > 0 ? (
-                    <div className="bg-gray-100 rounded-xl p-4 mb-4">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                                Your Proposals
-                            </h3>
-                            <button 
-                                onClick={() => setIsGuestProposalCreationModalOpen(true)}
-                                className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
-                            >
-                                <RiAddLine className="mr-1" /> New Proposal
-                            </button>
-                        </div>
-                        <div className="flex space-x-2 overflow-x-auto pb-2">
-                            {proposals.map((proposal) => (
-                                <button
-                                    key={proposal.id}
-                                    onClick={() => handleProposalChange(proposal)}
-                                    className={`
-                                        px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300
-                                        ${selectedProposal?.id === proposal.id 
-                                            ? 'bg-black text-white' 
-                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
-                                    `}
-                                >
-                                    Proposal {proposals.indexOf(proposal) + 1}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-center text-gray-600 space-y-4">
-                        <p>No active wedding proposals found.</p>
-                        <button 
-                            onClick={() => setIsGuestProposalCreationModalOpen(true)}
-                            className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-900 flex items-center justify-center mx-auto"
-                        >
-                            <RiAddLine className="mr-2" /> Create Your First Proposal
+    const renderOverviewSection = () => (
+        <div className="w-full max-w-md mx-auto space-y-6">
+            {proposals.length > 0 ? (
+                <div className="bg-gray-100 rounded-xl p-4 mb-4">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900">Your Proposals</h3>
+                        <button onClick={() => setIsGuestProposalCreationModalOpen(true)} className="text-blue-600 hover:text-blue-800 flex items-center text-sm">
+                            <RiAddLine className="mr-1" /> New Proposal
                         </button>
                     </div>
-                )}
-
-                {selectedProposal && (
-                    <div className="bg-gray-100 rounded-xl p-6 space-y-4">
-                        <div className="flex items-center space-x-4">
-                            <RiCalendarLine className="text-2xl text-gray-700" />
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Wedding Date</h3>
-                                <p className="text-gray-600">
-                                    {new Date(selectedProposal.weddingDate).toLocaleDateString('en-US', {
-                                        weekday: 'long',
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric'
-                                    })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center space-x-4">
-                            <RiUserLine className="text-2xl text-gray-700" />
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Main Guest Count</h3>
-                                <p className="text-gray-600">{selectedProposal.mainGuestCount} Guests</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center space-x-4">
-                            <RiMoneyEuroBoxLine className="text-2xl text-gray-700" />
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Proposal Status</h3>
-                                <p className={`
-                                    ${selectedProposal.status === 'DRAFT' ? 'text-yellow-600' : 
-                                      selectedProposal.status === 'ACCEPTED' ? 'text-green-600' : 
-                                      'text-gray-600'}
-                                `}>
-                                    {selectedProposal.status}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex space-x-2">
-                            {selectedProposal.status !== 'ACCEPTED' && (
-                                <button
-                                    onClick={handleAcceptProposal}
-                                    disabled={acceptLoading}
-                                    className="flex-1 bg-black text-white py-3 rounded-lg 
-                                               hover:bg-gray-900 transition-all duration-300
-                                               flex items-center justify-center
-                                               disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {acceptLoading ? (
-                                        <div className="animate-spin h-5 w-5 border-t-2 border-white rounded-full"></div>
-                                    ) : (
-                                        'Accept Proposal'
-                                    )}
-                                </button>
-                            )}
+                    <div className="flex space-x-2 overflow-x-auto pb-2">
+                        {proposals.map((proposal, index) => (
                             <button
-                                onClick={handleDownloadProposal}
-                                disabled={downloadLoading}
-                                className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg 
-                                           hover:bg-gray-300 transition-all duration-300 
-                                           flex items-center justify-center
-                                           disabled:opacity-50 disabled:cursor-not-allowed"
+                                key={proposal.id}
+                                onClick={() => handleProposalChange(proposal)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${selectedProposal?.id === proposal.id ? 'bg-black text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                             >
-                                {downloadLoading ? (
-                                    <div className="animate-spin h-5 w-5 border-t-2 border-gray-800 rounded-full"></div>
-                                ) : (
-                                    <>
-                                        <RiDownloadLine className="mr-2" /> Download
-                                    </>
-                                )}
+                                Proposal {index + 1}
                             </button>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className="text-center text-gray-600 space-y-4">
+                    <p>No active wedding proposals found.</p>
+                    <button onClick={() => setIsGuestProposalCreationModalOpen(true)} className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-900 flex items-center justify-center mx-auto">
+                        <RiAddLine className="mr-2" /> Create Your First Proposal
+                    </button>
+                </div>
+            )}
+
+            {selectedProposal && (
+                <div className="bg-gray-100 rounded-xl p-6 space-y-4">
+                    <div className="flex items-center space-x-4">
+                        <RiCalendarLine className="text-2xl text-gray-700" />
+                        <div>
+                            <h3 className="font-semibold text-gray-900">Wedding Date</h3>
+                            <p className="text-gray-600">{new Date(selectedProposal.weddingDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                        <RiUserLine className="text-2xl text-gray-700" />
+                        <div>
+                            <h3 className="font-semibold text-gray-900">Main Guest Count</h3>
+                            <p className="text-gray-600">{selectedProposal.mainGuestCount} Guests</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                        <RiMoneyEuroBoxLine className="text-2xl text-gray-700" />
+        <div>
+                            <h3 className="font-semibold text-gray-900">Proposal Status</h3>
+                            <p className={`${selectedProposal.status === 'ACCEPTED' ? 'text-green-600' : 'text-gray-600'}`}>{selectedProposal.status}</p>
+                        </div>
+                    </div>
+                    <div className="flex space-x-2">
+                        {selectedProposal.status === 'SENT' && (
+                            <button onClick={handleAcceptProposal} disabled={acceptLoading} className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-900 flex items-center justify-center disabled:opacity-50">
+                                {acceptLoading ? <div className="animate-spin h-5 w-5 border-t-2 border-white rounded-full"></div> : 'Accept Proposal'}
+                            </button>
+                        )}
+                        <button onClick={handleDownloadProposal} disabled={downloadLoading} className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 flex items-center justify-center disabled:opacity-50">
+                            {downloadLoading ? <div className="animate-spin h-5 w-5 border-t-2 border-gray-800 rounded-full"></div> : <><RiDownloadLine className="mr-2" /> Download</>}
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+
+    const renderServiceRequestSection = () => {
+        if (!selectedProposal || !selectedProposal.serviceRequests) {
+            return <div className="text-center text-gray-600">No service requests for this proposal.</div>;
+        }
+
+        return (
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">Bespoke Service Requests</h2>
+                    <button onClick={() => handleOpenServiceRequestModal()} className="bg-black text-white px-4 py-2 rounded-lg flex items-center hover:bg-gray-900">
+                        <RiAddLine className="mr-2" /> New Request
+                    </button>
+                </div>
+
+                {selectedProposal.serviceRequests.length > 0 ? (
+                    <div className="bg-white rounded-lg shadow">
+                        <ul className="divide-y divide-gray-200">
+                            {selectedProposal.serviceRequests.map((request: any) => (
+                                <li key={request.id} className="p-4 hover:bg-gray-50 cursor-pointer" onClick={() => handleOpenServiceRequestModal(request.id)}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <div className="flex-shrink-0">
+                                                <RiToolsLine className="h-6 w-6 text-gray-500" />
+                                            </div>
+                                            <div className="ml-4">
+                                                <p className="text-sm font-medium text-gray-900">{request.title}</p>
+                                                <p className="text-sm text-gray-500">Requested on {new Date(request.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(request.status).bg} ${getStatusColor(request.status).text}`}>
+                                                {request.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : (
+                    <div className="text-center text-gray-600 py-10 bg-gray-50 rounded-lg">
+                        <p>You haven't made any custom service requests yet.</p>
                     </div>
                 )}
             </div>
         );
     };
 
+    const renderActiveSection = () => {
+        switch (activeSection) {
+            case 'overview': return renderOverviewSection();
+            case 'itinerary': return renderItinerarySection();
+            case 'payment': return renderPaymentSection();
+            case 'guests': return renderGuestManagementSection();
+            case 'vendors': return renderVendorInformationSection();
+            case 'services': return renderServiceRequestSection();
+            default: return renderOverviewSection();
+        }
+    };
+    
+    // --- MAIN RENDER ---
+
+    if (isLoading) {
+        return <Loader />;
+    }
     const renderItinerarySection = () => {
         if (!selectedProposal || !selectedProposal.itineraryDays) {
             return <div className="text-center text-gray-600">No itinerary available</div>;
@@ -834,14 +838,16 @@ export default function WeddingPortalDashboard() {
             </div>
         );
     };
-
+  
     const renderNavigation = () => {
         const navItems = [
             { section: 'overview', icon: RiFileTextLine, label: 'Overview' },
             { section: 'itinerary', icon: RiPlaneLine, label: 'Itinerary' },
             { section: 'payment', icon: RiWalletLine, label: 'Payments' },
-            { section: 'guests', icon: RiContactsLine, label: 'Guests' }
-        ];
+            { section: 'guests', icon: RiContactsLine, label: 'Guests' },
+            { section: 'vendors', icon: RiContactsLine, label: 'Vendors' },
+            { section: 'services', icon: RiToolsLine, label: 'Service Requests' }
+        ];    
         
         return (
             <>
@@ -886,8 +892,8 @@ export default function WeddingPortalDashboard() {
                     </nav>
                 </div>
                 
-                {/* Mobile Header Toggle */}
-                <div className="lg:hidden p-4 flex items-center justify-between border-b">
+                {/* Mobile Header Toggle with Profile Overlay */}
+                <div className="lg:hidden p-4 flex items-center justify-between border-b relative">
                     <button 
                         onClick={() => setIsSidebarOpen(true)}
                         className="text-2xl"
@@ -895,11 +901,29 @@ export default function WeddingPortalDashboard() {
                         <RiMenuLine />
                     </button>
                     <h1 className="text-xl font-bold">Wedding Portal</h1>
+                    <button onClick={() => setIsProfileOverlayOpen(prev => !prev)} className="text-gray-600 hover:text-gray-800">
+                        {user?.profilePicture ? (
+                            <img src={user.profilePicture} alt={user.name} className="w-8 h-8 rounded-full" />
+                        ) : (
+                            <RiUserLine className="text-xl" />
+                        )}
+                    </button>
+                    {isProfileOverlayOpen && (
+                        <div ref={profileOverlayRef} className="absolute right-4 top-full mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-50">
+                            <div className="p-4">
+                                <div className="font-medium text-gray-900">{user?.guestFirstName}</div>
+                                <div className="text-sm text-gray-500">{user?.email}</div>
+                                <button onClick={handleLogout} className="mt-3 w-full text-left text-red-600 hover:text-red-800">
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
                 {/* Desktop Navigation */}
                 <div className="hidden lg:block w-full bg-gray-100 border-b">
-                    <div className="max-w-7xl mx-auto">
+                    <div className="max-w-7xl mx-auto flex justify-between items-center px-4 relative">
                         <nav className="flex space-x-1 px-4">
                             {navItems.map(({ section, icon: Icon, label }) => (
                                 <button
@@ -920,37 +944,41 @@ export default function WeddingPortalDashboard() {
                                 </button>
                             ))}
                         </nav>
+                        <button onClick={() => setIsProfileOverlayOpen(prev => !prev)} className="flex items-center space-x-2 text-gray-600 hover:text-black">
+                            {user?.profilePicture ? (
+                                <img src={user.profilePicture} alt={user.name} className="w-8 h-8 rounded-full" />
+                            ) : (
+                                <RiUserLine className="text-xl" />
+                            )}
+                            <span>{user?.guestFirstName}</span>
+                        </button>
+                        {isProfileOverlayOpen && (
+                            <div ref={profileOverlayRef} className="absolute right-4 top-full mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-50">
+                                <div className="p-4">
+                                    <div className="font-medium text-gray-900">{user?.guestFirstName}</div>
+                                    <div className="text-sm text-gray-500">{user?.guestEmail.slice(0, 20)}...</div>
+                                    <button onClick={handleLogout} className="mt-3 w-full text-left text-red-600 hover:text-red-800">
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </>
         );
     };
 
-    if (isLoading) {
-        return <Loader />;
-    }
-
     return (
         <div className="min-h-screen bg-gray-50">
             <Header />
-            
-            {/* Navigation */}
             {renderNavigation()}
-            
-            {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 py-8">
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Loader />
-                    </div>
-                ) : proposals.length === 0 ? (
+                {proposals.length === 0 ? (
                     <div className="text-center">
                         <h2 className="text-2xl font-bold mb-4">Welcome to Your Wedding Portal</h2>
                         <p className="text-gray-600 mb-6">You don't have any proposals yet.</p>
-                        <button
-                            onClick={() => setIsGuestProposalCreationModalOpen(true)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center mx-auto"
-                        >
+                        <button onClick={() => setIsGuestProposalCreationModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center mx-auto">
                             <RiAddLine className="mr-2" /> Create New Proposal
                         </button>
                     </div>
@@ -961,29 +989,31 @@ export default function WeddingPortalDashboard() {
                 )}
             </div>
             
-            {/* Modals */}
-            {isServiceRequestModalOpen && (
+            {isServiceRequestModalOpen && selectedProposal && (
                 <ServiceRequestModal
-                    proposalId={selectedProposal?.id}
-                    onClose={() => setIsServiceRequestModalOpen(false)}
+                    proposalId={selectedProposal.id}
+                    serviceRequestId={selectedServiceRequestId}
+                    onClose={() => {
+                        // Only refresh proposals list if a new service request was created
+                        const isNewRequest = selectedServiceRequestId === undefined;
+                        setIsServiceRequestModalOpen(false);
+                        setSelectedServiceRequestId(undefined);
+                        if (isNewRequest) {
+                            fetchAllProposals();
+                        }
+                    }}
                 />
             )}
-            
             {isGuestProposalCreationModalOpen && (
                 <GuestProposalCreationModal
                     onClose={() => setIsGuestProposalCreationModalOpen(false)}
-                    onProposalCreated={(newProposal) => {
-                        setProposals([...proposals, newProposal]);
-                        setSelectedProposal(newProposal);
-                        setIsGuestProposalCreationModalOpen(false);
-                    }}
+                    onSuccess={fetchAllProposals}
                 />
             )}
             
             {isItineraryManagementModalOpen && selectedProposal && (
                 <ItineraryManagementModal
-                    proposalId={selectedProposal.id}
-                    existingItinerary={selectedProposal.itineraryDays}
+                    proposal={selectedProposal}
                     onClose={() => setIsItineraryManagementModalOpen(false)}
                     onUpdate={handleItineraryUpdate}
                 />

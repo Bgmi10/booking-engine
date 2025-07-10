@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { RiCalendarLine, RiGroupLine, RiEdit2Line, RiMailSendLine, RiFileDownloadLine, RiPrinterLine, RiInformationLine } from 'react-icons/ri';
+import React, { useEffect, useState } from 'react';
+import { RiCalendarLine, RiGroupLine, RiEdit2Line, RiMailSendLine, RiFileDownloadLine, RiPrinterLine, RiInformationLine, RiAddLine, RiMessage3Line } from 'react-icons/ri';
 import toast from 'react-hot-toast';
-import type { ItineraryDay, WeddingProposal } from '../../../types/types';
+import type { ItineraryDay, WeddingProposal, WeddingServiceRequest } from '../../../types/types';
 import { baseUrl } from '../../../utils/constants';
 import PaymentPlanEditor from './PaymentPlanEditor';
+import { ServiceRequestManagementModal } from './ServiceRequestManagementModal';
 
 type ProposalDetailsProps = {
   proposal: WeddingProposal;
@@ -22,6 +23,40 @@ const ProposalDetails: React.FC<ProposalDetailsProps> = ({
 }) => {
   const [showPaymentPlan, setShowPaymentPlan] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [selectedServiceRequest, setSelectedServiceRequest] = useState<string | null>(null);
+  const [serviceRequests, setServiceRequests] = useState<WeddingServiceRequest[]>(proposal.serviceRequests || []);
+  const [loadingServiceRequests, setLoadingServiceRequests] = useState(false);
+
+  // Fetch service requests for this proposal
+  const fetchServiceRequests = async () => {
+    setLoadingServiceRequests(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/proposals/${proposal.id}/service-requests`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setServiceRequests(data.data);
+      } else {
+        throw new Error(data.message || 'Failed to load service requests');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred while loading service requests');
+    } finally {
+      setLoadingServiceRequests(false);
+    }
+  };
+
+  // Load service requests on mount
+  useEffect(() => {
+    fetchServiceRequests();
+  }, [proposal.id]);
 
   const handleSendProposal = async () => {
     try {
@@ -93,6 +128,9 @@ const ProposalDetails: React.FC<ProposalDetailsProps> = ({
       CONFIRMED: 'bg-emerald-100 text-emerald-800',
       COMPLETED: 'bg-purple-100 text-purple-800',
       CANCELLED: 'bg-red-100 text-red-800',
+      PENDING: 'bg-yellow-100 text-yellow-800',
+      QUOTED: 'bg-blue-100 text-blue-800',
+      REJECTED: 'bg-red-100 text-red-800',
     };
 
     return (
@@ -100,6 +138,16 @@ const ProposalDetails: React.FC<ProposalDetailsProps> = ({
         {status.toLowerCase().replace('_', ' ')}
       </span>
     );
+  };
+
+  // Handle opening a service request for management
+  const handleOpenServiceRequest = (requestId: string) => {
+    setSelectedServiceRequest(requestId);
+  };
+
+  // Handle closing the service request management modal
+  const handleCloseServiceRequestModal = () => {
+    setSelectedServiceRequest(null);
   };
 
   return (
@@ -246,6 +294,54 @@ const ProposalDetails: React.FC<ProposalDetailsProps> = ({
               </div>
             </div>
           )}
+          
+          {/* Custom Service Requests */}
+          <div className="bg-white rounded-xl shadow-sm mt-6 overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Custom Service Requests</h2>
+            </div>
+            <div className="p-4">
+              {loadingServiceRequests ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
+                </div>
+              ) : serviceRequests.length > 0 ? (
+                <ul className="divide-y divide-gray-200 border border-gray-200 rounded-lg">
+                  {serviceRequests.map((request) => (
+                    <li key={request.id} className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">{request.title}</div>
+                          <div className="text-sm text-gray-500 mt-1 line-clamp-2">{request.description}</div>
+                          <div className="mt-2 flex items-center">
+                            {getStatusBadge(request.status)}
+                            {request.price && (
+                              <span className="ml-2 text-sm font-medium">€{request.price.toFixed(2)}</span>
+                            )}
+                            {request.messages && request.messages.length > 0 && (
+                              <span className="ml-2 text-xs text-gray-500 flex items-center">
+                                <RiMessage3Line className="mr-1" /> {request.messages.length} message{request.messages.length !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleOpenServiceRequest(request.id)}
+                          className="ml-4 px-3 py-1 bg-blue-500 text-white rounded-lg text-sm"
+                        >
+                          Manage
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="p-6 border border-gray-200 rounded-lg text-center text-gray-500">
+                  No custom service requests yet
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar - Customer Info, Summary, Status */}
@@ -350,6 +446,17 @@ const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Service Request Management Modal */}
+      {selectedServiceRequest && (
+        <ServiceRequestManagementModal
+          proposalId={proposal.id}
+          serviceRequestId={selectedServiceRequest}
+          onClose={handleCloseServiceRequestModal}
+          onUpdate={fetchServiceRequests}
+        />
+      )}
+
     </div>
   );
 };

@@ -20,16 +20,20 @@ export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> =
     const [isLoading, setIsLoading] = useState(false);
     const [availableProducts, setAvailableProducts] = useState<any[]>([]);
     const [editingItemIndex, setEditingItemIndex] = useState<{ dayIndex: number, itemIndex: number | null }>({ dayIndex: -1, itemIndex: null });
+    
 
-    // Load existing itinerary on mount
+    
+    // Update itineraryDays when existingItinerary prop changes
     useEffect(() => {
         if (existingItinerary && existingItinerary.length > 0) {
             setItineraryDays(JSON.parse(JSON.stringify(existingItinerary))); // Deep clone
         }
-        
-        // Fetch available products
-        fetchProducts();
     }, [existingItinerary]);
+
+    // Fetch available products once on mount
+    useEffect(() => {
+        fetchProducts();
+    }, []);
 
     const fetchProducts = async () => {
         try {
@@ -204,7 +208,8 @@ export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> =
                                 min="0"
                                 step="0.01"
                                 required
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                                disabled 
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
                             />
                         </div>
 

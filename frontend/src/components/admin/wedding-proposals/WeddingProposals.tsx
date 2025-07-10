@@ -345,13 +345,13 @@ const WeddingProposals: React.FC = () => {
         credentials: 'include',
         body: JSON.stringify({ items }),
       });
-
+      
       const result = await response.json();
 
       if (!response.ok) {
         throw new Error(result.message || 'Failed to update itinerary items');
       }
-
+      
       // Update the selected proposal with the updated day
       if (selectedProposal) {
         const updatedProposal = {

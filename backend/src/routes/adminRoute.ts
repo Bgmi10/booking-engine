@@ -30,6 +30,8 @@ import { createProduct, deleteProduct, getAllProducts, getProductById, updatePro
 import { createProductSchema, updateProductSchema } from "../zod/product.schema";
 import { createProposal, getAllProposals, getProposalById, updateProposal, updateProposalStatus, deleteProposal, updateItineraryItems, generateProposalPDF, sendProposalEmail } from '../controllers/proposalController';
 import { createProposalSchema, updateProposalSchema, updateProposalStatusSchema } from "../zod/proposal.schema";
+import { updateExternalVendor, deleteExternalVendor } from '../controllers/externalVendorController';
+import { updateServiceRequest, addServiceRequestMessage, getServiceRequestsForProposal, getServiceRequestById } from '../controllers/serviceRequestController';
 
 const adminRouter = Router();
 
@@ -291,5 +293,16 @@ adminRouter.put('/wedding-proposals/:proposalId/days/:dayId/items', authMiddlewa
 adminRouter.get('/wedding-proposals/:id/pdf', authMiddleware, generateProposalPDF);
 
 adminRouter.post('/wedding-proposals/:id/send-email', authMiddleware, sendProposalEmail);
+
+// External Vendor Routes (Admin)
+adminRouter.put('/vendors/:vendorId', authMiddleware, updateExternalVendor);
+adminRouter.delete('/vendors/:vendorId', authMiddleware, deleteExternalVendor);
+
+// Bespoke Service Request Routes (Admin)
+adminRouter.get('/proposals/:proposalId/service-requests', authMiddleware, getServiceRequestsForProposal);
+adminRouter.get('/proposals/:proposalId/service-requests/:requestId', authMiddleware, getServiceRequestById);
+adminRouter.put('/service-requests/:requestId', authMiddleware, updateServiceRequest);
+adminRouter.post('/service-requests/:requestId/messages', authMiddleware, addServiceRequestMessage);
+
 
 export default adminRouter;

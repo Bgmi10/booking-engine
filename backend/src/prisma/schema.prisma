@@ -677,6 +677,9 @@ model WeddingProposal {
   finalGuestConfirmationSentAt   DateTime?       
   finalGuestCountConfirmed       Boolean          @default(false)
   finalGuestCountConfirmedAt     DateTime?
+
+  externalVendors                ExternalVendor[]
+  serviceRequests                WeddingServiceRequest[]
   
   @@map("wedding_proposals")
   @@index([customerId])
@@ -693,6 +696,9 @@ model ItineraryDay {
   
   items       ItineraryItem[]
   
+  // Relation to service requests specific to this day
+  serviceRequests WeddingServiceRequest[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
@@ -801,6 +807,95 @@ enum ProductType {
 enum ProductPricingModel {
   FIXED
   PER_PERSON
+}
+
+// Models for External Vendor Contacts
+model ExternalVendor {
+  id          String   @id @default(uuid())
+  type        String   // e.g., "Photographer", "Hair & Makeup"
+  name        String
+  email       String?
+  phone       String?
+  notes       String?
+  
+  proposal    WeddingProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId  String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([proposalId])
+}
+
+// Models for Bespoke Wedding Service Requests
+model WeddingServiceRequest {
+  id             String                 @id @default(uuid())
+  title          String
+  description    String                 @db.Text
+  status         ServiceRequestStatus   @default(PENDING)
+  
+  // Admin-defined quote
+  price          Float?
+  guestCount     Int?
+  
+  // Relations
+  proposal       WeddingProposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId     String
+  
+  itineraryDay   ItineraryDay?          @relation(fields: [itineraryDayId], references: [id])
+  itineraryDayId String?
+  
+  messages       WeddingServiceMessage[]
+  
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([proposalId])
+  @@index([itineraryDayId])
+}
+
+model WeddingServiceMessage {
+  id          String    @id @default(uuid())
+  text        String?   @db.Text
+  sender      MessageSender
+  
+  request     WeddingServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId   String
+  
+  attachments WeddingServiceAttachment[]
+  
+  createdAt   DateTime  @default(now())
+
+  @@index([requestId])
+}
+
+model WeddingServiceAttachment {
+  id          String    @id @default(uuid())
+  url         String
+  fileName    String
+  fileType    String
+  fileSize    Int
+  
+  message     WeddingServiceMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId   String
+  
+  createdAt   DateTime  @default(now())
+
+  @@index([messageId])
+}
+
+enum ServiceRequestStatus {
+  PENDING   // Guest has submitted the request
+  QUOTED    // Admin has provided a price
+  ACCEPTED  // Guest has accepted the quote
+  REJECTED  // Guest has rejected the quote
+  COMPLETED // Service delivered
+  CANCELLED // Request cancelled
+}
+
+enum MessageSender {
+  GUEST
+  ADMIN
 }
 
 model AvailabilityRule {

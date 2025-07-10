@@ -558,6 +558,43 @@ export type PaymentPlan = {
 
 export type ProposalStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
+export type ServiceRequestStatus = 'PENDING' | 'QUOTED' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+
+export type MessageSender = 'GUEST' | 'ADMIN';
+
+export interface WeddingServiceAttachment {
+  id: string;
+  url: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  messageId: string;
+  createdAt: string;
+}
+
+export interface WeddingServiceMessage {
+  id: string;
+  text: string | null;
+  sender: MessageSender;
+  requestId: string;
+  createdAt: string;
+  attachments: WeddingServiceAttachment[];
+}
+
+export interface WeddingServiceRequest {
+  id: string;
+  title: string;
+  description: string;
+  status: ServiceRequestStatus;
+  price?: number;
+  guestCount?: number;
+  proposalId: string;
+  itineraryDayId?: string;
+  messages: WeddingServiceMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type WeddingProposal = {
   id: string;
   name: string;
@@ -576,6 +613,7 @@ export type WeddingProposal = {
   holdExpiresAt?: string;
   sentEmailCount?: number;
   lastEmailSentAt?: string;
+  serviceRequests?: WeddingServiceRequest[];
   createdAt: string;
   updatedAt: string;
 };

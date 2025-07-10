@@ -97,6 +97,292 @@ createSettings()
 async function main() {
   const templates = [
     {
+      name: 'Charge Refund Confirmation',
+      type: 'CHARGE_REFUND_CONFIRMATION',
+      subject: 'Refund Processed for Your Payment to La Torre',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Refund Confirmation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Refund Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💰</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Refund Processed</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              We have successfully processed your refund.
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This email is to confirm that we have processed a refund for your recent payment.
+              </p>
+            </div>
+    
+            <!-- Refund Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Refund Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Amount:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{refundCurrency}} {{refundAmount}}</span>
+                  </div>
+                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Original Charge:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{chargeDescription}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Transaction Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{transactionDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{refundId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Reason:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{refundReason}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+    
+            <!-- Refund Processing Note -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Refund Processing Information
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #a16207; margin: 0; font-size: 15px; line-height: 1.7;">
+                  This email is to confirm that your refund has been issued by <strong>La Torre sulla via Francigena</strong>. 
+                  It can take approximately <strong>10 days</strong> to appear on your statement. If it takes longer, 
+                  please contact your bank for assistance.
+                </p>
+              </div>
+            </div>
+    
+            <!-- Contact Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  If you have any questions about this refund, our team is here to help:
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+    
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        refundAmount: { type: 'number', description: 'The amount refunded', example: 50.00 },
+        refundCurrency: { type: 'string', description: 'The currency of the refund', example: 'EUR' },
+        chargeDescription: { type: 'string', description: 'Description of the original charge', example: 'Extra services' },
+        transactionDate: { type: 'string', description: 'Date of the original charge', example: 'January 1, 2024' },
+        refundId: { type: 'string', description: 'The ID of the refund transaction', example: 're_123456789' },
+        refundReason: { type: 'string', description: 'The reason for the refund', example: 'Service not rendered' },
+      }
+    },
+    {
+      name: 'Charge Confirmation',
+      type: 'CHARGE_CONFIRMATION',
+      subject: 'Extra Charges - La Torre (#{{chargeId}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Extra Charges - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Extra Charges Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.warningColor} 0%, #f97316 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💳</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Extra Charges</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Additional charges have been added to your account
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Additional charges have been added to your account during your stay at La Torre sulla via Francigena. Please review the details below and complete your payment.
+              </p>
+            </div>
+
+            <!-- Charge Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Charge Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Charge ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">#{{chargeId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Amount:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Description:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{description}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Charge Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{chargeDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Status:</span>
+                    <span style="background: ${emailStyles.warningColor}; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">PENDING</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment Link Card -->
+            <div style="background: #fff7ed; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #9a3412; margin: 0 0 20px 0; font-size: 20px;">🔒 Secure Payment</h3>
+              <div style="background: white; border-radius: 8px; padding: 24px; text-align: center;">
+                <p style="color: #9a3412; margin: 0 0 20px 0; font-size: 15px;">
+                  Click the button below to complete your payment securely:
+                </p>
+                <a href="{{paymentLink}}" style="display: inline-block; background: ${emailStyles.warningColor}; color: white; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; margin-bottom: 20px;">
+                  Pay Now
+                </a>
+                <p style="color: #9a3412; margin: 0; font-size: 14px;">
+                  This payment link will expire on {{expiresAt}}
+                </p>
+              </div>
+            </div>
+
+            <!-- Customer Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">👤 Customer Information</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
+                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Name:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
+                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Email:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerEmail}}</span>
+                  </div>
+                  {{#if customerPhone}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bfdbfe;">
+                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Phone:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerPhone}}</span>
+                  </div>
+                  {{/if}}
+                  {{#if customerNationality}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+                    <span style="font-weight: 600; color: ${emailStyles.infoColor}; font-family: ${emailStyles.fontFamily};">Nationality:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{customerNationality}}</span>
+                  </div>
+                  {{/if}}
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Notice -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">🛡️ Secure Transaction</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>All payments are processed securely through Stripe</li>
+                  <li>Your payment information is encrypted end-to-end</li>
+                  <li>We never store your card details</li>
+                  <li>Look for the padlock icon in your browser</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  If you have any questions about these charges or need assistance with the payment process, our team is here to help:
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Final Message -->
+            <div style="text-align: center; padding: 32px 24px; background: linear-gradient(135deg, ${emailStyles.backgroundColor} 0%, #f1f5f9 100%); border-radius: 16px; margin-bottom: 24px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 26px; font-weight: 700;">Thank You!</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 17px; line-height: 1.7;">
+                We appreciate your business and look forward to serving you again at La Torre sulla via Francigena.
+              </p>
+              <div style="color: ${emailStyles.infoColor}; font-size: 18px; font-weight: 600;">
+                We hope to see you soon! 🌟
+              </div>
+            </div>
+          </div>
+    
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        chargeId: { type: 'string', description: 'Charge ID', example: 'CHG123' },
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        customerEmail: { type: 'string', description: 'Customer email', example: 'john@example.com' },
+        customerPhone: { type: 'string', description: 'Customer phone number', example: '+1234567890', optional: true },
+        customerNationality: { type: 'string', description: 'Customer nationality', example: 'Italian', optional: true },
+        amount: { type: 'number', description: 'Charge amount', example: 50.00 },
+        currency: { type: 'string', description: 'Charge currency', example: 'EUR' },
+        description: { type: 'string', description: 'Charge description', example: 'Extra services during stay' },
+        chargeDate: { type: 'string', description: 'Date when charge was added', example: 'January 1, 2024' },
+        paymentLink: { type: 'string', description: 'Payment link URL', example: 'https://example.com/pay' },
+        expiresAt: { type: 'string', description: 'Payment link expiry date', example: 'January 1, 2024 6:00 PM' }
+      }
+    },
+    {
       name: 'Password Reset OTP',
       type: 'PASSWORD_RESET_OTP',
       subject: 'Password Reset - Your OTP Code',
@@ -1899,18 +2185,18 @@ async function main() {
       html: `<!DOCTYPE html>
       <html lang="en">
       <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Final Guest Count Confirmation</title>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       </head>
       <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
-          <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
-              <!-- Logo -->
-              <div style="text-align: center; padding: 32px;">
-                  <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
-              </div>
-      
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
               <!-- Hero Section -->
               <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
                   <div style="font-size: 44px; margin-bottom: 16px;">🗓️</div>
@@ -1920,10 +2206,10 @@ async function main() {
                   <p style="margin: 0; font-size: 18px; opacity: 0.95;">
                       Please confirm your final guest count for {{weddingName}}
                   </p>
-              </div>
-      
-              <!-- Main Content -->
-              <div style="padding: 0 32px 32px;">
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
                   <div style="margin-bottom: 32px;">
                       <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
                       <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
@@ -1933,15 +2219,15 @@ async function main() {
                       <p style="color: ${emailStyles.secondaryColor}; margin-top: 16px; font-size: 16px; line-height: 1.7;">
                           Please confirm if this is your final guest count or update it if needed. This information is crucial for our planning and preparation.
                       </p>
-                  </div>
-      
+            </div>
+
                   <!-- CTA -->
-                  <div style="text-align: center; margin: 32px 0;">
+            <div style="text-align: center; margin: 32px 0;">
                       <a href="{{updateLink}}" style="display: inline-block; background-color: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
                           Update Guest Count
-                      </a>
-                  </div>
-      
+              </a>
+            </div>
+
                   <!-- Outro -->
                   <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.7;">
                       If you have any questions or need assistance, please don't hesitate to contact us.
@@ -1949,10 +2235,10 @@ async function main() {
                   <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.7; margin-top: 24px;">
                       Best regards,<br>The Wedding Team
                   </p>
-              </div>
-      
-              ${generateEmailFooter()}
-          </div>
+            </div>
+
+          ${generateEmailFooter()}
+                    </div>
       </body>
       </html>`,
       isActive: true
@@ -1980,7 +2266,7 @@ async function main() {
           <!-- Logo -->
           <div style="text-align: center; padding: 32px;">
             <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
-          </div>
+                  </div>
 
           <!-- Main Content -->
           <div style="padding: 0 32px 32px;">
@@ -2018,6 +2304,514 @@ async function main() {
       isActive: true,
       version: 1,
       
+    },
+    {
+      name: 'New Service Request',
+      type: 'NEW_SERVICE_REQUEST',
+      subject: 'New Custom Service Request Received',
+      html: `
+        <h2>New Custom Service Request</h2>
+        <p>Hello {{adminName}},</p>
+        <p>A new custom service request has been submitted by {{customerName}}.</p>
+        <p><strong>Title:</strong> {{requestTitle}}</p>
+        <p><strong>Description:</strong> {{requestDescription}}</p>
+        <p>Please review this request and provide a quote at your earliest convenience.</p>
+        <p><a href="{{adminDashboardUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">View Request</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        adminName: { type: 'string', required: true, description: 'Admin name' },
+        customerName: { type: 'string', required: true, description: 'Customer name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        requestDescription: { type: 'string', required: true, description: 'Service request description' },
+        adminDashboardUrl: { type: 'string', required: true, description: 'URL to admin dashboard' }
+      }
+    },
+    {
+      name: 'New Service Request Message',
+      type: 'NEW_SERVICE_REQUEST_MESSAGE',
+      subject: 'New Message on Custom Service Request',
+      html: `
+        <h2>New Message from Customer</h2>
+        <p>Hello {{adminName}},</p>
+        <p>{{customerName}} has sent a new message regarding their custom service request: <strong>{{requestTitle}}</strong></p>
+        <p><strong>Message:</strong> "{{messageText}}"</p>
+        <p>Please review and respond at your earliest convenience.</p>
+        <p><a href="{{adminDashboardUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">View Conversation</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        adminName: { type: 'string', required: true, description: 'Admin name' },
+        customerName: { type: 'string', required: true, description: 'Customer name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        messageText: { type: 'string', required: true, description: 'Message text' },
+        adminDashboardUrl: { type: 'string', required: true, description: 'URL to admin dashboard' }
+      }
+    },
+    {
+      name: 'Service Request Admin Reply',
+      type: 'SERVICE_REQUEST_ADMIN_REPLY',
+      subject: 'New Response to Your Service Request',
+      html: `
+        <h2>New Message from Wedding Coordinator</h2>
+        <p>Hello {{customerName}},</p>
+        <p>You have received a new message regarding your custom service request: <strong>{{requestTitle}}</strong></p>
+        <p><strong>Message:</strong> "{{messageText}}"</p>
+        <p>Please log in to your wedding portal to view the full conversation and respond.</p>
+        <p><a href="{{portalUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">View in Wedding Portal</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Customer name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        messageText: { type: 'string', required: true, description: 'Message text' },
+        portalUrl: { type: 'string', required: true, description: 'URL to wedding portal' }
+      }
+    },
+    {
+      name: 'Service Request Quote',
+      type: 'SERVICE_REQUEST_QUOTE',
+      subject: 'Quote Available for Your Service Request',
+      html: `
+        <h2>Quote for Your Custom Service</h2>
+        <p>Hello {{customerName}},</p>
+        <p>We're pleased to inform you that a quote is now available for your custom service request: <strong>{{requestTitle}}</strong></p>
+        <p><strong>Price:</strong> €{{price}}</p>
+        <p>Please log in to your wedding portal to review the details, accept or reject the quote, or ask any questions you may have.</p>
+        <p><a href="{{portalUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">Review Quote</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Customer name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        price: { type: 'string', required: true, description: 'Quote price' },
+        portalUrl: { type: 'string', required: true, description: 'URL to wedding portal' }
+      }
+    },
+    {
+      name: 'Service Request Accepted',
+      type: 'SERVICE_REQUEST_ACCEPTED',
+      subject: 'Custom Service Request Accepted',
+      html: `
+        <h2>Quote Accepted</h2>
+        <p>Hello {{adminName}},</p>
+        <p>The customer has accepted your quote for the custom service request: <strong>{{requestTitle}}</strong></p>
+        <p><strong>Accepted Price:</strong> €{{price}}</p>
+        <p>The service has been automatically added to their itinerary and payment plan.</p>
+        <p><a href="{{adminDashboardUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">View Details</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        adminName: { type: 'string', required: true, description: 'Admin name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        price: { type: 'string', required: true, description: 'Accepted price' },
+        adminDashboardUrl: { type: 'string', required: true, description: 'URL to admin dashboard' }
+      }
+    },
+    {
+      name: 'Service Request Rejected',
+      type: 'SERVICE_REQUEST_REJECTED',
+      subject: 'Custom Service Request Rejected',
+      html: `
+        <h2>Quote Rejected</h2>
+        <p>Hello {{adminName}},</p>
+        <p>The customer has rejected your quote for the custom service request: <strong>{{requestTitle}}</strong></p>
+        <p>You may want to follow up with them to discuss alternatives or provide a revised quote.</p>
+        <p><a href="{{adminDashboardUrl}}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">View Details</a></p>
+        ${generateEmailFooter()}
+      `,
+      isActive: true,
+      version: 1,
+      variables: {
+        adminName: { type: 'string', required: true, description: 'Admin name' },
+        requestTitle: { type: 'string', required: true, description: 'Service request title' },
+        adminDashboardUrl: { type: 'string', required: true, description: 'URL to admin dashboard' }
+      }
+    },
+    {
+      name: 'Itinerary Change Notification',
+      type: 'ITINERARY_CHANGE_NOTIFICATION',
+      subject: 'Updates to your Wedding Itinerary for {{weddingName}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Itinerary Change Notification</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Hero Section -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🔄</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Itinerary Updated</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Changes have been made to your wedding plan for {{weddingName}}.
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This email is to confirm that an update has been made to your wedding itinerary by {{changedBy}} for your wedding on {{weddingDate}}.
+              </p>
+            </div>
+
+            <!-- Changes Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Summary of Changes</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                {{#if itemChanges.length}}
+                <h4 style="color: ${emailStyles.primaryColor}; margin-top: 0; margin-bottom: 10px;">Item Changes:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: ${emailStyles.secondaryColor};">
+                  {{#each itemChanges}}
+                  <li style="margin-bottom: 8px;">{{this}}</li>
+                  {{/each}}
+              </ul>
+                {{/if}}
+
+                {{#if dayChanges.length}}
+                <h4 style="color: ${emailStyles.primaryColor}; margin-top: 20px; margin-bottom: 10px;">Day Changes:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: ${emailStyles.secondaryColor};">
+                  {{#each dayChanges}}
+                  <li style="margin-bottom: 8px;">{{this}}</li>
+                  {{/each}}
+              </ul>
+                {{/if}}
+                
+                {{#unless itemChanges.length}}
+                  {{#unless dayChanges.length}}
+                    <p style="color: ${emailStyles.secondaryColor}; margin: 0;">No specific changes were detailed, but the itinerary has been updated.</p>
+                  {{/unless}}
+                {{/unless}}
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 32px 0;">
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 16px;">
+                Please review your updated itinerary in the wedding portal:
+              </p>
+              <a href="{{portalLink}}" 
+                 style="display: inline-block; background: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                View Updated Itinerary
+              </a>
+            </div>
+
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+              If you have any questions or did not expect this change, please contact us immediately.
+            </p>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        weddingName: { type: 'string', description: 'Name of the wedding proposal' },
+        weddingDate: { type: 'string', description: 'Date of the wedding' },
+        changedBy: { type: 'string', description: 'Who made the change (e.g., "you" or "our staff")' },
+        itemChanges: { type: 'array', description: 'List of changes to itinerary items' },
+        dayChanges: { type: 'array', description: 'List of changes to itinerary days' },
+        portalLink: { type: 'string', description: 'Link to the customer wedding portal' },
+        currentYear: { type: 'number', description: 'Current year for the footer' }
+      }
+    },
+    {
+      name: 'Wedding Proposal',
+      type: 'WEDDING_PROPOSAL',
+      subject: 'Your Wedding Proposal for {{name}} is {{status}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Wedding Proposal Details</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Hero Section -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💍</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Wedding Proposal</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Your proposal status is now {{status}}
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customer.guestFirstName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                We are excited to share the details of your wedding proposal for {{name}} on {{weddingDate}}.
+              </p>
+            </div>
+
+            <!-- Proposal Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Proposal Overview</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p><strong>Wedding Date:</strong> {{weddingDate}}</p>
+                <p><strong>Guest Count:</strong> {{mainGuestCount}}</p>
+                
+                {{#if paymentPlan}}
+                <h4 style="color: ${emailStyles.primaryColor}; margin-top: 20px; margin-bottom: 10px;">Payment Plan</h4>
+                <p><strong>Total Amount:</strong> {{paymentPlan.totalAmount}} {{paymentPlan.currency}}</p>
+                <ul style="margin: 0; padding-left: 20px; color: ${emailStyles.secondaryColor};">
+                  {{#each paymentPlan.stages}}
+                  <li style="margin-bottom: 8px;">
+                    {{description}}: {{amount}} (Due: {{dueDate}}, Status: {{status}})
+                </li>
+                  {{/each}}
+                </ul>
+                {{/if}}
+              </div>
+            </div>
+
+            <!-- Itinerary Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🗓️ Itinerary Summary</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                {{#each itineraryDays}}
+                <div style="margin-bottom: 15px;">
+                  <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 10px 0;">Day {{dayNumber}} - {{date}}</h4>
+                  <ul style="margin: 0; padding-left: 20px; color: ${emailStyles.secondaryColor};">
+                    {{#each items}}
+                    <li style="margin-bottom: 8px;">
+                      {{product.name}} ({{status}}) - {{price}} ({{guestCount}} guests)
+                      {{#if customMenu}}
+                      <br><small>Custom Menu: {{customMenu}}</small>
+                      {{/if}}
+                </li>
+                    {{/each}}
+              </ul>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 32px 0;">
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 16px;">
+                Review and manage your wedding details in the customer portal:
+              </p>
+              <a href="{{customerPortalUrl}}" 
+                 style="display: inline-block; background: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                Access Customer Portal
+              </a>
+            </div>
+
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+              If you have any questions or need further assistance, please don't hesitate to contact us.
+            </p>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        id: { type: 'string', description: 'Proposal ID' },
+        name: { type: 'string', description: 'Proposal name' },
+        status: { type: 'string', description: 'Proposal status' },
+        weddingDate: { type: 'string', description: 'Date of the wedding' },
+        mainGuestCount: { type: 'number', description: 'Number of main guests' },
+        customer: { type: 'object', description: 'Customer details' },
+        itineraryDays: { type: 'array', description: 'List of itinerary days' },
+        paymentPlan: { type: 'object', description: 'Payment plan details' },
+        termsAndConditions: { type: 'string', description: 'Terms and conditions' },
+        calculateTotalPrice: { type: 'string', description: 'Total price of the proposal' },
+        currentYear: { type: 'number', description: 'Current year for the footer' },
+        customerPortalUrl: { type: 'string', description: 'URL to customer portal' }
+      }
+    },
+    {
+      name: 'Upcoming Payment Reminder',
+      type: 'PAYMENT_REMINDER_UPCOMING',
+      subject: 'Upcoming Payment for {{proposalName}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Upcoming Payment Reminder</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Hero Section -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💸</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Payment Reminder</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              A payment is due soon for your wedding proposal
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This is a friendly reminder about an upcoming payment for your wedding proposal: {{proposalName}}.
+              </p>
+            </div>
+
+            <!-- Payment Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">💳 Payment Information</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p><strong>Description:</strong> {{paymentDescription}}</p>
+                <p><strong>Amount:</strong> {{amount}}</p>
+                <p><strong>Due Date:</strong> {{dueDate}}</p>
+              </div>
+                </div>
+                
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 32px 0;">
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 16px;">
+                Please proceed with your payment:
+              </p>
+              <a href="{{paymentLink}}" 
+                 style="display: inline-block; background: ${emailStyles.accentColor}; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                Make Payment
+              </a>
+            </div>
+
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+              If you have any questions or need assistance, please contact our support team.
+            </p>
+                </div>
+                
+          ${generateEmailFooter()}
+            </div>
+      </body>
+      </html>`,
+        isActive: true,
+        version: 1,
+        variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        proposalName: { type: 'string', description: 'Name of the wedding proposal' },
+        paymentDescription: { type: 'string', description: 'Description of the payment stage' },
+        amount: { type: 'string', description: 'Payment amount' },
+        dueDate: { type: 'string', description: 'Due date of the payment' },
+        paymentLink: { type: 'string', description: 'Link to make the payment' }
+      }
+    },
+    {
+      name: 'Overdue Payment Reminder',
+      type: 'PAYMENT_REMINDER_OVERDUE',
+      subject: 'Overdue Payment for {{proposalName}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Overdue Payment Reminder</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Hero Section -->
+          <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">⚠️</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Overdue Payment</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Your payment is past due
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This is an important reminder that your payment for the wedding proposal: {{proposalName}} is overdue.
+              </p>
+            </div>
+
+            <!-- Payment Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">💳 Overdue Payment Information</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p><strong>Description:</strong> {{paymentDescription}}</p>
+                <p><strong>Amount:</strong> {{amount}}</p>
+                <p><strong>Original Due Date:</strong> {{dueDate}}</p>
+                <p><strong>Days Overdue:</strong> {{daysOverdue}}</p>
+              </div>
+                </div>
+                
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 32px 0;">
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 16px;">
+                Please settle your overdue payment as soon as possible:
+              </p>
+              <a href="{{paymentLink}}" 
+                 style="display: inline-block; background: #ff4757; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600;">
+                Pay Overdue Amount
+                    </a>
+                </div>
+                
+            <p style="color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+              Failure to make payment may result in additional fees or impact your wedding proposal status. Contact our support team if you need assistance.
+            </p>
+          </div>
+
+          ${generateEmailFooter()}
+            </div>
+      </body>
+      </html>`,
+        isActive: true,
+        version: 1,
+        variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        proposalName: { type: 'string', description: 'Name of the wedding proposal' },
+        paymentDescription: { type: 'string', description: 'Description of the payment stage' },
+        amount: { type: 'string', description: 'Payment amount' },
+        dueDate: { type: 'string', description: 'Original due date of the payment' },
+        daysOverdue: { type: 'number', description: 'Number of days the payment is overdue' },
+        paymentLink: { type: 'string', description: 'Link to make the payment' }
+      }
     }
   ]
 

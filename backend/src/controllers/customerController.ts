@@ -669,44 +669,47 @@ export const getAllCustomerProposals = async (req: express.Request, res: express
         //@ts-ignore
         const customerId = req.user?.id;
 
-        if (!customerId) {
-            responseHandler(res, 401, "Unauthorized");
-            return;
-        }
-
         // Fetch all proposals for the customer with full details
         const proposals = await prisma.weddingProposal.findMany({
-            where: { 
-                customerId: customerId 
+            where: {
+                customerId: customerId,
             },
             include: {
-                customer: true,
                 itineraryDays: {
                     include: {
                         items: {
                             include: {
-                                product: true
-                            }
-                        }
+                                product: true,
+                            },
+                        },
                     },
-                    orderBy: {
-                        dayNumber: 'asc'
-                    }
                 },
                 paymentPlan: {
                     include: {
-                        stages: true
-                    }
-                }
+                        stages: true,
+                    },
+                },
+                externalVendors: true,
+                serviceRequests: {
+                    include: {
+                        messages: {
+                            include: {
+                                attachments: true,
+                            },
+                            orderBy: {
+                                createdAt: 'asc',
+                            },
+                        },
+                    },
+                },
             },
             orderBy: {
-                createdAt: 'desc'
-            }
+                weddingDate: 'asc',
+            },
         });
 
-        responseHandler(res, 200, "Successfully retrieved customer proposals", proposals);
+        responseHandler(res, 200, 'Proposals retrieved successfully.', proposals);
     } catch (error) {
-        console.error("Error fetching customer proposals:", error);
         handleError(res, error as Error);
     }
 };
@@ -754,6 +757,53 @@ export const updateMainGuestCount = async (req: express.Request, res: express.Re
         );
 
         responseHandler(res, 200, 'Guest count updated successfully', updatedProposal);
+    } catch (error) {
+        handleError(res, error as Error);
+    }
+};
+
+export const createGuestProposal = async (req: express.Request, res: express.Response) => {
+    try {
+        // @ts-ignore
+        const customerId = req.user.id;
+        const {
+            name,
+            weddingDate,
+            mainGuestCount,
+            holdRequest,
+            termsAndConditions
+        } = req.body;
+
+        if (!name || !weddingDate || !mainGuestCount) {
+            responseHandler(res, 400, 'Name, wedding date, and guest count are required.');
+            return;
+        }
+
+        let holdExpiresAt: Date | null = null;
+        if (holdRequest) {
+            holdExpiresAt = new Date();
+            holdExpiresAt.setDate(holdExpiresAt.getDate() + 5);
+        }
+
+        const newProposal = await prisma.weddingProposal.create({
+            data: {
+                name,
+                weddingDate: new Date(weddingDate),
+                mainGuestCount: parseInt(mainGuestCount, 10),
+                customerId,
+                status: 'DRAFT',
+                holdExpiresAt,
+                termsAndConditions,
+            },
+        });
+
+        // Placeholder for creating a TemporaryHold if room information becomes available
+        // if (holdRequest && roomId) {
+        //     await prisma.temporaryHold.create({...});
+        // }
+
+        responseHandler(res, 201, 'Wedding proposal created successfully.', newProposal);
+
     } catch (error) {
         handleError(res, error as Error);
     }
