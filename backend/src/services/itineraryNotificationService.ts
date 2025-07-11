@@ -1,7 +1,8 @@
 import prisma from '../prisma';
-import { adminEmails } from '../prisma/seed';
+import { adminEmails } from '../utils/constants';
+import { getAdminDashboardSectionUrl, getWeddingPortalSectionUrl } from '../utils/helper';
 import { EmailService } from './emailService';
-import { ItineraryDay, ItineraryItem, WeddingProposal, Customer } from '@prisma/client';
+import { ItineraryDay, ItineraryItem } from '@prisma/client';
 import { format } from 'date-fns';
 
 type ItineraryDayWithItems = ItineraryDay & {
@@ -13,30 +14,18 @@ type ItineraryDayWithItems = ItineraryDay & {
     })[];
 };
 
-type ProposalWithRelations = WeddingProposal & {
-    customer: Customer;
-    itineraryDays: ItineraryDayWithItems[];
-};
-
 interface ChangeDetails {
     dayChanges: string[];
     itemChanges: string[];
 }
 
 export class ItineraryNotificationService {
-    /**
-     * Sends notification email about itinerary changes
-     * @param proposalId ID of the wedding proposal
-     * @param previousState Previous state of the itinerary for comparison
-     * @param changedBy Who made the changes ("admin" or "customer")
-     */
     public static async sendItineraryChangeNotification(
         proposalId: string,
         previousState: ItineraryDayWithItems[],
         changedBy: 'admin' | 'customer'
     ): Promise<void> {
         try {
-            // Get current proposal with all related data
             const proposal = await prisma.weddingProposal.findUnique({
                 where: { id: proposalId },
                 include: {
@@ -75,10 +64,6 @@ export class ItineraryNotificationService {
             // Determine who made the changes for the email
             const changeSource = changedBy === 'admin' ? 'our staff' : 'you';
             
-            // Generate portal link
-            const portalLink = `${process.env.FRONTEND_URL}/client/proposals/${proposalId}`;
-            
-            // Send notification to customer if changes were made by admin
             if (changedBy === 'admin') {
                 await EmailService.sendEmail({
                     to: {
@@ -93,7 +78,7 @@ export class ItineraryNotificationService {
                         changedBy: changeSource,
                         dayChanges: changes.dayChanges,
                         itemChanges: changes.itemChanges,
-                        portalLink,
+                        portalLink: getWeddingPortalSectionUrl("itinerary"),
                         currentYear: new Date().getFullYear()
                     }
                 });
@@ -116,7 +101,7 @@ export class ItineraryNotificationService {
                             changedBy: 'the customer',
                             dayChanges: changes.dayChanges,
                             itemChanges: changes.itemChanges,
-                            portalLink: `${process.env.FRONTEND_URL}/admin/wedding-proposals/${proposalId}`,
+                            portalLink: getAdminDashboardSectionUrl("wedding-proposals"),
                             currentYear: new Date().getFullYear()
                         }
                     });
@@ -130,9 +115,6 @@ export class ItineraryNotificationService {
         }
     }
     
-    /**
-     * Compare previous and current itinerary states to identify changes
-     */
     private static identifyChanges(
         previousState: ItineraryDayWithItems[],
         currentState: ItineraryDayWithItems[]
@@ -183,9 +165,6 @@ export class ItineraryNotificationService {
         return { dayChanges, itemChanges };
     }
     
-    /**
-     * Compare items between previous and current day states
-     */
     private static compareItems(
         prevDay: ItineraryDayWithItems,
         currDay: ItineraryDayWithItems,

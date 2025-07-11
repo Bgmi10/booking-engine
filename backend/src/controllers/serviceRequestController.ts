@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../prisma';
-import { handleError, responseHandler } from '../utils/helper';
+import { getAdminDashboardSectionUrl, getWeddingPortalSectionUrl, handleError, responseHandler } from '../utils/helper';
 import { EmailService } from '../services/emailService';
-import { adminDashboardUrl, weddingPortalVendorSectionUrl } from '../utils/constants';
 
 export const createServiceRequest = async (req: Request, res: Response) => {
   try {
@@ -82,7 +81,7 @@ export const createServiceRequest = async (req: Request, res: Response) => {
                 customerName: `${proposal.customer.guestFirstName} ${proposal.customer.guestLastName}`,
                 requestTitle: title,
                 requestDescription: description,
-                adminDashboardUrl
+                adminDashboardUrl: getAdminDashboardSectionUrl("wedding-proposals")
             }
         });
     }
@@ -253,7 +252,7 @@ export const addServiceRequestMessage = async (req: Request, res: Response) => {
                         customerName: `${request.proposal.customer.guestFirstName} ${request.proposal.customer.guestLastName}`,
                         requestTitle: request.title,
                         messageText: text || 'New attachment(s)',
-                        adminDashboardUrl
+                        adminDashboardUrl: getAdminDashboardSectionUrl("wedding-proposals")
                     }
                 });
             }
@@ -269,7 +268,7 @@ export const addServiceRequestMessage = async (req: Request, res: Response) => {
                     customerName: request.proposal.customer.guestFirstName,
                     requestTitle: request.title,
                     messageText: text || 'New attachment(s)',
-                    portalUrl: weddingPortalVendorSectionUrl
+                    portalUrl: getWeddingPortalSectionUrl("services")
                 }
             });
         }
@@ -329,7 +328,7 @@ export const updateServiceRequest = async (req: Request, res: Response) => {
                     customerName: request.proposal.customer.guestFirstName,
                     requestTitle: request.title,
                     price: price.toFixed(2),
-                    portalUrl: weddingPortalVendorSectionUrl
+                    portalUrl: getWeddingPortalSectionUrl("services")
                 }
             });
         }
@@ -482,7 +481,7 @@ export const acceptServiceRequestQuote = async (req: Request, res: Response) => 
                     customerName: `${request.proposal.customer.guestFirstName} ${request.proposal.customer.guestLastName}`,
                     requestTitle: request.title,
                     price: request.price.toFixed(2),
-                    adminDashboardUrl: adminDashboardUrl
+                    adminDashboardUrl: getAdminDashboardSectionUrl("wedding-proposals")
                 }
             });
         }
@@ -539,7 +538,7 @@ export const rejectServiceRequestQuote = async (req: Request, res: Response) => 
                 templateData: {
                     adminName: admin.name,
                     requestTitle: request.title,
-                    adminDashboardUrl: adminDashboardUrl
+                    adminDashboardUrl: getAdminDashboardSectionUrl("wedding-proposals")
                 }
             });
         }

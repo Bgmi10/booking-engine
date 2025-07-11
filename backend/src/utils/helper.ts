@@ -1,5 +1,8 @@
 import express from "express";
 import { ZodError } from "zod";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const handleError = (res: express.Response, error: Error) => {
   // Handle Zod validation errors
@@ -50,3 +53,11 @@ export const calculateNights = (checkIn: string, checkOut: string): number => {
 export const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
+
+export const getAdminDashboardSectionUrl = (section: string) => {
+  return `${process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL}/admin/dashboard?sidebar=${section}`;
+}
+
+export const getWeddingPortalSectionUrl = (section: string) => {
+  return `${process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL}/wedding-portal/dashboard?sidebar=${section}`;
+}

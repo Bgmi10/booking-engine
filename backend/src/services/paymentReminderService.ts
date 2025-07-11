@@ -1,6 +1,6 @@
 import prisma from '../prisma';
 import { EmailService } from './emailService';
-import { addDays, isBefore, isAfter } from 'date-fns';
+import { addDays } from 'date-fns';
 
 export class PaymentReminderService {
     private static async getUpcomingPayments(daysThreshold: number) {

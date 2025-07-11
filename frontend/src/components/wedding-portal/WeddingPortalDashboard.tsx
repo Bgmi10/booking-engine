@@ -411,10 +411,10 @@ export default function WeddingPortalDashboard() {
         return (
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold">Wedding Itinerary</h2>
+                    <h2 className="lg:text-2xl text-md font-bold">Wedding Itinerary</h2>
                     <button 
                         onClick={() => setIsItineraryManagementModalOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+                        className="bg-black cursor-pointer text-white px-4 py-2 rounded-lg flex items-center"
                     >
                         <RiEditLine className="mr-2" /> Update Itinerary
                     </button>
@@ -803,7 +803,7 @@ export default function WeddingPortalDashboard() {
         return (
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold mb-4">Vendor Information</h2>
+                    <h2 className="lg:text-xl text-md font-semibold mb-4">Vendor Information</h2>
                     <button 
                         onClick={() => setIsServiceRequestModalOpen(true)}
                         className="bg-black text-white px-4 py-2 rounded-lg flex items-center hover:bg-gray-900"

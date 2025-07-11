@@ -4,31 +4,28 @@ import { baseUrl } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
 interface ItineraryManagementModalProps {
-    proposalId: string;
-    existingItinerary?: any[];
+    proposal: any;
     onClose: () => void;
-    onUpdate: (updatedItinerary: any[]) => void;
+    onUpdate: (updatedProposal: any) => void;
 }
 
 export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> = ({
-    proposalId,
-    existingItinerary = [],
+    proposal,
     onClose,
     onUpdate
 }) => {
     const [itineraryDays, setItineraryDays] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [availableProducts, setAvailableProducts] = useState<any[]>([]);
-    const [editingItemIndex, setEditingItemIndex] = useState<{ dayIndex: number, itemIndex: number | null }>({ dayIndex: -1, itemIndex: null });
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingItem, setEditingItem] = useState<{ dayIndex: number, itemIndex: number | null, item: any } | null>(null);
     
-
-    
-    // Update itineraryDays when existingItinerary prop changes
+    // Initialize itinerary days from proposal
     useEffect(() => {
-        if (existingItinerary && existingItinerary.length > 0) {
-            setItineraryDays(JSON.parse(JSON.stringify(existingItinerary))); // Deep clone
+        if (proposal && proposal.itineraryDays) {
+            setItineraryDays(JSON.parse(JSON.stringify(proposal.itineraryDays))); // Deep clone
         }
-    }, [existingItinerary]);
+    }, [proposal]);
 
     // Fetch available products once on mount
     useEffect(() => {
@@ -45,6 +42,9 @@ export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> =
                 if (data.data) {
                     setAvailableProducts(data.data);
                 }
+            } else {
+                console.error('Failed to fetch products:', response.status, response.statusText);
+                toast.error('Failed to load available products');
             }
         } catch (error) {
             console.error('Error fetching products:', error);
@@ -59,46 +59,68 @@ export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> =
     };
 
     const handleAddItem = (dayIndex: number) => {
-        setEditingItemIndex({ dayIndex, itemIndex: null });
+        setEditingItem({ dayIndex, itemIndex: null, item: null });
+        setIsEditModalOpen(true);
     };
 
     const handleEditItem = (dayIndex: number, itemIndex: number) => {
-        setEditingItemIndex({ dayIndex, itemIndex });
+        const item = itineraryDays[dayIndex].items[itemIndex];
+        setEditingItem({ dayIndex, itemIndex, item });
+        setIsEditModalOpen(true);
     };
 
-    const handleDeleteItem = (dayIndex: number, itemIndex: number) => {
+    const handleSaveItem = (itemData: any) => {
+        if (!editingItem) return;
+        
+        const { dayIndex, itemIndex } = editingItem;
         const updatedDays = [...itineraryDays];
-        updatedDays[dayIndex].items.splice(itemIndex, 1);
-        setItineraryDays(updatedDays);
-    };
+        
+        // Find the selected product to get its pricing information
+        const selectedProduct = availableProducts.find(p => p.id === itemData.productId);
+        
+        if (!selectedProduct) {
+            toast.error('Selected product not found');
+            return;
+        }
 
-    const handleSaveItem = (dayIndex: number, itemIndex: number | null, itemData: any) => {
-        const updatedDays = [...itineraryDays];
+        // Calculate price based on product pricing model
+        const calculatedPrice = selectedProduct.pricingModel === 'PER_PERSON' 
+            ? selectedProduct.price * itemData.guestCount
+            : selectedProduct.price;
+
+        const itemToSave = {
+            ...itemData,
+            price: calculatedPrice,
+            product: selectedProduct
+        };
         
         if (itemIndex === null) {
             // Adding new item
-            updatedDays[dayIndex].items.push(itemData);
+            updatedDays[dayIndex].items.push(itemToSave);
         } else {
             // Updating existing item
             updatedDays[dayIndex].items[itemIndex] = {
                 ...updatedDays[dayIndex].items[itemIndex],
-                ...itemData
+                ...itemToSave
             };
         }
         
         setItineraryDays(updatedDays);
-        setEditingItemIndex({ dayIndex: -1, itemIndex: null });
+        setIsEditModalOpen(false);
+        setEditingItem(null);
     };
 
     const handleCancelEdit = () => {
-        setEditingItemIndex({ dayIndex: -1, itemIndex: null });
+        setIsEditModalOpen(false);
+        setEditingItem(null);
     };
 
     const handleSubmit = async () => {
         setIsLoading(true);
         
         try {
-            const response = await fetch(`${baseUrl}/customers/proposals/${proposalId}/itinerary`, {
+            console.log('Submitting itinerary update:', { proposalId: proposal.id, itineraryDays });
+            const response = await fetch(`${baseUrl}/customers/proposals/${proposal.id}/itinerary`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {
@@ -108,257 +130,306 @@ export const ItineraryManagementModal: React.FC<ItineraryManagementModalProps> =
             });
 
             const data = await response.json();
+            console.log('API response:', { status: response.status, data });
 
             if (response.ok) {
                 toast.success('Itinerary updated successfully');
-                onUpdate(itineraryDays);
+                // Update the proposal with the new data
+                onUpdate(data.data);
                 onClose();
             } else {
                 throw new Error(data.message || 'Failed to update itinerary');
             }
         } catch (error: any) {
+            console.error('Error updating itinerary:', error);
             toast.error(error.message || 'An error occurred while updating itinerary');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const ItemForm = ({ dayIndex, itemIndex, onSave, onCancel }: any) => {
+    const EditItemModal = () => {
+        if (!editingItem) return null;
+        
+        const { dayIndex, itemIndex, item } = editingItem;
         const day = itineraryDays[dayIndex];
-        const item = itemIndex !== null ? day.items[itemIndex] : null;
         
         const [formData, setFormData] = useState({
             productId: item?.productId || '',
-            guestCount: item?.guestCount || 0,
+            guestCount: item?.guestCount || 2,
             status: item?.status || 'OPTIONAL',
-            price: item?.price || 0,
             notes: item?.notes || ''
         });
 
+        const [selectedProduct, setSelectedProduct] = useState<any>(item?.product || null);
+
         const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
             const { name, value } = e.target;
+            
+            if (name === 'productId') {
+                const product = availableProducts.find(p => p.id === value);
+                setSelectedProduct(product || null);
+            }
+            
             setFormData(prev => ({
                 ...prev,
-                [name]: name === 'guestCount' || name === 'price' ? Number(value) : value
+                [name]: name === 'guestCount' ? Number(value) : value
             }));
         };
 
         const handleFormSubmit = (e: React.FormEvent) => {
             e.preventDefault();
-            onSave(dayIndex, itemIndex, formData);
+            handleSaveItem(formData);
         };
 
+        // Calculate price based on selected product and guest count
+        const calculatedPrice = selectedProduct 
+            ? (selectedProduct.pricingModel === 'PER_PERSON' 
+                ? selectedProduct.price * formData.guestCount
+                : selectedProduct.price)
+            : 0;
+
         return (
-            <div className="bg-gray-100 p-4 rounded-md mb-4">
-                <h4 className="text-lg font-medium mb-3">{itemIndex === null ? 'Add New Item' : 'Edit Item'}</h4>
-                <form onSubmit={handleFormSubmit}>
-                    <div className="grid grid-cols-1 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-                            <select
-                                name="productId"
-                                value={formData.productId}
-                                onChange={handleChange}
-                                required
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="">Select a product</option>
-                                {availableProducts.map(product => (
-                                    <option key={product.id} value={product.id}>
-                                        {product.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Count</label>
-                            <input
-                                type="number"
-                                name="guestCount"
-                                value={formData.guestCount}
-                                onChange={handleChange}
-                                min="1"
-                                max="120"
-                                required
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                                name="status"
-                                value={formData.status}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="OPTIONAL">Optional</option>
-                                <option value="CONFIRMED">Confirmed</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Price (€)</label>
-                            <input
-                                type="number"
-                                name="price"
-                                value={formData.price}
-                                onChange={handleChange}
-                                min="0"
-                                step="0.01"
-                                required
-                                disabled 
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                            <textarea
-                                name="notes"
-                                value={formData.notes}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                                rows={3}
-                            />
-                        </div>
+            <div 
+                className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4"
+                style={{ backdropFilter: 'blur(8px)' }}
+                onClick={handleCancelEdit}
+            >
+                <div 
+                    className="bg-white/90 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] relative animate-fade-in flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="p-4 border-b border-gray-200/80 flex justify-between items-center flex-shrink-0">
+                        <h3 className="text-lg font-semibold">
+                            {itemIndex === null ? 'Add New Item' : 'Edit Item'}
+                        </h3>
+                        <button onClick={handleCancelEdit} className="text-gray-500 hover:text-gray-700">
+                            <RiCloseLine size={24} />
+                        </button>
                     </div>
 
-                    <div className="flex justify-end space-x-2">
+                    <div className="flex-grow p-6 overflow-y-auto">
+                        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                            <p className="text-sm text-blue-700">
+                                <strong>Day {day.dayNumber}</strong> - {new Date(day.date).toLocaleDateString()}
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleFormSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
+                                <select
+                                    name="productId"
+                                    value={formData.productId}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="">Select a product</option>
+                                    {availableProducts.length > 0 ? (
+                                        availableProducts.map(product => (
+                                            <option key={product.id} value={product.id}>
+                                                {product.name} - €{product.price.toFixed(2)} {product.pricingModel === 'PER_PERSON' ? '(per person)' : '(fixed)'}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="" disabled>Loading products...</option>
+                                    )}
+                                </select>
+                                {availableProducts.length === 0 && (
+                                    <p className="text-xs text-red-500 mt-1">No products available. Please contact support.</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Guest Count *</label>
+                                <input
+                                    type="number"
+                                    name="guestCount"
+                                    value={formData.guestCount}
+                                    onChange={handleChange}
+                                    min="1"
+                                    max="120"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                <select
+                                    name="status"
+                                    value={formData.status}
+                                    onChange={handleChange}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="OPTIONAL">Optional</option>
+                                    <option value="CONFIRMED">Confirmed</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Calculated Price (€)</label>
+                                <input
+                                    type="number"
+                                    value={calculatedPrice.toFixed(2)}
+                                    disabled
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Price is automatically calculated based on the selected product and guest count
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                <textarea
+                                    name="notes"
+                                    value={formData.notes}
+                                    onChange={handleChange}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    rows={3}
+                                    placeholder="Any additional notes or special requests..."
+                                />
+                            </div>
+                        </form>
+                    </div>
+
+                    <div className="p-4 border-t border-gray-200/80 flex justify-end space-x-3 flex-shrink-0">
                         <button
                             type="button"
-                            onClick={onCancel}
-                            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            onClick={handleCancelEdit}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+                            onClick={handleFormSubmit}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         >
-                            Save
+                            {itemIndex === null ? 'Add Item' : 'Save Changes'}
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         );
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-                <div className="flex justify-between items-center border-b p-4">
-                    <h2 className="text-xl font-bold">Manage Itinerary</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                        <RiCloseLine size={24} />
-                    </button>
-                </div>
+        <>
+            <div 
+                className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+                style={{ backdropFilter: 'blur(8px)' }}
+                onClick={onClose}
+            >
+                <div 
+                    className="bg-white/90 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] md:h-[85vh] relative animate-fade-in flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="p-4 border-b border-gray-200/80 flex justify-between items-center">
+                        <h2 className="text-xl font-bold">Manage Itinerary</h2>
+                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                            <RiCloseLine size={24} />
+                        </button>
+                    </div>
 
-                <div className="p-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-                    {itineraryDays.length === 0 ? (
-                        <div className="text-center text-gray-500 py-8">
-                            No itinerary days available.
-                        </div>
-                    ) : (
-                        itineraryDays.map((day, dayIndex) => (
-                            <div key={day.id} className="mb-6 border rounded-lg p-4">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-medium">Day {day.dayNumber}</h3>
-                                    <div className="flex items-center">
-                                        <label className="mr-2 text-sm font-medium text-gray-700">Date:</label>
-                                        <input
-                                            type="date"
-                                            value={day.date.split('T')[0]}
-                                            onChange={(e) => handleDayDateChange(dayIndex, e.target.value)}
-                                            className="border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Items list */}
-                                <div className="space-y-3 mb-4">
-                                    {day.items.map((item: any, itemIndex: number) => (
-                                        <div 
-                                            key={item.id || `new-${itemIndex}`}
-                                            className="border border-gray-200 rounded-md p-3 flex justify-between items-start"
-                                        >
-                                            <div>
-                                                <div className="flex items-center">
-                                                    <span className="font-medium">{item.product?.name || 'Unknown Product'}</span>
-                                                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                                                        item.status === 'CONFIRMED' 
-                                                            ? 'bg-green-100 text-green-800' 
-                                                            : 'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                        {item.status}
-                                                    </span>
-                                                </div>
-                                                <div className="text-sm text-gray-500 mt-1">
-                                                    <div>Guests: {item.guestCount}</div>
-                                                    <div>Price: €{item.price}</div>
-                                                    {item.notes && <div>Notes: {item.notes}</div>}
-                                                </div>
-                                            </div>
-                                            <div className="flex space-x-2">
-                                                <button 
-                                                    onClick={() => handleEditItem(dayIndex, itemIndex)}
-                                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                                >
-                                                    <RiEditLine size={18} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDeleteItem(dayIndex, itemIndex)}
-                                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                                >
-                                                    <RiDeleteBinLine size={18} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Add item button */}
-                                <button
-                                    onClick={() => handleAddItem(dayIndex)}
-                                    className="flex items-center text-blue-600 hover:text-blue-800"
-                                >
-                                    <RiAddLine size={18} className="mr-1" />
-                                    <span>Add Item</span>
-                                </button>
-
-                                {/* Item form when editing */}
-                                {editingItemIndex.dayIndex === dayIndex && (
-                                    <ItemForm
-                                        dayIndex={dayIndex}
-                                        itemIndex={editingItemIndex.itemIndex}
-                                        onSave={handleSaveItem}
-                                        onCancel={handleCancelEdit}
-                                    />
-                                )}
+                    <div className="flex-grow p-6 overflow-y-auto">
+                        {itineraryDays.length === 0 ? (
+                            <div className="text-center text-gray-500 py-8">
+                                No itinerary days available.
                             </div>
-                        ))
-                    )}
-                </div>
+                        ) : (
+                            itineraryDays.map((day, dayIndex) => (
+                                <div key={day.id} className="mb-6 border rounded-lg p-4">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-medium">Day {day.dayNumber}</h3>
+                                        <div className="flex items-center">
+                                            <label className="mr-2 text-sm font-medium text-gray-700">Date:</label>
+                                            <input
+                                                type="date"
+                                                value={day.date.split('T')[0]}
+                                                onChange={(e) => handleDayDateChange(dayIndex, e.target.value)}
+                                                className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                            />
+                                        </div>
+                                    </div>
 
-                <div className="border-t p-4 flex justify-end">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 mr-2"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isLoading}
-                        className={`px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 ${
-                            isLoading ? 'opacity-70 cursor-not-allowed' : ''
-                        }`}
-                    >
-                        {isLoading ? 'Saving...' : 'Save Changes'}
-                    </button>
+                                    {/* Items list */}
+                                    <div className="space-y-3 mb-4">
+                                        {day.items && day.items.length > 0 ? (
+                                            day.items.map((item: any, itemIndex: number) => (
+                                                <div 
+                                                    key={item.id || `new-${itemIndex}`}
+                                                    className="border border-gray-200 rounded-lg p-4 flex justify-between items-start hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center mb-2">
+                                                            <span className="font-medium text-gray-900">{item.product?.name || 'Unknown Product'}</span>
+                                                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                                                                item.status === 'CONFIRMED' 
+                                                                    ? 'bg-green-100 text-green-800' 
+                                                                    : 'bg-yellow-100 text-yellow-800'
+                                                            }`}>
+                                                                {item.status}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm text-gray-600 space-y-1">
+                                                            <div>👥 Guests: {item.guestCount}</div>
+                                                            <div>💰 Price: €{item.price?.toFixed(2) || '0.00'}</div>
+                                                            {item.notes && <div>📝 Notes: {item.notes}</div>}
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleEditItem(dayIndex, itemIndex)}
+                                                        className="ml-4 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    >
+                                                        <RiEditLine size={18} />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
+                                                <p className="text-gray-500">No items planned for this day</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Add item button */}
+                                    <button
+                                        onClick={() => handleAddItem(dayIndex)}
+                                        className="w-full flex items-center justify-center text-blue-600 hover:text-blue-800 py-3 border-2 border-dashed border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                                    >
+                                        <RiAddLine size={18} className="mr-2" />
+                                        <span>Add Item to Day {day.dayNumber}</span>
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="bg-gray-50/80 px-4 py-3 flex justify-end space-x-3 border-t border-gray-200/80">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isLoading}
+                            className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                            }`}
+                        >
+                            {isLoading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            {/* Edit Item Modal */}
+            {isEditModalOpen && <EditItemModal />}
+        </>
     );
 }; 

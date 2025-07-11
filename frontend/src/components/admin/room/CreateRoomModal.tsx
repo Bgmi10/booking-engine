@@ -136,11 +136,7 @@ export function CreateRoomModal({
       
       // Update rooms state
       setRooms([...rooms, data.data])
-      
-      // Close modal after success
-      setTimeout(() => {
-        setIsCreateModalOpen(false)
-      }, 2000)
+      setIsCreateModalOpen(false)
       
     } catch (error: any) {
       console.error(error)
@@ -167,9 +163,16 @@ export function CreateRoomModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
-        <div className="flex justify-between items-center border-b p-4">
+    <div 
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(8px)' }}
+      onClick={() => setIsCreateModalOpen(false)}
+    >
+      <div 
+        className="bg-white/90 rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] md:h-[85vh] relative animate-fade-in flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-200/80 flex justify-between items-center">
           <h3 className="text-xl font-semibold text-gray-900">Add New Room</h3>
           <button 
             onClick={() => setIsCreateModalOpen(false)}
@@ -180,7 +183,7 @@ export function CreateRoomModal({
           </button>
         </div>
         
-        <div className="p-6">
+        <div className="flex-grow p-6 overflow-y-auto">
           {localError && (
             <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
               <div className="flex">
@@ -207,7 +210,7 @@ export function CreateRoomModal({
             </div>
           )}
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Room Name *
@@ -494,10 +497,10 @@ export function CreateRoomModal({
              )}
         </div>
 
-        <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg">
+        <div className="bg-gray-50/80 px-4 py-3 flex justify-end space-x-3 border-t border-gray-200/80">
           <button
             type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
+            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
             onClick={() => setIsCreateModalOpen(false)}
             disabled={loadingAction}
           >

@@ -1,12 +1,10 @@
 import dotenv from "dotenv";
 import prisma from "../prisma";
 import { hashPassword } from '../utils/bcrypt';
+import { adminEmails } from "../utils/constants";
 
 dotenv.config();
 
-export const adminEmails = ["scottpauladams@gmail.com", "subashchandraboseravi45@gmail.com"];
-
-// Shared email styles
 const emailStyles = {
   fontFamily: "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
   primaryColor: "#1f2937",
