@@ -40,6 +40,7 @@ model Room {
   holds         TemporaryHold[]
   RoomRate      RoomRate[]
   notifications Notification[]
+  channelRooms  ChannelRoom[]
 }
 
 model RoomImage {
@@ -194,6 +195,7 @@ model PaymentIntent {
   amount                Float    
   currency              String              @default("eur")
   status                PaymentIntentStatus @default(CREATED)
+  paymentMethod         PaymentMethod?      @default(STRIPE)
   bookingData           String           
   customerData          String          
   taxAmount             Float
@@ -441,6 +443,12 @@ enum PaymentIntentStatus {
   CANCELLED         // Payment cancelled
   EXPIRED           // Payment expired
   REFUNDED          // Payment refunded
+}
+
+enum PaymentMethod {
+  STRIPE
+  CASH
+  BANK_TRANSFER
 }
 
 enum PaymentStatus {
@@ -986,4 +994,272 @@ enum AutomatedTaskTriggerType {
 enum OrderItemRole {
   KITCHEN
   WAITER
+}
+
+// Channel Manager Integration Models
+model ChannelManager {
+  id                    String                @id @default(uuid())
+  name                  String                // e.g., "Booking.com", "Expedia", "Airbnb"
+  code                  String                @unique // e.g., "booking_com", "expedia", "airbnb"
+  description           String?
+  
+  // API Configuration
+  apiEndpoint           String?
+  apiKey                String?
+  apiSecret             String?
+  webhookUrl            String?
+  
+  // Channel Settings
+  isActive              Boolean               @default(false)
+  commissionPercentage  Float?                // Channel commission rate
+  paymentModel          ChannelPaymentModel   @default(PAID_TO_CHANNEL)
+  
+  // Rate Distribution Settings
+  markupPercentage      Float?                // Markup applied to base rates
+  currency              String                @default("eur")
+  
+  // Sync Settings
+  lastSyncAt            DateTime?
+  syncFrequency         Int                   @default(3600) // seconds
+  autoSync              Boolean               @default(false)
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  channelRooms          ChannelRoom[]
+  channelBookings       ChannelBooking[]
+  channelRates          ChannelRate[]
+  channelAvailability   ChannelAvailability[]
+  
+  @@index([code, isActive])
+}
+
+model ChannelRoom {
+  id                String          @id @default(uuid())
+  
+  // Local room reference
+  room              Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId            String
+  
+  // Channel reference
+  channel           ChannelManager  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId         String
+  
+  // Channel-specific identifiers
+  channelRoomId     String          // External room ID from channel
+  channelRoomCode   String?         // Channel's room code
+  
+  // Channel-specific settings
+  isActive          Boolean         @default(true)
+  channelPrice      Float?          // Price set specifically for this channel
+  channelCurrency   String          @default("eur")
+  
+  // Sync status
+  lastSyncAt        DateTime?
+  syncStatus        ChannelSyncStatus @default(PENDING)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relations
+  channelRates      ChannelRate[]
+  channelAvailability ChannelAvailability[]
+  
+  @@unique([roomId, channelId])
+  @@index([channelId, isActive])
+  @@index([channelRoomId])
+}
+
+model ChannelRate {
+  id                String          @id @default(uuid())
+  
+  // References
+  channelRoom       ChannelRoom     @relation(fields: [channelRoomId], references: [id], onDelete: Cascade)
+  channelRoomId     String
+  channel           ChannelManager  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId         String
+  
+  // Rate details
+  date              DateTime        // Date for this rate
+  baseRate          Float           // Base rate for this date
+  channelRate       Float           // Rate sent to channel (after markup/commission)
+  currency          String          @default("eur")
+  
+  // Availability
+  isAvailable       Boolean         @default(true)
+  availableRooms    Int             @default(1)
+  
+  // Sync status
+  lastSyncAt        DateTime?
+  syncStatus        ChannelSyncStatus @default(PENDING)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@unique([channelRoomId, date])
+  @@index([channelId, date])
+  @@index([date, isAvailable])
+}
+
+model ChannelAvailability {
+  id                String          @id @default(uuid())
+  
+  // References
+  channelRoom       ChannelRoom     @relation(fields: [channelRoomId], references: [id], onDelete: Cascade)
+  channelRoomId     String
+  channel           ChannelManager  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId         String
+  
+  // Availability details
+  date              DateTime
+  availableRooms    Int             @default(1)
+  totalRooms        Int             @default(1)
+  isBlocked         Boolean         @default(false)
+  
+  // Sync status
+  lastSyncAt        DateTime?
+  syncStatus        ChannelSyncStatus @default(PENDING)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@unique([channelRoomId, date])
+  @@index([channelId, date])
+  @@index([date, isBlocked])
+}
+
+model ChannelBooking {
+  id                    String                @id @default(uuid())
+  
+  // Channel reference
+  channel               ChannelManager        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId             String
+  
+  // Channel-specific booking details
+  channelBookingId      String                @unique // External booking ID from channel
+  channelReservationId  String?               // Channel's reservation ID
+  channelGuestId        String?               // Channel's guest ID
+  
+  // Guest information from channel
+  guestFirstName        String
+  guestLastName         String
+  guestEmail            String?
+  guestPhone            String?
+  guestNationality      String?
+  
+  // Booking details
+  checkIn               DateTime
+  checkOut              DateTime
+  totalGuests           Int
+  totalAmount           Float
+  currency              String                @default("eur")
+  
+  // Channel-specific pricing
+  channelCommission     Float?                // Commission amount
+  netAmount             Float                 // Amount after commission
+  
+  // Payment details
+  paymentStatus         ChannelPaymentStatus  @default(PENDING)
+  paymentModel          ChannelPaymentModel   @default(PAID_TO_CHANNEL)
+  paidToChannel         Boolean               @default(false)
+  paidToChannelAt       DateTime?
+  
+  // Booking status
+  status                ChannelBookingStatus  @default(CONFIRMED)
+  confirmationNumber    String?               // Our confirmation number
+  
+  // Local booking reference (if created)
+  localBookingId        String?               // Reference to our Booking model
+  localCustomerId       String?               // Reference to our Customer model
+  
+  // Additional data
+  specialRequests       String?
+  channelMetadata       Json?                 // Additional channel-specific data
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  confirmedAt           DateTime?
+  cancelledAt           DateTime?
+  
+  // Relations
+  channelBookingRooms   ChannelBookingRoom[]
+  
+  @@index([channelId, status])
+  @@index([channelBookingId])
+  @@index([checkIn, checkOut])
+  @@index([localBookingId])
+}
+
+model ChannelBookingRoom {
+  id                String          @id @default(uuid())
+  
+  // References
+  channelBooking    ChannelBooking  @relation(fields: [channelBookingId], references: [id], onDelete: Cascade)
+  channelBookingId  String
+  
+  // Room details
+  channelRoomId     String          // External room ID from channel
+  roomName          String          // Room name as provided by channel
+  roomType          String?         // Room type/category
+  
+  // Pricing
+  ratePerNight      Float
+  totalRate         Float
+  currency          String          @default("eur")
+  
+  // Guest count
+  guestCount        Int             @default(1)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([channelBookingId])
+}
+
+// Enums for Channel Manager
+enum ChannelPaymentModel {
+  PAID_TO_CHANNEL      // Channel collects payment, pays us later
+  PAID_ON_SITE         // Guest pays on arrival
+  MIXED                // Some payment to channel, some on site
+}
+
+enum ChannelPaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  REFUNDED
+  CANCELLED
+}
+
+enum ChannelBookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  COMPLETED
+}
+
+enum ChannelSyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+  OUT_OF_SYNC
+}
+
+model BankDetails {
+  id          String   @id @default(uuid())
+  name        String   // Display name for the bank account
+  bankName    String   // Name of the bank
+  accountName String   // Account holder name
+  accountNumber String // Bank account number
+  iban        String?  // IBAN (International Bank Account Number)
+  swiftCode   String?  // SWIFT/BIC code
+  routingNumber String? // Routing number (for US banks)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

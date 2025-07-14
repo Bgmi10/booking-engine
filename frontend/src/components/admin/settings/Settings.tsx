@@ -5,6 +5,7 @@ import { baseUrl, paymentMethods } from '../../../utils/constants';
 import { Template as TemplateComponent } from './templates/Template';
 import type { Template, Variable } from './templates/types';
 import CalendarRestriction from './CalendarRestriction';
+import BankDetailsManagement from './BankDetailsManagement';
 import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
 
 interface PaymentConfig {
@@ -14,7 +15,7 @@ interface PaymentConfig {
   manual_transaction_id: boolean;
 }
 
-type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications' | 'restriction';
+type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications' | 'restriction' | 'bank-details';
 
 export default function Settings() {
   // General settings state
@@ -347,7 +348,8 @@ export default function Settings() {
     { id: 'templates', name: 'Email Templates' },
     { id: 'payment', name: 'Payment' },
     { id: 'notifications', name: 'Notifications' },
-    { id: "restriction", name: "Calendar Restriction"}
+    { id: "restriction", name: "Calendar Restriction"},
+    { id: "bank-details", name: "Bank Details"}
   ];
 
   const renderTabContent = () => {
@@ -676,6 +678,8 @@ export default function Settings() {
             </div>
           </div>
         );
+      case 'bank-details':
+        return <BankDetailsManagement />;
       default:
         return null;
     }

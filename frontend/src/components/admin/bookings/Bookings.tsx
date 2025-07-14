@@ -15,6 +15,7 @@ import Occupancy from "./Occupancy"
 import type { PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
+import toast from 'react-hot-toast';
 
 export default function BookingManagement() {
   const [paymentIntents, setPaymentIntents] = useState<PaymentIntent[]>([])
@@ -22,12 +23,12 @@ export default function BookingManagement() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState("ALL")
   const [selectedPaymentIntent, setSelectedPaymentIntent] = useState<PaymentIntent | null>(null)
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null)
   const [loadingPayment, setLoadingPayment] = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
-  const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingPaymentIntent, setEditingPaymentIntent] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<PaymentIntent | null>(null)
@@ -36,7 +37,42 @@ export default function BookingManagement() {
   const [groupName, setGroupName] = useState("")
   const [primaryEmail, setPrimaryEmail] = useState("")
   const [groupLoading, setGroupLoading] = useState(false)
-  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [tempHolds, setTempHolds] = useState<any[] | null>(null);
+  const [loadingTempHoldDelete, setLoadingTempHoldDelete] = useState<string | null>(null);
+
+  const fetchAllTempHolds = async () => {
+    try {
+      const res = await fetch(baseUrl + "/admin/rooms/temp-holds/all", {
+        credentials: "include"
+      });
+      const data = await res.json();
+      const parsedTempHolds = data.data.map((item: any) => {
+        let parsedCustomerData = {};
+      
+        try {
+          parsedCustomerData = JSON.parse(item.paymentIntent.customerData);
+        } catch (err) {
+          console.error('Failed to parse customerData:', err);
+        }
+      
+        return {
+          ...item,
+          customerData: parsedCustomerData, // attached parsed data as a new key
+        };
+      });
+      
+      setTempHolds(parsedTempHolds);
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "temp-holds") {
+      fetchAllTempHolds();
+    }
+  }, [activeTab])
 
   const fetchPaymentIntents = async () => {
     setLoading(true)
@@ -62,7 +98,7 @@ export default function BookingManagement() {
       }
     } catch (error) {
       console.error("Failed to fetch payment intents:", error)
-      setAlert({ type: "error", message: "Failed to load payment intents" })
+      toast.error("Failed to load payment intents")
     } finally {
       setLoading(false)
     }
@@ -79,7 +115,7 @@ export default function BookingManagement() {
       setPaymentDetails(data.paymentDetails)
     } catch (error) {
       console.error("Failed to fetch payment details:", error)
-      setAlert({ type: "error", message: "Failed to load payment details" })
+      toast.error("Failed to load payment details")
     } finally {
       setLoadingPayment(false)
     }
@@ -99,14 +135,14 @@ export default function BookingManagement() {
       })
 
       if (response.ok) {
-        setAlert({ type: "success", message: "Payment intent deleted successfully" })
+        toast.success("Payment intent deleted successfully")
         fetchPaymentIntents()
         setSelectedPaymentIntent(null)
       } else {
         throw new Error("Failed to delete payment intent")
       }
     } catch (error) {
-      setAlert({ type: "error", message: "Failed to delete payment intent" })
+      toast.error("Failed to delete payment intent")
     } finally {
       setLoadingAction(false)
     }
@@ -127,7 +163,7 @@ export default function BookingManagement() {
       })
 
       if (response.ok) {
-        setAlert({ type: "success", message: "Payment intent updated successfully" })
+        toast.success("Payment intent updated successfully")
         setEditingPaymentIntent(null)
         setEditFormData(null)
         fetchPaymentIntents()
@@ -135,7 +171,7 @@ export default function BookingManagement() {
         throw new Error("Failed to update payment intent")
       }
     } catch (error) {
-      setAlert({ type: "error", message: "Failed to update payment intent" })
+      toast.error("Failed to update payment intent")
     } finally {
       setLoadingAction(false)
     }
@@ -151,44 +187,83 @@ export default function BookingManagement() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          paymentMethod: paymentIntent.paymentMethod || 'STRIPE'
+        })
       })
 
       if (response.ok) {
-        setAlert({ type: "success", message: "Confirmation email sent successfully" })
+        toast.success("Confirmation email sent successfully")
       } else {
         throw new Error("Failed to send email")
       }
     } catch (error) {
-      setAlert({ type: "error", message: "Failed to send confirmation email" })
+      toast.error("Failed to send confirmation email")
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  const confirmBooking = async (paymentIntentId: string) => {
+    setLoadingAction(true)
+    try {
+      const paymentIntent = paymentIntents.find((pi) => pi.id === paymentIntentId)
+      let customerRequest = paymentIntent?.customerData?.specialRequests || '';
+      if (
+        paymentIntent &&
+        (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER')
+      ) {
+        customerRequest = window.prompt('Enter any customer request/notes for this booking (optional):', customerRequest) || customerRequest;
+      }
+      const response = await fetch(`${baseUrl}/admin/bookings/confirm-booking`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentIntentId, customerRequest })
+      })
+      if (response.ok) {
+        toast.success("Booking confirmed successfully")
+        fetchPaymentIntents()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.message || "Failed to confirm booking")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to confirm booking")
     } finally {
       setLoadingAction(false)
     }
   }
 
   const cancelAndRefundPaymentIntent = async (paymentIntent: PaymentIntent) => {
-    
     setLoadingAction(true)
     try {
+      let reason = '';
+      if (window.confirm('Would you like to add a reason for the refund/cancellation?')) {
+        reason = window.prompt('Enter the reason for the refund/cancellation:', '') || '';
+      }
       const response = await fetch(`${baseUrl}/admin/bookings/refund`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentIntentId: paymentIntent.id,
-          bookingData:  paymentIntent.bookingData,
+          bookingData: paymentIntent.bookingData,
           customerDetails: paymentIntent.customerData,
+          paymentMethod: paymentIntent.paymentMethod || 'STRIPE',
+          reason,
         }),
       })
 
       if (response.status === 200) {
-        setAlert({ type: "success", message: "Payment intent cancelled and refunded successfully" })
+        toast.success("Payment intent cancelled and refunded successfully")
         fetchPaymentIntents()
       } else {
         const errorData = await response.json()
         throw new Error(errorData.message || "Failed to process refund")
       }
     } catch (error: any) {
-      setAlert({ type: "error", message: error.message || "Failed to cancel and refund payment intent" })
+      toast.error(error.message || "Failed to cancel and refund payment intent")
     } finally {
       setLoadingAction(false)
     }
@@ -259,6 +334,11 @@ export default function BookingManagement() {
       filtered = filtered.filter((pi) => pi.status === statusFilter)
     }
 
+    // Filter by payment method
+    if (paymentMethodFilter !== "ALL") {
+      filtered = filtered.filter((pi) => pi.paymentMethod === paymentMethodFilter)
+    }
+
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase()
@@ -273,7 +353,7 @@ export default function BookingManagement() {
     }
 
     setFilteredPaymentIntents(filtered)
-  }, [paymentIntents, activeTab, statusFilter, searchTerm])
+  }, [paymentIntents, activeTab, statusFilter, searchTerm, paymentMethodFilter])
 
   const generateConfirmationNumber = (paymentIntent: PaymentIntent) => {
     if (paymentIntent.bookings.length === 0) {
@@ -335,6 +415,31 @@ export default function BookingManagement() {
     return acc;
   }, {} as Record<string, { name: string, bookings: any[] }> & { individual?: any[] });
 
+  // Delete temp hold handler
+  const deleteTempHold = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this temp hold? This action cannot be undone.")) {
+      return;
+    }
+    setLoadingTempHoldDelete(id);
+    try {
+      const res = await fetch(`${baseUrl}/admin/rooms/temp-holds/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        toast.success("Temp hold deleted successfully");
+        fetchAllTempHolds();
+      } else {
+        throw new Error("Failed to delete temp hold");
+      }
+    } catch (error) {
+      toast.error("Failed to delete temp hold");
+    } finally {
+      setLoadingTempHoldDelete(null);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -363,25 +468,6 @@ export default function BookingManagement() {
       </div>
 
       {isCreateModalOpen && <CreateBookingModal setIsCreateModalOpen={setIsCreateModalOpen} fetchBookings={fetchPaymentIntents} />}
-
-      {alert && (
-        <div
-          className={`p-4 rounded-lg border-l-4 ${
-            alert.type === "error"
-              ? "border-red-500 bg-red-50 text-red-700"
-              : "border-green-500 bg-green-50 text-green-700"
-          }`}
-        >
-          <div className="flex items-center">
-            {alert.type === "error" ? (
-              <AlertTriangle className="h-5 w-5 mr-2" />
-            ) : (
-              <CheckCircle className="h-5 w-5 mr-2" />
-            )}
-            <span>{alert.message}</span>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -426,11 +512,75 @@ export default function BookingManagement() {
           >
             Occupancy
           </button>
+          <button
+            onClick={() => setActiveTab("temp-holds")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "temp-holds"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Temp Holds Rooms 
+          </button>
         </nav>
       </div>
 
       {/* Render Occupancy tab or normal UI */}
-      {activeTab === "occupancy" ? (
+      {activeTab === "temp-holds" ? (
+        <div>
+          {
+            tempHolds && tempHolds?.length === 0 ? (<span>No temp holds found</span>) : (
+              <div className="flex flex-col gap-4">
+                {
+                  tempHolds?.map((temp: any) => {
+                    const room = temp.room || {};
+                    const roomImage = room.images && room.images.length > 0 ? room.images[0].url : null;
+                    return (
+                      <div key={temp.id} className="bg-white rounded-2xl shadow flex items-center border border-gray-200 overflow-hidden">
+                        {/* Room Image */}
+                        <div className="flex-shrink-0 w-20 h-20 bg-gray-100 flex items-center justify-center">
+                          {roomImage ? (
+                            <img src={roomImage} alt={room.name || 'Room'} className="w-14 h-14 object-cover rounded-xl" />
+                          ) : (
+                            <div className="w-16 h-16 bg-gray-200 rounded-xl flex items-center justify-center text-gray-400 text-2xl">🏨</div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 px-4 py-3 flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 truncate">{temp.customerData.firstName} {temp.customerData.lastName}</span>
+                            <span className="ml-2 text-xs text-gray-500 truncate">{temp.customerData.email}</span>
+                          </div>
+                          <div className="text-sm text-blue-700 font-medium truncate">{room.name || 'Room'}</div>
+                          <div className="flex gap-2 text-xs text-gray-500">
+                            <span>Check-in: {new Date(temp.checkIn).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>Check-out: {new Date(temp.checkOut).toLocaleDateString()}</span>
+                          </div>
+                          <div className="text-xs text-gray-400">Expires: {new Date(temp.expiresAt).toLocaleString()}</div>
+                        </div>
+                        {/* Delete Button */}
+                        <button
+                          className="m-4 p-2 rounded-full bg-red-50 hover:bg-red-100 text-red-600 transition-colors disabled:opacity-50"
+                          title="Delete Temp Hold"
+                          onClick={() => deleteTempHold(temp.id)}
+                          disabled={loadingTempHoldDelete === temp.id}
+                        >
+                          {loadingTempHoldDelete === temp.id ? (
+                            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                          ) : (
+                            <X className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            ) 
+          }
+        </div>
+      ) : activeTab === "occupancy" ? (
         <Occupancy bookings={paymentIntents} />
       ) : activeTab === "groups" ? (
         <div className="space-y-8">
@@ -491,6 +641,19 @@ export default function BookingManagement() {
                 <option value="SUCCEEDED">Succeeded</option>
                 <option value="CANCELLED">Cancelled</option>
                 <option value="REFUNDED">Refunded</option>
+              </select>
+            </div>
+            <div className="relative">
+              <Filter className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <select
+                value={paymentMethodFilter}
+                onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+              >
+                <option value="ALL">All Payment Methods</option>
+                <option value="STRIPE">Stripe</option>
+                <option value="CASH">Cash</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
               </select>
             </div>
           </div>
@@ -556,6 +719,7 @@ export default function BookingManagement() {
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={handleBookingSelect}
+            onConfirmBooking={confirmBooking}
           />
 
           {/* Payment Intent Details Modal */}

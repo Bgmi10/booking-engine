@@ -11,9 +11,22 @@ import {
   Trash2,
   X,
   Users,
+  CheckCircle,
+  Building2,
+  Coins,
 } from "lucide-react"
 import { getStatusColor } from "../../../utils/helper"
 import type { PaymentIntentCardProps } from "../../../types/types"
+import toast from 'react-hot-toast';
+import { baseUrl } from "../../../utils/constants"
+
+// Add a simple spinner component
+const Spinner = () => (
+  <svg className="animate-spin h-4 w-4 mr-1 text-white" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+  </svg>
+);
 
 export default function PaymentIntentCard({
   paymentIntent,
@@ -32,6 +45,7 @@ export default function PaymentIntentCard({
   selectionMode = false,
   selectedBookingIds = [],
   onBookingSelect = () => {},
+  onConfirmBooking,
 }: PaymentIntentCardProps) {
   const totalBookings = paymentIntent.bookingData.length
   const totalNights = paymentIntent.bookingData.reduce((sum, booking) => {
@@ -40,10 +54,77 @@ export default function PaymentIntentCard({
     return sum + differenceInDays(checkOut, checkIn)
   }, 0)
 
+  console.log(paymentIntent);
+
   const displayData = isEditing && editFormData ? editFormData : paymentIntent
 
   const [showConfirmEmail, setShowConfirmEmail] = useState(false)
   const [showConfirmRefund, setShowConfirmRefund] = useState(false)
+  const [showConfirmBooking, setShowConfirmBooking] = useState(false)
+  const [loadingResend, setLoadingResend] = useState(false);
+
+  // Get payment method display info
+  const getPaymentMethodInfo = () => {
+    if (paymentIntent.stripePaymentLinkId || paymentIntent.stripeSessionId) {
+      return {
+        icon: <CreditCard className="h-4 w-4" />,
+        label: "STRIPE",
+        color: "text-blue-600",
+        bgColor: "bg-blue-100"
+      };
+    }
+    
+    switch (paymentIntent.paymentMethod) {
+      case 'CASH':
+        return {
+          icon: <Coins className="h-4 w-4" />,
+          label: "Cash",
+          color: "text-green-600",
+          bgColor: "bg-green-100"
+        };
+      case 'BANK_TRANSFER':
+        return {
+          icon: <Building2 className="h-4 w-4" />,
+          label: "Bank Transfer",
+          color: "text-purple-600",
+          bgColor: "bg-purple-100"
+        };
+      default:
+        return {
+          icon: <CreditCard className="h-4 w-4" />,
+          label: "Unknown",
+          color: "text-gray-600",
+          bgColor: "bg-gray-100"
+        };
+    }
+  };
+
+  const paymentMethodInfo = getPaymentMethodInfo();
+
+  // Check if booking can be confirmed (cash or bank transfer with PENDING status)
+  const canConfirmBooking = (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER') && paymentIntent.status === 'PENDING';
+
+  // Handler for resending bank transfer instructions
+  const handleResendBankTransfer = async () => {
+    setLoadingResend(true);
+    try {
+      const res = await fetch( baseUrl + `/admin/bookings/${paymentIntent.id}/resend-bank-transfer`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        toast.success('Bank transfer instructions resent successfully');
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to resend bank transfer instructions');
+      }
+    } catch (e) {
+      toast.error('Failed to resend bank transfer instructions');
+    } finally {
+      setLoadingResend(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200">
@@ -78,6 +159,10 @@ export default function PaymentIntentCard({
               >
                 {displayData.status}
               </span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentMethodInfo.bgColor} ${paymentMethodInfo.color}`}>
+                {paymentMethodInfo.icon}
+                {paymentMethodInfo.label}
+              </span>
               {displayData.createdByAdmin && (
                 <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
                   Admin Created
@@ -102,9 +187,9 @@ export default function PaymentIntentCard({
                   <strong>Admin Notes:</strong> {displayData.adminNotes}
                 </p>
               )}
-              {!displayData.createdByAdmin && displayData.customerData.specialRequests && (
+              {paymentIntent.bookings[0]?.request && (
                 <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
-                  <strong>Special Requests:</strong> {displayData.customerData.specialRequests}
+                  <strong>Customer Request:</strong> {paymentIntent.bookings[0]?.request}
                 </p>
               )}
             </div>
@@ -164,8 +249,8 @@ export default function PaymentIntentCard({
                 disabled={loadingAction}
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                <Save className="h-4 w-4 mr-1" />
-                Save
+                {loadingAction ? <Spinner /> : <Save className="h-4 w-4 mr-1" />}
+                {loadingAction ? 'Processing...' : 'Save'}
               </button>
               <button
                 onClick={onCancelEdit}
@@ -196,7 +281,8 @@ export default function PaymentIntentCard({
                         disabled={loadingAction}
                         className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700"
                       >
-                        Confirm Send Email
+                        {loadingAction ? <Spinner /> : <Mail className="h-4 w-4 mr-1" />}
+                        {loadingAction ? 'Processing...' : 'Confirm Send Email'}
                       </button>
                       <button
                         onClick={() => setShowConfirmEmail(false)}
@@ -235,8 +321,8 @@ export default function PaymentIntentCard({
                 disabled={loadingAction}
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
+                {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
+                {loadingAction ? 'Processing...' : 'Delete'}
               </button>
 
               {/* Cancel & Refund with Confirmation */}
@@ -249,7 +335,8 @@ export default function PaymentIntentCard({
                         disabled={loadingAction}
                         className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
                       >
-                        Confirm Refund
+                        {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
+                        {loadingAction ? 'Processing...' : 'Confirm Refund'}
                       </button>
                       <button
                         onClick={() => setShowConfirmRefund(false)}
@@ -266,6 +353,39 @@ export default function PaymentIntentCard({
                     >
                       <DollarSign className="h-4 w-4 mr-1" />
                       Cancel & Refund
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* Confirm Booking (Cash/Bank Transfer) */}
+              {canConfirmBooking && (
+                <>
+                  {showConfirmBooking ? (
+                    <>
+                      <button
+                        onClick={onConfirmBooking}
+                        disabled={loadingAction}
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700"
+                      >
+                        {loadingAction ? <Spinner /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                        {loadingAction ? 'Processing...' : 'Confirm Booking'}
+                      </button>
+                      <button
+                        onClick={() => setShowConfirmBooking(false)}
+                        className="text-sm text-gray-600 underline"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowConfirmBooking(true)}
+                      disabled={loadingAction}
+                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Confirm Booking
                     </button>
                   )}
                 </>
@@ -289,6 +409,18 @@ export default function PaymentIntentCard({
                     Payment link expires {formatDistanceToNow(new Date(paymentIntent.expiresAt), { addSuffix: true })}
                   </span>
                 </div>
+              )}
+
+              {/* Resend Bank Transfer Instructions */}
+              {paymentIntent.paymentMethod === 'BANK_TRANSFER' && paymentIntent.status !== 'SUCCEEDED' && (
+                <button
+                  onClick={handleResendBankTransfer}
+                  disabled={loadingResend || loadingAction}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 border border-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  {loadingResend ? <Spinner /> : <Mail className="h-4 w-4 mr-1" />}
+                  {loadingResend ? 'Sending...' : 'Resend Payment Instructions'}
+                </button>
               )}
             </>
           )}

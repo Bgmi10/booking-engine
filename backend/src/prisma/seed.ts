@@ -162,6 +162,7 @@ async function main() {
             </div>
     
             <!-- Refund Processing Note -->
+            {{#if (or (eq paymentMethod "STRIPE") (eq paymentMethod "BANK_TRANSFER"))}}
             <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
               <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
@@ -175,6 +176,7 @@ async function main() {
                 </p>
               </div>
             </div>
+            {{/if}}
     
             <!-- Contact Information -->
             <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
@@ -594,8 +596,18 @@ async function main() {
               <div style="background: white; border-radius: 8px; padding: 20px;">
                 <div style="display: grid; gap: 16px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
-                    <span style="color: #166534; font-weight: 600;">Room Charges:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{roomCharges}}</span>
+                    <span style="color: #166534; font-weight: 600;">Payment Method:</span>
+                    <span style="color: #166534; font-weight: 600;">
+                      {{#if (eq paymentMethod "STRIPE")}}
+                        💳 Credit/Debit Card
+                      {{else if (eq paymentMethod "CASH")}}
+                        💵 Cash Payment
+                      {{else if (eq paymentMethod "BANK_TRANSFER")}}
+                        🏦 Bank Transfer
+                      {{else}}
+                        💳 {{paymentMethod}}
+                      {{/if}}
+                    </span>
                   </div>
                   {{#if enhancementsTotal}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
@@ -614,16 +626,52 @@ async function main() {
                   </div>
                   {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
-                    <span style="color: #166534; font-weight: 600;">Tax:</span>
+                    <span style="color: #166534; font-weight: 600;">Tax (10%):</span>
                     <span style="color: #166534; font-weight: 600;">{{currency}} {{taxAmount}}</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; font-weight: 700; font-size: 24px; color: #166534;">
-                    <span>Total Amount:</span>
-                    <span>{{currency}} {{amount}}</span>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; background: #f0fdf4; border-radius: 8px; margin-top: 8px;">
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">Total Amount:</span>
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
                   </div>
                 </div>
               </div>
             </div>
+
+            {{#if (eq paymentMethod "CASH")}}
+            <!-- Cash Payment Notice -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #92400e; margin: 0 0 20px 0; font-size: 20px;">💵 Cash Payment Notice</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: #92400e; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  <strong>Payment Method:</strong> Cash payment has been arranged for this booking.
+                </p>
+                <ul style="color: #92400e; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Please bring the exact amount in cash upon check-in</li>
+                  <li>Payment is due at the time of arrival</li>
+                  <li>We accept EUR currency only</li>
+                  <li>Please have your confirmation ID ready</li>
+                </ul>
+              </div>
+            </div>
+            {{/if}}
+
+            {{#if (eq paymentMethod "BANK_TRANSFER")}}
+            <!-- Bank Transfer Notice -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #0369a1; margin: 0 0 20px 0; font-size: 20px;">🏦 Bank Transfer Payment</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: #0369a1; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  <strong>Payment Method:</strong> Bank transfer payment has been arranged for this booking.
+                </p>
+                <ul style="color: #0369a1; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Please complete the bank transfer before your arrival</li>
+                  <li>Include your confirmation ID in the transfer reference</li>
+                  <li>Payment confirmation will be sent once received</li>
+                  <li>Contact us if you need bank account details</li>
+                </ul>
+              </div>
+            </div>
+            {{/if}}
 
             {{#if voucherInfo.products}}
             <!-- Voucher Products -->
@@ -928,6 +976,10 @@ async function main() {
                     <span style="color: #166534; font-weight: 600;">Refund Reason:</span>
                     <span style="color: #166534; font-weight: 600;">{{refund.refundReason}}</span>
                   </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Payment Method:</span>
+                    <span style="color: #166534; font-weight: 600;">{{paymentMethod}}</span>
+                  </div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: #166534; font-weight: 600;">Status:</span>
                     <span style="background: #166534; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">PROCESSED</span>
@@ -935,8 +987,24 @@ async function main() {
                 </div>
               </div>
             </div>
+
+            <!-- Manual Refund Note -->
+            {{#if isManualRefund}}
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Manual Refund Notice
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #a16207; margin: 0; font-size: 15px; line-height: 1.7;">
+                  This refund was processed manually for a <strong>{{paymentMethod}}</strong> payment. If you have not yet received your refund, please contact our team for assistance.
+                </p>
+              </div>
+            </div>
+            {{/if}}
     
             <!-- Refund Processing Note -->
+            {{#if (or (eq paymentMethod "STRIPE") (eq paymentMethod "BANK_TRANSFER"))}}
             <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
               <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
@@ -950,6 +1018,7 @@ async function main() {
                 </p>
               </div>
             </div>
+            {{/if}}
             {{else}}
             <!-- No Refund Information -->
             <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #64748b;">
@@ -1632,36 +1701,70 @@ async function main() {
               <div style="background: white; border-radius: 8px; padding: 20px;">
                 <div style="display: grid; gap: 16px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
-                    <span style="color: #166534; font-weight: 600;">Room Charges:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{roomCharges}}</span>
+                    <span style="color: #166534; font-weight: 600;">Payment Method:</span>
+                    <span style="color: #166534; font-weight: 600;">
+                      {{#if (eq paymentMethod "STRIPE")}}
+                        💳 Credit/Debit Card
+                      {{else if (eq paymentMethod "CASH")}}
+                        💵 Cash Payment
+                      {{else if (eq paymentMethod "BANK_TRANSFER")}}
+                        🏦 Bank Transfer
+                      {{else}}
+                        💳 {{paymentMethod}}
+                      {{/if}}
+                    </span>
                   </div>
-                  {{#if enhancementsTotal}}
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
-                    <span style="color: #166534; font-weight: 600;">Total Enhancements:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{enhancementsTotal}}</span>
-                  </div>
-                  {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Subtotal:</span>
                     <span style="color: #166534; font-weight: 600;">{{currency}} {{subtotal}}</span>
                   </div>
-                  {{#if voucherInfo}}
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0; background: #f0f9ff; border-radius: 6px; padding: 12px;">
-                    <span style="color: #166534; font-weight: 600;">Voucher Discount ({{voucherInfo.code}}):</span>
-                    <span style="color: #166534; font-weight: 600;">-{{currency}} {{voucherInfo.discountAmount}}</span>
-                  </div>
-                  {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
-                    <span style="color: #166534; font-weight: 600;">Tax:</span>
+                    <span style="color: #166534; font-weight: 600;">Tax (10%):</span>
                     <span style="color: #166534; font-weight: 600;">{{currency}} {{taxAmount}}</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; font-weight: 700; font-size: 24px; color: #166534;">
-                    <span>Total Amount:</span>
-                    <span>{{currency}} {{amount}}</span>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; background: #f0fdf4; border-radius: 8px; margin-top: 8px;">
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">Total Amount:</span>
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
                   </div>
                 </div>
               </div>
             </div>
+
+            {{#if (eq paymentMethod "CASH")}}
+            <!-- Cash Payment Notice -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #92400e; margin: 0 0 20px 0; font-size: 20px;">💵 Cash Payment Notice</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: #92400e; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  <strong>Payment Method:</strong> Cash payment has been arranged for this booking.
+                </p>
+                <ul style="color: #92400e; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Please bring the exact amount in cash upon check-in</li>
+                  <li>Payment is due at the time of arrival</li>
+                  <li>We accept EUR currency only</li>
+                  <li>Please have your confirmation ID ready</li>
+                </ul>
+              </div>
+            </div>
+            {{/if}}
+
+            {{#if (eq paymentMethod "BANK_TRANSFER")}}
+            <!-- Bank Transfer Notice -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #0369a1; margin: 0 0 20px 0; font-size: 20px;">🏦 Bank Transfer Payment</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: #0369a1; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  <strong>Payment Method:</strong> Bank transfer payment has been arranged for this booking.
+                </p>
+                <ul style="color: #0369a1; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Please complete the bank transfer before your arrival</li>
+                  <li>Include your confirmation ID in the transfer reference</li>
+                  <li>Payment confirmation will be sent once received</li>
+                  <li>Contact us if you need bank account details</li>
+                </ul>
+              </div>
+            </div>
+            {{/if}}
 
             {{#if voucherInfo.products}}
             <!-- Voucher Products -->
@@ -2809,6 +2912,174 @@ async function main() {
         dueDate: { type: 'string', description: 'Original due date of the payment' },
         daysOverdue: { type: 'number', description: 'Number of days the payment is overdue' },
         paymentLink: { type: 'string', description: 'Link to make the payment' }
+      }
+    },
+    {
+      name: 'Bank Transfer Instructions',
+      type: 'BANK_TRANSFER_INSTRUCTIONS',
+      subject: 'Complete Your Hotel Booking Payment - La Torre sulla via Francigena',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Complete Your Hotel Booking - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Hero Section -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.accentColor} 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🏨</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Complete Your Hotel Booking</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Secure your stay with bank transfer payment
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Thank you for choosing La Torre sulla via Francigena for your upcoming stay. To confirm your reservation, please complete your payment using the bank transfer details below.
+              </p>
+            </div>
+
+            <!-- Booking Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Your Reservation Summary</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Amount:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">€{{totalAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Payment Due:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{expiresAt}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Reservation ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{paymentIntentId}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bank Details -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">🏦 Payment Instructions</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Bank Name:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{bankName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Account Name:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{accountName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Account Number:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{accountNumber}}</span>
+                  </div>
+                  {{#if iban}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">IBAN:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{iban}}</span>
+                  </div>
+                  {{/if}}
+                  {{#if swiftCode}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">SWIFT/BIC:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{swiftCode}}</span>
+                  </div>
+                  {{/if}}
+                  {{#if routingNumber}}
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Routing Number:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{routingNumber}}</span>
+                  </div>
+                  {{/if}}
+                </div>
+              </div>
+            </div>
+
+            <!-- Important Instructions -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Important Payment Details
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <ul style="color: #a16207; margin: 0; padding-left: 20px; line-height: 1.8; font-size: 15px;">
+                  <li>Include your <strong>reservation ID ({{paymentIntentId}})</strong> in the transfer description</li>
+                  <li>Transfer the exact amount of <strong>€{{totalAmount}}</strong></li>
+                  <li>Complete payment within <strong>72 hours</strong> to secure your room</li>
+                  <li>Save your transfer receipt for confirmation</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Booking Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🏨 Your Room Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                {{#each bookingDetails}}
+                <div style="border-bottom: 1px solid ${emailStyles.borderColor}; padding-bottom: 16px; margin-bottom: 16px;">
+                  <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 12px 0; font-size: 18px;">{{roomDetails.name}}</h4>
+                  <div style="display: grid; gap: 8px; color: ${emailStyles.secondaryColor}; font-size: 15px;">
+                    <div><strong>Check-in:</strong> {{checkIn}}</div>
+                    <div><strong>Check-out:</strong> {{checkOut}}</div>
+                    <div><strong>Guests:</strong> {{adults}} adults</div>
+                    <div><strong>Room Rate:</strong> €{{totalPrice}}</div>
+                  </div>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Hotel Contact Information</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  Our hotel team is here to assist you with any questions about your booking or payment:
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Reception Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        totalAmount: { type: 'string', description: 'Total booking amount' },
+        expiresAt: { type: 'string', description: 'Payment expiry date' },
+        paymentIntentId: { type: 'string', description: 'Payment intent ID for reference' },
+        bankName: { type: 'string', description: 'Name of the bank' },
+        accountName: { type: 'string', description: 'Account holder name' },
+        accountNumber: { type: 'string', description: 'Bank account number' },
+        iban: { type: 'string', description: 'IBAN (International Bank Account Number)' },
+        swiftCode: { type: 'string', description: 'SWIFT/BIC code' },
+        routingNumber: { type: 'string', description: 'Routing number (for US banks)' },
+        bookingDetails: { type: 'array', description: 'Array of booking details' }
       }
     }
   ]

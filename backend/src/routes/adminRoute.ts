@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
-import { getAllRooms } from "../controllers/roomController";
+import { deleteTempHold, getAllRooms, getAllTempHolds } from "../controllers/roomController";
 import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhancement.schema";
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
@@ -32,6 +32,7 @@ import { createProposal, getAllProposals, getProposalById, updateProposal, updat
 import { createProposalSchema, updateProposalSchema, updateProposalStatusSchema } from "../zod/proposal.schema";
 import { updateExternalVendor, deleteExternalVendor } from '../controllers/externalVendorController';
 import { updateServiceRequest, addServiceRequestMessage, getServiceRequestsForProposal, getServiceRequestById } from '../controllers/serviceRequestController';
+import channelManagerController from '../controllers/channelManagerController';
 
 const adminRouter = Router();
 
@@ -114,7 +115,24 @@ adminRouter.get("/settings", authMiddleware, getGeneralSettings);
 
 adminRouter.put("/settings", authMiddleware, updateGeneralSettings);
 
-adminRouter.post("/create-payment-link", authMiddleware, createAdminPaymentLink);
+adminRouter.post("/bookings/create-payment-link", authMiddleware, createAdminPaymentLink); 
+
+adminRouter.post('/bookings/collect-cash', authMiddleware, collectCash);
+
+adminRouter.post('/bookings/bank-transfer', authMiddleware, createBankTransfer);
+
+adminRouter.post('/bookings/confirm-booking', authMiddleware, confirmBooking);
+
+adminRouter.post('/bookings/:id/resend-bank-transfer', authMiddleware, resendBankTransferInstructions);
+
+// Bank Details CRUD routes
+adminRouter.get('/bank-details/all', authMiddleware, getAllBankDetails);
+
+adminRouter.post('/bank-details', authMiddleware, createBankDetails);
+
+adminRouter.put('/bank-details/:id', authMiddleware, updateBankDetails);
+
+adminRouter.delete('/bank-details/:id', authMiddleware, deleteBankDetails);
 
 adminRouter.get('/email-templates', authMiddleware, getTemplates);
 
@@ -303,6 +321,36 @@ adminRouter.get('/proposals/:proposalId/service-requests', authMiddleware, getSe
 adminRouter.get('/proposals/:proposalId/service-requests/:requestId', authMiddleware, getServiceRequestById);
 adminRouter.put('/service-requests/:requestId', authMiddleware, updateServiceRequest);
 adminRouter.post('/service-requests/:requestId/messages', authMiddleware, addServiceRequestMessage);
+
+adminRouter.post('/channel-managers', authMiddleware, channelManagerController.createChannelManager);
+adminRouter.get('/channel-managers', authMiddleware, channelManagerController.getAllChannelManagers);
+adminRouter.get('/channel-managers/:id', authMiddleware, channelManagerController.getChannelManagerById);
+adminRouter.put('/channel-managers/:id', authMiddleware, channelManagerController.updateChannelManager);
+adminRouter.delete('/channel-managers/:id', authMiddleware, channelManagerController.deleteChannelManager);
+
+adminRouter.post('/channel-managers/:channelId/rooms', authMiddleware, channelManagerController.createChannelRoom);
+adminRouter.get('/channel-managers/:channelId/rooms', authMiddleware, channelManagerController.getChannelRooms);
+adminRouter.get('/channel-managers/:channelId/rooms/available', authMiddleware, channelManagerController.getRoomsAvailableForChannel);
+adminRouter.put('/channel-managers/rooms/:id', authMiddleware, channelManagerController.updateChannelRoom);
+adminRouter.delete('/channel-managers/rooms/:id', authMiddleware, channelManagerController.deleteChannelRoom);
+
+adminRouter.post('/channel-managers/rooms/:channelRoomId/rates', authMiddleware, channelManagerController.createChannelRate);
+adminRouter.put('/channel-managers/rooms/:channelRoomId/rates', authMiddleware, channelManagerController.updateChannelRates);
+adminRouter.get('/channel-managers/rooms/:channelRoomId/rates', authMiddleware, channelManagerController.getChannelRates);
+
+adminRouter.post('/channel-managers/rooms/:channelRoomId/availability', authMiddleware, channelManagerController.createChannelAvailability);
+adminRouter.put('/channel-managers/rooms/:channelRoomId/availability', authMiddleware, channelManagerController.updateChannelAvailability);
+
+adminRouter.post('/channel-managers/bookings', authMiddleware, channelManagerController.createChannelBooking);
+adminRouter.get('/channel-managers/bookings', authMiddleware, channelManagerController.getChannelBookings);
+adminRouter.get('/channel-managers/bookings/:id', authMiddleware, channelManagerController.getChannelBookingById);
+adminRouter.put('/channel-managers/bookings/:id/status', authMiddleware, channelManagerController.updateChannelBookingStatus);
+
+adminRouter.post('/channel-managers/:channelId/sync', authMiddleware, channelManagerController.triggerChannelSync);
+adminRouter.get('/channel-managers/:channelId/stats', authMiddleware, channelManagerController.getChannelManagerStats);
+
+adminRouter.get('/rooms/temp-holds/all', authMiddleware, getAllTempHolds);
+adminRouter.delete('/rooms/temp-holds/:id', authMiddleware, deleteTempHold);
 
 
 export default adminRouter;

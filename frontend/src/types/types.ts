@@ -90,7 +90,9 @@ export interface PaymentIntent {
   bookingData: BookingData[]
   bookings: Array<{
     id: string
+    request?: string // Add request field for customer notes
   }>
+  paymentMethod?: PaymentMethod
 }
 
 export interface Booking {
@@ -130,6 +132,7 @@ export interface PaymentIntentsListProps {
   onSaveEdit: () => void
   onCancelEdit: () => void
   generateConfirmationNumber: (pi: PaymentIntent) => string
+  onConfirmBooking?: (paymentIntentId: string) => void
 }
   
 export interface PaymentIntentCardProps {
@@ -151,6 +154,7 @@ export interface PaymentIntentCardProps {
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
+  onConfirmBooking?: () => void;
 }
 
 
@@ -617,3 +621,22 @@ export type WeddingProposal = {
   createdAt: string;
   updatedAt: string;
 };
+
+// Bank Details interface
+export interface BankDetails {
+  id: string;
+  name: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  iban?: string;
+  swiftCode?: string;
+  routingNumber?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Payment Method type
+
+export type PaymentMethod = 'STRIPE' | 'CASH' | 'BANK_TRANSFER';

@@ -61,3 +61,27 @@ export const getAdminDashboardSectionUrl = (section: string) => {
 export const getWeddingPortalSectionUrl = (section: string) => {
   return `${process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL}/wedding-portal/dashboard?sidebar=${section}`;
 }
+
+export function generateMergedBookingId(
+  bookingIds: string[],
+  options?: { maxPerIdLength?: number }
+): string {
+  const MIN = 1;
+  const MAX = 5;
+  const MAX_ID_PART_LENGTH = options?.maxPerIdLength ?? 6;
+
+  if (!Array.isArray(bookingIds)) {
+    throw new Error("bookingIds must be an array");
+  }
+
+  if (bookingIds.length < MIN || bookingIds.length > MAX) {
+    throw new Error(`bookingIds must have between ${MIN} and ${MAX} items`);
+  }
+
+  // Normalize each ID: strip non-alphanumerics, trim to fixed length
+  const normalizedIds = bookingIds
+    .map((id) => id.replace(/[^a-zA-Z0-9]/g, "").substring(0, MAX_ID_PART_LENGTH))
+    .sort(); // ensures consistent ordering
+
+  return `BK-${normalizedIds.join("")}`;
+}

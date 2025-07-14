@@ -664,3 +664,56 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
     handleError(res, error as Error);
   }
 };
+
+export const getAllTempHolds = async (req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const in30Minutes = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+    const tempHolds = await prisma.temporaryHold.findMany({
+      where: {
+        expiresAt: {
+          gte: now,
+          lte: in30Minutes
+        }
+      },
+      include: {
+        paymentIntent: {
+          select: {
+            customerData: true
+          }
+        },
+        room: {
+          select: {
+            name: true,
+            images: true,
+            price: true,
+          }
+        }
+      }
+    });
+
+    responseHandler(res, 200, "success", tempHolds);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+
+export const deleteTempHold = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "id is required");
+    return;
+  }
+
+  try {
+    await prisma.temporaryHold.delete({ where: { id }});
+    responseHandler(res, 200, "Temp hold deleted Successfully");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+

@@ -1,17 +1,16 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { RiCloseLine, RiCheckLine, RiErrorWarningLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import "react-datepicker/dist/react-datepicker.css"
 import { baseUrl } from "../../../utils/constants"
 import countryList from "country-list-with-dial-code-and-flag"
-import type { BookingItem, CustomerDetails, Enhancement, Room } from "../../../types/types"
+import type { Room, Enhancement, CustomerDetails, BookingItem, BankDetails, PaymentMethod } from "../../../types/types"
 import { addDays, differenceInHours } from "date-fns"
 import CustomerDetailsForm from "./CustomerDetailsForm"
 import BookingItemsList from "./BookingItemsList"
 import TotalAmountSummary from "./TotalAmountSummary"
 import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
-
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
@@ -40,6 +39,12 @@ export function CreateBookingModal({
   const [expiresInHours, setExpiresInHours] = useState(72)
   const [expiryDate, setExpiryDate] = useState<Date>(addDays(new Date(), 3))
 
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('STRIPE')
+  const [bankDetails, setBankDetails] = useState<BankDetails[]>([])
+  const [selectedBankId, setSelectedBankId] = useState<string>('')
+  const [loadingBankDetails, setLoadingBankDetails] = useState(false)
+
   // Booking Items State
   const [bookingItems, setBookingItems] = useState<BookingItem[]>([
     {
@@ -63,6 +68,8 @@ export function CreateBookingModal({
   const [totalAmount, setTotalAmount] = useState(0)
   const [taxAmount, setTaxAmount] = useState(0)
   const [isSelectCustomerModalOpen, setIsSelectCustomerModalOpen] = useState(false)
+  // Add admin notes state
+  const [adminNotes, setAdminNotes] = useState("");
 
   // Handle nationality change and update phone code
   const handleNationalityChange = (countryCode: string) => {
@@ -133,9 +140,35 @@ export function CreateBookingModal({
     }
   }
 
+  // Fetch bank details for bank transfer option
+  const fetchBankDetails = async () => {
+    setLoadingBankDetails(true)
+    try {
+      const response = await fetch(`${baseUrl}/admin/bank-details/all`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const activeBanks = (data.data || []).filter((bank: BankDetails) => bank.isActive);
+        setBankDetails(activeBanks);
+        if (activeBanks.length > 0) {
+          setSelectedBankId(activeBanks[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch bank details:', error);
+    } finally {
+      setLoadingBankDetails(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
-      await Promise.all([fetchRooms(), fetchAllEnhancements()])
+      await Promise.all([fetchRooms(), fetchAllEnhancements(), fetchBankDetails()])
     })();
   }, [])
 
@@ -527,6 +560,12 @@ const createBooking = async () => {
     return;
   }
 
+  // Validate bank transfer selection
+  if (paymentMethod === 'BANK_TRANSFER' && !selectedBankId) {
+    setLocalError("Please select a bank account for bank transfer");
+    return;
+  }
+
   // Clear any previous errors
   setLocalError("");
   
@@ -538,23 +577,46 @@ const createBooking = async () => {
   setLocalSuccess("");
 
   try {
-    const res = await fetch(`${baseUrl}/admin/create-payment-link`, {
+    let endpoint = '';
+    let requestBody: any = {
+      bookingItems: bookingItems.map((item) => ({
+        ...item,
+        fromAdmin: true,
+      })),
+      customerDetails,
+      taxAmount,
+      totalAmount,
+      customerRequest: customerDetails.specialRequests,
+      adminNotes, // <-- add adminNotes to request body
+    };
+
+    // Set endpoint and additional data based on payment method
+    switch (paymentMethod) {
+      case 'STRIPE':
+        endpoint = `${baseUrl}/admin/bookings/create-payment-link`;
+        requestBody.expiresInHours = finalExpiryHours;
+        requestBody.adminNotes = adminNotes;
+        break;
+      case 'CASH':
+        endpoint = `${baseUrl}/admin/bookings/collect-cash`;
+        requestBody.expiresInHours = finalExpiryHours;
+        requestBody.adminNotes = adminNotes;
+        break;
+      case 'BANK_TRANSFER':
+        endpoint = `${baseUrl}/admin/bookings/bank-transfer`;
+        requestBody.bankDetailsId = selectedBankId;
+        requestBody.expiresInHours = finalExpiryHours;
+        requestBody.adminNotes = adminNotes;
+        break;
+    }
+
+    const res = await fetch(endpoint, {
       method: "POST",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        bookingItems: bookingItems.map((item) => ({
-          ...item,
-          fromAdmin: true,
-        })),
-        customerDetails,
-        taxAmount,
-        totalAmount,
-        expiresInHours: finalExpiryHours,
-        adminNotes: customerDetails.specialRequests,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await res.json();
@@ -573,7 +635,20 @@ const createBooking = async () => {
       throw new Error(data.message || "Failed to create booking");
     }
 
-    setLocalSuccess("Payment link created successfully!");
+    let successMessage = "";
+    switch (paymentMethod) {
+      case 'STRIPE':
+        successMessage = "Payment link created successfully!";
+        break;
+      case 'CASH':
+        successMessage = "Cash payment intent created! Admin needs to confirm after cash collection.";
+        break;
+      case 'BANK_TRANSFER':
+        successMessage = "Bank transfer instructions sent to customer! Admin needs to confirm after payment verification.";
+        break;
+    }
+
+    setLocalSuccess(successMessage);
     setTimeout(() => {
       fetchBookings();  
       setIsCreateModalOpen(false);
@@ -663,6 +738,7 @@ const createBooking = async () => {
             countries={countries}
             loadingAction={loadingAction}
             handleNationalityChange={handleNationalityChange}
+            showNotesField={false} // Only show for Stripe
           />
 
           {/* Select Customer Modal */}
@@ -693,9 +769,119 @@ const createBooking = async () => {
             taxAmount={taxAmount}
             taxPercentage={taxPercentage}
           />
+
+          {/* Payment Method Selection */}
+          <div className="mt-6 bg-gray-50 rounded-lg p-4">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Payment Method</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('STRIPE')}
+                className={`p-4 rounded-lg border-2 transition-colors ${
+                  paymentMethod === 'STRIPE'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-2">💳</div>
+                  <div className="font-medium text-gray-900">Stripe Payment</div>
+                  <div className="text-sm text-gray-500">Send payment link to customer</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('CASH')}
+                className={`p-4 rounded-lg border-2 transition-colors ${
+                  paymentMethod === 'CASH'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-2">💵</div>
+                  <div className="font-medium text-gray-900">Cash Payment</div>
+                  <div className="text-sm text-gray-500">Collect cash manually</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                className={`p-4 rounded-lg border-2 transition-colors ${
+                  paymentMethod === 'BANK_TRANSFER'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-2">🏦</div>
+                  <div className="font-medium text-gray-900">Bank Transfer</div>
+                  <div className="text-sm text-gray-500">Send bank details to customer</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Bank Selection for Bank Transfer */}
+            {paymentMethod === 'BANK_TRANSFER' && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Bank Account
+                </label>
+                {loadingBankDetails ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : bankDetails.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">
+                    No active bank accounts found. Please add bank accounts in Settings.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedBankId}
+                    onChange={(e) => setSelectedBankId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    {bankDetails.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name} - {bank.bankName}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Customer Request (Special Requests) - only for STRIPE */}
+          {paymentMethod === 'STRIPE' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Request (Special Requests)</label>
+              <textarea
+                className="border rounded px-3 py-2 w-full"
+                value={customerDetails.specialRequests}
+                onChange={e => setCustomerDetails({ ...customerDetails, specialRequests: e.target.value })}
+                rows={2}
+                placeholder="Add any special requests from the customer (shown to customer in confirmation)"
+              />
+            </div>
+          )}
+
+          {/* Admin Notes Field */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Admin Notes (internal only)</label>
+            <textarea
+              className="border rounded px-3 py-2 w-full"
+              value={adminNotes}
+              onChange={e => setAdminNotes(e.target.value)}
+              rows={2}
+              placeholder="Add any internal notes for this booking (not shown to customer)"
+            />
+          </div>
         </div>
 
-        {/* Expiry Selector */}
+        {/* Expiry Selector - Show for all payment methods */}
         <ExpirySelector
           expiryMode={expiryMode}
           setExpiryMode={setExpiryMode}
@@ -717,21 +903,21 @@ const createBooking = async () => {
           </button>
           <button
             type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
+            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={createBooking}
-            disabled={loadingAction}
+            disabled={loadingAction || (paymentMethod === 'BANK_TRANSFER' && !selectedBankId)}
           >
             {loadingAction ? (
-              <span className="flex items-center">
-                <BiLoader className="animate-spin mr-2" />
-                Creating Payment Link...
-              </span>
+              <>
+                <BiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                Creating...
+              </>
             ) : (
-              "Create Payment Link"
+              `Create ${paymentMethod === 'STRIPE' ? 'Payment Link' : paymentMethod === 'CASH' ? 'Cash Booking' : 'Bank Transfer'}`
             )}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

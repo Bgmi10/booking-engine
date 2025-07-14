@@ -17,8 +17,7 @@ import {
   RiOrderPlayFill,
   RiKnifeLine,
   RiCupLine,
-  RiVipDiamondLine,
-  RiStore3Line
+  RiVipDiamondLine
 } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import { Ticket, Users2 } from "lucide-react";

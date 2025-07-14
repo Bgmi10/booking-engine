@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
-import { handleError, responseHandler } from "../utils/helper";
+import { handleError, responseHandler, generateMergedBookingId } from "../utils/helper";
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { dahuaService } from "../services/dahuaService";
@@ -154,7 +154,18 @@ async function handleRefundCreated(event: Stripe.Event) {
         if (ourPaymentIntent.bookings.length > 0) {
             const customerDetails = JSON.parse(ourPaymentIntent.customerData);
             const bookingData = JSON.parse(ourPaymentIntent.bookingData);
-            await sendRefundConfirmationEmail(bookingData, customerDetails, {
+            
+            // Generate confirmation ID for the refund email
+            const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+            const confirmationId = generateMergedBookingId(bookingIds);
+            
+            // Update bookingData with the confirmation ID
+            const updatedBookingData = bookingData.map((booking: any) => ({
+              ...booking,
+              confirmationId: confirmationId
+            }));
+            
+            await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
                 refundId: refund.id,
                 refundAmount: refund.amount / 100,
                 refundCurrency: refund.currency,
@@ -566,7 +577,8 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
         // Parse booking data
         const bookingItems = JSON.parse(ourPaymentIntent.bookingData);
         const customerDetails = JSON.parse(ourPaymentIntent.customerData);
-
+        // Extract customerRequest from Stripe metadata if present
+        const customerRequest = (stripePayment.metadata && stripePayment.metadata.customerRequest) || customerDetails.specialRequests || null;
         // Use transaction to ensure atomicity
         const result = await prisma.$transaction(async (tx) => {
             // Check if customer exists and has stripeCustomerId
@@ -649,7 +661,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
             const createdBookings = await processBookingsInTransaction(
                 tx, 
                 bookingItems,  
-                customerDetails,
+                { ...customerDetails, specialRequests: customerRequest }, // inject customerRequest
                 ourPaymentIntent.id,
                 customer.id,
             ); 

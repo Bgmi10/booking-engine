@@ -1,6 +1,7 @@
 import dotenv from "dotenv"
 import { EmailService } from './emailService';
 import Handlebars from 'handlebars';
+import { generateMergedBookingId } from "../utils/helper";
 
 dotenv.config()
 
@@ -31,6 +32,10 @@ Handlebars.registerHelper('eq', function(a: any, b: any) {
 
 Handlebars.registerHelper('add', function(a: number, b: number) {
   return a + b;
+});
+
+Handlebars.registerHelper('or', function() {
+  return Array.prototype.slice.call(arguments, 0, -1).some(Boolean);
 });
 
 
@@ -81,6 +86,7 @@ interface BookingDetails {
     status: string
     stripeSessionId: string
     taxAmount: number
+    confirmationId?: string; // Added for receipt_url handling
   }
   metadata?: {
     selectedRateOption?: any
@@ -105,7 +111,7 @@ interface CustomerDetails {
 export const sendConsolidatedBookingConfirmation = async (
   bookings: BookingDetails[],
   customerDetails: CustomerDetails,
-  receipt_url: string,
+  receipt_url: string | null,
   voucherInfo?: any
 ) => {
   if (!bookings.length) return;
@@ -194,11 +200,70 @@ export const sendConsolidatedBookingConfirmation = async (
   const subtotal = roomCharges + enhancementsTotal;
 
   try {
-    // Fetch PDF receipt and create attachment
-    const receiptAttachment = await EmailService.createPdfAttachment(
-      receipt_url,
-      `receipt-${firstBooking.id}.pdf`
-    );
+    // Generate confirmation ID using the helper function for consistency
+    const bookingIds = bookings.map(booking => booking.id);
+    const confirmationId = generateMergedBookingId(bookingIds);
+    
+    // Debug logging to help identify payment data issues
+    console.log('Payment data for email:', {
+      totalAmount: payment.totalAmount,
+      amount: payment.amount,
+      taxAmount: payment.taxAmount,
+      currency: payment.currency,
+      paymentMethod: (payment as any).paymentMethod
+    });
+    
+    // Prepare email data
+    const emailData = {
+      confirmationId: confirmationId,
+      customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
+      showCommonDates: allSameCheckIn && allSameCheckOut,
+      checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
+      checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
+      totalNights,
+      totalRooms: bookings.length,
+      totalGuests,
+      amount: (payment.totalAmount || payment.amount || 0).toFixed(2),
+      subtotal: ((payment.totalAmount || payment.amount || 0) - (payment.taxAmount || 0)).toFixed(2), // Subtotal = Total - Tax
+      roomCharges,
+      enhancementsTotal,
+      taxAmount: (payment.taxAmount || 0).toFixed(2), // 10% tax included in total amount
+      currency: payment.currency === 'EUR' ? '€' : (payment.currency || 'EUR').toUpperCase(),
+      paymentStatus: payment.status,
+      paymentMethod: (payment as any).paymentMethod || 'STRIPE',
+      bookings: processedBookings,
+      customerDetails: {
+        firstName: customerDetails.firstName,
+        middleName: customerDetails.middleName,
+        lastName: customerDetails.lastName,
+        email: customerDetails.email,
+        phone: customerDetails.phone,
+        nationality: customerDetails.nationality,
+        specialRequests: customerDetails.specialRequests,
+      },
+      ...(voucherInfo && { voucherInfo }),
+    };
+
+    // Always generate PDF receipt for all payment methods
+    let attachments: any[] = [];
+    
+    if (receipt_url) {
+      try {
+        // Fetch PDF receipt and create attachment for all payment methods
+        const receiptAttachment = await EmailService.createPdfAttachment(
+          receipt_url,
+          `receipt-${confirmationId}.pdf`
+        );
+        attachments = [receiptAttachment];
+      } catch (pdfError) {
+        console.error('Error creating PDF attachment:', pdfError);
+        // Continue without PDF attachment if there's an error
+      }
+    } else {
+      // For cash/bank transfer without Stripe receipt URL, we'll need to generate a custom receipt
+      // This could be implemented by creating a custom receipt endpoint
+      console.log('No receipt URL available for payment method:', (payment as any).paymentMethod);
+    }
 
     await EmailService.sendEmail({
       to: {
@@ -207,40 +272,14 @@ export const sendConsolidatedBookingConfirmation = async (
       },
       templateType: 'BOOKING_CONFIRMATION',
       subject: '', // Will be taken from template
-      templateData: {
-        confirmationId: firstBooking.id,
-        customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
-        showCommonDates: allSameCheckIn && allSameCheckOut,
-        checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
-        checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
-        totalNights,
-        totalRooms: bookings.length,
-        totalGuests,
-        amount: payment.totalAmount,
-        subtotal,
-        roomCharges,
-        enhancementsTotal,
-        taxAmount: payment.taxAmount.toFixed(2), // 10% tax included in total amount
-        currency: payment.currency,
-        paymentStatus: payment.status,
-        bookings: processedBookings,
-        customerDetails: {
-          firstName: customerDetails.firstName,
-          middleName: customerDetails.middleName,
-          lastName: customerDetails.lastName,
-          email: customerDetails.email,
-          phone: customerDetails.phone,
-          nationality: customerDetails.nationality,
-          specialRequests: customerDetails.specialRequests,
-        },
-        ...(voucherInfo && { voucherInfo }),
-      },
-      attachments: [receiptAttachment]
+      templateData: emailData,
+      attachments: attachments
     });
 
-    console.log(`Booking confirmation sent with PDF attachment for booking: ${firstBooking.id}`);
+    console.log(`Booking confirmation sent for booking: ${confirmationId} with payment method: ${(payment as any).paymentMethod || 'STRIPE'}`);
   } catch (error) {
-    console.error('Error sending booking confirmation with PDF attachment:', error);
+    console.error('Error sending booking confirmation:', error);
+    throw error;
   }
 };
 
@@ -263,6 +302,10 @@ export const sendConsolidatedAdminNotification = async (
   const earliestCheckIn = new Date(Math.min(...allCheckInDates.map((d) => d.getTime())));
   const latestCheckOut = new Date(Math.max(...allCheckOutDates.map((d) => d.getTime())));
 
+  // Generate confirmation ID using the helper function for consistency
+  const bookingIds = bookings.map(booking => booking.id);
+  const confirmationId = generateMergedBookingId(bookingIds);
+
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@latorresullaviafrancigena.com';
 
   await EmailService.sendEmail({
@@ -273,7 +316,7 @@ export const sendConsolidatedAdminNotification = async (
     templateType: 'ADMIN_NOTIFICATION',
     subject: '', // Will be taken from template
     templateData: {
-      confirmationId: firstBooking.id,
+      confirmationId: confirmationId,
       customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`,
       totalRooms,
       checkInDate: earliestCheckIn.toLocaleDateString('en-US', {
@@ -351,7 +394,7 @@ export const sendRefundConfirmationEmail = async (
   customerDetails: CustomerDetails,
   refund?: RefundDetail
 ) => {
-  console.log(customerDetails.email)
+  console.log("387", bookings)
   if (!bookings || !bookings.length) return;
 
   // Use the first booking (or extend for multiple if needed)
@@ -428,16 +471,17 @@ export const sendRefundConfirmationEmail = async (
     enhancements: processedEnhancements
   }];
 
-  // Prepare template data
   const templateData: any = {
-    confirmationId: bookingData.id || 'N/A',
+    confirmationId: bookingData.confirmationId || bookingData.id || 'N/A',
     customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
     checkInDate: bookingData.checkIn ? Handlebars.helpers.formatDate(checkIn) : 'N/A',
     checkOutDate: bookingData.checkOut ? Handlebars.helpers.formatDate(checkOut) : 'N/A',
     totalNights: nights > 0 ? nights : 1,
     totalGuests: bookingData.adults || bookingData.totalGuests || 1,
-    currency: (refund && refund.refundCurrency) ? refund.refundCurrency.toUpperCase() : 'EUR',
+    currency: (refund && refund.refundCurrency) ? (refund.refundCurrency === 'EUR' ? '€' : refund.refundCurrency.toUpperCase()) : '€',
     bookings: bookingsForTemplate,
+    paymentMethod: bookingData.paymentMethod || 'STRIPE',
+    isManualRefund: bookingData.paymentMethod === 'CASH' || bookingData.paymentMethod === 'BANK_TRANSFER',
   };
 
   // Only add refund data if it exists

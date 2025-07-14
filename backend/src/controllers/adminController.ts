@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../prisma";
-import { calculateNights, handleError, responseHandler } from "../utils/helper";
+import { calculateNights, handleError, responseHandler, generateMergedBookingId } from "../utils/helper";
 import { comparePassword, hashPassword } from "../utils/bcrypt";
 import { generateToken } from "../utils/jwt";
 import dotenv from "dotenv";
@@ -15,6 +15,7 @@ import { dahuaService } from '../services/dahuaService';
 import { licensePlateCleanupService } from '../services/licensePlateCleanupService';
 import { findOrCreatePrice } from "../config/stripeConfig";
 import { generateOTP } from "../utils/helper";
+import { EmailService } from "../services/emailService";
 
 dotenv.config();
 
@@ -797,7 +798,8 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
         taxAmount, 
         totalAmount, 
         expiresInHours = 72,
-        adminNotes 
+        adminNotes,
+        customerRequest // <-- add this
     } = req.body;
     
     //@ts-ignore
@@ -947,7 +949,8 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
               type: "admin_payment_link",
               taxAmount: taxAmount.toString(),
               totalAmount: totalAmount.toString(),
-              paymentIntentId: paymentIntent.id
+              paymentIntentId: paymentIntent.id,
+              customerRequest: customerRequest || customerDetails.specialRequests || '' // <-- add this
             },
             after_completion: {
                 type: 'redirect',
@@ -960,7 +963,8 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
                 paymentIntentId: paymentIntent.id,
                 customerEmail: customerDetails.email,
                 type: "admin_payment_link",
-                checkout_session_id: "{CHECKOUT_SESSION_ID}" // Add this to ensure we can track the session ID
+                checkout_session_id: "{CHECKOUT_SESSION_ID}",
+                customerRequest: customerRequest || customerDetails.specialRequests || '' // <-- add this
               }
             },
             // Make the payment link single-use
@@ -1000,22 +1004,271 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
         });
 
     } catch (e) {
-        console.error("Admin payment link creation error:", e);
-        handleError(res, e as Error);
+      console.error("Admin payment link creation error:", e);
+      handleError(res, e as Error);
     }
 };
 
+const collectCash = async (req: express.Request, res: express.Response) => {
+  const { 
+    bookingItems, 
+    customerDetails, 
+    taxAmount, 
+    totalAmount, 
+    customerRequest,
+    expiresInHours = 24,
+    adminNotes
+  } = req.body;
+   
+  //@ts-ignore
+  const adminUserId = req.user?.id;
 
-export const refund = async (req: express.Request, res: express.Response) => {
-    const { paymentIntentId, reason, bookingData, customerDetails } = req.body;
+  try {
+    // Check room availability (same as createAdminPaymentLink)
+    for (const booking of bookingItems) {
+      const { checkIn, checkOut, selectedRoom: roomId } = booking;
+
+      const overlappingBookings = await prisma.booking.findFirst({
+        where: {
+          roomId,
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) },
+              status: "CONFIRMED"
+            }
+          ]
+        }
+      });
+
+      if (overlappingBookings) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
+        return;
+      }
+
+      const overlappingHold = await prisma.temporaryHold.findFirst({
+        where: {
+          roomId,
+          expiresAt: { gt: new Date() },
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) }
+            }
+          ]
+        }
+      });
+
+      if (overlappingHold) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
+        return;
+      }
+    }
+
+    // Calculate expiry time
+    const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+
+    // Create PaymentIntent record with CASH payment method
+    const paymentIntent = await prisma.paymentIntent.create({
+      data: {
+        amount: totalAmount,
+        currency: "eur",
+        status: "PENDING",
+        paymentMethod: "CASH",
+        bookingData: JSON.stringify(bookingItems),
+        customerData: JSON.stringify({
+          ...customerDetails,
+          receiveMarketing: customerDetails.receiveMarketing || false,
+        }),
+        taxAmount,
+        totalAmount,
+        createdByAdmin: true,
+        adminUserId,
+        adminNotes: adminNotes || customerRequest || "Cash payment - pending confirmation",
+        expiresAt,
+      }
+    });
+
+    // Create temporary holds
+    await prisma.temporaryHold.createMany({
+      data: bookingItems.map((booking: any) => ({
+        checkIn: new Date(booking.checkIn),
+        checkOut: new Date(booking.checkOut),
+        roomId: booking.selectedRoom,
+        expiresAt,
+        paymentIntentId: paymentIntent.id,
+      }))
+    });
+
+    responseHandler(res, 200, "Cash payment intent created successfully", {
+      paymentIntentId: paymentIntent.id,
+      status: "PENDING",
+      expiresAt: paymentIntent.expiresAt,
+      message: "Payment intent created. Admin needs to confirm the booking after cash collection."
+    });
+
+  } catch (e) {
+    console.error("Cash payment intent creation error:", e);
+    handleError(res, e as Error);
+  }
+}
+
+const createBankTransfer = async (req: express.Request, res: express.Response) => {
+  const { 
+    bookingItems, 
+    customerDetails, 
+    taxAmount, 
+    totalAmount, 
+    customerRequest,
+    bankDetailsId,
+    expiresInHours = 72,
+    adminNotes
+  } = req.body;
+   
+  //@ts-ignore
+  const adminUserId = req.user?.id;
+
+  try {
+    // Get bank details
+    const bankDetails = await prisma.bankDetails.findUnique({
+      where: { id: bankDetailsId }
+    });
+
+    if (!bankDetails) {
+      responseHandler(res, 400, "Bank details not found");
+      return;
+    }
+
+    // Check room availability (same as createAdminPaymentLink)
+    for (const booking of bookingItems) {
+      const { checkIn, checkOut, selectedRoom: roomId } = booking;
+
+      const overlappingBookings = await prisma.booking.findFirst({
+        where: {
+          roomId,
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) },
+              status: "CONFIRMED"
+            }
+          ]
+        }
+      });
+
+      if (overlappingBookings) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
+        return;
+      }
+
+      const overlappingHold = await prisma.temporaryHold.findFirst({
+        where: {
+          roomId,
+          expiresAt: { gt: new Date() },
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) }
+            }
+          ]
+        }
+      });
+
+      if (overlappingHold) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
+        return;
+      }
+    }
+
+    // Create PaymentIntent record with BANK_TRANSFER payment method
+    const paymentIntent = await prisma.paymentIntent.create({
+      data: {
+        amount: totalAmount,
+        currency: "eur",
+        status: "PENDING",
+        paymentMethod: "BANK_TRANSFER",
+        bookingData: JSON.stringify(bookingItems),
+        customerData: JSON.stringify({
+          ...customerDetails,
+          receiveMarketing: customerDetails.receiveMarketing || false,
+        }),
+        taxAmount,
+        totalAmount,
+        createdByAdmin: true,
+        adminUserId,
+        adminNotes: adminNotes || customerRequest || "Bank transfer - pending confirmation",
+        expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000), // 72 hours
+      }
+    });
+
+    // Create temporary holds
+    await prisma.temporaryHold.createMany({
+      data: bookingItems.map((booking: any) => ({
+        checkIn: new Date(booking.checkIn),
+        checkOut: new Date(booking.checkOut),
+        roomId: booking.selectedRoom,
+        expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000), // 72 hours
+        paymentIntentId: paymentIntent.id,
+      }))
+    });
+
+    // Send bank transfer email using EmailService
+    const templateData = {
+      customerName: `${customerDetails.firstName} ${customerDetails.lastName}`,
+      totalAmount: totalAmount.toFixed(2),
+      expiresAt: paymentIntent.expiresAt?.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) || '72 hours from now',
+      paymentIntentId: paymentIntent.id,
+      bankName: bankDetails.bankName,
+      accountName: bankDetails.accountName,
+      accountNumber: bankDetails.accountNumber,
+      iban: bankDetails.iban,
+      swiftCode: bankDetails.swiftCode,
+      routingNumber: bankDetails.routingNumber,
+      bookingDetails: bookingItems.map((booking: any) => ({
+        roomDetails: booking.roomDetails,
+        checkIn: new Date(booking.checkIn).toLocaleDateString(),
+        checkOut: new Date(booking.checkOut).toLocaleDateString(),
+        adults: booking.adults,
+        totalPrice: booking.totalPrice.toFixed(2)
+      }))
+    };
+
+    await EmailService.sendEmail({
+      to: { 
+        email: customerDetails.email, 
+        name: `${customerDetails.firstName} ${customerDetails.lastName}` 
+      },
+      templateType: 'BANK_TRANSFER_INSTRUCTIONS',
+      templateData
+    });
+
+    responseHandler(res, 200, "Bank transfer payment intent created and email sent", {
+      paymentIntentId: paymentIntent.id,
+      status: "PENDING",
+      expiresAt: paymentIntent.expiresAt,
+      message: "Bank transfer instructions sent to customer. Admin needs to confirm the booking after payment verification."
+    });
+
+  } catch (e) {
+    console.error("Bank transfer payment intent creation error:", e);
+    handleError(res, e as Error);
+  }
+}
+
+const refund = async (req: express.Request, res: express.Response) => {
+    const { paymentIntentId, reason, bookingData, customerDetails, paymentMethod } = req.body;
   
     if (!paymentIntentId) {
       responseHandler(res, 400, "Payment Intent ID is required");
       return;
     }
 
-    console.log("logged from adminController", customerDetails);
-  
     try {
         // Find the payment intent in our database
         const ourPaymentIntent = await prisma.paymentIntent.findUnique({
@@ -1029,18 +1282,70 @@ export const refund = async (req: express.Request, res: express.Response) => {
               payments: true
             }
         });
-  
+
         if (!ourPaymentIntent) {
           responseHandler(res, 404, "Payment Intent not found");
           return;
         }
-  
+
+        // Manual refund for CASH or BANK_TRANSFER
+        if (paymentMethod === "CASH" || paymentMethod === "BANK_TRANSFER") {
+            await prisma.$transaction(async (tx) => {
+              // Update payment intent status
+              await tx.paymentIntent.update({
+                  where: { id: paymentIntentId },
+                  data: { 
+                    status: "REFUNDED",
+                    adminNotes: reason || `Refunded manually by admin (${paymentMethod})`
+                  }
+              });
+
+              // Update all related bookings to refunded
+              await tx.booking.updateMany({
+                where: { paymentIntentId: paymentIntentId },
+                data: { status: "REFUNDED" }
+              });
+
+              // Update payment record if exists
+              await tx.payment.updateMany({
+                where: { paymentIntentId: paymentIntentId },
+                data: { status: "REFUNDED" }
+              });
+
+              // Remove temporary holds
+              await tx.temporaryHold.deleteMany({
+                where: { paymentIntentId: paymentIntentId }
+              });
+            });
+
+            // Generate confirmation ID for the refund email
+            const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+            const confirmationId = generateMergedBookingId(bookingIds);
+            // Update bookingData with the confirmation ID and paymentMethod
+            const updatedBookingData = bookingData.map((booking: any) => ({
+              ...booking,
+              confirmationId: confirmationId,
+              paymentMethod: paymentMethod
+            }));
+
+            await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
+              refundId: `manual-${paymentIntentId}`,
+              refundAmount: ourPaymentIntent.totalAmount || ourPaymentIntent.amount,
+              refundCurrency: ourPaymentIntent.currency || 'EUR',
+              refundReason: reason || `Refunded manually by admin (${paymentMethod})`
+            });
+
+            responseHandler(res, 200, "Manual refund processed successfully", {
+              type: "manual_refund",
+              paymentIntentId: paymentIntentId
+            });
+            return;
+        }
+
         if (
             (ourPaymentIntent.status === "CREATED" || 
              ourPaymentIntent.status === "PAYMENT_LINK_SENT" || 
              ourPaymentIntent.status === "PENDING")) {
-            
-            console.log("Canceling unpaid admin-created payment intent:", paymentIntentId);
             
             // Cancel the Stripe payment intent if it exists
             if (ourPaymentIntent.stripePaymentIntentId) {
@@ -1074,7 +1379,17 @@ export const refund = async (req: express.Request, res: express.Response) => {
                 where: { paymentIntentId: paymentIntentId }
               });
             });
-          await sendRefundConfirmationEmail(bookingData, customerDetails);
+
+            // Generate confirmation ID for the refund email
+            const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+            const confirmationId = generateMergedBookingId(bookingIds);
+            // Update bookingData with the confirmation ID
+            const updatedBookingData = bookingData.map((booking: any) => ({
+              ...booking,
+              confirmationId: confirmationId
+            }));
+
+            await sendRefundConfirmationEmail(updatedBookingData, customerDetails);
   
           responseHandler(res, 200, "Payment intent cancelled successfully", {
             type: "cancellation",
@@ -1130,14 +1445,15 @@ export const refund = async (req: express.Request, res: express.Response) => {
     }
 };
 
-export const getAllPaymentIntent = async (req: express.Request, res: express.Response) => {
+const getAllPaymentIntent = async (req: express.Request, res: express.Response) => {
 
   try {
     const paymentIntent = await prisma.paymentIntent.findMany({
       include: {
         bookings: {
           select: {
-            id: true
+            id: true,
+            request: true
           }
         }
       }
@@ -1148,7 +1464,7 @@ export const getAllPaymentIntent = async (req: express.Request, res: express.Res
   }
 }
 
-export const deletePaymentIntent = async (req: express.Request, res: express.Response) => {
+const deletePaymentIntent = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
 
   if (!id) {
@@ -1192,27 +1508,50 @@ export const sendConfirmationEmail = async (req: express.Request, res: express.R
       responseHandler(res, 404, "Payment intent not found");
       return;
     }
+
     const parsedCustomerDetails = JSON.parse(paymentIntent.customerData);
-    const receipt_url = `${baseUrl}/sessions/${paymentIntent.stripeSessionId}/receipt`;
+    
+    // Generate merged booking ID for confirmation
+    const bookingIds = paymentIntent.bookings.map(booking => booking.id);
+    const confirmationId = generateMergedBookingId(bookingIds);
+    
+    // Handle different payment methods - always generate receipt URL
+    let receipt_url: string;
+    
+    if (paymentIntent.paymentMethod === 'STRIPE' && paymentIntent.stripeSessionId) {
+      // For Stripe payments, use the existing receipt URL
+      receipt_url = `${baseUrl}/sessions/${paymentIntent.stripeSessionId}/receipt`;
+    } else if (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER') {
+      // For cash and bank transfer, create a custom receipt URL
+      receipt_url = `${baseUrl}/sessions/receipts/${paymentIntent.id}`;
+    } else {
+      // Fallback for any other payment methods
+      receipt_url = `${baseUrl}/sessions/receipts/${paymentIntent.id}`;
+    }
+
     const bookingsWithPaymentIntent = paymentIntent.bookings.map(booking => ({
       ...booking,
       paymentIntent: {
         amount: paymentIntent.amount,
+        totalAmount: paymentIntent.totalAmount, // Add this field
         currency: paymentIntent.currency,
         status: paymentIntent.status,
         stripeSessionId: paymentIntent.stripeSessionId,
-        taxAmount: paymentIntent.taxAmount
+        taxAmount: paymentIntent.taxAmount,
+        paymentMethod: paymentIntent.paymentMethod,
+        confirmationId: confirmationId
       }
     }));
 
+    // Send confirmation email with PDF attachment for all payment methods
     //@ts-ignore
     await sendConsolidatedBookingConfirmation(bookingsWithPaymentIntent, parsedCustomerDetails, receipt_url);
-    responseHandler(res, 200, "Confimation email sent successfully");
+    
+    responseHandler(res, 200, "Confirmation email sent successfully");
   } catch (e) {
     console.log(e);
     handleError(res, e as Error);
   }
-
 }
 
 export const getAllBookingsRestriction = async (req: express.Request, res: express.Response) => {
@@ -1476,6 +1815,253 @@ const getNotificationAssignableUsers = async (req: express.Request, res: express
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink };
+// Bank Details CRUD functions
+const getAllBankDetails = async (req: express.Request, res: express.Response) => {
+  try {
+    const bankDetails = await prisma.bankDetails.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    responseHandler(res, 200, "Bank details retrieved successfully", bankDetails);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+const createBankDetails = async (req: express.Request, res: express.Response) => {
+  const { name, bankName, accountName, accountNumber, iban, swiftCode, routingNumber } = req.body;
+
+  try {
+    const bankDetails = await prisma.bankDetails.create({
+      data: {
+        name,
+        bankName,
+        accountName,
+        accountNumber,
+        iban,
+        swiftCode,
+        routingNumber
+      }
+    });
+    responseHandler(res, 200, "Bank details created successfully", bankDetails);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+const updateBankDetails = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { name, bankName, accountName, accountNumber, iban, swiftCode, routingNumber, isActive } = req.body;
+
+  try {
+    const bankDetails = await prisma.bankDetails.update({
+      where: { id },
+      data: {
+        name,
+        bankName,
+        accountName,
+        accountNumber,
+        iban,
+        swiftCode,
+        routingNumber,
+        isActive
+      }
+    });
+    responseHandler(res, 200, "Bank details updated successfully", bankDetails);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+const deleteBankDetails = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.bankDetails.delete({
+      where: { id }
+    });
+    responseHandler(res, 200, "Bank details deleted successfully");
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+// Confirm booking function
+const confirmBooking = async (req: express.Request, res: express.Response) => {
+  const { paymentIntentId, customerRequest } = req.body;
+
+  if (!paymentIntentId) {
+    responseHandler(res, 400, "Payment Intent ID is required");
+    return;
+  }
+
+  try {
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      include: {
+        bookings: true
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment Intent not found");
+      return;
+    }
+
+    if (paymentIntent.status !== "PENDING") {
+      responseHandler(res, 400, "Payment Intent is not in PENDING status");
+      return;
+    }
+
+    // Update payment intent status to SUCCEEDED
+    await prisma.paymentIntent.update({
+      where: { id: paymentIntentId },
+      data: { status: "SUCCEEDED" }
+    });
+
+    // Parse booking data and customer data
+    const bookingData = JSON.parse(paymentIntent.bookingData);
+    const customerData = JSON.parse(paymentIntent.customerData);
+
+    // Create or find customer
+    let customer = await prisma.customer.findUnique({
+      where: { guestEmail: customerData.email }
+    });
+
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          guestFirstName: customerData.firstName,
+          guestMiddleName: customerData.middleName,
+          guestLastName: customerData.lastName,
+          guestEmail: customerData.email,
+          guestPhone: customerData.phone,
+          guestNationality: customerData.nationality,
+          accountActivated: true,
+          emailVerified: true
+        }
+      });
+    }
+
+    // Create bookings
+    const createdBookings = [];
+    for (const bookingItem of bookingData) {
+      const booking = await prisma.booking.create({
+        data: {
+          roomId: bookingItem.selectedRoom,
+          checkIn: new Date(bookingItem.checkIn),
+          checkOut: new Date(bookingItem.checkOut),
+          totalGuests: bookingItem.adults,
+          status: "CONFIRMED",
+          customerId: customer.id,
+          paymentIntentId: paymentIntent.id,
+          request: customerRequest || customerData.specialRequests || null, // <-- use customerRequest if provided
+          carNumberPlate: customerData.carNumberPlate,
+          groupId: customerData.groupId
+        }
+      });
+      createdBookings.push(booking);
+    }
+
+    // Remove temporary holds
+    await prisma.temporaryHold.deleteMany({
+      where: { paymentIntentId }
+    });
+
+    responseHandler(res, 200, "Booking confirmed successfully", {
+      paymentIntentId,
+      bookings: createdBookings,
+      customer
+    });
+
+  } catch (e) {
+    console.error("Error confirming booking:", e);
+    handleError(res, e as Error);
+  }
+};
+
+const resendBankTransferInstructions = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Payment Intent ID is required");
+    return;
+  }
+
+  try {
+    // Find the payment intent
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id },
+      include: {
+        bookings: {
+          include: { room: true }
+        }
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+
+    if (paymentIntent.paymentMethod !== 'BANK_TRANSFER') {
+      responseHandler(res, 400, "This action is only available for bank transfer payment methods.");
+      return;
+    }
+
+    // Get customer details
+    const customerDetails = JSON.parse(paymentIntent.customerData);
+    const bookingItems = JSON.parse(paymentIntent.bookingData);
+
+    // Get bank details (assuming only one set of bank details is used)
+    const bankDetails = await prisma.bankDetails.findFirst({});
+    if (!bankDetails) {
+      responseHandler(res, 400, "Bank details not found");
+      return;
+    }
+
+    // Prepare template data
+    const templateData = {
+      customerName: `${customerDetails.firstName} ${customerDetails.lastName}`,
+      totalAmount: paymentIntent.totalAmount?.toFixed(2) || paymentIntent.amount?.toFixed(2) || '0.00',
+      expiresAt: paymentIntent.expiresAt?.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) || '72 hours from now',
+      paymentIntentId: paymentIntent.id,
+      bankName: bankDetails.bankName,
+      accountName: bankDetails.accountName,
+      accountNumber: bankDetails.accountNumber,
+      iban: bankDetails.iban,
+      swiftCode: bankDetails.swiftCode,
+      routingNumber: bankDetails.routingNumber,
+      bookingDetails: bookingItems.map((booking: any) => ({
+        roomDetails: booking.roomDetails || booking.room,
+        checkIn: new Date(booking.checkIn).toLocaleDateString(),
+        checkOut: new Date(booking.checkOut).toLocaleDateString(),
+        adults: booking.adults,
+        totalPrice: booking.totalPrice?.toFixed(2) || '0.00'
+      }))
+    };
+
+    await EmailService.sendEmail({
+      to: {
+        email: customerDetails.email,
+        name: `${customerDetails.firstName} ${customerDetails.lastName}`
+      },
+      templateType: 'BANK_TRANSFER_INSTRUCTIONS',
+      templateData
+    });
+
+    responseHandler(res, 200, "Bank transfer instructions resent successfully");
+  } catch (e) {
+    console.error("Error resending bank transfer instructions:", e);
+    handleError(res, e as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions };
 
 

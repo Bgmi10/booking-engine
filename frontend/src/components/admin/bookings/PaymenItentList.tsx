@@ -22,6 +22,7 @@ export default function PaymentIntentsList({
   selectionMode = false,
   selectedBookingIds = [],
   onBookingSelect = () => {},
+  onConfirmBooking,
 }: PaymentIntentsListProps & {
   selectionMode?: boolean;
   selectedBookingIds?: string[];
@@ -73,6 +74,7 @@ export default function PaymentIntentsList({
           selectionMode={selectionMode}
           selectedBookingIds={selectedBookingIds}
           onBookingSelect={onBookingSelect}
+          onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
         />
       ))}
     </div>
