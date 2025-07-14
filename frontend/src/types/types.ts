@@ -93,6 +93,7 @@ export interface PaymentIntent {
     request?: string // Add request field for customer notes
   }>
   paymentMethod?: PaymentMethod
+  actualPaymentMethod?: PaymentMethod // STRIPE | BANK_TRANSFER | CASH
 }
 
 export interface Booking {

@@ -196,6 +196,7 @@ model PaymentIntent {
   currency              String              @default("eur")
   status                PaymentIntentStatus @default(CREATED)
   paymentMethod         PaymentMethod?      @default(STRIPE)
+  actualPaymentMethod   PaymentMethod?      // what was actually used
   bookingData           String           
   customerData          String          
   taxAmount             Float

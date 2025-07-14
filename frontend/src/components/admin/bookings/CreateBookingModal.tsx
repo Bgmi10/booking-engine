@@ -11,6 +11,8 @@ import BookingItemsList from "./BookingItemsList"
 import TotalAmountSummary from "./TotalAmountSummary"
 import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
+import DateSelector from "../../DateSelector";
+import toast from 'react-hot-toast';
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
@@ -60,8 +62,6 @@ export function CreateBookingModal({
   ])
 
   const [loadingAction, setLoadingAction] = useState(false)
-  const [localError, setLocalError] = useState("")
-  const [localSuccess, setLocalSuccess] = useState("")
   const [rooms, setRooms] = useState<Room[]>([])
   const [loadingRooms, setLoadingRooms] = useState(false)
   const [enhancements, setEnhancements] = useState<Enhancement[]>([])
@@ -70,6 +70,80 @@ export function CreateBookingModal({
   const [isSelectCustomerModalOpen, setIsSelectCustomerModalOpen] = useState(false)
   // Add admin notes state
   const [adminNotes, setAdminNotes] = useState("");
+
+  // Add state for calendar and availability
+  const [calenderOpen, setCalenderOpen] = useState(false);
+  const [availabilityData, setAvailabilityData] = useState({
+    fullyBookedDates: [],
+    partiallyBookedDates: [],
+    availableDates: [],
+    minStayDays: 0,
+    taxPercentage: 0.1,
+    restrictedDates: [],
+    dateRestrictions: {}
+  });
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+
+  // Fetch availability data for calendar
+  const fetchCalendarAvailability = async (startDate: string, endDate: string) => {
+    setIsLoadingAvailability(true);
+    try {
+      const response = await fetch(
+        `${baseUrl}/rooms/availability/calendar?startDate=${startDate}&endDate=${endDate}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        }
+      );
+      if (!response.ok) throw new Error("Failed to fetch availability");
+      const result = await response.json();
+      if (result.data) {
+        setAvailabilityData(prev => ({
+          ...prev,
+          ...result.data,
+          minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
+          taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
+        }));
+      }
+    } catch (e) {
+      setAvailabilityData({
+        fullyBookedDates: [],
+        partiallyBookedDates: [],
+        availableDates: [],
+        minStayDays: 0,
+        taxPercentage: 0.1,
+        restrictedDates: [],
+        dateRestrictions: {}
+      });
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
+  // Open calendar and fetch availability for next 2 months
+  const handleOpenCalendar = () => {
+    setCalenderOpen(true);
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    const formatDateForAPI = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    fetchCalendarAvailability(formatDateForAPI(startOfMonth), formatDateForAPI(endOfMonth));
+  };
+
+  // Date selection handler for booking item 0 (single booking flow)
+  const handleDateSelect = ({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) => {
+    setBookingItems(prev => prev.map((item, idx) => idx === 0 ? {
+      ...item,
+      checkIn: startDate ? startDate.toISOString().split("T")[0] : "",
+      checkOut: endDate ? endDate.toISOString().split("T")[0] : "",
+    } : item));
+  };
 
   // Handle nationality change and update phone code
   const handleNationalityChange = (countryCode: string) => {
@@ -115,7 +189,7 @@ export function CreateBookingModal({
       }
     } catch (error) {
       console.error(error)
-      setLocalError("Failed to load rooms. Please try again.")
+      toast.error("Failed to load rooms. Please try again.")
     } finally {
       setLoadingRooms(false)
     }
@@ -170,21 +244,6 @@ export function CreateBookingModal({
     (async () => {
       await Promise.all([fetchRooms(), fetchAllEnhancements(), fetchBankDetails()])
     })();
-  }, [])
-
-  // Set default dates
-  useEffect(() => {
-    const today = new Date()
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    setBookingItems((prev) =>
-      prev.map((item) => ({
-        ...item,
-        checkIn: today.toISOString().split("T")[0],
-        checkOut: tomorrow.toISOString().split("T")[0],
-      })),
-    )
   }, [])
 
   // Calculate total amount
@@ -554,7 +613,7 @@ const createBooking = async () => {
   
   if (!validation.isValid) {
     if (validation.error) {
-      setLocalError(validation.error);
+      toast.error(validation.error);
     }
     setBookingItems(validation.updatedItems);
     return;
@@ -562,19 +621,18 @@ const createBooking = async () => {
 
   // Validate bank transfer selection
   if (paymentMethod === 'BANK_TRANSFER' && !selectedBankId) {
-    setLocalError("Please select a bank account for bank transfer");
+    toast.error("Please select a bank account for bank transfer");
     return;
   }
 
   // Clear any previous errors
-  setLocalError("");
-  
+  setBookingItems(validation.updatedItems); // Ensure items are updated with errors
+
   // Calculate hours until expiry
   const finalExpiryHours =
     expiryMode === "hours" ? expiresInHours : Math.max(1, differenceInHours(expiryDate, new Date()));
 
   setLoadingAction(true);
-  setLocalSuccess("");
 
   try {
     let endpoint = '';
@@ -596,6 +654,7 @@ const createBooking = async () => {
         endpoint = `${baseUrl}/admin/bookings/create-payment-link`;
         requestBody.expiresInHours = finalExpiryHours;
         requestBody.adminNotes = adminNotes;
+        requestBody.bankDetailsId = selectedBankId;
         break;
       case 'CASH':
         endpoint = `${baseUrl}/admin/bookings/collect-cash`;
@@ -630,7 +689,7 @@ const createBooking = async () => {
           prev.map((item) => (item.roomDetails?.name === roomName ? { ...item, error: data.message } : item)),
         );
       } else {
-        setLocalError(data.message || "Failed to create booking");
+        toast.error(data.message || "Failed to create booking");
       }
       throw new Error(data.message || "Failed to create booking");
     }
@@ -648,7 +707,7 @@ const createBooking = async () => {
         break;
     }
 
-    setLocalSuccess(successMessage);
+    toast.success(successMessage);
     setTimeout(() => {
       fetchBookings();  
       setIsCreateModalOpen(false);
@@ -656,7 +715,7 @@ const createBooking = async () => {
   } catch (error: any) {
     console.error(error);
     if (!error.message.includes("is not available for these dates")) {
-      setLocalError(error.message || "Failed to create booking. Please try again.");
+      toast.error(error.message || "Failed to create booking. Please try again.");
     }
   } finally {
     setLoadingAction(false);
@@ -693,31 +752,6 @@ const createBooking = async () => {
         </div>
 
         <div className="p-6">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Select Existing Customer Button */}
           <div className="mb-4">
@@ -748,6 +782,8 @@ const createBooking = async () => {
             onSelect={handleSelectCustomer}
           />
 
+       
+
           {/* Booking Items Section */}
           <BookingItemsList
             bookingItems={bookingItems}
@@ -761,6 +797,9 @@ const createBooking = async () => {
             getRateOptions={getRateOptions}
             selectRateOption={selectRateOption}
             addBookingItem={addBookingItem}
+            availabilityData={availabilityData}
+            isLoadingAvailability={isLoadingAvailability}
+            fetchCalendarAvailability={fetchCalendarAvailability}
           />
 
           {/* Total Amount Display */}
@@ -824,7 +863,7 @@ const createBooking = async () => {
             </div>
 
             {/* Bank Selection for Bank Transfer */}
-            {paymentMethod === 'BANK_TRANSFER' && (
+            {(paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'STRIPE') && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Bank Account

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -122,6 +122,9 @@ adminRouter.post('/bookings/collect-cash', authMiddleware, collectCash);
 adminRouter.post('/bookings/bank-transfer', authMiddleware, createBankTransfer);
 
 adminRouter.post('/bookings/confirm-booking', authMiddleware, confirmBooking);
+
+// New endpoint for confirming actual payment method (hybrid Stripe/Bank Transfer)
+adminRouter.put('/bookings/:id/confirm-payment-method', authMiddleware, confirmPaymentMethod);
 
 adminRouter.post('/bookings/:id/resend-bank-transfer', authMiddleware, resendBankTransferInstructions);
 

@@ -364,9 +364,7 @@ export const sendConsolidatedAdminNotification = async (
 };
 
 export const sendPaymentLinkEmail = async (bookingItems: any) => {
-  const { email, name, paymentLink, expiresAt } = bookingItems;
-
-  console.log(email)
+  const { email, name, paymentLink, expiresAt, bankName, accountName, accountNumber, iban, swiftCode, routingNumber } = bookingItems;
 
   await EmailService.sendEmail({
     to: {
@@ -385,6 +383,12 @@ export const sendPaymentLinkEmail = async (bookingItems: any) => {
         hour: '2-digit',
         minute: '2-digit',
       }),
+      bankName: bankName || '',
+      accountName: accountName || '',
+      accountNumber: accountNumber || '',
+      iban: iban || '',
+      swiftCode: swiftCode || '',
+      routingNumber: routingNumber || ''
     },
   });
 };

@@ -792,221 +792,208 @@ const getGeneralSettings = async (req: express.Request, res: express.Response) =
 }
 
 const createAdminPaymentLink = async (req: express.Request, res: express.Response) => {
-    const { 
-        bookingItems, 
-        customerDetails, 
-        taxAmount, 
-        totalAmount, 
-        expiresInHours = 72,
-        adminNotes,
-        customerRequest // <-- add this
-    } = req.body;
-    
-    //@ts-ignore
-    const adminUserId = req.user?.id;
+  const { 
+    bookingItems, 
+    customerDetails, 
+    taxAmount, 
+    totalAmount, 
+    expiresInHours = 72,
+    adminNotes,
+    customerRequest, // <-- add this
+    bankDetailsId // <-- get from frontend
+  } = req.body;
+  //@ts-ignore
+  const adminUserId = req.user?.id;
 
-    try {
-        // Check room availability (same as before)
-        for (const booking of bookingItems) {
-            const { checkIn, checkOut, selectedRoom: roomId } = booking;
-
-            const overlappingBookings = await prisma.booking.findFirst({
-                where: {
-                    roomId,
-                    OR: [
-                        {
-                          checkIn: { lte: new Date(checkOut) },
-                          checkOut: { gte: new Date(checkIn) },
-                          status: "CONFIRMED"
-                        }
-                    ]
-                }
-            });
-
-            if (overlappingBookings) {
-                responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
-                return;
+  try {
+    // Check room availability (same as before)
+    for (const booking of bookingItems) {
+      const { checkIn, checkOut, selectedRoom: roomId } = booking;
+      const overlappingBookings = await prisma.booking.findFirst({
+        where: {
+          roomId,
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) },
+              status: "CONFIRMED"
             }
-
-            const overlappingHold = await prisma.temporaryHold.findFirst({
-                where: {
-                    roomId,
-                    expiresAt: { gt: new Date() },
-                    OR: [
-                        {
-                            checkIn: { lte: new Date(checkOut) },
-                            checkOut: { gte: new Date(checkIn) }
-                        }
-                    ]
-                }
-            });
-
-            if (overlappingHold) {
-                responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
-                return;
-            }
+          ]
         }
-
-        const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
-
-        // Create PaymentIntent record
-        const paymentIntent = await prisma.paymentIntent.create({
-            data: {
-                amount: totalAmount,
-                currency: "eur",
-                status: "CREATED",
-                bookingData: JSON.stringify(bookingItems),
-                customerData: JSON.stringify({
-                    ...customerDetails,
-                    receiveMarketing: customerDetails.receiveMarketing || false,
-                }),
-                taxAmount,
-                totalAmount,
-                createdByAdmin: true,
-                adminUserId,
-                adminNotes,
-                expiresAt,
+      });
+      if (overlappingBookings) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is not available for these dates`);
+        return;
+      }
+      const overlappingHold = await prisma.temporaryHold.findFirst({
+        where: {
+          roomId,
+          expiresAt: { gt: new Date() },
+          OR: [
+            {
+              checkIn: { lte: new Date(checkOut) },
+              checkOut: { gte: new Date(checkIn) }
             }
-        });
-
-        // Create temporary holds
-        await prisma.temporaryHold.createMany({
-            data: bookingItems.map((booking: any) => ({
-                checkIn: new Date(booking.checkIn),
-                checkOut: new Date(booking.checkOut),
-                roomId: booking.selectedRoom,
-                expiresAt,
-                paymentIntentId: paymentIntent.id,
-            }))
-        });
-
-        // Build line items
-        const line_items: { price: string; quantity: number; }[] = [];
-        
-        await Promise.all(bookingItems.map(async (booking: any, index: number) => {
-            const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
-            const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
-            const totalRoomPrice = roomRatePerNight * numberOfNights;
-            
-            // Create room price with unique booking index
-            const roomPriceId = await findOrCreatePrice({
-                name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
-                description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
-                unitAmount: Math.round(totalRoomPrice * 100),
-                currency: "eur",
-                images: booking.roomDetails.images.length > 0 ? booking.roomDetails.images.map((image: any) => encodeURI(image.url.trim())) : ["https://www.shutterstock.com/search/no-picture-available"],
-                dates: {
-                    checkIn: new Date(booking.checkIn).toISOString().split('T')[0],
-                    checkOut: new Date(booking.checkOut).toISOString().split('T')[0]
-                },
-                rateOption: booking.selectedRateOption,
-                bookingIndex: index
-            });
-
-            line_items.push({
-                price: roomPriceId,
-                quantity: booking.rooms,
-            });
-
-            // Handle enhancements
-            if (booking.selectedEnhancements) {
-                await Promise.all(booking.selectedEnhancements.map(async (enhancement: any, enhancementIndex: number) => {
-                    let enhancementQuantity = 1;
-                    
-                    if (enhancement.pricingType === "PER_GUEST") {
-                        enhancementQuantity = booking.adults * booking.rooms;
-                    } else if (enhancement.pricingType === "PER_ROOM") {
-                        enhancementQuantity = booking.rooms;
-                    } else if (enhancement.pricingType === "PER_NIGHT") {
-                        enhancementQuantity = numberOfNights * booking.rooms;
-                    } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
-                        enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
-                    }
-
-                    // Create enhancement price with unique booking and enhancement index
-                    const enhancementPriceId = await findOrCreatePrice({
-                        name: enhancement.title,
-                        description: `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`,
-                        unitAmount: Math.round(enhancement.price * 100),
-                        currency: "eur",
-                        images: enhancement.image ? [enhancement.image] : undefined,
-                        bookingIndex: index * 1000 + enhancementIndex // Make sure enhancement index is unique
-                    });
-
-                    line_items.push({
-                        price: enhancementPriceId,
-                        quantity: enhancementQuantity,
-                    });
-                }));
-            }
-        }));
-
-        // Create Payment Link with aggregated line items
-        const paymentLink = await stripe.paymentLinks.create({
-            line_items,
-            metadata: {
-              customerEmail: customerDetails.email,
-              type: "admin_payment_link",
-              taxAmount: taxAmount.toString(),
-              totalAmount: totalAmount.toString(),
-              paymentIntentId: paymentIntent.id,
-              customerRequest: customerRequest || customerDetails.specialRequests || '' // <-- add this
-            },
-            after_completion: {
-                type: 'redirect',
-                redirect: {
-                    url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`
-                }
-            },
-            payment_intent_data: {
-              metadata: {
-                paymentIntentId: paymentIntent.id,
-                customerEmail: customerDetails.email,
-                type: "admin_payment_link",
-                checkout_session_id: "{CHECKOUT_SESSION_ID}",
-                customerRequest: customerRequest || customerDetails.specialRequests || '' // <-- add this
-              }
-            },
-            // Make the payment link single-use
-            allow_promotion_codes: false,
-            // Set to inactive after one successful payment
-            restrictions: {
-                completed_sessions: { limit: 1 }
-            }
-        });
-
-        // After successful payment link creation, update the payment intent status
-        await prisma.paymentIntent.update({
-            where: { id: paymentIntent.id },
-            data: {
-              status: "PAYMENT_LINK_SENT",
-              stripePaymentLinkId: paymentLink.id // Store the payment link ID
-            }
-        });
-        
-        const route = `/payment-intent/${paymentIntent.id}/check-status`
-        const paymentLinkUrl = process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL + route : process.env.FRONTEND_PROD_URL + route 
-    
-        await sendPaymentLinkEmail({
-            email: customerDetails.email,
-            name: `${customerDetails.firstName} ${customerDetails.lastName}`,
-            paymentLink: paymentLinkUrl,
-            bookingDetails: bookingItems,
-            totalAmount,
-            expiresAt
-        });
-
-        responseHandler(res, 200, "Payment link created and sent to customer", {
-            paymentIntentId: paymentIntent.id,
-            paymentLinkUrl: paymentLink.url,
-            expiresAt,
-            status: "PAYMENT_LINK_SENT"
-        });
-
-    } catch (e) {
-      console.error("Admin payment link creation error:", e);
-      handleError(res, e as Error);
+          ]
+        }
+      });
+      if (overlappingHold) {
+        responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
+        return;
+      }
     }
+    const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+    // Create PaymentIntent record
+    const paymentIntent = await prisma.paymentIntent.create({
+      data: {
+        amount: totalAmount,
+        currency: "eur",
+        status: "CREATED",
+        bookingData: JSON.stringify(bookingItems),
+        customerData: JSON.stringify({
+          ...customerDetails,
+          receiveMarketing: customerDetails.receiveMarketing || false,
+        }),
+        taxAmount,
+        totalAmount,
+        createdByAdmin: true,
+        adminUserId,
+        adminNotes,
+        expiresAt,
+      }
+    });
+    await prisma.temporaryHold.createMany({
+      data: bookingItems.map((booking: any) => ({
+        checkIn: new Date(booking.checkIn),
+        checkOut: new Date(booking.checkOut),
+        roomId: booking.selectedRoom,
+        expiresAt,
+        paymentIntentId: paymentIntent.id,
+      }))
+    });
+    // Build line items
+    const line_items: { price: string; quantity: number; }[] = [];
+    await Promise.all(bookingItems.map(async (booking: any, index: number) => {
+      const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
+      const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
+      const totalRoomPrice = roomRatePerNight * numberOfNights;
+      const roomPriceId = await findOrCreatePrice({
+        name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
+        description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
+        unitAmount: Math.round(totalRoomPrice * 100),
+        currency: "eur",
+        images: booking.roomDetails.images.length > 0 ? booking.roomDetails.images.map((image: any) => encodeURI(image.url.trim())) : ["https://www.shutterstock.com/search/no-picture-available"],
+        dates: {
+          checkIn: new Date(booking.checkIn).toISOString().split('T')[0],
+          checkOut: new Date(booking.checkOut).toISOString().split('T')[0]
+        },
+        rateOption: booking.selectedRateOption,
+        bookingIndex: index
+      });
+      line_items.push({
+        price: roomPriceId,
+        quantity: booking.rooms,
+      });
+      if (booking.selectedEnhancements) {
+        await Promise.all(booking.selectedEnhancements.map(async (enhancement: any, enhancementIndex: number) => {
+          let enhancementQuantity = 1;
+          if (enhancement.pricingType === "PER_GUEST") {
+            enhancementQuantity = booking.adults * booking.rooms;
+          } else if (enhancement.pricingType === "PER_ROOM") {
+            enhancementQuantity = booking.rooms;
+          } else if (enhancement.pricingType === "PER_NIGHT") {
+            enhancementQuantity = numberOfNights * booking.rooms;
+          } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
+            enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
+          }
+          const enhancementPriceId = await findOrCreatePrice({
+            name: enhancement.title,
+            description: `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`,
+            unitAmount: Math.round(enhancement.price * 100),
+            currency: "eur",
+            images: enhancement.image ? [enhancement.image] : undefined,
+            bookingIndex: index * 1000 + enhancementIndex
+          });
+          line_items.push({
+            price: enhancementPriceId,
+            quantity: enhancementQuantity,
+          });
+        }));
+      }
+    }));
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items,
+      metadata: {
+        customerEmail: customerDetails.email,
+        type: "admin_payment_link",
+        taxAmount: taxAmount.toString(),
+        totalAmount: totalAmount.toString(),
+        paymentIntentId: paymentIntent.id,
+        customerRequest: customerRequest || customerDetails.specialRequests || ''
+      },
+      after_completion: {
+        type: 'redirect',
+        redirect: {
+          url: `${process.env.NODE_ENV === "local" ? devUrl : prodUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`
+        }
+      },
+      payment_intent_data: {
+        metadata: {
+          paymentIntentId: paymentIntent.id,
+          customerEmail: customerDetails.email,
+          type: "admin_payment_link",
+          checkout_session_id: "{CHECKOUT_SESSION_ID}",
+          customerRequest: customerRequest || customerDetails.specialRequests || ''
+        }
+      },
+      allow_promotion_codes: false,
+      restrictions: {
+        completed_sessions: { limit: 1 }
+      }
+    });
+    await prisma.paymentIntent.update({
+      where: { id: paymentIntent.id },
+      data: {
+        status: "PAYMENT_LINK_SENT",
+        stripePaymentLinkId: paymentLink.id
+      }
+    });
+    const route = `/payment-intent/${paymentIntent.id}/check-status`
+    const paymentLinkUrl = process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL + route : process.env.FRONTEND_PROD_URL + route;
+    // Fetch bank details by ID
+    if (!bankDetailsId) {
+      responseHandler(res, 400, "Bank details ID is required");
+      return;
+    }
+    const bankDetails = await prisma.bankDetails.findUnique({ where: { id: bankDetailsId } });
+    if (!bankDetails) {
+      responseHandler(res, 400, "Bank details not found");
+      return;
+    }
+    await sendPaymentLinkEmail({
+      email: customerDetails.email,
+      name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+      paymentLink: paymentLinkUrl,
+      bookingDetails: bookingItems,
+      totalAmount,
+      expiresAt,
+      bankName: bankDetails.bankName || '',
+      accountName: bankDetails.accountName || '',
+      accountNumber: bankDetails.accountNumber || '',
+      iban: bankDetails.iban || '',
+      swiftCode: bankDetails.swiftCode || '',
+      routingNumber: bankDetails.routingNumber || ''
+    });
+    responseHandler(res, 200, "Payment link created and sent to customer", {
+      paymentIntentId: paymentIntent.id,
+      paymentLinkUrl: paymentLink.url,
+      expiresAt,
+      status: "PAYMENT_LINK_SENT"
+    });
+  } catch (e) {
+    console.error("Admin payment link creation error:", e);
+    handleError(res, e as Error);
+  }
 };
 
 const collectCash = async (req: express.Request, res: express.Response) => {
@@ -1279,7 +1266,9 @@ const refund = async (req: express.Request, res: express.Response) => {
                   room: true
                 }
               },
-              payments: true
+              payments: true,
+              // Add actualPaymentMethod to the include so TS recognizes it
+              // (Prisma always returns all scalar fields, but this helps TS)
             }
         });
 
@@ -1288,15 +1277,16 @@ const refund = async (req: express.Request, res: express.Response) => {
           return;
         }
 
-        // Manual refund for CASH or BANK_TRANSFER
-        if (paymentMethod === "CASH" || paymentMethod === "BANK_TRANSFER") {
+        // Use actualPaymentMethod if set, else fallback to paymentMethod
+        const methodToRefund = (ourPaymentIntent as any).actualPaymentMethod || paymentMethod;
+        if (methodToRefund === "CASH" || methodToRefund === "BANK_TRANSFER") {
             await prisma.$transaction(async (tx) => {
               // Update payment intent status
               await tx.paymentIntent.update({
                   where: { id: paymentIntentId },
                   data: { 
                     status: "REFUNDED",
-                    adminNotes: reason || `Refunded manually by admin (${paymentMethod})`
+                    adminNotes: reason || `Refunded manually by admin (${methodToRefund})`
                   }
               });
 
@@ -1325,14 +1315,14 @@ const refund = async (req: express.Request, res: express.Response) => {
             const updatedBookingData = bookingData.map((booking: any) => ({
               ...booking,
               confirmationId: confirmationId,
-              paymentMethod: paymentMethod
+              paymentMethod: methodToRefund
             }));
 
             await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
               refundId: `manual-${paymentIntentId}`,
               refundAmount: ourPaymentIntent.totalAmount || ourPaymentIntent.amount,
               refundCurrency: ourPaymentIntent.currency || 'EUR',
-              refundReason: reason || `Refunded manually by admin (${paymentMethod})`
+              refundReason: reason || `Refunded manually by admin (${methodToRefund})`
             });
 
             responseHandler(res, 200, "Manual refund processed successfully", {
@@ -2062,6 +2052,33 @@ const resendBankTransferInstructions = async (req: express.Request, res: express
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions };
+// Add confirmPaymentMethod controller
+const confirmPaymentMethod = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { actualPaymentMethod } = req.body;
+
+  if (!id || !actualPaymentMethod) {
+    responseHandler(res, 400, "Payment Intent ID and actualPaymentMethod are required");
+    return;
+  }
+
+  try {
+    // Update the payment intent with the actual payment method and mark as succeeded
+    const updated = await prisma.paymentIntent.update({
+      where: { id },
+      data: {
+        actualPaymentMethod,
+        status: "SUCCEEDED"
+      }
+    });
+    // Remove temporary holds
+    await prisma.temporaryHold.deleteMany({ where: { paymentIntentId: id } });
+    responseHandler(res, 200, "Payment method confirmed and booking marked as succeeded", updated);
+  } catch (e) {
+    handleError(res, e as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod };
 
 

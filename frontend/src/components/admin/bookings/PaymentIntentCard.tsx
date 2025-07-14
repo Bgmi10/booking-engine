@@ -62,6 +62,8 @@ export default function PaymentIntentCard({
   const [showConfirmRefund, setShowConfirmRefund] = useState(false)
   const [showConfirmBooking, setShowConfirmBooking] = useState(false)
   const [loadingResend, setLoadingResend] = useState(false);
+  // Add handler for confirming as bank transfer
+  const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);
 
   // Get payment method display info
   const getPaymentMethodInfo = () => {
@@ -123,6 +125,32 @@ export default function PaymentIntentCard({
       toast.error('Failed to resend bank transfer instructions');
     } finally {
       setLoadingResend(false);
+    }
+  };
+
+  // Handler for confirming as bank transfer
+  const handleConfirmAsBankTransfer = async () => {
+    setLoadingConfirmBank(true);
+    try {
+      const res = await fetch(`${baseUrl}/admin/bookings/${paymentIntent.id}/confirm-payment-method`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actualPaymentMethod: 'BANK_TRANSFER' })
+      });
+      if (res.ok) {
+        toast.success('Booking confirmed as paid by bank transfer.');
+        if (typeof window !== 'undefined' && window.location) {
+          window.location.reload(); // Or trigger a refetch in parent if available
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to confirm as bank transfer.');
+      }
+    } catch (e) {
+      toast.error('Failed to confirm as bank transfer.');
+    } finally {
+      setLoadingConfirmBank(false);
     }
   };
 
@@ -421,6 +449,24 @@ export default function PaymentIntentCard({
                   {loadingResend ? <Spinner /> : <Mail className="h-4 w-4 mr-1" />}
                   {loadingResend ? 'Sending...' : 'Resend Payment Instructions'}
                 </button>
+              )}
+
+              {/* Confirm as Bank Transfer */}
+              {paymentIntent.paymentMethod === 'STRIPE' && paymentIntent.status !== 'SUCCEEDED' && !paymentIntent.actualPaymentMethod && (
+                <button
+                  onClick={handleConfirmAsBankTransfer}
+                  disabled={loadingConfirmBank || loadingAction}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors mt-2"
+                >
+                  {loadingConfirmBank ? 'Confirming...' : 'Confirm as Bank Transfer'}
+                </button>
+              )}
+
+              {/* Show both intended and actual payment method if they differ */}
+              {paymentIntent.actualPaymentMethod && paymentIntent.actualPaymentMethod !== paymentIntent.paymentMethod && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-600 ml-2">
+                  Paid by: {paymentIntent.actualPaymentMethod}
+                </span>
               )}
             </>
           )}

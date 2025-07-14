@@ -20,7 +20,7 @@
 
 [C] => In the admin booking creation we need add a cash/bank transfer/stripe && and for cash we can dont want to send a confimation after creation of booking. admin check the manual payment and change the status and send the email maunally && for bank transfer we would need to send a email template with bank details and customer will do manually this also need to have a send again button. manual confimation for cash/bank transfers.
 
-[] => show the dates availability on admin booking creation calendar
+[C] => show the dates availability on admin booking creation calendar
 
 [] => While sending the payment link through stripe we need have optional bank transfer in email so, admin will change the satus of booking when they recieve money
 

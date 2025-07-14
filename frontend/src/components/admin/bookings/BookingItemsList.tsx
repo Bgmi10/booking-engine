@@ -15,6 +15,9 @@ interface BookingItemsListProps {
   getRateOptions: (room: Room) => any[];
   selectRateOption: (bookingIndex: number, rateOption: any) => void;
   addBookingItem: () => void;
+  availabilityData: any;
+  isLoadingAvailability: boolean;
+  fetchCalendarAvailability: (startDate: string, endDate: string) => Promise<void>;
 }
 
 const BookingItemsList: React.FC<BookingItemsListProps> = ({
@@ -29,6 +32,9 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
   getRateOptions,
   selectRateOption,
   addBookingItem,
+  availabilityData,
+  isLoadingAvailability,
+  fetchCalendarAvailability,
 }) => {
   return (
     <div className="mb-6">
@@ -58,6 +64,9 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
           getRateOptions={getRateOptions}
           selectRateOption={selectRateOption}
           canRemove={bookingItems.length > 1}
+          availabilityData={availabilityData}
+          isLoadingAvailability={isLoadingAvailability}
+          fetchCalendarAvailability={fetchCalendarAvailability}
         />
       ))}
     </div>

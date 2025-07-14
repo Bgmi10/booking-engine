@@ -3,6 +3,8 @@ import DatePicker from "react-datepicker";
 import { RiSubtractLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
 import type { BookingItem, Enhancement, Room } from "../../../types/types";
+import DateSelector from '../../DateSelector';
+import { useState } from 'react';
 
 
 interface BookingItemCardProps {
@@ -18,6 +20,9 @@ interface BookingItemCardProps {
   getRateOptions: (room: Room) => any[];
   selectRateOption: (bookingIndex: number, rateOption: any) => void;
   canRemove: boolean;
+  availabilityData?: any;
+  isLoadingAvailability?: boolean;
+  fetchCalendarAvailability?: (startDate: string, endDate: string) => Promise<void>;
 }
 
 const BookingItemCard: React.FC<BookingItemCardProps> = ({
@@ -33,7 +38,37 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
   getRateOptions,
   selectRateOption,
   canRemove,
+  availabilityData = { minStayDays: 2, fullyBookedDates: [], partiallyBookedDates: [], availableDates: [], restrictedDates: [], dateRestrictions: {} },
+  isLoadingAvailability = false,
+  fetchCalendarAvailability,
 }) => {
+  // Local state for calendar open/close
+  const [calenderOpen, setCalenderOpen] = useState(false);
+
+  // Handler for date selection
+  const handleDateSelect = ({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) => {
+    updateBookingItem(index, 'checkIn', startDate ? startDate.toISOString().split('T')[0] : '');
+    updateBookingItem(index, 'checkOut', endDate ? endDate.toISOString().split('T')[0] : '');
+    setCalenderOpen(false);
+  };
+
+  // Handler to open calendar and fetch availability
+  const handleOpenCalendar = () => {
+    setCalenderOpen(true);
+    if (fetchCalendarAvailability) {
+      const today = new Date();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+      const formatDateForAPI = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      fetchCalendarAvailability(formatDateForAPI(startOfMonth), formatDateForAPI(endOfMonth));
+    }
+  };
+
   return (
     <div className="border border-gray-200 rounded-lg p-4 mb-4">
       <div className="flex justify-between items-center mb-4">
@@ -106,35 +141,25 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
       </div>
       <div className="flex gap-4 mb-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date *</label>
-          <DatePicker
-            selected={item.checkIn ? new Date(item.checkIn) : null}
-            onChange={(date: Date | null) =>
-              updateBookingItem(index, "checkIn", date ? date.toISOString().split("T")[0] : "")
-            }
-            dateFormat="dd/MM/yyyy"
-            className={`block w-full px-3 py-2 border ${
-              item.error
-                ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-            } rounded-md shadow-sm focus:outline-none sm:text-sm`}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Dates *</label>
+          <button
+            type="button"
+            className="w-full px-3 py-2 border border-gray-400 rounded-md bg-white text-gray-700 hover:bg-gray-50"
+            onClick={handleOpenCalendar}
             disabled={loadingAction}
-          />
-        </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
-          <DatePicker
-            selected={item.checkOut ? new Date(item.checkOut) : null}
-            onChange={(date: Date | null) =>
-              updateBookingItem(index, "checkOut", date ? date.toISOString().split("T")[0] : "")
-            }
-            dateFormat="dd/MM/yyyy"
-            className={`block w-full px-3 py-2 border ${
-              item.error
-                ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-            } rounded-md shadow-sm focus:outline-none sm:text-sm`}
-            disabled={loadingAction}
+          >
+            {item.checkIn && item.checkOut
+              ? `Selected: ${item.checkIn} to ${item.checkOut}`
+              : 'Select Dates'}
+          </button>
+          <DateSelector
+            minStayDays={availabilityData.minStayDays || 2}
+            calenderOpen={calenderOpen}
+            setCalenderOpen={setCalenderOpen}
+            onSelect={handleDateSelect}
+            availabilityData={availabilityData}
+            isLoadingAvailability={isLoadingAvailability}
+            onFetchAvailability={fetchCalendarAvailability || (() => Promise.resolve())}
           />
         </div>
       </div>

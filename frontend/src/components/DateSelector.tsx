@@ -64,6 +64,15 @@ const DateSelector = ({
     return `${year}-${month}-${day}`
   }
 
+  // Add a helper for local date formatting
+  function formatDateLocal(date: Date): string {
+    // Returns YYYY-MM-DD in local time
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   // Get restriction info for a specific date
   const getDateRestrictionInfo = (date: Date): DateRestrictionInfo | null => {
     const dateStr = formatDateForAPI(date)
@@ -473,13 +482,6 @@ const DateSelector = ({
     return true
   }
 
-  // Effect to notify parent component when dates change
-  useEffect(() => {
-    if (selectedDates.startDate && selectedDates.endDate) {
-      onSelect && onSelect(selectedDates)
-    }
-  }, [selectedDates.startDate, selectedDates.endDate, onSelect])
-
   // Initialize calendar to current month on first load
   useEffect(() => {
     const currentDate = new Date()
@@ -716,7 +718,13 @@ const DateSelector = ({
                   </div>
                   <button
                     className="bg-gray-800 cursor-pointer text-white px-6 py-2 rounded-md hover:bg-gray-700 focus:outline-none "
-                    onClick={() => setCalenderOpen(false)}
+                    onClick={() => {
+                      setCalenderOpen(false);
+                      onSelect && onSelect({
+                        startDate: selectedDates.startDate ? new Date(formatDateLocal(selectedDates.startDate)) : null,
+                        endDate: selectedDates.endDate ? new Date(formatDateLocal(selectedDates.endDate)) : null,
+                      });
+                    }}
                   >
                     Confirm
                   </button>

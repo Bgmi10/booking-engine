@@ -1432,7 +1432,7 @@ async function main() {
             <div style="margin-bottom: 32px;">
               <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
               <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
-                Thank you for choosing La Torre sulla via Francigena. To secure your reservation, please complete your payment using the link below.
+                Thank you for choosing La Torre sulla via Francigena. To secure your reservation, please complete your payment using the link below or via bank transfer.
               </p>
             </div>
 
@@ -1451,6 +1451,29 @@ async function main() {
                 </p>
               </div>
             </div>
+
+            <!-- Bank Transfer Option -->
+            {{#if bankName}}
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #0369a1; margin: 0 0 20px 0; font-size: 20px;">🏦 Bank Transfer Option</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: #0369a1; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  You may also pay by bank transfer using the following details:
+                </p>
+                <ul style="color: #0369a1; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Bank Name:</strong> {{bankName}}</li>
+                  <li><strong>Account Name:</strong> {{accountName}}</li>
+                  <li><strong>Account Number:</strong> {{accountNumber}}</li>
+                  {{#if iban}}<li><strong>IBAN:</strong> {{iban}}</li>{{/if}}
+                  {{#if swiftCode}}<li><strong>SWIFT/BIC:</strong> {{swiftCode}}</li>{{/if}}
+                  {{#if routingNumber}}<li><strong>Routing Number:</strong> {{routingNumber}}</li>{{/if}}
+                </ul>
+                <p style="color: #0369a1; margin: 0; font-size: 15px;">
+                  Please include your reservation ID in the transfer reference.
+                </p>
+              </div>
+            </div>
+            {{/if}}
 
             <!-- Security Notice -->
             <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
@@ -1488,6 +1511,12 @@ async function main() {
         customerName: { type: 'string', description: 'Customer name', example: 'John Doe' },
         paymentLink: { type: 'string', description: 'Payment link URL', example: 'https://example.com/pay' },
         expiresAt: { type: 'string', description: 'Payment link expiry date', example: 'January 1, 2024 6:00 PM' },
+        bankName: { type: 'string', description: 'Bank name', example: 'Bank of Italy', optional: true },
+        accountName: { type: 'string', description: 'Account holder name', example: 'La Torre Sulla Via Francigena', optional: true },
+        accountNumber: { type: 'string', description: 'Bank account number', example: '1234567890', optional: true },
+        iban: { type: 'string', description: 'IBAN', example: 'IT60X0542811101000000123456', optional: true },
+        swiftCode: { type: 'string', description: 'SWIFT/BIC code', example: 'BNLIITRR', optional: true },
+        routingNumber: { type: 'string', description: 'Routing number', example: '026009593', optional: true }
       }
     },
     {

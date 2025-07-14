@@ -239,8 +239,24 @@ export default function BookingManagement() {
     setLoadingAction(true)
     try {
       let reason = '';
-      if (window.confirm('Would you like to add a reason for the refund/cancellation?')) {
-        reason = window.prompt('Enter the reason for the refund/cancellation:', '') || '';
+      if (paymentIntent.paymentMethod === 'STRIPE') {
+        // Only allow Stripe's allowed reasons
+        const allowedReasons = [
+          { value: 'duplicate', label: 'Duplicate' },
+          { value: 'fraudulent', label: 'Fraudulent' },
+          { value: 'requested_by_customer', label: 'Requested by Customer' },
+        ];
+        const reasonPrompt = window.prompt(
+          'Enter the number for the refund reason:\n1. Duplicate\n2. Fraudulent\n3. Requested by Customer',
+          '3'
+        );
+        const idx = parseInt(reasonPrompt || '3', 10) - 1;
+        reason = allowedReasons[idx]?.value || 'requested_by_customer';
+      } else {
+        // Allow free-form note for cash/bank transfer
+        if (window.confirm('Would you like to add a note for the refund/cancellation?')) {
+          reason = window.prompt('Enter the note for the refund/cancellation:', '') || '';
+        }
       }
       const response = await fetch(`${baseUrl}/admin/bookings/refund`, {
         method: "POST",
