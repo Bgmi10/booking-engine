@@ -578,15 +578,42 @@ const getAllEnhancements = async (req: express.Request, res: express.Response) =
 }
 
 const createRatePolicy = async (req: express.Request, res: express.Response) => {
-  const { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays, discountPercentage } = req.body;
+  const { 
+    name, 
+    description, 
+    nightlyRate, 
+    isActive, 
+    refundable, 
+    prepayPercentage, 
+    fullPaymentDays, 
+    changeAllowedDays, 
+    rebookValidityDays, 
+    discountPercentage,
+    paymentStructure,
+    cancellationPolicy
+  } = req.body;
+
   try {
-    if (discountPercentage) {
-      const ratePolicy = await prisma.ratePolicy.create({ data: { name, description, discountPercentage, isActive, } });
-      responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
-    } else {
-      const ratePolicy = await prisma.ratePolicy.create({ data: { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays } });
-      responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
-    }
+    // Build the data object with all fields
+    const createData: any = {
+      name,
+      description,
+      isActive: isActive !== undefined ? isActive : true,
+      paymentStructure: paymentStructure || "FULL_PAYMENT",
+      cancellationPolicy: cancellationPolicy || "FLEXIBLE"
+    };
+
+    // Add optional fields if provided
+    if (nightlyRate !== undefined) createData.nightlyRate = nightlyRate;
+    if (discountPercentage !== undefined) createData.discountPercentage = discountPercentage;
+    if (refundable !== undefined) createData.refundable = refundable;
+    if (prepayPercentage !== undefined) createData.prepayPercentage = prepayPercentage;
+    if (fullPaymentDays !== undefined) createData.fullPaymentDays = fullPaymentDays;
+    if (changeAllowedDays !== undefined) createData.changeAllowedDays = changeAllowedDays;
+    if (rebookValidityDays !== undefined) createData.rebookValidityDays = rebookValidityDays;
+
+    const ratePolicy = await prisma.ratePolicy.create({ data: createData });
+    responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
   } catch (e) {
     handleError(res, e as Error);
   }
@@ -594,10 +621,24 @@ const createRatePolicy = async (req: express.Request, res: express.Response) => 
 
 const updateRatePolicy = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
-  const { name, description, nightlyRate, isActive, refundable, prepayPercentage, fullPaymentDays, changeAllowedDays, rebookValidityDays, discountPercentage } = req.body;
+  const { 
+    name, 
+    description, 
+    nightlyRate, 
+    isActive, 
+    refundable, 
+    prepayPercentage, 
+    fullPaymentDays, 
+    changeAllowedDays, 
+    rebookValidityDays, 
+    discountPercentage,
+    paymentStructure,
+    cancellationPolicy
+  } = req.body;
 
   const updateData: any = {};
 
+  // Existing fields
   if (name !== undefined) updateData.name = name;
   if (description !== undefined) updateData.description = description;
   if (nightlyRate !== undefined) updateData.nightlyRate = nightlyRate;
@@ -608,6 +649,10 @@ const updateRatePolicy = async (req: express.Request, res: express.Response) => 
   if (changeAllowedDays !== undefined) updateData.changeAllowedDays = changeAllowedDays;
   if (rebookValidityDays !== undefined) updateData.rebookValidityDays = rebookValidityDays;
   if (discountPercentage !== undefined) updateData.discountPercentage = discountPercentage;
+  
+  // New fields for flexible rate management
+  if (paymentStructure !== undefined) updateData.paymentStructure = paymentStructure;
+  if (cancellationPolicy !== undefined) updateData.cancellationPolicy = cancellationPolicy;
 
   try {
     const ratePolicy = await prisma.ratePolicy.update({ where: { id }, data: updateData });
@@ -800,10 +845,13 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
     expiresInHours = 72,
     adminNotes,
     customerRequest, // <-- add this
-    bankDetailsId // <-- get from frontend
+    bankDetailsId,
+    sendConfirmationEmail
   } = req.body;
   //@ts-ignore
   const adminUserId = req.user?.id;
+
+  console.log("854", sendConfirmationEmail);
 
   try {
     // Check room availability (same as before)
@@ -929,7 +977,8 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
         paymentIntentId: paymentIntent.id,
-        customerRequest: customerRequest || customerDetails.specialRequests || ''
+        customerRequest: customerRequest || customerDetails.specialRequests || '',
+   
       },
       after_completion: {
         type: 'redirect',
@@ -943,7 +992,8 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
           customerEmail: customerDetails.email,
           type: "admin_payment_link",
           checkout_session_id: "{CHECKOUT_SESSION_ID}",
-          customerRequest: customerRequest || customerDetails.specialRequests || ''
+          customerRequest: customerRequest || customerDetails.specialRequests || '',
+          sendConfirmationEmail: String(sendConfirmationEmail) || "true"
         }
       },
       allow_promotion_codes: false,
@@ -1279,6 +1329,8 @@ const refund = async (req: express.Request, res: express.Response) => {
 
         // Use actualPaymentMethod if set, else fallback to paymentMethod
         const methodToRefund = (ourPaymentIntent as any).actualPaymentMethod || paymentMethod;
+        
+        // Case 1: Manual payment methods (CASH or BANK_TRANSFER) - always use manual refund
         if (methodToRefund === "CASH" || methodToRefund === "BANK_TRANSFER") {
             await prisma.$transaction(async (tx) => {
               // Update payment intent status
@@ -1308,15 +1360,27 @@ const refund = async (req: express.Request, res: express.Response) => {
               });
             });
 
-            // Generate confirmation ID for the refund email
-            const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
-            const confirmationId = generateMergedBookingId(bookingIds);
+            // Generate confirmation ID for the refund email - handle case where no bookings exist yet
+            let refundConfirmationId: string;
+            if (ourPaymentIntent.bookings && ourPaymentIntent.bookings.length > 0) {
+              const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+              if (bookingIds.length >= 1 && bookingIds.length <= 5) {
+                refundConfirmationId = generateMergedBookingId(bookingIds);
+              } else {
+                // If we have too many or too few bookings, use a fallback
+                refundConfirmationId = `REFUND-${paymentIntentId}`;
+              }
+            } else {
+              // No bookings exist yet, use fallback
+              refundConfirmationId = `REFUND-${paymentIntentId}`;
+            }
+
             // Update bookingData with the confirmation ID and paymentMethod
-            const updatedBookingData = bookingData.map((booking: any) => ({
+            const updatedBookingData = bookingData ? bookingData.map((booking: any) => ({
               ...booking,
-              confirmationId: confirmationId,
+              confirmationId: refundConfirmationId,
               paymentMethod: methodToRefund
-            }));
+            })) : [];
 
             await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
               refundId: `manual-${paymentIntentId}`,
@@ -1332,102 +1396,111 @@ const refund = async (req: express.Request, res: express.Response) => {
             return;
         }
 
-        if (
-            (ourPaymentIntent.status === "CREATED" || 
-             ourPaymentIntent.status === "PAYMENT_LINK_SENT" || 
-             ourPaymentIntent.status === "PENDING")) {
-            
-            // Cancel the Stripe payment intent if it exists
-            if (ourPaymentIntent.stripePaymentIntentId) {
-              try {
-                await stripe.paymentIntents.cancel(ourPaymentIntent.stripePaymentIntentId);
-                console.log("Stripe payment intent cancelled:", ourPaymentIntent.stripePaymentIntentId);
-              } catch (stripeError: any) {
-                console.log("Could not cancel Stripe payment intent:", stripeError.message);
-              }
-            }
-  
-            // Update our database - mark as cancelled
-            await prisma.$transaction(async (tx) => {
-              // Update payment intent status
-              await tx.paymentIntent.update({
-                  where: { id: paymentIntentId },
-                  data: { 
-                    status: "CANCELLED",
-                    adminNotes: reason || "Cancelled by admin before payment"
+        // Case 2: Stripe payment methods - handle based on status
+        if (methodToRefund === "STRIPE" || !methodToRefund) {
+            // Subcase 2a: Payment not yet completed - cancel the payment intent
+            if (
+                (ourPaymentIntent.status === "CREATED" || 
+                 ourPaymentIntent.status === "PAYMENT_LINK_SENT" || 
+                 ourPaymentIntent.status === "PENDING")) {
+                
+                // Cancel the Stripe payment intent if it exists
+                if (ourPaymentIntent.stripePaymentIntentId) {
+                  try {
+                    await stripe.paymentIntents.cancel(ourPaymentIntent.stripePaymentIntentId);
+                    console.log("Stripe payment intent cancelled:", ourPaymentIntent.stripePaymentIntentId);
+                  } catch (stripeError: any) {
+                    console.log("Could not cancel Stripe payment intent:", stripeError.message);
                   }
-              });
-
-              // Update all related bookings to cancelled
-              await tx.booking.updateMany({
-                where: { paymentIntentId: paymentIntentId },
-                data: { status: "CANCELLED" }
-              });
-
-              // Remove temporary holds
-              await tx.temporaryHold.deleteMany({
-                where: { paymentIntentId: paymentIntentId }
-              });
-            });
-
-            // Generate confirmation ID for the refund email
-            const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
-            const confirmationId = generateMergedBookingId(bookingIds);
-            // Update bookingData with the confirmation ID
-            const updatedBookingData = bookingData.map((booking: any) => ({
-              ...booking,
-              confirmationId: confirmationId
-            }));
-
-            await sendRefundConfirmationEmail(updatedBookingData, customerDetails);
-  
-          responseHandler(res, 200, "Payment intent cancelled successfully", {
-            type: "cancellation",
-            paymentIntentId: paymentIntentId
-          });
-          return;
-        }
-  
-        // Case 2: Payment has been completed - need to refund via Stripe
-        if (ourPaymentIntent.status === "SUCCEEDED" && ourPaymentIntent.stripePaymentIntentId) {
-  
-            const stripePaymentIntent = await stripe.paymentIntents.retrieve(ourPaymentIntent.stripePaymentIntentId);
-            
-            if (stripePaymentIntent.status !== "succeeded") {
-              responseHandler(res, 400, "Payment was not successful, cannot refund");
-              return;
-            }
-  
-            // Check if already refunded
-            const existingRefund = await stripe.refunds.list({
-              payment_intent: ourPaymentIntent.stripePaymentIntentId,
-              limit: 1
-            });
-  
-            if (existingRefund.data.length > 0) {
-              responseHandler(res, 400, "Payment has already been refunded");
-              return;
-            }
-  
-            const refund = await stripe.refunds.create({
-                payment_intent: ourPaymentIntent.stripePaymentIntentId,
-                reason: reason || "requested_by_customer",
-                metadata: {
-                  paymentIntentId: paymentIntentId,
-                  refundReason: reason || "Admin initiated refund"
                 }
-            });
-  
-            responseHandler(res, 200, "Refund initiated successfully", {
-                type: "refund",
-                refundId: refund.id,
-                paymentIntentId: paymentIntentId,
-                amount: refund.amount / 100
-            });
-          return;
+      
+                // Update our database - mark as cancelled
+                await prisma.$transaction(async (tx) => {
+                  // Update payment intent status
+                  await tx.paymentIntent.update({
+                      where: { id: paymentIntentId },
+                      data: { 
+                        status: "CANCELLED",
+                        adminNotes: reason || "Cancelled by admin before payment"
+                      }
+                  });
+
+                  // Update all related bookings to cancelled
+                  await tx.booking.updateMany({
+                    where: { paymentIntentId: paymentIntentId },
+                    data: { status: "CANCELLED" }
+                  });
+
+                  // Remove temporary holds
+                  await tx.temporaryHold.deleteMany({
+                    where: { paymentIntentId: paymentIntentId }
+                  });
+                });
+
+                // Generate confirmation ID for the refund email
+                let cancelConfirmationId = `CANCEL-${paymentIntentId}`;
+                if (ourPaymentIntent.bookings && ourPaymentIntent.bookings.length > 0) {
+                  const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+                  if (bookingIds.length >= 1 && bookingIds.length <= 5) {
+                    cancelConfirmationId = generateMergedBookingId(bookingIds);
+                  }
+                }
+                // Update bookingData with the confirmation ID
+                const updatedBookingData = bookingData ? bookingData.map((booking: any) => ({
+                  ...booking,
+                  confirmationId: cancelConfirmationId
+                })) : [];
+
+                await sendRefundConfirmationEmail(updatedBookingData, customerDetails);
+      
+              responseHandler(res, 200, "Payment intent cancelled successfully", {
+                type: "cancellation",
+                paymentIntentId: paymentIntentId
+              });
+              return;
+            }
+      
+            // Subcase 2b: Payment has been completed - need to refund via Stripe
+            if (ourPaymentIntent.status === "SUCCEEDED" && ourPaymentIntent.stripePaymentIntentId) {
+      
+                const stripePaymentIntent = await stripe.paymentIntents.retrieve(ourPaymentIntent.stripePaymentIntentId);
+                
+                if (stripePaymentIntent.status !== "succeeded") {
+                  responseHandler(res, 400, "Payment was not successful, cannot refund");
+                  return;
+                }
+      
+                // Check if already refunded
+                const existingRefund = await stripe.refunds.list({
+                  payment_intent: ourPaymentIntent.stripePaymentIntentId,
+                  limit: 1
+                });
+      
+                if (existingRefund.data.length > 0) {
+                  responseHandler(res, 400, "Payment has already been refunded");
+                  return;
+                }
+      
+                const refund = await stripe.refunds.create({
+                    payment_intent: ourPaymentIntent.stripePaymentIntentId,
+                    reason: reason || "requested_by_customer",
+                    metadata: {
+                      paymentIntentId: paymentIntentId,
+                      refundReason: reason || "Admin initiated refund"
+                    }
+                });
+      
+                responseHandler(res, 200, "Refund initiated successfully", {
+                    type: "refund",
+                    refundId: refund.id,
+                    paymentIntentId: paymentIntentId,
+                    amount: refund.amount / 100
+                });
+              return;
+            }
         }
   
-      responseHandler(res, 400, `Cannot process refund/cancellation for payment intent with status: ${ourPaymentIntent.status}`);
+      responseHandler(res, 400, `Cannot process refund/cancellation for payment intent with status: ${ourPaymentIntent.status} and payment method: ${methodToRefund}`);
   
     } catch (error) {
       console.error("Error processing refund:", error);
@@ -1503,6 +1576,7 @@ export const sendConfirmationEmail = async (req: express.Request, res: express.R
     
     // Generate merged booking ID for confirmation
     const bookingIds = paymentIntent.bookings.map(booking => booking.id);
+
     const confirmationId = generateMergedBookingId(bookingIds);
     
     // Handle different payment methods - always generate receipt URL
@@ -2063,17 +2137,72 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
   }
 
   try {
-    // Update the payment intent with the actual payment method and mark as succeeded
-    const updated = await prisma.paymentIntent.update({
-      where: { id },
-      data: {
-        actualPaymentMethod,
-        status: "SUCCEEDED"
+    // Start a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the payment intent with the actual payment method and mark as succeeded
+      const updatedPaymentIntent = await tx.paymentIntent.update({
+        where: { id },
+        data: {
+          actualPaymentMethod,
+          status: "SUCCEEDED"
+        }
+      });
+
+      // Remove temporary holds
+      await tx.temporaryHold.deleteMany({ where: { paymentIntentId: id } });
+
+      // Check if bookings already exist
+      let bookings = await tx.booking.findMany({ where: { paymentIntentId: id } });
+
+      if (bookings.length === 0) {
+        // Parse booking data and customer data
+        const bookingData = JSON.parse(updatedPaymentIntent.bookingData);
+        const customerData = JSON.parse(updatedPaymentIntent.customerData);
+
+        // Create or find customer
+        let customer = await tx.customer.findUnique({
+          where: { guestEmail: customerData.email }
+        });
+
+        if (!customer) {
+          customer = await tx.customer.create({
+            data: {
+              guestFirstName: customerData.firstName,
+              guestMiddleName: customerData.middleName,
+              guestLastName: customerData.lastName,
+              guestEmail: customerData.email,
+              guestPhone: customerData.phone,
+              guestNationality: customerData.nationality,
+              accountActivated: true,
+              emailVerified: true
+            }
+          });
+        }
+
+        // Create bookings
+        for (const bookingItem of bookingData) {
+          const booking = await tx.booking.create({
+            data: {
+              roomId: bookingItem.selectedRoom,
+              checkIn: new Date(bookingItem.checkIn),
+              checkOut: new Date(bookingItem.checkOut),
+              totalGuests: bookingItem.adults,
+              status: "CONFIRMED",
+              customerId: customer.id,
+              paymentIntentId: updatedPaymentIntent.id,
+              request: customerData.specialRequests || null,
+              carNumberPlate: customerData.carNumberPlate,
+              groupId: customerData.groupId
+            }
+          });
+          bookings.push(booking);
+        }
       }
+
+      return { updatedPaymentIntent, bookings };
     });
-    // Remove temporary holds
-    await prisma.temporaryHold.deleteMany({ where: { paymentIntentId: id } });
-    responseHandler(res, 200, "Payment method confirmed and booking marked as succeeded", updated);
+
+    responseHandler(res, 200, "Payment method confirmed, bookings created and marked as succeeded", result);
   } catch (e) {
     handleError(res, e as Error);
   }

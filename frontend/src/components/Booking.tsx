@@ -237,8 +237,6 @@ export default function Booking() {
  return (
     <div className="flex flex-col min-h-screen">
       <Header />
-
-      {/* Main content */}
       <main className="flex-1 relative bg-gray-100">
         {/* Background image */}
         {currentStep === 1 && <div

@@ -38,6 +38,8 @@ export interface RatePolicy {
   changeAllowedDays?: number;
   rebookValidityDays?: number;
   discountPercentage?: number;
+  paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT';
+  cancellationPolicy?: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE';
   createdAt: string;
   updatedAt: string;
 }
@@ -74,7 +76,7 @@ export interface PaymentIntent {
   id: string
   amount: number
   currency: string 
-  status: "PENDING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REFUNDED" | "PAYMENT_LINK_SENT"
+  status: "CREATED" | "PAYMENT_LINK_SENT" | "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED"
   createdAt: string
   updatedAt: string
   paidAt?: string
@@ -107,7 +109,7 @@ export interface Booking {
   guestLastName: string
   guestNationality: string
   guestPhone: string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
+  status: "PENDING" | "CONFIRMED" | "REFUNDED" | "CANCELLED"
   createdAt: string
   updatedAt: string
   room: Room

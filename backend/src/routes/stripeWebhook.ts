@@ -570,7 +570,12 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
             }
         });
 
-        if (existingPayment) {
+        // Check if bookings already exist
+        const existingBookings = await prisma.booking.findMany({
+            where: { paymentIntentId: ourPaymentIntent.id }
+        });
+        if (existingPayment && existingBookings.length > 0) {
+            // All good, already processed
             return;
         }
 
@@ -579,54 +584,15 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
         const customerDetails = JSON.parse(ourPaymentIntent.customerData);
         // Extract customerRequest from Stripe metadata if present
         const customerRequest = (stripePayment.metadata && stripePayment.metadata.customerRequest) || customerDetails.specialRequests || null;
-        // Use transaction to ensure atomicity
+        const sendConfirmationEmail = stripePayment.metadata.sendConfirmationEmail || "true";
+
         const result = await prisma.$transaction(async (tx) => {
-            // Check if customer exists and has stripeCustomerId
+            // Check or create customer
             let customer = await tx.customer.findUnique({
                 where: { guestEmail: customerDetails.email }
             });
 
-            if (customer) {
-                // Customer exists, check if they have stripeCustomerId
-                if (!customer.stripeCustomerId) {
-                    // Create Stripe customer
-                    const stripeCustomer = await stripe.customers.create({
-                        email: customerDetails.email,
-                        name: `${customerDetails.firstName} ${customerDetails.lastName}`,
-                        phone: customerDetails.phone,
-                        metadata: {
-                            customerId: customer.id,
-                            guestEmail: customerDetails.email
-                        }
-                    });
-
-                    // Update customer with stripeCustomerId
-                    customer = await tx.customer.update({
-                        where: { id: customer.id },
-                        data: { 
-                            stripeCustomerId: stripeCustomer.id,
-                            guestLastName: customerDetails.lastName,
-                            guestFirstName: customerDetails.firstName,
-                            guestPhone: customerDetails.phone,
-                            guestMiddleName: customerDetails.middleName || null,
-                            guestNationality: customerDetails.nationality
-                        }
-                    });
-                } else {
-                    // Update existing customer info
-                    customer = await tx.customer.update({
-                        where: { id: customer.id },
-                        data: {
-                            guestLastName: customerDetails.lastName,
-                            guestFirstName: customerDetails.firstName,
-                            guestPhone: customerDetails.phone,
-                            guestMiddleName: customerDetails.middleName || null,
-                            guestNationality: customerDetails.nationality
-                        }
-                    });
-                }
-            } else {
-                // Customer doesn't exist, create new customer with Stripe
+            if (!customer) {
                 const stripeCustomer = await stripe.customers.create({
                     email: customerDetails.email,
                     name: `${customerDetails.firstName} ${customerDetails.lastName}`,
@@ -647,9 +613,35 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                         stripeCustomerId: stripeCustomer.id
                     }
                 });
+            } else {
+                // Update customer info
+                customer = await tx.customer.update({
+                    where: { id: customer.id },
+                    data: {
+                        guestLastName: customerDetails.lastName,
+                        guestFirstName: customerDetails.firstName,
+                        guestPhone: customerDetails.phone,
+                        guestMiddleName: customerDetails.middleName || null,
+                        guestNationality: customerDetails.nationality
+                    }
+                });
             }
 
-            const updatedPaymentIntent = await tx.paymentIntent.update({
+            // Use shared booking creation function
+            const createdBookings = await processBookingsInTransaction(
+                tx,
+                bookingItems,
+                { ...customerDetails, specialRequests: customerRequest },
+                ourPaymentIntent.id,
+                customer.id
+            );
+
+            if (createdBookings.length === 0) {
+                throw new Error(`Failed to create bookings for paymentIntentId: ${ourPaymentIntent.id}`);
+            }
+
+            // Mark payment intent as succeeded
+            await tx.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
                 data: { 
                     status: "SUCCEEDED",
@@ -658,97 +650,48 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 }
             });
 
-            const createdBookings = await processBookingsInTransaction(
-                tx, 
-                bookingItems,  
-                { ...customerDetails, specialRequests: customerRequest }, // inject customerRequest
-                ourPaymentIntent.id,
-                customer.id,
-            ); 
-
-            if (createdBookings.length === 0) {
-                return { updatedPaymentIntent, createdBookings: [] };
+            // Create payment record if not exists
+            const paymentExists = await tx.payment.findFirst({
+                where: { 
+                    OR: [
+                        { paymentIntentId: ourPaymentIntent.id },
+                        { stripePaymentIntentId: stripePayment.id },
+                    ]
+                }
+            });
+            if (!paymentExists) {
+                await tx.payment.create({
+                    data: {
+                        stripePaymentIntentId: stripePayment.id,
+                        amount: stripePayment.amount / 100,
+                        currency: stripePayment.currency,
+                        status: "COMPLETED",
+                        paymentIntentId: ourPaymentIntent.id,
+                        stripeSessionId: sourceType === 'payment_link' ? null : ourPaymentIntent.stripeSessionId || null,
+                    }
+                });
             }
-            
-            const currentPaymentIntent = await tx.paymentIntent.findUnique({
-                where: { id: ourPaymentIntent.id },
-                select: { 
-                    stripeSessionId: true,
-                    voucherCode: true,
-                    voucherDiscount: true,
-                    amount: true
-                }
-            });
-
-            // Create payment record
-            const paymentRecord = await tx.payment.create({
-                data: {
-                  stripePaymentIntentId: stripePayment.id,
-                  amount: stripePayment.amount / 100,
-                  currency: stripePayment.currency,
-                  status: "COMPLETED",
-                  paymentIntentId: ourPaymentIntent.id,
-                  stripeSessionId: sourceType === 'payment_link' ? null : currentPaymentIntent?.stripeSessionId || null,
-                }
-            });
 
             await tx.temporaryHold.deleteMany({
-              where: { paymentIntentId: ourPaymentIntent.id }
+                where: { paymentIntentId: ourPaymentIntent.id }
             });
 
             // Handle voucher success - increment usage counts and confirm applied status
             await handleVoucherSuccess(tx, ourPaymentIntent, createdBookings);
 
-            // Update bookings with voucher information
-            if (currentPaymentIntent?.voucherCode) {
-                await tx.booking.updateMany({
-                    where: { paymentIntentId: ourPaymentIntent.id },
-                    data: {
-                        voucherCode: currentPaymentIntent.voucherCode,
-                        voucherDiscount: currentPaymentIntent.voucherDiscount,
-                        voucherProducts: ourPaymentIntent.voucherProducts || null
-                    }
-                });
-            }
-
-            return { 
-                updatedPaymentIntent, 
-                createdBookings, 
-                paymentRecord,
-                customer,
-                voucherInfo: currentPaymentIntent?.voucherCode ? {
-                    code: currentPaymentIntent.voucherCode,
-                    discount: currentPaymentIntent.voucherDiscount,
-                    originalAmount: currentPaymentIntent.amount
-                } : null
-            };
+            return { createdBookings, customer };
         });
 
-        // Send confirmation emails outside transaction
-        if (result.createdBookings.length > 0) {
+        // After transaction, send confirmation emails
+        if (result.createdBookings.length > 0 && sendConfirmationEmail === "true") {
             await sendConfirmationEmails(result.createdBookings, customerDetails);
         }
 
+        // Only return 200 to Stripe if everything succeeded
     } catch (error) {
-        console.error("Error processing payment success:", error);
-        
-        // Attempt to update status to FAILED if not already SUCCEEDED
-        try {
-            const currentIntent = await prisma.paymentIntent.findUnique({
-              where: { id: ourPaymentIntent.id },
-              select: { status: true }
-            });
-            
-            if (currentIntent?.status !== "SUCCEEDED") {
-              await prisma.paymentIntent.update({
-                where: { id: ourPaymentIntent.id },
-                data: { status: "FAILED" }
-              });
-            }
-        } catch (updateError) {
-            console.error("Error updating payment intent to FAILED:", updateError);
-        }
-                
+        // Log error with details
+        console.error('Error in processPaymentSuccess:', error, { paymentIntentId: ourPaymentIntent.id });
+        // Do NOT return 200 to Stripe, so it will retry
         throw error;
     }
 }
@@ -990,7 +933,6 @@ async function processBookingsInTransaction(
     customerId: string
 ): Promise<any[]> {
     const createdBookings: any[] = [];
-
     for (const booking of bookingItems) {
         const { checkIn, checkOut, selectedRoom: roomId, adults, rooms } = booking;
 

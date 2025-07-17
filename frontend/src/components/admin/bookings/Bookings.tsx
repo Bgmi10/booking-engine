@@ -3,8 +3,6 @@ import {
   Search,
   RefreshCw,
   X,
-  AlertTriangle,
-  CheckCircle,
   Filter,
   Plus,
  } from "lucide-react"

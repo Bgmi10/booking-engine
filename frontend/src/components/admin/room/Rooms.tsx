@@ -190,10 +190,20 @@ export default function Rooms() {
     if (!selectedRoom) return null
     
     return (
-      <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-xl mx-4">
-          <div className="flex justify-between items-center border-b p-4">
-            <h3 className="text-xl font-semibold text-gray-900">Room Details</h3>
+      <div 
+        className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+        style={{ backdropFilter: 'blur(8px)' }}
+        onClick={() => setIsViewModalOpen(false)}
+      >
+        <div 
+          className="bg-white/90 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] md:h-[85vh] relative animate-fade-in flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-4 border-b border-gray-200/80 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Room Details</h2>
+              <p className="text-sm text-gray-500">View room information and policies</p>
+            </div>
             <button 
               onClick={() => setIsViewModalOpen(false)}
               className="text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -202,8 +212,13 @@ export default function Rooms() {
             </button>
           </div>
           
-          <div className="p-6">
-            <div className="flex flex-col md:flex-row items-start md:space-x-6">
+          <div className="flex-grow p-6 overflow-y-auto">
+            <div className="space-y-6">
+              
+              {/* Basic Room Information Card */}
+              <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
+                <div className="flex flex-col md:flex-row items-start md:space-x-6">
               <div className="w-full md:w-1/3 flex justify-center mb-4 md:mb-0">
                 <div className="w-32 h-32 rounded-md bg-gray-200 flex items-center justify-center text-gray-600 overflow-hidden">
                   {selectedRoom.images && selectedRoom.images.length > 0 ? (
@@ -220,48 +235,53 @@ export default function Rooms() {
               
               <div className="w-full md:w-2/3 space-y-4">
                 <div>
-                  <h4 className="text-sm text-gray-500">Name</h4>
-                  <p className="text-lg font-medium">{selectedRoom.name}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Name</h4>
+                  <p className="text-lg font-medium text-gray-900">{selectedRoom.name}</p>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm text-gray-500">Price</h4>
-                  <p className="text-lg">{formatPrice(selectedRoom.price)}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Price</h4>
+                  <p className="text-lg font-medium text-gray-900">{formatPrice(selectedRoom.price)}</p>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm text-gray-500">Capacity</h4>
-                  <p className="text-lg">{selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Capacity</h4>
+                  <p className="text-lg font-medium text-gray-900">{selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}</p>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm text-gray-500">Created</h4>
-                  <p>{formatDate(selectedRoom.createdAt)}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Created</h4>
+                  <p className="text-lg font-medium text-gray-900">{formatDate(selectedRoom.createdAt)}</p>
                 </div>
               </div>
             </div>
+              </div>
             
-            <div className="mt-8 border-t pt-4">
-              <h4 className="font-medium mb-2">Description</h4>
+            {/* Description Card */}
+            <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Description</h3>
               <p className="text-gray-700">{selectedRoom.description}</p>
             </div>
 
             {selectedRoom.amenities && selectedRoom.amenities.length > 0 && (
-              <div className="mt-8 border-t pt-4">
-                <h4 className="font-medium mb-2">Amenities</h4>
+              <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Amenities</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedRoom.amenities.map((amenity) => (
-                  <p key={amenity} className="text-gray-700">{amenity}</p>
-                ))}
+                    <span key={amenity} className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>)}
+            )}
                 
             {selectedRoom.images && selectedRoom.images.length > 0 && (
-              <div className="mt-8 border-t pt-4">
-                <h4 className="font-medium mb-2">Images</h4>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Images</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {selectedRoom.images.map((image) => (
-                    <div key={image.id} className="relative h-24 rounded-md overflow-hidden">
+                    <div key={image.id} className="relative h-24 rounded-xl overflow-hidden">
                       <img 
                         src={image.url || "/placeholder.svg"} 
                         alt={selectedRoom.name} 
@@ -274,13 +294,14 @@ export default function Rooms() {
             )}
           </div>
 
-          <div className="p-6">
-            <h4 className="font-medium mb-2">Policies</h4>
-            <div className="space-y-3">
+            {/* Rate Policies Card */}
+            <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Rate Policies</h3>
+              <div className="space-y-4">
                 {selectedRoom.RoomRate.map((roomRate) => (
                   <div 
                     key={roomRate.ratePolicy.id}
-                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="p-4 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-gray-50/80 transition-colors"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       {/* Policy Name and Status */}
@@ -336,16 +357,47 @@ export default function Rooms() {
                           Full payment in {roomRate.ratePolicy.fullPaymentDays} days
                         </span>
                       )}
+                      {roomRate.ratePolicy.paymentStructure && (
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          roomRate.ratePolicy.paymentStructure === 'SPLIT_PAYMENT' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {roomRate.ratePolicy.paymentStructure === 'SPLIT_PAYMENT' 
+                            ? 'Split Payment (30% + 70%)' 
+                            : 'Full Payment'}
+                        </span>
+                      )}
+                      {roomRate.ratePolicy.cancellationPolicy && (
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          roomRate.ratePolicy.cancellationPolicy === 'FLEXIBLE' 
+                            ? 'bg-green-100 text-green-800'
+                            : roomRate.ratePolicy.cancellationPolicy === 'MODERATE'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : roomRate.ratePolicy.cancellationPolicy === 'STRICT'
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {roomRate.ratePolicy.cancellationPolicy === 'FLEXIBLE' 
+                            ? 'Flexible Cancellation'
+                            : roomRate.ratePolicy.cancellationPolicy === 'MODERATE'
+                            ? 'Moderate Cancellation'
+                            : roomRate.ratePolicy.cancellationPolicy === 'STRICT'
+                            ? 'Strict Policy'
+                            : 'Non-Refundable'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
           </div>
           
-          <div className="bg-gray-50 px-4 py-3 flex justify-end rounded-b-lg">
+          <div className="p-4 bg-gray-50/80 border-t border-gray-200/80 flex justify-end">
             <button
               type="button"
-              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none transition-colors"
               onClick={() => setIsViewModalOpen(false)}
             >
               Close

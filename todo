@@ -1,27 +1,323 @@
-[] => fonts need to be change in user site based 
+Looking at your schema and the flow diagram, I can see you're building a hotel booking system with flexible payment and cancellation policies. Let me break down your 30%/70% payment split challenge and provide a solution.
+Current Understanding
+Your current flow:
 
-[] => remove the guest count in user facing app and allow admin to add a extra bed charges in admin dashboard.
+User selects room
+Pays 100% via Stripe
+Booking confirmed
 
-[] => improve the error message in details page in user facing app. "{room name} is currently being booked by another. Please wait for 30 min and try again"
+Your client wants:
 
-[] => change the sub total reduce the tax amount in details page
+User selects room
+Pays 30% now via Stripe
+Pays remaining 70% on check-in
+Flexible policy creation based on 4 constraints
 
-[C] => In admin room reservation we need to allow admin to delete the temp holds room
+Solution for 30%/70% Payment Split
+Stripe can handle this, but you'll need to manage the flow on your side. Here's how:
+1. Database Schema Updates
+First, let's extend your existing schema to handle split payments:Enhanced Schema for Split PaymentsCode // Add to your existing schema
 
-[] => change every date field to eur format ui only
+model RatePolicy {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String
+  nightlyRate         Float?
+  discountPercentage  Float?
+  isActive            Boolean  2. Implementation Strategy
+Here's how to handle the 30%/70% split with Stripe:
+Option 1: Two Separate Payment Intents (Recommended)
+typescript// First payment (30%)
+const firstPayment = await stripe.paymentIntents.create({
+  amount: Math.round(totalAmount * 0.30 * 100), // 30% in cents
+  currency: 'eur',
+  metadata: {
+    booking_id: bookingId,
+    payment_type: 'FIRST_INSTALLMENT'
+  }
+});
 
-[] => fix the on date on voucher feature and also do mid night of starting data
+// Create second payment intent for later (70%)
+const secondPayment = await stripe.paymentIntents.create({
+  amount: Math.round(totalAmount * 0.70 * 100), // 70% in cents
+  currency: 'eur',
+  metadata: {
+    booking_id: bookingId,
+    payment_type: 'SECOND_INSTALLMENT'
+  },
+  // Don't capture immediately, just authorize
+  capture_method: 'manual'
+});
+Option 2: Stripe Payment Links for Remaining Amount
+typescript// Create payment link for 70% that can be sent later
+const paymentLink = await stripe.paymentLinks.create({
+  line_items: [{
+    price_data: {
+      currency: 'eur',
+      product_data: {
+        name: `Remaining Payment for Booking ${bookingId}`,
+      },
+      unit_amount: Math.round(remainingAmount * 100),
+    },
+    quantity: 1,
+  }],
+  metadata: {
+    booking_id: bookingId,
+    payment_type: 'SECOND_INSTALLMENT'
+  }
+});
+3. Business Logic ImplementationBooking Flow Logic for Split PaymentsCode // booking-service.ts
 
-[] => voucher need to add in /booking/success && change the ui modification succeded to completed
+interface BookingRequest {
+  roomId: string;
+  checkIn: Date;
+  checkOut: Date;
+  customerId: string;
+  ratePolicyId: string;
+  totalGuests: number;
+}
 
-[C] => change the booking id on confimation email template to original booking id && do a decimal point on currency and do a symbol instead of word "eur"
+interface PaymentCalculation {
+  totalAmount: number;
+  prepaidAmount: numb4. Key Implementation Points
 
-[C] => change the admin notes to request notes in the bookings creation model && and reduce the fields space btw
+Stripe Capabilities: Stripe can handle split payments through:
 
-[C] => In the admin booking creation we need add a cash/bank transfer/stripe && and for cash we can dont want to send a confimation after creation of booking. admin check the manual payment and change the status and send the email maunally && for bank transfer we would need to send a email template with bank details and customer will do manually this also need to have a send again button. manual confimation for cash/bank transfers.
+Multiple Payment Intents
+Payment Links for deferred payments
+Webhooks for payment tracking
 
-[C] => show the dates availability on admin booking creation calendar
 
-[] => While sending the payment link through stripe we need have optional bank transfer in email so, admin will change the satus of booking when they recieve money
+Your 4 Policy Constraints: Based on your diagram, create these as enums:
 
-[] => rates apporach from client => rates needs to be flexible and do a policy things to a single rate and we do need to have a two things one is 30% by now and 70% on check-IN
+FLEXIBLE (cancel anytime)
+MODERATE (cancel up to 30 days)
+STRICT (no cancel, but change up to 30 days)
+NON_REFUNDABLE (no cancel, no change)
+
+
+Payment Flow:
+
+User selects room + policy
+System calculates 30%/70% split
+First payment (30%) processed immediately
+Second payment link created for check-in
+Automated reminders sent before check-in
+
+
+Database Tracking: Your schema will track:
+
+Total amount vs prepaid amount
+Payment structure type
+Remaining payment due date
+Individual payment records
+
+
+
+5. Benefits of This Approach
+
+Flexible: Works with your 4 policy constraints
+Scalable: Easy to add new payment structures
+Stripe-native: Uses Stripe's built-in features
+Automated: Handles reminders and tracking
+Audit-friendly: Complete payment history
+
+Would you like me to elaborate on any specific part or help you implement the webhook handling for payment confirmations?RetryClaude does not have the ability to run the code it generates yet.Hso, with this we can able to mix and match and create a single rate policy right that would be applied to our rooms rightEditExactly! Yes, with this approach you can create flexible rate policies that mix and match different payment structures and cancellation policies, then apply them to specific rooms. Let me show you how this works:Rate Policy Management SystemCode // rate-policy-service.ts
+
+interface RatePolicyConfig {
+  name: string;
+  description: string;
+  nightlyRate: number;
+  discountPercentage?: number;
+  
+  // Payment Configuration
+  paymentStructure: 'FULL_PAYMENT' | 'SPLIT_PAYMENT';
+  prepayPercentagNow let me show you how this looks in practice with a room selection interface:Room Booking Example with Mixed Rate PoliciesCode // Example: How a room would show multiple rate options
+
+interface RoomWithRatePolicies {
+  id: string;
+  name: string;
+  description: string;
+  basePrice: number;
+  ratePolicies: RatePolicyOption[];
+}
+
+interface RatePolicyOption {
+  id: string;
+  naSummary: Yes, Perfect Mix & Match System!
+Here's what you get with this approach:
+1. Flexible Rate Policy Creation
+
+Payment Structure: Full payment OR Split payment (30%/70%)
+Cancellation Policy: Flexible, Moderate, Strict, or Non-refundable
+Pricing: Base rate + discount percentage
+Any combination possible
+
+2. Room Assignment
+
+One room can have multiple rate policies
+Each policy offers different pricing/terms
+Customer chooses their preferred option
+Easy to manage via RoomRate junction table
+
+3. Real-world Examples
+Room: "Deluxe Ocean View"
+├── Best Price (€80/night) - Full payment + Non-refundable
+├── Early Bird (€100/night) - Split payment + Strict  
+├── Advance Purchase (€120/night) - Split payment + Moderate
+└── Flexible (€150/night) - Full payment + Flexible
+4. Benefits
+
+✅ Stripe-compatible - Uses native Stripe features
+✅ Scalable - Easy to add new combinations
+✅ User-friendly - Clear options for customers
+✅ Admin-friendly - Simple policy management
+✅ Automated - Handles payment reminders
+✅ Audit-ready - Complete payment tracking
+
+5. Your 4 Constraints Handled
+
+Cancel anytime → FLEXIBLE policy
+Cancel up to 30 days → MODERATE policy
+No cancel, but change up to 30 days → STRICT policy
+No cancel, no change → NON_REFUNDABLE policy
+
+This gives you the flexibility to create any combination while keeping the system manageable and Stripe-compatible. Would you like me to help you implement the admin interface for creating these policies? // Add to your existing schema
+
+model RatePolicy {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String
+  nightlyRate         Float?
+  discountPercentage  Float?
+  isActive            Boolean  @default(true)
+  refundable          Boolean? @default(false)
+  
+  // Payment structure
+  prepayPercentage    Int?     // 30% for example
+  fullPaymentDays     Int?     // Days before checkin for full payment
+  
+  // Cancellation rules
+  changeAllowedDays   Int?     // Days before checkin changes allowed
+  rebookValidityDays  Int?     // Days voucher is valid for rebooking
+  
+  // New fields for your 4 constraints
+  paymentStructure    PaymentStructure @default(FULL_PAYMENT)
+  cancellationPolicy  CancellationPolicy @default(FLEXIBLE)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  roomRates           RoomRate[]
+}
+
+enum PaymentStructure {
+  FULL_PAYMENT        // 100% upfront
+  SPLIT_PAYMENT       // 30% now, 70% later
+}
+
+enum CancellationPolicy {
+  FLEXIBLE            // Cancel anytime
+  MODERATE            // Cancel up to 30 days before arrival
+  STRICT              // No cancel, but allow change up to 30 days
+  NON_REFUNDABLE      // No cancel, no change
+}
+
+model PaymentIntent {
+  id                    String              @id @default(uuid())
+  stripePaymentIntentId String?             @unique
+  stripeSessionId       String?             @unique
+  stripePaymentLinkId   String?            
+  amount                Float    
+  currency              String              @default("eur")
+  status                PaymentIntentStatus @default(CREATED)
+  paymentMethod         PaymentMethod?      @default(STRIPE)
+  actualPaymentMethod   PaymentMethod?      
+  bookingData           String           
+  customerData          String          
+  taxAmount             Float
+  totalAmount           Float
+  
+  // New fields for split payments
+  paymentStructure      PaymentStructure    @default(FULL_PAYMENT)
+  prepaidAmount         Float?              // Amount paid upfront (30%)
+  remainingAmount       Float?              // Amount due on checkin (70%)
+  remainingDueDate      DateTime?           // When remaining amount is due
+  
+  createdByAdmin        Boolean             @default(false)
+  adminUserId           String?   
+  adminNotes            String?   
+  expiresAt             DateTime?   
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  paidAt                DateTime?
+  customerId            String?  
+  customer              Customer?           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookings              Booking[]        
+  temporaryHolds        TemporaryHold[]
+  payments              Payment[] 
+  voucherCode           String?           
+  voucherDiscount       Float?            
+  voucherUsages         VoucherUsage[]    
+  @@index([status, expiresAt])
+  @@index([stripePaymentIntentId])
+  @@index([stripeSessionId])
+}
+
+model Payment {
+  id                    String           @id @default(uuid())
+  stripeSessionId       String?          @unique
+  stripePaymentIntentId String?          @unique
+  amount                Float
+  currency              String
+  status                PaymentStatus
+  
+  // New fields for payment tracking
+  paymentType           PaymentType      @default(FULL_PAYMENT)
+  installmentNumber     Int?             // 1 for first payment, 2 for second
+  
+  createdAt             DateTime         @default(now())
+  paymentIntentId       String?
+  paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentType {
+  FULL_PAYMENT
+  FIRST_INSTALLMENT   // 30% payment
+  SECOND_INSTALLMENT  // 70% payment
+}
+
+model Booking {        
+  id                  String                @id @default(uuid())
+  totalGuests         Int        
+  checkIn             DateTime          
+  status              BookingStatus         @default(PENDING)
+  checkOut            DateTime          
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  room                Room                  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId              String  
+  paymentIntentId     String?
+  paymentIntent       PaymentIntent?        @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  metadata            Json?
+  request             String?
+  customerId          String
+  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  enhancementBookings EnhancementBooking[]
+  voucherUsages       VoucherUsage[]
+  voucherCode         String?         
+  voucherDiscount     Float?           
+  voucherProducts     Json?          
+  groupId             String?
+  carNumberPlate      String?          
+  notifications       Notification[]
+  
+  // New fields for payment tracking
+  paymentStructure    PaymentStructure      @default(FULL_PAYMENT)
+  totalAmount         Float
+  prepaidAmount       Float?                // 30% paid
+  remainingAmount     Float?                // 70% remaining
+  remainingDueDate    DateTime?             // When 70% is due
+  finalPaymentStatus  PaymentStatus?        // Status of 70% payment
+  
+  @@index([roomId, checkIn, checkOut, status])
+} this is our expected features on admin side we should have to fix this. we have a already a basic setup as you can see here  @ratepolicies  here is the crud and other operations exist and user facing app just have a subscribe and go with a flow while checkout and here is how we apply to rooms for that you can take a look at here @room  here is the logic of applying policies but this a basic wire up now we need some advance things like i described above and we need to support the operations with stripe for. i will explain the current flow also  this is our expected flow of the user. but i have no idea of this flow. but i have a general flow of what i have currently. we are buliding the hotel bookings where we use a admin portal to manage the simple policies and discount policies and also we use stripe for payment now the current flow was user can check the rooms and pay 100 % one shot at stripe and we issue hte bookings details and confirm the booking. this is our current flow. but my client wants to add up another feature called pay 30% now rest 70% on check in which is where im confused will the stripe offer this kind of feature or we have to manage this on our side.  and this is feature we have to figure out because my client want  to flexible policy creation which is un detectable because if we know if they click this and then we prebuild the feature on stripe and flows goes smooth. but if we dont what will the policy then it would be issue for our self to pre build the payment pack, so, we will strict to four contraints and then we are sorted . now we have  figure out how we are going to handle the 30% and 70% this is where are currently i willl share the current schema of our system i guesst that would hlep you to understand our standards. let me know you thoughts on this and make a to do list then we will go from there 

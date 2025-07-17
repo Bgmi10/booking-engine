@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react"
-import { RiCloseLine, RiCheckLine, RiErrorWarningLine } from "react-icons/ri"
+import { useState, useEffect } from "react"
+import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import "react-datepicker/dist/react-datepicker.css"
 import { baseUrl } from "../../../utils/constants"
@@ -11,7 +11,6 @@ import BookingItemsList from "./BookingItemsList"
 import TotalAmountSummary from "./TotalAmountSummary"
 import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
-import DateSelector from "../../DateSelector";
 import toast from 'react-hot-toast';
 
 interface CreateBookingModalProps {
@@ -70,9 +69,9 @@ export function CreateBookingModal({
   const [isSelectCustomerModalOpen, setIsSelectCustomerModalOpen] = useState(false)
   // Add admin notes state
   const [adminNotes, setAdminNotes] = useState("");
+  // State for send confirmation email checkbox
+  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(false);
 
-  // Add state for calendar and availability
-  const [calenderOpen, setCalenderOpen] = useState(false);
   const [availabilityData, setAvailabilityData] = useState({
     fullyBookedDates: [],
     partiallyBookedDates: [],
@@ -121,31 +120,6 @@ export function CreateBookingModal({
     }
   };
 
-  // Open calendar and fetch availability for next 2 months
-  const handleOpenCalendar = () => {
-    setCalenderOpen(true);
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-    const formatDateForAPI = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-    fetchCalendarAvailability(formatDateForAPI(startOfMonth), formatDateForAPI(endOfMonth));
-  };
-
-  // Date selection handler for booking item 0 (single booking flow)
-  const handleDateSelect = ({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) => {
-    setBookingItems(prev => prev.map((item, idx) => idx === 0 ? {
-      ...item,
-      checkIn: startDate ? startDate.toISOString().split("T")[0] : "",
-      checkOut: endDate ? endDate.toISOString().split("T")[0] : "",
-    } : item));
-  };
-
-  // Handle nationality change and update phone code
   const handleNationalityChange = (countryCode: string) => {
     setCustomerDetails((prev) => ({
       ...prev,
@@ -627,7 +601,7 @@ const createBooking = async () => {
 
   // Clear any previous errors
   setBookingItems(validation.updatedItems); // Ensure items are updated with errors
-
+  
   // Calculate hours until expiry
   const finalExpiryHours =
     expiryMode === "hours" ? expiresInHours : Math.max(1, differenceInHours(expiryDate, new Date()));
@@ -646,6 +620,7 @@ const createBooking = async () => {
       totalAmount,
       customerRequest: customerDetails.specialRequests,
       adminNotes, // <-- add adminNotes to request body
+      sendConfirmationEmail: paymentMethod === 'STRIPE' ? sendConfirmationEmail : undefined,
     };
 
     // Set endpoint and additional data based on payment method
@@ -904,6 +879,19 @@ const createBooking = async () => {
                 rows={2}
                 placeholder="Add any special requests from the customer (shown to customer in confirmation)"
               />
+              <div className="mt-2 flex items-center">
+                <input
+                  id="send-confirmation-email"
+                  type="checkbox"
+                  className="mr-2"
+                  checked={sendConfirmationEmail}
+                  onChange={e => setSendConfirmationEmail(e.target.checked)}
+                  disabled={loadingAction}
+                />
+                <label htmlFor="send-confirmation-email" className="text-sm text-gray-700 select-none">
+                  Send confirmation email automatically
+                </label>
+              </div>
             </div>
           )}
 

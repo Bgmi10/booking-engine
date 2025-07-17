@@ -136,6 +136,16 @@ model Booking {
   groupId             String?
   carNumberPlate      String?          
   notifications       Notification[]
+  
+  // New fields for payment structure tracking
+  paymentStructure    PaymentStructure      @default(FULL_PAYMENT)
+  totalAmount         Float?
+  prepaidAmount       Float?                // 30% paid
+  remainingAmount     Float?                // 70% remaining
+  remainingDueDate    DateTime?             // When 70% is due
+  finalPaymentStatus  PaymentStatus?        // Status of 70% payment
+  ratePolicyId        String?               // Track which rate policy was used
+  
   @@index([roomId, checkIn, checkOut, status])
 }
 
@@ -173,7 +183,7 @@ model EnhancementBooking {
   notes          String?
   createdAt      DateTime     @default(now())
 }
-
+ 
 model TemporaryHold {
   id              String         @id @default(uuid())
   checkIn         DateTime      
@@ -201,6 +211,11 @@ model PaymentIntent {
   customerData          String          
   taxAmount             Float
   totalAmount           Float
+  paymentStructure      PaymentStructure    @default(FULL_PAYMENT)
+  prepaidAmount         Float?              // Amount paid upfront (30%)
+  remainingAmount       Float?              // Amount due on checkin (70%)
+  remainingDueDate      DateTime?           // When remaining amount is due
+  secondPaymentIntentId String?             // Stripe PaymentIntent ID for remaining amount
   createdByAdmin        Boolean             @default(false)
   adminUserId           String?   
   adminNotes            String?   
@@ -228,6 +243,11 @@ model Payment {
   amount                Float
   currency              String
   status                PaymentStatus
+  
+  // New fields for payment tracking
+  paymentType           PaymentType      @default(FULL_PAYMENT)
+  installmentNumber     Int?             // 1 for first payment, 2 for second
+  
   createdAt             DateTime         @default(now())
   paymentIntentId       String?
   paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
@@ -245,6 +265,11 @@ model RatePolicy {
   fullPaymentDays     Int?
   changeAllowedDays   Int?
   rebookValidityDays  Int?
+  
+  // New fields for flexible rate management
+  paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
+  cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
+  
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   roomRates           RoomRate[]
@@ -1249,6 +1274,25 @@ enum ChannelSyncStatus {
   SYNCED
   FAILED
   OUT_OF_SYNC
+}
+
+// Enums for Flexible Rate Management
+enum PaymentStructure {
+  FULL_PAYMENT        // 100% upfront payment
+  SPLIT_PAYMENT       // 30% now, 70% on check-in
+}
+
+enum CancellationPolicy {
+  FLEXIBLE            // Cancel anytime with full refund
+  MODERATE            // Cancel up to 30 days before arrival
+  STRICT              // No cancel, but allow changes up to 30 days before arrival
+  NON_REFUNDABLE      // No cancel, no change allowed
+}
+
+enum PaymentType {
+  FULL_PAYMENT        // Single full payment
+  FIRST_INSTALLMENT   // 30% initial payment
+  SECOND_INSTALLMENT  // 70% remaining payment
 }
 
 model BankDetails {

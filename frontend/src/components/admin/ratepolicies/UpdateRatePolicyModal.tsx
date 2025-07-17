@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
-import { RiCloseLine, RiCheckLine, RiErrorWarningLine } from "react-icons/ri";
+import { RiCloseLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
+import { FaCreditCard, FaPercent, FaCalendarAlt, FaShieldAlt } from "react-icons/fa";
 import { baseUrl } from "../../../utils/constants";
 import type { RatePolicy } from "../../../types/types";
+import toast from "react-hot-toast";
 
 interface UpdateRatePolicyModalProps {
   setIsUpdateModalOpen: (isOpen: boolean) => void;
@@ -33,8 +35,14 @@ export default function UpdateRatePolicyModal({
   const [rebookValidityDays, setRebookValidityDays] = useState(ratePolicy?.rebookValidityDays?.toString() || "");
   const [loadingAction, setLoadingAction] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(ratePolicy?.discountPercentage?.toString() || "");
-  const [localError, setLocalError] = useState("");
-  const [localSuccess, setLocalSuccess] = useState("");
+  
+  // New fields for flexible rate management
+  const [paymentStructure, setPaymentStructure] = useState<'FULL_PAYMENT' | 'SPLIT_PAYMENT'>(
+    (ratePolicy?.paymentStructure as 'FULL_PAYMENT' | 'SPLIT_PAYMENT') || 'FULL_PAYMENT'
+  );
+  const [cancellationPolicy, setCancellationPolicy] = useState<'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE'>(
+    (ratePolicy?.cancellationPolicy as 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE') || 'FLEXIBLE'
+  );
 
   useEffect(() => {
     if (!ratePolicy) {
@@ -49,29 +57,28 @@ export default function UpdateRatePolicyModal({
   const updateRatePolicy = async () => {
     // Validation
     if (!name.trim()) {
-      setLocalError("Rate policy name is required");
+      toast.error("Rate policy name is required");
       return;
     }
 
     if (!description.trim()) {
-      setLocalError("Description is required");
+      toast.error("Description is required");
       return;
     }
+    
     if (discountPercentage) {
       if (!discountPercentage || isNaN(Number(discountPercentage)) || Number(discountPercentage) <= 0) {
-        setLocalError("Please enter a valid discount percentage");
+        toast.error("Please enter a valid discount percentage");
         return;
       }
     } else {
       if (!nightlyRate.trim() || isNaN(Number(nightlyRate)) || Number(nightlyRate) <= 0) {
-        setLocalError("Please enter a valid nightly rate");
+        toast.error("Please enter a valid nightly rate");
         return;
       }
     }
 
     setLoadingAction(true);
-    setLocalError("");
-    setLocalSuccess("");
 
     const singleRatePolicy = {
         name,
@@ -84,6 +91,8 @@ export default function UpdateRatePolicyModal({
         fullPaymentDays: fullPaymentDays ? Number(fullPaymentDays) : undefined,
         changeAllowedDays: changeAllowedDays ? Number(changeAllowedDays) : undefined,
         rebookValidityDays: rebookValidityDays ? Number(rebookValidityDays) : undefined,
+        paymentStructure,
+        cancellationPolicy,
     }
 
     const discountRatePolicy = {
@@ -91,7 +100,8 @@ export default function UpdateRatePolicyModal({
       description,
       discountPercentage: Number(discountPercentage),
       isActive,
-      refundable,
+      paymentStructure,
+      cancellationPolicy,
     }
 
 
@@ -111,7 +121,7 @@ export default function UpdateRatePolicyModal({
         throw new Error(data.message || "Failed to update rate policy");
       }
 
-      setLocalSuccess("Rate policy updated successfully!");
+      toast.success("Rate policy updated successfully!");
       setSuccess("Rate policy updated successfully!");
 
       // Update ratePolicies state with the updated policy
@@ -121,13 +131,10 @@ export default function UpdateRatePolicyModal({
         )
       );
 
-      // Close modal after success
-      setTimeout(() => {
-        setIsUpdateModalOpen(false);
-      }, 2000);
+      setIsUpdateModalOpen(false);
     } catch (error: any) {
       console.error(error);
-      setLocalError(error.message || "Failed to update rate policy. Please try again.");
+      toast.error(error.message || "Failed to update rate policy. Please try again.");
       setError(error.message || "Failed to update rate policy. Please try again.");
     } finally {
       setLoadingAction(false);
@@ -135,10 +142,20 @@ export default function UpdateRatePolicyModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white">
-          <h3 className="text-xl font-semibold text-gray-900">Update Rate Policy</h3>
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(8px)' }}
+      onClick={() => setIsUpdateModalOpen(false)}
+    >
+      <div
+        className="bg-white/90 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] md:h-[85vh] relative animate-fade-in flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-200/80 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Update Rate Policy</h2>
+            <p className="text-sm text-gray-500">Edit flexible payment and cancellation options</p>
+          </div>
           <button
             onClick={() => setIsUpdateModalOpen(false)}
             className="text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -148,33 +165,7 @@ export default function UpdateRatePolicyModal({
           </button>
         </div>
 
-        <div className="p-6">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
+        <div className="flex-grow p-6 overflow-y-auto">
           <div className="grid grid-cols-1 gap-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">
@@ -303,6 +294,96 @@ export default function UpdateRatePolicyModal({
               </div>
             </div>}
 
+            {/* Payment Structure Selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Payment Structure
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  onClick={() => setPaymentStructure('FULL_PAYMENT')}
+                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    paymentStructure === 'FULL_PAYMENT'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-400'
+                  }`}
+                >
+                  <FaCreditCard className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                  <h4 className="text-lg font-semibold text-center text-gray-900">Full Payment</h4>
+                  <p className="text-sm text-gray-600 text-center">100% payment upfront</p>
+                </div>
+                <div
+                  onClick={() => setPaymentStructure('SPLIT_PAYMENT')}
+                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    paymentStructure === 'SPLIT_PAYMENT'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-400'
+                  }`}
+                >
+                  <FaPercent className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                  <h4 className="text-lg font-semibold text-center text-gray-900">Split Payment</h4>
+                  <p className="text-sm text-gray-600 text-center">30% now, 70% on check-in</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cancellation Policy Selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Cancellation Policy
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div
+                  onClick={() => setCancellationPolicy('FLEXIBLE')}
+                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    cancellationPolicy === 'FLEXIBLE'
+                      ? 'border-green-600 bg-green-50'
+                      : 'border-gray-200 bg-white hover:border-green-400'
+                  }`}
+                >
+                  <FaShieldAlt className="w-6 h-6 mx-auto text-green-600 mb-1" />
+                  <h5 className="text-sm font-semibold text-center text-gray-900">Flexible</h5>
+                  <p className="text-xs text-gray-600 text-center">Cancel anytime</p>
+                </div>
+                <div
+                  onClick={() => setCancellationPolicy('MODERATE')}
+                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    cancellationPolicy === 'MODERATE'
+                      ? 'border-yellow-600 bg-yellow-50'
+                      : 'border-gray-200 bg-white hover:border-yellow-400'
+                  }`}
+                >
+                  <FaCalendarAlt className="w-6 h-6 mx-auto text-yellow-600 mb-1" />
+                  <h5 className="text-sm font-semibold text-center text-gray-900">Moderate</h5>
+                  <p className="text-xs text-gray-600 text-center">Cancel 30 days before</p>
+                </div>
+                <div
+                  onClick={() => setCancellationPolicy('STRICT')}
+                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    cancellationPolicy === 'STRICT'
+                      ? 'border-orange-600 bg-orange-50'
+                      : 'border-gray-200 bg-white hover:border-orange-400'
+                  }`}
+                >
+                  <FaCalendarAlt className="w-6 h-6 mx-auto text-orange-600 mb-1" />
+                  <h5 className="text-sm font-semibold text-center text-gray-900">Strict</h5>
+                  <p className="text-xs text-gray-600 text-center">Changes only, no cancel</p>
+                </div>
+                <div
+                  onClick={() => setCancellationPolicy('NON_REFUNDABLE')}
+                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    cancellationPolicy === 'NON_REFUNDABLE'
+                      ? 'border-red-600 bg-red-50'
+                      : 'border-gray-200 bg-white hover:border-red-400'
+                  }`}
+                >
+                  <FaShieldAlt className="w-6 h-6 mx-auto text-red-600 mb-1" />
+                  <h5 className="text-sm font-semibold text-center text-gray-900">Non-Refundable</h5>
+                  <p className="text-xs text-gray-600 text-center">No cancel, no change</p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center space-x-6">
               <div className="flex items-center">
                 <input
@@ -317,7 +398,7 @@ export default function UpdateRatePolicyModal({
                 </label>
               </div>
 
-             {refundable && <div className="flex items-center">
+              <div className="flex items-center">
                 <input
                   id="refundable"
                   type="checkbox"
@@ -328,31 +409,29 @@ export default function UpdateRatePolicyModal({
                 <label htmlFor="refundable" className="ml-2 block text-sm text-gray-900">
                   Refundable
                 </label>
-              </div>}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg sticky bottom-0">
+        <div className="p-4 bg-gray-50/80 border-t border-gray-200/80 flex justify-between items-center">
           <button
-            type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
             onClick={() => setIsUpdateModalOpen(false)}
             disabled={loadingAction}
+            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
             onClick={updateRatePolicy}
             disabled={loadingAction}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
           >
             {loadingAction ? (
-              <span className="flex items-center">
-                <BiLoader className="animate-spin mr-2" />
+              <>
+                <BiLoader className="animate-spin" />
                 Updating...
-              </span>
+              </>
             ) : (
               "Update Rate Policy"
             )}

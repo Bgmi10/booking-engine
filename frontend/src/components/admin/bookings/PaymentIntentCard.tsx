@@ -54,7 +54,6 @@ export default function PaymentIntentCard({
     return sum + differenceInDays(checkOut, checkIn)
   }, 0)
 
-  console.log(paymentIntent);
 
   const displayData = isEditing && editFormData ? editFormData : paymentIntent
 
@@ -140,9 +139,6 @@ export default function PaymentIntentCard({
       });
       if (res.ok) {
         toast.success('Booking confirmed as paid by bank transfer.');
-        if (typeof window !== 'undefined' && window.location) {
-          window.location.reload(); // Or trigger a refetch in parent if available
-        }
       } else {
         const data = await res.json();
         toast.error(data.message || 'Failed to confirm as bank transfer.');
@@ -380,7 +376,9 @@ export default function PaymentIntentCard({
                       className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700 transition-colors"
                     >
                       <DollarSign className="h-4 w-4 mr-1" />
-                      Cancel & Refund
+                      {paymentIntent.actualPaymentMethod === "CASH" || paymentIntent.actualPaymentMethod === "BANK_TRANSFER" || 
+                       paymentIntent.paymentMethod === "CASH" || paymentIntent.paymentMethod === "BANK_TRANSFER" 
+                       ? "Manual Refund" : "Cancel & Refund"}
                     </button>
                   )}
                 </>
@@ -440,7 +438,10 @@ export default function PaymentIntentCard({
               )}
 
               {/* Resend Bank Transfer Instructions */}
-              {paymentIntent.paymentMethod === 'BANK_TRANSFER' && paymentIntent.status !== 'SUCCEEDED' && (
+              {paymentIntent.paymentMethod === 'BANK_TRANSFER' && 
+               paymentIntent.status !== 'SUCCEEDED' && 
+               paymentIntent.status !== 'REFUNDED' && 
+               paymentIntent.status !== 'CANCELLED' && (
                 <button
                   onClick={handleResendBankTransfer}
                   disabled={loadingResend || loadingAction}
@@ -452,7 +453,11 @@ export default function PaymentIntentCard({
               )}
 
               {/* Confirm as Bank Transfer */}
-              {paymentIntent.paymentMethod === 'STRIPE' && paymentIntent.status !== 'SUCCEEDED' && !paymentIntent.actualPaymentMethod && (
+              {paymentIntent.paymentMethod === 'STRIPE' && 
+               paymentIntent.status !== 'SUCCEEDED' && 
+               paymentIntent.status !== 'REFUNDED' && 
+               paymentIntent.status !== 'CANCELLED' && 
+               !paymentIntent.actualPaymentMethod && (
                 <button
                   onClick={handleConfirmAsBankTransfer}
                   disabled={loadingConfirmBank || loadingAction}

@@ -21,6 +21,16 @@ export const checkPaymentIntentStatus = async (req: express.Request, res: expres
             responseHandler(res, 400, "Payment link is expired");
             return;
         }
+
+        if (response.status === "SUCCEEDED" || response.status === "REFUNDED") {
+            responseHandler(res, 400, "Payment already processed");
+            return;
+        }
+
+        if (response.status === "CANCELLED") {
+            responseHandler(res, 400, "Payment cancelled.");
+            return;
+        }
         //@ts-ignore
         const stripePaymentUrl = await stripe.paymentLinks.retrieve(response.stripePaymentLinkId);
         

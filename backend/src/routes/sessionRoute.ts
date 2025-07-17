@@ -5,7 +5,7 @@ const sessionRouter = express.Router();
 
 sessionRouter.get("/:sessionId", sessionController);
 
-sessionRouter.get("/:sessionId/receipt", generateReceiptPDF );
+sessionRouter.get("/:sessionId/receipt", generateReceiptPDF);
 
 // Custom receipt route for cash and bank transfer payments
 sessionRouter.get("/receipts/:paymentIntentId", generateCustomReceiptPDF);
