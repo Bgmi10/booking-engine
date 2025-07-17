@@ -180,6 +180,58 @@ import { getStatusColor } from "../../../utils/helper"
                 </div>
               </div>
             </div>
+
+            {/* Payment Structure Information */}
+            {paymentIntent.paymentStructure && (
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Structure</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-blue-600">Payment Type</label>
+                    <div className="font-medium text-blue-900">
+                      {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
+                    </div>
+                  </div>
+                  {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && (
+                    <>
+                      <div>
+                        <label className="text-sm font-medium text-blue-600">Prepaid Amount</label>
+                        <div className="font-medium text-blue-900">€{paymentIntent.prepaidAmount || 0}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-blue-600">Remaining Amount</label>
+                        <div className="font-medium text-blue-900">€{paymentIntent.remainingAmount || 0}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-blue-600">Remaining Due Date</label>
+                        <div className="font-medium text-blue-900">
+                          {paymentIntent.remainingDueDate 
+                            ? format(new Date(paymentIntent.remainingDueDate), "MMM dd, yyyy")
+                            : "Not set"
+                          }
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                {/* Payment Status for Split Payments */}
+                {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && paymentIntent.remainingAmount > 0 && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-yellow-800">
+                        Remaining payment of €{paymentIntent.remainingAmount} required
+                      </span>
+                      {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-md">
+                          Overdue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
   
             {paymentIntent.stripePaymentIntentId && (
               <button

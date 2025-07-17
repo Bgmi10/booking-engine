@@ -17,6 +17,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
+  const [selectedPaymentStructures, setSelectedPaymentStructures] = useState<any>({});
 
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
@@ -88,6 +89,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             prepayPercentage: roomRate.ratePolicy.prepayPercentage,
             changeAllowedDays: roomRate.ratePolicy.changeAllowedDays,
             rebookValidityDays: roomRate.ratePolicy.rebookValidityDays,
+            paymentStructure: roomRate.ratePolicy.paymentStructure,
+            cancellationPolicy: roomRate.ratePolicy.cancellationPolicy,
             type: 'special'
           });
         }
@@ -170,15 +173,17 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     }
   }
 
-  function handleBookNow(rateOption: any) {
+  function handleBookNow(rateOption: any, selectedPaymentStructure?: string) {
     const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc: any, curr: any) => acc.price + curr.price + 0) : 0;
+    const totalPrice = rateOption.price * nights * rooms + enhancementPrice * bookingData.adults;
     
     setBookingData((prev: any) => ({
       ...prev,
       selectedRateOption: rateOption,
+      selectedPaymentStructure: selectedPaymentStructure || rateOption.paymentStructure || 'FULL_PAYMENT',
       rooms: rooms,
       adults: adults,
-      totalPrice: rateOption.price * nights * rooms + enhancementPrice * bookingData.adults
+      totalPrice: totalPrice
     }));
     setTimeout(() => {
         setCurrentStep(4);
@@ -591,6 +596,46 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                       )}
                     </div>
 
+                    {/* Payment Structure Selection */}
+                    {rateOption.paymentStructure === 'SPLIT_PAYMENT' && (
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h5 className="text-sm font-semibold text-blue-800 mb-2">Payment Options</h5>
+                        <div className="space-y-2">
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`payment-${rateOption.id}`}
+                              value="FULL_PAYMENT"
+                              checked={selectedPaymentStructures[rateOption.id] === 'FULL_PAYMENT'}
+                              onChange={(e) => setSelectedPaymentStructures(prev => ({...prev, [rateOption.id]: e.target.value}))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-blue-700">
+                              Pay 100% now (€{totalPrice.toFixed(2)})
+                            </span>
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`payment-${rateOption.id}`}
+                              value="SPLIT_PAYMENT"
+                              checked={selectedPaymentStructures[rateOption.id] === 'SPLIT_PAYMENT' || !selectedPaymentStructures[rateOption.id]}
+                              onChange={(e) => setSelectedPaymentStructures(prev => ({...prev, [rateOption.id]: e.target.value}))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-blue-700">
+                              Pay 30% now (€{(totalPrice * 0.3).toFixed(2)}) + 70% later (€{(totalPrice * 0.7).toFixed(2)})
+                            </span>
+                          </label>
+                        </div>
+                        {rateOption.fullPaymentDays && (
+                          <p className="text-xs text-blue-600 mt-2">
+                            Remaining amount due {rateOption.fullPaymentDays} days before arrival
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Book Now Button */}
                     <button 
                       className={`w-full py-2 sm:py-3 rounded-lg font-semibold transition-colors cursor-pointer text-sm sm:text-base ${
@@ -598,9 +643,20 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           ? 'bg-orange-600 hover:bg-orange-700 text-white' 
                           : 'bg-gray-900 hover:bg-gray-800 text-white'
                       }`}
-                      onClick={() => handleBookNow(rateOption)}
+                      onClick={() => {
+                        const paymentStructure = rateOption.paymentStructure === 'SPLIT_PAYMENT' 
+                          ? (selectedPaymentStructures[rateOption.id] || 'SPLIT_PAYMENT')
+                          : 'FULL_PAYMENT';
+                        const displayAmount = paymentStructure === 'SPLIT_PAYMENT' 
+                          ? (totalPrice * 0.3) 
+                          : totalPrice;
+                        handleBookNow(rateOption, paymentStructure);
+                      }}
                     >
-                      Book This Rate - €{totalPrice.toFixed(2)}
+                      {rateOption.paymentStructure === 'SPLIT_PAYMENT' && (selectedPaymentStructures[rateOption.id] === 'SPLIT_PAYMENT' || !selectedPaymentStructures[rateOption.id])
+                        ? `Pay 30% Now - €${(totalPrice * 0.3).toFixed(2)}`
+                        : `Book This Rate - €${totalPrice.toFixed(2)}`
+                      }
                     </button>
                   </div>
                 </div>

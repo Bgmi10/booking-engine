@@ -627,24 +627,50 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 });
             }
 
-            // Use shared booking creation function
-            const createdBookings = await processBookingsInTransaction(
-                tx,
-                bookingItems,
-                { ...customerDetails, specialRequests: customerRequest },
-                ourPaymentIntent.id,
-                customer.id
-            );
+            // Determine if this is a second payment for split payment structure
+            const paymentType = stripePayment.metadata?.paymentType || 'FULL_PAYMENT';
+            const isSecondInstallment = paymentType === 'SECOND_INSTALLMENT';
+            
+            let createdBookings = [];
+            
+            if (isSecondInstallment) {
+                // For second installment, just update existing bookings and payment intent
+                createdBookings = await tx.booking.findMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    include: { room: true, paymentIntent: true }
+                });
+                
+                // Update booking payment status for split payment completion
+                await tx.booking.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: { 
+                        finalPaymentStatus: 'COMPLETED'
+                    }
+                });
+            } else {
+                // For first payment or full payment, create bookings
+                createdBookings = await processBookingsInTransaction(
+                    tx,
+                    bookingItems,
+                    { ...customerDetails, specialRequests: customerRequest },
+                    ourPaymentIntent.id,
+                    customer.id
+                );
 
-            if (createdBookings.length === 0) {
-                throw new Error(`Failed to create bookings for paymentIntentId: ${ourPaymentIntent.id}`);
+                if (createdBookings.length === 0) {
+                    throw new Error(`Failed to create bookings for paymentIntentId: ${ourPaymentIntent.id}`);
+                }
             }
 
-            // Mark payment intent as succeeded
+            // Update payment intent status
+            const paymentIntentStatus = (ourPaymentIntent.paymentStructure === 'SPLIT_PAYMENT' && !isSecondInstallment) 
+                ? "SUCCEEDED" // First payment complete, but booking may require second payment
+                : "SUCCEEDED"; // Full payment or second installment complete
+                
             await tx.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
                 data: { 
-                    status: "SUCCEEDED",
+                    status: paymentIntentStatus,
                     paidAt: new Date(),
                     customer: { connect: { id: customer.id } }
                 }
@@ -660,6 +686,11 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 }
             });
             if (!paymentExists) {
+                // Determine payment type based on metadata
+                const paymentType = stripePayment.metadata?.paymentType || 'FULL_PAYMENT';
+                const installmentNumber = paymentType === 'FIRST_INSTALLMENT' ? 1 : 
+                                       paymentType === 'SECOND_INSTALLMENT' ? 2 : null;
+
                 await tx.payment.create({
                     data: {
                         stripePaymentIntentId: stripePayment.id,
@@ -668,6 +699,8 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                         status: "COMPLETED",
                         paymentIntentId: ourPaymentIntent.id,
                         stripeSessionId: sourceType === 'payment_link' ? null : ourPaymentIntent.stripeSessionId || null,
+                        paymentType: paymentType,
+                        installmentNumber: installmentNumber,
                     }
                 });
             }
@@ -948,7 +981,12 @@ async function processBookingsInTransaction(
             continue;
         }
 
-        // Create the booking
+        // Get payment intent to check payment structure
+        const paymentIntent = await tx.paymentIntent.findUnique({
+            where: { id: paymentIntentId }
+        });
+
+        // Create the booking with payment structure information
         const newBooking = await tx.booking.create({
             data: {
                 totalGuests: adults * rooms,
@@ -959,6 +997,13 @@ async function processBookingsInTransaction(
                 request: customerDetails.specialRequests || null,
                 carNumberPlate: customerDetails.carNumberPlate || null,
                 paymentIntent: { connect: { id: paymentIntentId } },
+                paymentStructure: paymentIntent?.paymentStructure || 'FULL_PAYMENT',
+                totalAmount: booking.totalPrice,
+                prepaidAmount: paymentIntent?.prepaidAmount,
+                remainingAmount: paymentIntent?.remainingAmount,
+                remainingDueDate: paymentIntent?.remainingDueDate,
+                finalPaymentStatus: paymentIntent?.paymentStructure === 'SPLIT_PAYMENT' ? 'PENDING' : 'COMPLETED',
+                ratePolicyId: booking.selectedRateOption?.id || null,
                 metadata: {
                     selectedRateOption: booking.selectedRateOption || null,
                     promotionCode: booking.promotionCode || null,

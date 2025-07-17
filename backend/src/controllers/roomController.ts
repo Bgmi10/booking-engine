@@ -263,21 +263,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
         images: true,
         RoomRate: {
           include: {
-            ratePolicy: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                nightlyRate: true,
-                discountPercentage: true,
-                isActive: true,
-                refundable: true,
-                prepayPercentage: true,
-                fullPaymentDays: true,  
-                changeAllowedDays: true,
-                rebookValidityDays: true,
-              }
-            }
+            ratePolicy: true
           }
         }
       }

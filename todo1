@@ -2,7 +2,7 @@
 
 [] => remove the guest count in user facing app and allow admin to add a extra bed charges in admin dashboard.
 
-[] => improve the error message in details page in user facing app. "{room name} is currently being booked by another. Please wait for 30 min and try again"
+[] => improve the error message in details page in user facing app. "{room name} is currently being booked by another customer. Please wait for 30 min and try again"
 
 [] => change the sub total reduce the tax amount in details page
 

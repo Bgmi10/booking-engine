@@ -295,6 +295,35 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                           {rateOption.refundable ? "Refundable" : "Non-refundable"}
                         </span>
                       </div>
+                      
+                      {/* Payment Structure Information */}
+                      {rateOption.paymentStructure && (
+                        <div className="flex items-center gap-1">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-3 w-3 text-gray-600"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                            <line x1="1" y1="10" x2="23" y2="10"></line>
+                          </svg>
+                          <span className="px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-800">
+                            {rateOption.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Additional policy details */}
+                      {rateOption.fullPaymentDays && (
+                        <div className="text-gray-600 ml-4">
+                          <span>Final payment due {rateOption.fullPaymentDays} days before arrival</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"

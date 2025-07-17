@@ -65,7 +65,27 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
 
     const expiresAt = new Date(Date.now() + TEMP_HOLD_DURATION_MINUTES * 60 * 1000);
     
-    // Create payment intent with voucher information
+    // Determine payment structure from first booking item's selected rate option
+    const firstBooking = bookingItems[0];
+    const selectedPaymentStructure = firstBooking?.selectedPaymentStructure || 'FULL_PAYMENT';
+    const issSplitPayment = selectedPaymentStructure === 'SPLIT_PAYMENT';
+    
+    // Calculate payment amounts based on structure
+    let paymentAmount = totalAmount;
+    let remainingAmount = null;
+    let remainingDueDate = null;
+    
+    if (issSplitPayment) {
+      paymentAmount = Math.round(totalAmount * 0.3 * 100) / 100; // 30% now
+      remainingAmount = Math.round(totalAmount * 0.7 * 100) / 100; // 70% later
+      
+      // Calculate due date based on rate policy or default to 30 days before check-in
+      const checkInDate = new Date(firstBooking.checkIn);
+      const fullPaymentDays = firstBooking.selectedRateOption?.fullPaymentDays || 30;
+      remainingDueDate = new Date(checkInDate.getTime() - (fullPaymentDays * 24 * 60 * 60 * 1000));
+    }
+    
+    // Create payment intent with payment structure information
     const pendingBooking = await prisma.paymentIntent.create({
       data: {
         amount: originalAmount,
@@ -75,7 +95,11 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           receiveMarketing: customerDetails.receiveMarketing || false,
         }),
         taxAmount,
-        totalAmount,
+        totalAmount: paymentAmount, // Amount to be paid now
+        paymentStructure: selectedPaymentStructure,
+        prepaidAmount: issSplitPayment ? paymentAmount : null,
+        remainingAmount: remainingAmount,
+        remainingDueDate: remainingDueDate,
         status: "PENDING",
         createdByAdmin: false,
         adminUserId: null,
@@ -125,14 +149,23 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
       
       const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
-      const totalRoomPrice = roomRatePerNight * numberOfNights;
+      let totalRoomPrice = roomRatePerNight * numberOfNights;
+      
+      // Adjust price for split payment (30% now)
+      if (issSplitPayment) {
+        totalRoomPrice = Math.round(totalRoomPrice * 0.3 * 100) / 100;
+      }
+      
+      const paymentDescription = issSplitPayment 
+        ? `${booking.selectedRateOption?.name || 'Standard Rate'} - 30% Payment (€${Math.round((roomRatePerNight * numberOfNights) * 0.7 * 100) / 100} due later)`
+        : `${booking.selectedRateOption?.name || 'Standard Rate'} - Full Payment`;
       
       const roomLineItem = {
         price_data: {
           currency: "eur",
           product_data: {
             name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
-            description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | Rate: ${booking.selectedRateOption?.name || 'Standard Rate'} | Taxes included`,
+            description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | ${paymentDescription} | Taxes included`,
             images:
             booking.roomDetails.images?.length > 0
             ? booking.roomDetails.images.map((image: any) =>
@@ -160,15 +193,25 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           enhancementQuantity = 1;
         }
 
+        // Adjust enhancement price for split payment (30% now)
+        let enhancementPrice = enhancement.price;
+        if (issSplitPayment) {
+          enhancementPrice = Math.round(enhancement.price * 0.3 * 100) / 100;
+        }
+        
+        const enhancementDescription = issSplitPayment
+          ? `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} - 30% Payment | ${enhancement.description} | Taxes included`
+          : `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`;
+
         return {
           price_data: {
             currency: "eur",
             product_data: {
               name: enhancement.title,
-              description: `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`,
+              description: enhancementDescription,
               images: enhancement.image ? [enhancement.image] : undefined,
             },
-            unit_amount: Math.round(enhancement.price * 100),
+            unit_amount: Math.round(enhancementPrice * 100),
           },
           quantity: enhancementQuantity,
         };
@@ -203,7 +246,11 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         pendingBookingId: pendingBooking.id,
         customerEmail: customerDetails.email,
         taxAmount: taxAmount.toString(),
-        totalAmount: totalAmount.toString(),
+        totalAmount: paymentAmount.toString(), // Current payment amount (30% for split)
+        paymentStructure: selectedPaymentStructure,
+        paymentType: issSplitPayment ? 'FIRST_INSTALLMENT' : 'FULL_PAYMENT',
+        ...(remainingAmount && { remainingAmount: remainingAmount.toString() }),
+        ...(remainingDueDate && { remainingDueDate: remainingDueDate.toISOString() }),
         ...(voucherCode && { voucherCode }),
         ...(voucherDiscount && { voucherDiscount: voucherDiscount.toString() }),
         ...(originalAmount && { originalAmount: originalAmount.toString() }),
@@ -278,6 +325,152 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
     });
   } catch (e) {
     console.error("Checkout error:", e);
+    handleError(res, e as Error);
+  }
+};
+
+export const createSecondPaymentSession = async (req: express.Request, res: express.Response) => {
+  const { paymentIntentId } = req.body;
+
+  try {
+    // Get the payment intent with remaining payment details
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      include: {
+        bookings: {
+          include: {
+            room: true,
+            enhancementBookings: {
+              include: { enhancement: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+
+    if (paymentIntent.paymentStructure !== 'SPLIT_PAYMENT') {
+      responseHandler(res, 400, "This booking does not require a second payment");
+      return;
+    }
+
+    if (!paymentIntent.remainingAmount || paymentIntent.remainingAmount <= 0) {
+      responseHandler(res, 400, "No remaining amount to pay");
+      return;
+    }
+
+    // Check if second payment already exists
+    const existingSecondPayment = await prisma.payment.findFirst({
+      where: {
+        paymentIntentId: paymentIntent.id,
+        paymentType: 'SECOND_INSTALLMENT'
+      }
+    });
+
+    if (existingSecondPayment) {
+      responseHandler(res, 400, "Second payment already processed");
+      return;
+    }
+
+    const bookingData = JSON.parse(paymentIntent.bookingData);
+    const customerData = JSON.parse(paymentIntent.customerData);
+
+    // Create line items for remaining payment
+    const line_items = bookingData.flatMap((booking: any) => {
+      const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
+      const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
+      const remainingRoomPrice = Math.round((roomRatePerNight * numberOfNights) * 0.7 * 100) / 100; // 70% remaining
+
+      const roomLineItem = {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${booking.roomDetails.name} - Final Payment`,
+            description: `Remaining 70% payment for ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | ${booking.selectedRateOption?.name || 'Standard Rate'}`,
+          },
+          unit_amount: Math.round(remainingRoomPrice * 100),
+        },
+        quantity: booking.rooms,
+      };
+
+      const enhancementLineItems = booking.selectedEnhancements?.map((enhancement: any) => {
+        let enhancementQuantity = 1;
+        
+        if (enhancement.pricingType === "PER_GUEST") {
+          enhancementQuantity = booking.adults * booking.rooms;
+        } else if (enhancement.pricingType === "PER_ROOM") {
+          enhancementQuantity = booking.rooms;
+        } else if (enhancement.pricingType === "PER_NIGHT") {
+          enhancementQuantity = numberOfNights * booking.rooms;
+        } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
+          enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
+        }
+
+        const remainingEnhancementPrice = Math.round(enhancement.price * 0.7 * 100) / 100; // 70% remaining
+
+        return {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `${enhancement.title} - Final Payment`,
+              description: `Remaining 70% payment for ${enhancement.title}`,
+            },
+            unit_amount: Math.round(remainingEnhancementPrice * 100),
+          },
+          quantity: enhancementQuantity,
+        };
+      }) || [];
+
+      return [roomLineItem, ...enhancementLineItems];
+    });
+
+    // Create session configuration for second payment
+    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items,
+      metadata: {
+        pendingBookingId: paymentIntent.id,
+        customerEmail: customerData.email,
+        paymentStructure: 'SPLIT_PAYMENT',
+        paymentType: 'SECOND_INSTALLMENT',
+        remainingAmount: paymentIntent.remainingAmount.toString(),
+      },
+      expires_at: Math.floor((Date.now() + 30 * 60 * 1000) / 1000),
+      success_url: `${getBaseUrl()}/booking/success?session_id={CHECKOUT_SESSION_ID}&type=second_payment`,
+      cancel_url: `${getBaseUrl()}/booking/failure?type=second_payment`,
+    };
+
+    // Find the customer to get their Stripe ID
+    const customer = await prisma.customer.findUnique({
+      where: { guestEmail: customerData.email },
+    });
+
+    if (customer?.stripeCustomerId) {
+      sessionConfig.customer = customer.stripeCustomerId;
+    } else {
+      sessionConfig.customer_email = customerData.email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    // Update payment intent with second payment session ID
+    await prisma.paymentIntent.update({
+      where: { id: paymentIntent.id },
+      data: { secondPaymentIntentId: session.payment_intent as string }
+    });
+
+    responseHandler(res, 200, "Second payment session created", { 
+      url: session.url,
+      sessionId: session.id,
+      remainingAmount: paymentIntent.remainingAmount
+    });
+  } catch (e) {
+    console.error("Second payment creation error:", e);
     handleError(res, e as Error);
   }
 };
