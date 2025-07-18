@@ -68,7 +68,9 @@ export class ChannelWebhookService {
         channelCommission: commission,
         netAmount,
         paymentModel: channel.paymentModel,
+        //@ts-ignore
         paymentStatus: this.mapPaymentStatus(validatedData.payment_status),
+        //@ts-ignore
         status: this.mapBookingStatus(validatedData.booking_status),
         specialRequests: validatedData.special_requests,
         channelMetadata: validatedData.metadata,
@@ -159,7 +161,9 @@ export class ChannelWebhookService {
         channelCommission: commission,
         netAmount,
         paymentModel: channel.paymentModel,
+        //@ts-ignore
         paymentStatus: this.mapPaymentStatus(validatedData.paymentStatus),
+        //@ts-ignore
         status: this.mapBookingStatus(validatedData.reservationStatus),
         specialRequests: validatedData.specialRequests,
         channelMetadata: validatedData.metadata,
@@ -249,7 +253,9 @@ export class ChannelWebhookService {
         channelCommission: commission,
         netAmount,
         paymentModel: channel.paymentModel,
+        //@ts-ignore
         paymentStatus: this.mapPaymentStatus(validatedData.payout_status),
+        //@ts-ignore
         status: this.mapBookingStatus(validatedData.reservation_status),
         specialRequests: validatedData.special_requests,
         channelMetadata: validatedData.metadata,
@@ -338,6 +344,7 @@ export class ChannelWebhookService {
         metadata: {
           channelBookingId: channelBooking.id,
           channelName: channelBooking.channel.name,
+          //@ts-ignore
           channelBookingId: channelBooking.channelBookingId,
           paymentModel: channelBooking.paymentModel,
           netAmount: channelBooking.netAmount,

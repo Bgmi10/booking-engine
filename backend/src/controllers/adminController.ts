@@ -168,8 +168,8 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
     responseHandler(res, 400, "All fields are required");
     return;
   }
-   
-  const otpData = await prisma.otp.findUnique({ where: { email, otp } });
+
+  const otpData = await prisma.otp.findFirst({ where: { email, otp } });
 
   if (!otpData) {
     responseHandler(res, 400, "Invalid OTP");
