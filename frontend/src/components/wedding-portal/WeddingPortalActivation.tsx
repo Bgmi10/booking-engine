@@ -15,7 +15,6 @@ export const WeddingPortalActivation: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
@@ -32,9 +31,7 @@ export const WeddingPortalActivation: React.FC = () => {
 
     const handleActivation = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
-
-        // Validation
+    
         if (!email) {
             toast.error("Email is required")
             return;

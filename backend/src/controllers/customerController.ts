@@ -149,49 +149,29 @@ export const getOccupiedRooms = async (req: express.Request, res: express.Respon
 
 
 export const loginCustomer = async (req: express.Request, res: express.Response) => {
-    const { surname, roomName } = req.body;
+    const { surname, roomName, isGuest } = req.body;
 
-    if (!surname || !roomName) {
-        responseHandler(res, 400, "Surname and Room Name are required.");
+    if (!surname) {
+        responseHandler(res, 400, "Surname is required.");
+        return;
+    }
+
+    if (!isGuest && !roomName) {
+        responseHandler(res, 400, "Room Name is required for existing customers.");
         return;
     }
 
     try {
-        const now = new Date();
-        
-        // Get ALL active bookings for the room, then find the one with matching surname
-        const activeBookings = await prisma.booking.findMany({
-            where: {
-                room: { name: roomName },
-                status: 'CONFIRMED',
-                checkIn: { lte: now },
-                checkOut: { gte: now },
-            },
-            include: {
-                customer: true,
-            },
-        });
-
-        // Find the booking with matching surname
-        const activeBooking = activeBookings.find(booking => 
-            booking.customer.guestLastName.toLowerCase() === surname.toLowerCase()
-        );
-
         let payload;
         let customerData;
 
-        if (activeBooking) {
-            // Existing customer found with matching surname
-            const customer = activeBooking.customer;
-            payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
-            customerData = customer;
-        } else {
-            // No matching booking found, create temporary customer
+        if (isGuest) {
+            // Guest customer flow - create temporary customer directly
             const stripeCustomer = await stripe.customers.create({
-                name: `Temporary Guest - ${surname}`,
+                name: `Guest - ${surname}`,
                 metadata: {
-                    source: 'POS Login',
-                    roomName: roomName
+                    source: 'POS Login - Guest',
+                    isGuest: 'true'
                 }
             });
 
@@ -204,6 +184,53 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
                      
             payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER', stripeCustomerId: tempCustomer.stripeCustomerId };
             customerData = tempCustomer;
+        } else {
+            // Existing customer flow - check for active booking
+            const now = new Date();
+            
+            // Get ALL active bookings for the room, then find the one with matching surname
+            const activeBookings = await prisma.booking.findMany({
+                where: {
+                    room: { name: roomName },
+                    status: 'CONFIRMED',
+                    checkIn: { lte: now },
+                    checkOut: { gte: now },
+                },
+                include: {
+                    customer: true,
+                },
+            });
+
+            // Find the booking with matching surname
+            const activeBooking = activeBookings.find(booking => 
+                booking.customer.guestLastName.toLowerCase() === surname.toLowerCase()
+            );
+
+            if (activeBooking) {
+                // Existing customer found with matching surname
+                const customer = activeBooking.customer;
+                payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
+                customerData = customer;
+            } else {
+                // No matching booking found, create temporary customer
+                const stripeCustomer = await stripe.customers.create({
+                    name: `Temporary Guest - ${surname}`,
+                    metadata: {
+                        source: 'POS Login',
+                        roomName: roomName
+                    }
+                });
+
+                const tempCustomer = await prisma.temporaryCustomer.create({
+                    data: {
+                        surname,
+                        stripeCustomerId: stripeCustomer.id
+                    },
+                });
+                         
+                payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER', stripeCustomerId: tempCustomer.stripeCustomerId };
+                customerData = tempCustomer;
+            }
         }
 
         const tokenJwt = generateToken(payload);

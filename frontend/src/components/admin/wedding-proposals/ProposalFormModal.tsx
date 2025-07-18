@@ -14,7 +14,6 @@ type ProposalFormModalProps = {
 
 const ProposalFormModal: React.FC<ProposalFormModalProps> = ({
   isOpen,
-  onClose,
   onSave,
   proposalToEdit,
   loading,

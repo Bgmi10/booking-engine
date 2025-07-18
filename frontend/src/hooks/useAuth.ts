@@ -12,7 +12,7 @@ export const useAuth = <T = any>(
   const {
     profileEndpoint = '/customers/profile',
     logoutEndpoint = '/customers/logout',
-    redirectPath = '/',
+    redirectPath = '/customers/order-items',
     autoFetch = true
   } = options;
 

@@ -16,7 +16,7 @@ export default function RatePolicyTab({ isDiscountTab, setIsDiscountTab }: { isD
                         isDiscountTab ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
                     }`}
                 >
-                    Discount Policy
+                    Split Payment Policy
                 </button>
             </div>
         </div>

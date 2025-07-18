@@ -103,32 +103,21 @@ export const triggerAutomatedTasks = () => {
 };
 
 export const schedulePaymentReminders = () => {
-  // Check for upcoming payments daily at 9 AM
-  cron.schedule("*/1 * * * *", async () => {
+  // Process all payment reminders (wedding + booking) every 6 hours
+  cron.schedule("0 */6 * * *", async () => {
     try {
-      console.log("[Cron] Starting upcoming payment reminders check...");
-      const remindersSent = await PaymentReminderService.sendUpcomingPaymentReminders();
-      console.log(`[Cron] Sent ${remindersSent} upcoming payment reminders`);
+      console.log("[Cron] Starting comprehensive payment reminder processing...");
+      const totalReminders = await PaymentReminderService.processAllPaymentReminders();
+      console.log(`[Cron] Comprehensive payment reminder processing complete. Total reminders sent: ${totalReminders}`);
     } catch (error) {
-      console.error("[Cron] Failed to send upcoming payment reminders:", error);
-    }
-  });
-
-  // Check for overdue payments daily at 10 AM
-  cron.schedule("*/1 * * * *", async () => {
-    try {
-      console.log("[Cron] Starting overdue payment reminders check...");
-      const remindersSent = await PaymentReminderService.sendOverduePaymentReminders();
-      console.log(`[Cron] Sent ${remindersSent} overdue payment reminders`);
-    } catch (error) {
-      console.error("[Cron] Failed to send overdue payment reminders:", error);
+      console.error("[Cron] Failed to process payment reminders:", error);
     }
   });
 };
 
 // Schedule wedding final guest count reminders - runs daily at 9 AM
 export const scheduleWeddingReminders = () => {
-  cron.schedule("*/1 * * * *", async () => {
+  cron.schedule("0 */6 * * *", async () => {
     try {
       console.log("[Cron] Starting wedding final guest count reminder check...");
       const remindersSent = await WeddingReminderService.checkAndSendReminders();

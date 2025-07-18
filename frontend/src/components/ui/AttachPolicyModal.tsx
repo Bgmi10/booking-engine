@@ -13,8 +13,8 @@ export const AttachPoliciesModal = ({
   }: {
     setIsAttachPoliciesModalOpen: (isOpen: boolean) => void
     ratepolicies: {
-      singlePolicy: RatePolicy[];
-      discountPolicy: RatePolicy[];
+      fullPaymentPolicy: RatePolicy[];
+      splitPaymentPolicy: RatePolicy[];
     }
     isDiscountTab: boolean
     setIsDiscountTab: (isDiscountTab: boolean) => void
@@ -38,7 +38,7 @@ export const AttachPoliciesModal = ({
           </div>
           {isDiscountTab ? (
             <div>
-              {ratepolicies?.discountPolicy?.map((policy) => (
+              {ratepolicies?.splitPaymentPolicy?.map((policy) => (
                 <div key={policy.id} className="flex items-center gap-4 p-3 border-b">
                   <input 
                     type="checkbox" 
@@ -49,14 +49,14 @@ export const AttachPoliciesModal = ({
                   <div className="flex-1">
                     <h2 className="font-medium">{policy.name}</h2>
                     <p className="text-sm text-gray-500 line-clamp-1 w-20">{policy.description}</p>
-                    <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
+                    <p className="text-sm text-gray-500">Split Payment Available</p>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div>
-              {ratepolicies?.singlePolicy?.map((policy) => (
+              {ratepolicies?.fullPaymentPolicy?.map((policy) => (
                 <div key={policy.id} className="flex items-center gap-4 p-3 border-b">
                   <input 
                     type="checkbox" 
@@ -69,7 +69,7 @@ export const AttachPoliciesModal = ({
                     <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
                     <div className="flex flex-wrap gap-2 mt-1">
                       <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {policy.nightlyRate}€/night
+                        {(policy as any)?.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment' : 'Full Payment'}
                       </span>
                       <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                         {policy.refundable ? "Refundable" : "Non-refundable"}

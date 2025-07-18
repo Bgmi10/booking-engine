@@ -21,7 +21,7 @@ export default function Settings() {
   // General settings state
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [initialSettings, setInitialSettings] = useState<GeneralSettings | null>(null);
-  const [formValues, setFormValues] = useState<SettingsFormValues>({});
+  const [formValues, setFormValues] = useState<SettingsFormValues | any>({});
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -291,7 +291,7 @@ export default function Settings() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormValues(prev => ({ ...prev, [name]: value }));
+    setFormValues((prev: any) => ({ ...prev, [name]: value }));
     setSuccess(null);
     setError(null);
   };
@@ -478,7 +478,7 @@ export default function Settings() {
                           name="dahuaIsEnabled"
                           checked={formValues.dahuaIsEnabled === true}
                           onChange={(e) => {
-                            setFormValues(prev => ({
+                            setFormValues((prev: any) => ({
                               ...prev,
                               dahuaIsEnabled: e.target.checked
                             }));

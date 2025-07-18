@@ -414,6 +414,12 @@ const validateForm = () => {
 
         setIsProcessing(true);
         try {
+            // Calculate current charge amount for split payments
+            const currentChargeAmount = allItems.reduce((sum, item) => {
+                const itemTotal = calculateItemTotal(item);
+                return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+            }, 0);
+            
             const bookingPayload = {
                 customerDetails: {
                     firstName: formData.firstName,
@@ -428,6 +434,7 @@ const validateForm = () => {
                 },
                 bookingItems: allItems,
                 totalAmount: priceDetails.finalTotal,
+                currentChargeAmount: currentChargeAmount, // Current charge amount for split payments
                 taxAmount: calculateDisplayTax(priceDetails.originalTotal),
                 voucherCode: voucherData ? voucherCode : null,
                 voucherDiscount: priceDetails.discount,
@@ -798,9 +805,38 @@ const validateForm = () => {
                                     {/* Room Rate Breakdown */}
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between text-gray-600">
-                                            <span className="flex-1 pr-2">{item.selectedRateOption?.name || 'Standard Rate'} ({nights} × {rooms} × €{item.selectedRateOption?.price || 0})</span>
+                                            <span className="flex-1 pr-2">
+                                                {item.selectedRateOption?.name || 'Standard Rate'} ({nights} × {rooms} × €{item.selectedRateOption?.price || 0})
+                                                {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
+                                                    <span className="ml-2 inline-flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                                        Split Payment
+                                                    </span>
+                                                )}
+                                            </span>
                                             <span className="font-medium">€{roomBasePrice.toFixed(2)}</span>
                                         </div>
+                                        
+                                        {/* Split Payment Breakdown */}
+                                        {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
+                                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                <h5 className="text-sm font-semibold text-blue-800 mb-2">Payment Structure</h5>
+                                                <div className="space-y-1 text-sm">
+                                                    <div className="flex justify-between text-blue-700">
+                                                        <span>• Current charge (30%):</span>
+                                                        <span className="font-medium">€{(itemTotal * 0.3).toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-blue-600">
+                                                        <span>• Remaining balance (70%):</span>
+                                                        <span>€{(itemTotal * 0.7).toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                                {item.selectedRateOption?.fullPaymentDays && (
+                                                    <p className="text-xs text-blue-600 mt-2">
+                                                        Remaining balance due {item.selectedRateOption.fullPaymentDays} days before arrival
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
                                         
                                         {/* Enhancements Breakdown */}
                                         {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
@@ -852,8 +888,21 @@ const validateForm = () => {
                                 </div>
                             )}
 
+                            {/* Show current charge total for split payments */}
+                            {allItems.some(item => item.selectedPaymentStructure === 'SPLIT_PAYMENT') && (
+                                <div className="flex justify-between items-center pt-3 border-t border-blue-200 bg-blue-50 -mx-6 px-6 py-3 rounded-lg">
+                                    <span className="text-lg font-semibold text-blue-800">Current Charge</span>
+                                    <span className="text-lg font-semibold text-blue-800">
+                                        €{allItems.reduce((sum, item) => {
+                                            const itemTotal = calculateItemTotal(item);
+                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                                        }, 0).toFixed(2)}
+                                    </span>
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-center pt-4 border-t border-gray-300">
-                                <span className="text-lg sm:text-xl font-semibold">Total</span>
+                                <span className="text-lg sm:text-xl font-semibold">Total Booking Value</span>
                                 <div className="text-right">
                                     {priceDetails.discount > 0 && (
                                         <span className="text-sm text-gray-500 line-through mr-2">
@@ -923,7 +972,12 @@ const validateForm = () => {
                                         Processing...
                                     </>
                                 ) : (
-                                    'Confirm & pay now'
+                                    allItems.some(item => item.selectedPaymentStructure === 'SPLIT_PAYMENT') 
+                                        ? `Pay Now - €${allItems.reduce((sum, item) => {
+                                            const itemTotal = calculateItemTotal(item);
+                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                                        }, 0).toFixed(2)}`
+                                        : 'Confirm & pay now'
                                 )}
                             </button>
                             

@@ -97,7 +97,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onClose, on
     
     if (name.startsWith('sampleMenu.')) {
         const field = name.split('.')[1];
-        setFormData(prev => ({
+        setFormData((prev: any) => ({
             ...prev,
             sampleMenu: { ...prev.sampleMenu, [field]: value }
         }));
@@ -106,14 +106,14 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onClose, on
 
     if (type === 'checkbox') {
         const checked = (e.target as HTMLInputElement).checked;
-        setFormData(prev => ({ ...prev, [name]: checked }));
+        setFormData((prev: any) => ({ ...prev, [name]: checked }));
     } else if (name === 'price') {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
-            setFormData(prev => ({ ...prev, [name]: numValue }));
+            setFormData((prev: any)=> ({ ...prev, [name]: numValue }));
         }
     } else {
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev: any) => ({ ...prev, [name]: value }));
     }
   };
 

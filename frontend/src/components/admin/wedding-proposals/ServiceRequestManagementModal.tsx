@@ -63,11 +63,7 @@ export const ServiceRequestManagementModal: React.FC<ServiceRequestManagementMod
         images, 
         uploadingImage, 
         uploadImages, 
-        resetImages, 
-        handleDragEnter, 
-        handleDragLeave, 
-        handleDragOver, 
-        handleDrop 
+        resetImages,
     } = useImageUpload();
 
     useEffect(() => {

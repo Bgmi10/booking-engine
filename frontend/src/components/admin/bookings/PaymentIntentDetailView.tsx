@@ -180,14 +180,6 @@ import { baseUrl } from "../../../utils/constants"
                             </div>
                           )}
                           
-                          {booking.selectedRateOption.discountPercentage > 0 && (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-blue-900">
-                                {booking.selectedRateOption.discountPercentage}% discount applied
-                              </span>
-                            </div>
-                          )}
                         </div>
                         
                         {/* Admin Decision Support */}
@@ -195,6 +187,7 @@ import { baseUrl } from "../../../utils/constants"
                           <p className="text-xs text-amber-800 font-medium">
                             💡 <strong>Admin Note:</strong> Use these policy terms to make refund and modification decisions. 
                             {!booking.selectedRateOption.refundable && " This booking selected a non-refundable rate."}
+                            {booking.selectedRateOption.paymentStructure === 'SPLIT_PAYMENT' && " This booking uses split payment structure."}
                           </p>
                         </div>
                       </div>
@@ -291,8 +284,10 @@ import { baseUrl } from "../../../utils/constants"
                   )}
                 </div>
                 
-                {/* Payment Status for Split Payments */}
-                {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && paymentIntent.remainingAmount > 0 && (
+              
+                {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' &&
+                //@ts-ignore
+                paymentIntent?.remainingAmount > 0 && (
                   <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-yellow-800">
@@ -321,8 +316,6 @@ import { baseUrl } from "../../../utils/constants"
                               const data = await response.json();
                               alert('Second payment intent created successfully! Email sent to customer.');
                               console.log('Payment intent created:', data.data.paymentIntentId);
-                              // Optionally refresh the payment intent data
-                              window.location.reload();
                             } else {
                               const error = await response.json();
                               alert(`Error: ${error.message}`);

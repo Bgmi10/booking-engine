@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RiCalendarLine, RiGroupLine, RiEdit2Line, RiMailSendLine, RiFileDownloadLine, RiPrinterLine, RiInformationLine, RiAddLine, RiMessage3Line } from 'react-icons/ri';
+import { RiCalendarLine, RiGroupLine, RiEdit2Line, RiMailSendLine, RiFileDownloadLine, RiPrinterLine, RiInformationLine, RiMessage3Line } from 'react-icons/ri';
 import toast from 'react-hot-toast';
 import type { ItineraryDay, WeddingProposal, WeddingServiceRequest } from '../../../types/types';
 import { baseUrl } from '../../../utils/constants';

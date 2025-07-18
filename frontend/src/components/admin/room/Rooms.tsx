@@ -17,7 +17,6 @@ import { CreateRoomModal } from "./CreateRoomModal"
 import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
 import type { RatePolicy } from "../../../types/types"
-import RatePolicyTab from "../../ui/RatePolicyTab"
 import RoomPricing from './RoomPricing'
 
 // Room type definition
@@ -65,13 +64,13 @@ export default function Rooms() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isApplyPoliciesModalOpen, setIsApplyPoliciesModalOpen] = useState(false)
   const [ratepolicies, setRatepolicies] = useState<{
-    singlePolicy: RatePolicy[];
-    discountPolicy: RatePolicy[];
+    fullPaymentPolicy: RatePolicy[];
+    splitPaymentPolicy: RatePolicy[];
   }>({
-    singlePolicy: [],
-    discountPolicy: []
+    fullPaymentPolicy: [],
+    splitPaymentPolicy: []
   })
-  const [isDiscountTab, setIsDiscountTab] = useState(false)
+  const [isFullPaymentTab, setIsFullPaymentTab] = useState(true)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
   const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'details' | 'pricing'>('details');
@@ -598,30 +597,31 @@ export default function Rooms() {
               </p>
             </div>
 
-            <RatePolicyTab isDiscountTab={isDiscountTab} setIsDiscountTab={setIsDiscountTab} />
+            <div className="flex justify-center mb-6">
+              <div className="bg-gray-200 rounded-lg p-1 flex">
+                <button
+                  onClick={() => setIsFullPaymentTab(true)}
+                  className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${
+                    isFullPaymentTab ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
+                  }`}
+                >
+                  Full Payment
+                </button>
+                <button
+                  onClick={() => setIsFullPaymentTab(false)}
+                  className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${
+                    !isFullPaymentTab ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
+                  }`}
+                >
+                  Split Payment
+                </button>
+              </div>
+            </div>
 
             <div className="mt-4">
-              {isDiscountTab ? (
+              {isFullPaymentTab ? (
                 <div className="space-y-2">
-                  {ratepolicies?.discountPolicy?.map((policy) => (
-                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedPolicies.some(p => p.id === policy.id)}
-                        onChange={() => togglePolicySelection(policy)}
-                        className="cursor-pointer" 
-                      />
-                      <div className="flex-1">
-                        <h2 className="font-medium">{policy.name}</h2>
-                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
-                        <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {ratepolicies?.singlePolicy?.map((policy) => (
+                  {ratepolicies?.fullPaymentPolicy?.map((policy) => (
                     <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
                       <input 
                         type="checkbox" 
@@ -633,20 +633,50 @@ export default function Rooms() {
                         <h2 className="font-medium">{policy.name}</h2>
                         <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {policy.nightlyRate}€/night
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            Full Payment
                           </span>
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                             {policy.refundable ? "Refundable" : "Non-refundable"}
                           </span>
-                          {policy.rebookValidityDays && (
+                          {(policy as any).cancellationPolicy && (
                             <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {policy.rebookValidityDays} days rebooking
+                              {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
                             </span>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ratepolicies?.splitPaymentPolicy?.map((policy) => (
+                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedPolicies.some(p => p.id === policy.id)}
+                        onChange={() => togglePolicySelection(policy)}
+                        className="cursor-pointer" 
+                      />
+                      <div className="flex-1">
+                        <h2 className="font-medium">{policy.name}</h2>
+                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                            Split Payment (30% + 70%)
+                          </span>
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {policy.refundable ? "Refundable" : "Non-refundable"}
+                          </span>
                           {policy.fullPaymentDays && (
                             <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {policy.fullPaymentDays} days full payment
+                              Final payment {policy.fullPaymentDays} days before
+                            </span>
+                          )}
+                          {(policy as any).cancellationPolicy && (
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
                             </span>
                           )}
                         </div>
@@ -665,11 +695,9 @@ export default function Rooms() {
                     <div key={policy.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
                       <div>
                         <p className="font-medium">{policy.name}</p>
-                        {policy.discountPercentage ? (
-                          <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
-                        ) : (
-                          <p className="text-sm text-gray-500">{policy.nightlyRate}€ per night</p>
-                        )}
+                        <p className="text-sm text-gray-500">
+                          {(policy as any).paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
+                        </p>
                       </div>
                       <button
                         onClick={() => removePolicy(policy.id)}
@@ -831,8 +859,8 @@ export default function Rooms() {
                     .then(res => res.json())
                     .then(data => {
                       setRatepolicies({
-                        singlePolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage === null),
-                        discountPolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage !== null)
+                        fullPaymentPolicy: data.data.filter((policy: RatePolicy) => (policy as any).paymentStructure === 'FULL_PAYMENT'),
+                        splitPaymentPolicy: data.data.filter((policy: RatePolicy) => (policy as any).paymentStructure === 'SPLIT_PAYMENT')
                       });
                     });
                   }}

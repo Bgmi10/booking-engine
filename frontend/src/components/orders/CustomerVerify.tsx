@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { baseUrl } from '../../utils/constants';
 
 const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVerificationSuccess }) => {
+    const [activeTab, setActiveTab] = useState<'existing' | 'guest'>('existing');
     const [surname, setSurname] = useState('');
     const [roomName, setRoomName] = useState('');
     const [occupiedRooms, setOccupiedRooms] = useState<string[]>([]);
@@ -34,19 +35,34 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
         e.preventDefault();
         setError(null);
 
-        if (!surname || !roomName) {
-            setError('Please provide your surname and select a room.');
+        if (!surname) {
+            setError('Please provide your surname.');
+            return;
+        }
+
+        if (activeTab === 'existing' && !roomName) {
+            setError('Please select a room.');
             return;
         }
 
         setIsLoading(true);
         try {
+            const requestBody = { 
+                surname, 
+                isGuest: activeTab === 'guest'
+            };
+
+            if (activeTab === 'existing') {
+                //@ts-ignore
+                requestBody.roomName = roomName;
+            }
+
             const response = await fetch(`${baseUrl}/customers/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ surname, roomName }),
+                body: JSON.stringify(requestBody),
                 credentials: 'include',
             });
 
@@ -68,7 +84,34 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
     return (
         <div className="bg-white shadow-md rounded-lg p-8 max-w-md w-full">
             <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Welcome</h2>
-            <p className="text-center text-gray-600 mb-6">Please verify your stay to place an order.</p>
+            <p className="text-center text-gray-600 mb-6">Please verify to place an order.</p>
+            
+            {/* Tab Headers */}
+            <div className="flex mb-6 border-b">
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('existing')}
+                    className={`flex-1 py-2 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
+                        activeTab === 'existing'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Returning Guest
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('guest')}
+                    className={`flex-1 py-2 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
+                        activeTab === 'guest'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Continue as Guest
+                </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                     <label htmlFor="surname" className="block text-sm font-medium text-gray-700">
@@ -84,25 +127,29 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
                         disabled={isLoading}
                     />
                 </div>
-                <div>
-                    <label htmlFor="roomName" className="block text-sm font-medium text-gray-700">
-                        Room
-                    </label>
-                    <select
-                        id="roomName"
-                        value={roomName}
-                        onChange={(e) => setRoomName(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        disabled={isLoading || occupiedRooms.length === 0}
-                    >
-                        <option value="">{isLoading ? 'Loading rooms...' : 'Select your room'}</option>
-                        {occupiedRooms.map((room) => (
-                            <option key={room} value={room}>
-                                {room}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                
+                {activeTab === 'existing' && (
+                    <div>
+                        <label htmlFor="roomName" className="block text-sm font-medium text-gray-700">
+                            Room
+                        </label>
+                        <select
+                            id="roomName"
+                            value={roomName}
+                            onChange={(e) => setRoomName(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            disabled={isLoading || occupiedRooms.length === 0}
+                        >
+                            <option value="">{isLoading ? 'Loading rooms...' : 'Select your room'}</option>
+                            {occupiedRooms.map((room) => (
+                                <option key={room} value={room}>
+                                    {room}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+                
                 {error && <p className="text-red-500 text-sm text-center">{error}</p>}
                 <div>
                     <button

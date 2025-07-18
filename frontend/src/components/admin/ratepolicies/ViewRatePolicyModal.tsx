@@ -107,13 +107,17 @@ export default function ViewRatePolicyModal({
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Rate</h4>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {ratePolicy?.nightlyRate ? "€" : ""}{ratePolicy?.nightlyRate ? ratePolicy?.nightlyRate : ratePolicy?.discountPercentage} {ratePolicy?.discountPercentage ? "%" : ""}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {ratePolicy?.discountPercentage ? "Discount" : "Per night"}
-                  </p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Refundable</h4>
+                  <div className="flex items-center gap-2">
+                    {ratePolicy.refundable ? (
+                      <FaCheckCircle className="text-green-500" />
+                    ) : (
+                      <FaTimesCircle className="text-red-500" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {ratePolicy.refundable ? "Yes" : "No"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

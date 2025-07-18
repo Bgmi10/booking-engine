@@ -18,11 +18,9 @@ const ItineraryItemsModal: React.FC<ItineraryItemsModalProps> = ({
   onClose,
   onSave,
   day,
-  proposalId,
   loading,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [newItem, setNewItem] = useState({
     productId: '',
@@ -40,7 +38,6 @@ const ItineraryItemsModal: React.FC<ItineraryItemsModalProps> = ({
   }, [isOpen, day]);
 
   const fetchProducts = async () => {
-    setLoadingProducts(true);
     try {
       const response = await fetch(`${baseUrl}/admin/products/all?type=WEDDING`, {
         credentials: 'include',
@@ -53,8 +50,6 @@ const ItineraryItemsModal: React.FC<ItineraryItemsModalProps> = ({
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch products');
-    } finally {
-      setLoadingProducts(false);
     }
   };
 
@@ -119,15 +114,6 @@ const ItineraryItemsModal: React.FC<ItineraryItemsModalProps> = ({
         [name]: Math.min(Math.max(numValue, 1), 120), // Clamp between 1 and 120
       }));
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(date);
   };
 
   const getStatusColor = (status: string) => {

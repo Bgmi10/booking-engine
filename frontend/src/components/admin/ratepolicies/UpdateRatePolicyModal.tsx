@@ -33,14 +33,8 @@ export default function UpdateRatePolicyModal({
   const [changeAllowedDays, setChangeAllowedDays] = useState(ratePolicy?.changeAllowedDays?.toString() || "");
   const [rebookValidityDays, setRebookValidityDays] = useState(ratePolicy?.rebookValidityDays?.toString() || "");
   const [loadingAction, setLoadingAction] = useState(false);
-  const [discountPercentage, setDiscountPercentage] = useState(ratePolicy?.discountPercentage?.toString() || "");
   
-  // New fields for flexible rate management
-  const [isPromotion, setIsPromotion] = useState(ratePolicy?.isPromotion ?? false);
-  const [minStayNights, setMinStayNights] = useState(ratePolicy?.minStayNights?.toString() || "");
-  const [maxAdvanceBooking, setMaxAdvanceBooking] = useState(ratePolicy?.maxAdvanceBooking?.toString() || "");
-  
-  // New fields for flexible rate management
+  // Core business logic fields
   const [paymentStructure, setPaymentStructure] = useState<'FULL_PAYMENT' | 'SPLIT_PAYMENT'>(
     (ratePolicy?.paymentStructure as 'FULL_PAYMENT' | 'SPLIT_PAYMENT') || 'FULL_PAYMENT'
   );
@@ -70,17 +64,11 @@ export default function UpdateRatePolicyModal({
       return;
     }
 
-    if (!discountPercentage.trim() || isNaN(Number(discountPercentage)) || Number(discountPercentage) < 0) {
-      toast.error("Please enter a valid discount percentage (0 for no discount)");
-      return;
-    }
-
     setLoadingAction(true);
 
     const policyData = {
         name,
         description,
-        discountPercentage: Number(discountPercentage),
         isActive,
         refundable,
         prepayPercentage: prepayPercentage ? Number(prepayPercentage) : undefined,
@@ -89,9 +77,6 @@ export default function UpdateRatePolicyModal({
         rebookValidityDays: rebookValidityDays ? Number(rebookValidityDays) : undefined,
         paymentStructure,
         cancellationPolicy,
-        isPromotion,
-        minStayNights: minStayNights ? Number(minStayNights) : undefined,
-        maxAdvanceBooking: maxAdvanceBooking ? Number(maxAdvanceBooking) : undefined,
     }
 
     try {
@@ -184,41 +169,8 @@ export default function UpdateRatePolicyModal({
               />
             </div>
 
-            <div>
-              { nightlyRate !== "0" ? (<><label htmlFor="nightlyRate" className="block text-sm font-medium text-gray-700">
-                Nightly Rate (EUR) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                id="nightlyRate"
-                value={nightlyRate}
-                onChange={(e) => setNightlyRate(e.target.value)}
-                min="0"
-                step="0.01"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="99.99"
-              />
-              </>
-              ) : (
-                <>
-                <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700">
-                  Discount Percentage <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="discountPercentage"
-                  value={discountPercentage}
-                  onChange={(e) => setDiscountPercentage(e.target.value)}
-                  min="0"
-                  max="100"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="50"
-                />
-                </>
-              )}
-            </div>
 
-           { prepayPercentage && <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="prepayPercentage" className="block text-sm font-medium text-gray-700">
                   Prepayment Percentage
@@ -249,9 +201,9 @@ export default function UpdateRatePolicyModal({
                   placeholder="30"
                 />
               </div>
-            </div>}
+            </div>
 
-            { changeAllowedDays && <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="changeAllowedDays" className="block text-sm font-medium text-gray-700">
                   Changes Allowed Days Before
@@ -281,7 +233,7 @@ export default function UpdateRatePolicyModal({
                   placeholder="365"
                 />
               </div>
-            </div>}
+            </div>
 
             {/* Payment Structure Selector */}
             <div>

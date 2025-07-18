@@ -257,7 +257,6 @@ model RatePolicy {
   id                  String   @id @default(uuid())
   name                String
   description         String
-  discountPercentage  Float?   // Percentage discount from room base price
   isActive            Boolean  @default(true)
   refundable          Boolean? @default(false)
   prepayPercentage    Int?     // For deposits (not currently used with new split structure)
@@ -265,14 +264,9 @@ model RatePolicy {
   changeAllowedDays   Int?     // Days before arrival when changes are allowed
   rebookValidityDays  Int?     // Days to rebook if cancelled
   
-  // New fields for flexible rate management
+  // Core business logic fields
   paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
   cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
-  
-  // Policy type indicators
-  isPromotion         Boolean              @default(false) // Special promotional rates
-  minStayNights       Int?                 // Minimum stay requirement for this policy
-  maxAdvanceBooking   Int?                 // Maximum days in advance this policy can be booked
   
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

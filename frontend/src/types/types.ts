@@ -96,6 +96,10 @@ export interface PaymentIntent {
   }>
   paymentMethod?: PaymentMethod
   actualPaymentMethod?: PaymentMethod // STRIPE | BANK_TRANSFER | CASH
+  paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
+  prepaidAmount?: number
+  remainingAmount?: number
+  remainingDueDate?: string
 }
 
 export interface Booking {
@@ -162,6 +166,7 @@ export interface PaymentIntentCardProps {
 
 
 export interface CustomerData {
+  surname?: string;
   email: string
   firstName: string
   lastName: string
@@ -212,6 +217,10 @@ export interface BookingData {
     discountPercentage: number
     refundable: boolean
     isActive: boolean
+    paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
+    cancellationPolicy?: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE'
+    fullPaymentDays?: number
+    changeAllowedDays?: number
   }
   selectedRoom: string
   totalPrice: number
@@ -431,7 +440,7 @@ export interface GeneralSettings { // Represents the actual data structure from/
   minStayDays: number;
   taxPercentage: number;
   chargePaymentConfig?: string;
-  // Dahua Camera Settings
+  dailyBookingStartTime: string
   dahuaApiUrl?: string;
   dahuaUsername?: string;
   dahuaPassword?: string;
@@ -445,7 +454,7 @@ export interface GeneralSettings { // Represents the actual data structure from/
 export interface SettingsFormValues {
   minStayDays?: string;
   taxPercentage?: string;
-  // Dahua Camera Settings
+  dailyBookingStartTime: string;
   dahuaApiUrl?: string;
   dahuaUsername?: string;
   dahuaPassword?: string;

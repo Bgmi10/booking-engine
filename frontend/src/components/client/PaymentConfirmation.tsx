@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { baseUrl } from '../../utils/constants';
-import type { PaymentPlanStage, PaymentPlan } from '../../types/types';
+import type { PaymentPlanStage } from '../../types/types';
 
 const PaymentConfirmation = () => {
   const navigate = useNavigate();

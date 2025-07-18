@@ -581,14 +581,12 @@ const createRatePolicy = async (req: express.Request, res: express.Response) => 
   const { 
     name, 
     description, 
-    nightlyRate, 
     isActive, 
     refundable, 
     prepayPercentage, 
     fullPaymentDays, 
     changeAllowedDays, 
     rebookValidityDays, 
-    discountPercentage,
     paymentStructure,
     cancellationPolicy
   } = req.body;
@@ -604,8 +602,6 @@ const createRatePolicy = async (req: express.Request, res: express.Response) => 
     };
 
     // Add optional fields if provided
-    if (nightlyRate !== undefined) createData.nightlyRate = nightlyRate;
-    if (discountPercentage !== undefined) createData.discountPercentage = discountPercentage;
     if (refundable !== undefined) createData.refundable = refundable;
     if (prepayPercentage !== undefined) createData.prepayPercentage = prepayPercentage;
     if (fullPaymentDays !== undefined) createData.fullPaymentDays = fullPaymentDays;
@@ -624,33 +620,29 @@ const updateRatePolicy = async (req: express.Request, res: express.Response) => 
   const { 
     name, 
     description, 
-    nightlyRate, 
     isActive, 
     refundable, 
     prepayPercentage, 
     fullPaymentDays, 
     changeAllowedDays, 
     rebookValidityDays, 
-    discountPercentage,
     paymentStructure,
     cancellationPolicy
   } = req.body;
 
   const updateData: any = {};
 
-  // Existing fields
+  // Core fields
   if (name !== undefined) updateData.name = name;
   if (description !== undefined) updateData.description = description;
-  if (nightlyRate !== undefined) updateData.nightlyRate = nightlyRate;
   if (isActive !== undefined) updateData.isActive = isActive;
   if (refundable !== undefined) updateData.refundable = refundable;
   if (prepayPercentage !== undefined) updateData.prepayPercentage = prepayPercentage;
   if (fullPaymentDays !== undefined) updateData.fullPaymentDays = fullPaymentDays;
   if (changeAllowedDays !== undefined) updateData.changeAllowedDays = changeAllowedDays;
   if (rebookValidityDays !== undefined) updateData.rebookValidityDays = rebookValidityDays;
-  if (discountPercentage !== undefined) updateData.discountPercentage = discountPercentage;
   
-  // New fields for flexible rate management
+  // Business logic fields
   if (paymentStructure !== undefined) updateData.paymentStructure = paymentStructure;
   if (cancellationPolicy !== undefined) updateData.cancellationPolicy = cancellationPolicy;
 

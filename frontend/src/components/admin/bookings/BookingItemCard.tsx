@@ -1,5 +1,4 @@
 import React from "react";
-import DatePicker from "react-datepicker";
 import { RiSubtractLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
 import type { BookingItem, Enhancement, Room } from "../../../types/types";

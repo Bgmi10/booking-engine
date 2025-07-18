@@ -265,7 +265,9 @@ export default function Order() {
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
                                 </button>
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                                    <div className="px-4 py-3 border-b"><p className="text-sm text-gray-600 truncate">{'guestEmail' in customer ? customer.guestEmail : 'Temporary Guest'}</p></div>
+                                    <div className="px-4 py-3 border-b">
+                                    <p>{typeof customer === 'object' && customer && 'guestEmail' in customer ? (customer as any).guestEmail : 'Temporary Guest'}</p>
+                                    </div>
                                     <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</button>
                                 </div>
                             </div>

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, Tag, X, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, X, AlertTriangle } from 'lucide-react';
 import { calculateNights } from '../utils/format';
 
 export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData, taxPercentage = 0.1 }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
@@ -394,11 +394,10 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                         <BarChart3 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <span className="break-words">Rate: {item.selectedRateOption?.name || 'Standard Rate'}</span>
-                          {item.selectedRateOption?.discountPercentage > 0 && (
+                          {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
                             <div className="mt-1">
-                              <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                                <Tag className="w-3 h-3" />
-                                -{item.selectedRateOption.discountPercentage}% OFF
+                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                Split Payment (30% + 70%)
                               </span>
                             </div>
                           )}
@@ -462,10 +461,9 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       <div className="flex items-center gap-2">
                         <BarChart3 className="w-4 h-4" />
                         <span>Rate: {item.selectedRateOption?.name || 'Standard Rate'}</span>
-                        {item.selectedRateOption?.discountPercentage > 0 && (
-                          <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                            <Tag className="w-3 h-3" />
-                            -{item.selectedRateOption.discountPercentage}% OFF
+                        {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
+                          <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                            Split Payment (30% + 70%)
                           </span>
                         )}
                       </div>
@@ -610,7 +608,13 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                 }}
                 className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium cursor-pointer"
               >
-                Continue
+                {allItems.some(item => item.selectedPaymentStructure === 'SPLIT_PAYMENT') 
+                  ? `Pay Now - €${allItems.reduce((sum, item) => {
+                      const itemTotal = calculateItemTotal(item);
+                      return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                    }, 0).toFixed(2)}`
+                  : 'Continue'
+                }
               </button>
             </div>
           </div>

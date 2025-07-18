@@ -3,7 +3,7 @@ import BookingSummary from "./BookingSummary";
 import { baseUrl } from "../utils/constants";
 import { format } from "date-fns";
 import type { Enhancement } from "../types/types";
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Tag, Shield, Clock } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Shield, Clock } from "lucide-react";
 
 export default function Rates({ bookingData, setCurrentStep, availabilityData, setBookingData }: { bookingData: any, setCurrentStep: (step: number) => void, availabilityData: any, setBookingData: any }) {
 
@@ -17,6 +17,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
+  //@ts-ignore
   const [selectedPaymentStructures, setSelectedPaymentStructures] = useState<any>({});
 
   const daysInRange = days.filter(day => {
@@ -44,24 +45,12 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     }
   }, [selectedRoom, bookingData.adults]);
 
-  // Prepare rate options
+  // Prepare rate options - only from server data
   const getRateOptions = () => {
-    const options = [];
-    
-    // Base rate (always available)
+    const options: any = [];
     const basePrice = selectedRoom?.price || 0;
-    options.push({
-      id: 'base',
-      name: 'Standard Rate',
-      description: 'Our standard room rate with all basic amenities included',
-      price: basePrice,
-      discountPercentage: 0,
-      isActive: true,
-      refundable: true,
-      type: 'base'
-    });
 
-    // Room rates (if available)
+    // Only show room rates from server (no hardcoded base rate)
     if (selectedRoom?.RoomRate && selectedRoom.RoomRate.length > 0) {
       selectedRoom.RoomRate.forEach((roomRate: any) => {
         if (roomRate.ratePolicy.isActive && roomRate.isActive) {
@@ -71,17 +60,12 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           if (roomRate.customRate) {
             finalPrice = roomRate.customRate;
           }
-          // Otherwise apply discount to room's base price
-          else if (roomRate.ratePolicy.discountPercentage) {
-            finalPrice = basePrice * (1 - roomRate.ratePolicy.discountPercentage / 100);
-          }
 
           options.push({
             id: roomRate.ratePolicy.id,
             name: roomRate.ratePolicy.name,
             description: roomRate.ratePolicy.description,
             price: finalPrice,
-            discountPercentage: roomRate.ratePolicy.discountPercentage || 0,
             isActive: roomRate.ratePolicy.isActive,
             refundable: roomRate.ratePolicy.refundable,
             fullPaymentDays: roomRate.ratePolicy.fullPaymentDays,
@@ -90,7 +74,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             rebookValidityDays: roomRate.ratePolicy.rebookValidityDays,
             paymentStructure: roomRate.ratePolicy.paymentStructure,
             cancellationPolicy: roomRate.ratePolicy.cancellationPolicy,
-            type: 'special'
+            type: 'policy'
           });
         }
       });
@@ -521,33 +505,27 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Available Rates</h3>
             
             {rateOptions.map((rateOption: any) => {
-              const hasDiscount = rateOption.discountPercentage > 0;
               const totalPrice = rateOption.price * nights * rooms;
-              const basePrice = selectedRoom?.price || 0;
               
               return (
                 <div key={rateOption.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                   {/* Rate Header */}
-                  <div className={`p-3 sm:p-4 ${rateOption.type === 'special' && hasDiscount ? 'bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-200' : 'bg-gray-50 border-b border-gray-200'}`}>
+                  <div className="p-3 sm:p-4 bg-gray-50 border-b border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
                       <div className="flex items-center gap-2">
-                        {hasDiscount && <Tag className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />}
-                        <h4 className={`font-bold text-sm sm:text-base ${hasDiscount ? 'text-orange-800' : 'text-gray-800'}`}>
+                        <h4 className="font-bold text-sm sm:text-base text-gray-800">
                           {rateOption.name}
                         </h4>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${rateOption.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {rateOption.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        {hasDiscount && (
-                          <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
-                            -{rateOption.discountPercentage}%
+                        {rateOption.paymentStructure === 'SPLIT_PAYMENT' && (
+                          <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">
+                            Split Payment
                           </span>
                         )}
                       </div>
                     </div>
-                    <p className={`text-xs sm:text-sm ${hasDiscount ? 'text-orange-700' : 'text-gray-600'}`}>
+                    <p className="text-xs sm:text-sm text-gray-600">
                       {rateOption.description}
                     </p>
                   </div>
@@ -556,12 +534,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                   <div className="p-3 sm:p-4">
                     {/* Pricing Display */}
                     <div className="space-y-2 sm:space-y-3 mb-4">
-                      {hasDiscount && rateOption.type === 'special' && (
-                        <div className="flex justify-between items-center text-gray-500">
-                          <span className="text-xs sm:text-sm">Original Rate:</span>
-                          <span className="line-through text-xs sm:text-sm">€{basePrice.toFixed(2)}</span>
-                        </div>
-                      )}
                       <div className="flex justify-between items-center">
                         <span className="text-base sm:text-lg font-bold text-gray-800">€{rateOption.price.toFixed(2)}</span>
                         <span className="text-xs sm:text-sm text-gray-600">per night</span>
@@ -609,60 +581,25 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         </div>
                       )}
 
-                      {/* Minimum Stay */}
-                      {rateOption.minStayNights && (
-                        <div className="flex items-start gap-2 text-gray-600">
-                          <svg className="h-3 w-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-xs">Minimum {rateOption.minStayNights} night{rateOption.minStayNights > 1 ? 's' : ''} stay</span>
-                        </div>
-                      )}
-
-                      {/* Promotional Badge */}
-                      {rateOption.isPromotion && (
-                        <div className="flex items-center gap-2">
-                          <svg className="h-3 w-3 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                          <span className="px-2 py-1 rounded font-medium text-xs bg-purple-100 text-purple-800">
-                            Special Offer
-                          </span>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Payment Structure Selection */}
+                    {/* Payment Structure Information */}
                     {rateOption.paymentStructure === 'SPLIT_PAYMENT' && (
                       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h5 className="text-sm font-semibold text-blue-800 mb-2">Payment Options</h5>
+                        <h5 className="text-sm font-semibold text-blue-800 mb-2">Split Payment Plan</h5>
                         <div className="space-y-2">
-                          <label className="flex items-center cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`payment-${rateOption.id}`}
-                              value="FULL_PAYMENT"
-                              checked={selectedPaymentStructures[rateOption.id] === 'FULL_PAYMENT'}
-                              onChange={(e) => setSelectedPaymentStructures(prev => ({...prev, [rateOption.id]: e.target.value}))}
-                              className="mr-2"
-                            />
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                             <span className="text-sm text-blue-700">
-                              Pay 100% now (€{totalPrice.toFixed(2)})
+                              Pay 30% now (€{(totalPrice * 0.3).toFixed(2)})
                             </span>
-                          </label>
-                          <label className="flex items-center cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`payment-${rateOption.id}`}
-                              value="SPLIT_PAYMENT"
-                              checked={selectedPaymentStructures[rateOption.id] === 'SPLIT_PAYMENT' || !selectedPaymentStructures[rateOption.id]}
-                              onChange={(e) => setSelectedPaymentStructures(prev => ({...prev, [rateOption.id]: e.target.value}))}
-                              className="mr-2"
-                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                             <span className="text-sm text-blue-700">
-                              Pay 30% now (€{(totalPrice * 0.3).toFixed(2)}) + 70% later (€{(totalPrice * 0.7).toFixed(2)})
+                              Pay 70% later (€{(totalPrice * 0.7).toFixed(2)})
                             </span>
-                          </label>
+                          </div>
                         </div>
                         {rateOption.fullPaymentDays && (
                           <p className="text-xs text-blue-600 mt-2">
@@ -674,18 +611,11 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
                     {/* Book Now Button */}
                     <button 
-                      className={`w-full py-2 sm:py-3 rounded-lg font-semibold transition-colors cursor-pointer text-sm sm:text-base ${
-                        hasDiscount 
-                          ? 'bg-orange-600 hover:bg-orange-700 text-white' 
-                          : 'bg-gray-900 hover:bg-gray-800 text-white'
-                      }`}
+                      className="w-full py-2 sm:py-3 rounded-lg font-semibold transition-colors cursor-pointer text-sm sm:text-base bg-gray-900 hover:bg-gray-800 text-white"
                       onClick={() => {
                         const paymentStructure = rateOption.paymentStructure === 'SPLIT_PAYMENT' 
                           ? (selectedPaymentStructures[rateOption.id] || 'SPLIT_PAYMENT')
                           : 'FULL_PAYMENT';
-                        const displayAmount = paymentStructure === 'SPLIT_PAYMENT' 
-                          ? (totalPrice * 0.3) 
-                          : totalPrice;
                         handleBookNow(rateOption, paymentStructure);
                       }}
                     >

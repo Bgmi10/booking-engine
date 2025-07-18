@@ -159,7 +159,7 @@ export default function Ratepolicy() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -173,7 +173,9 @@ export default function Ratepolicy() {
                       <div className="text-sm text-gray-500 line-clamp-2 w-40">{policy.description}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{policy?.nightlyRate ? "€" : ""}{ policy?.nightlyRate ? policy?.nightlyRate : policy?.discountPercentage} { policy?.discountPercentage ? "%" : ""}</div>
+                      <div className="text-sm text-gray-900">
+                        {(policy as any)?.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment' : 'Full Payment'}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -182,13 +184,13 @@ export default function Ratepolicy() {
                         {policy.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
-                   { <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         policy?.refundable ? "bg-blue-100 text-blue-800" : "bg-yellow-100 text-yellow-800"
                       }`}>
-                        { policy.discountPercentage ? "Discount" : policy?.refundable ? "Refundable" : "Non-refundable"}
+                        {policy?.refundable ? "Refundable" : "Non-refundable"}
                       </span>
-                    </td>}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button

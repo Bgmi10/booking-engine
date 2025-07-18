@@ -1007,6 +1007,7 @@ export default function WeddingPortalDashboard() {
             {isGuestProposalCreationModalOpen && (
                 <GuestProposalCreationModal
                     onClose={() => setIsGuestProposalCreationModalOpen(false)}
+                    //@ts-ignore
                     onSuccess={fetchAllProposals}
                 />
             )}

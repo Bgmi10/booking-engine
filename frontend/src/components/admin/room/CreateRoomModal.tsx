@@ -49,15 +49,15 @@ export function CreateRoomModal({
   const [localSuccess, setLocalSuccess] = useState("")
   const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
   const [ratepolicies, setRatepolicies] = useState<{
-    singlePolicy: RatePolicy[];
-    discountPolicy: RatePolicy[];
+    fullPaymentPolicy: RatePolicy[];
+    splitPaymentPolicy: RatePolicy[];
   }>({
-    singlePolicy: [],
-    discountPolicy: []
+    fullPaymentPolicy: [],
+    splitPaymentPolicy: []
   });
   const [amenities, setAmenities] = useState<string[]>([]);
   const [newAmenity, setNewAmenity] = useState("");
-  const [isDiscountTab, setIsDiscountTab] = useState(false)
+  const [isFullPaymentTab, setIsFullPaymentTab] = useState(true)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([]);
 
   // Use the custom image upload hook
@@ -351,8 +351,8 @@ export function CreateRoomModal({
                   .then(res => res.json())
                   .then(data => {
                     setRatepolicies({
-                      singlePolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage === null),
-                      discountPolicy: data.data.filter((policy: RatePolicy) => policy.discountPercentage !== null)
+                      fullPaymentPolicy: data.data.filter((policy: RatePolicy) => (policy as any).paymentStructure === 'FULL_PAYMENT'),
+                      splitPaymentPolicy: data.data.filter((policy: RatePolicy) => (policy as any).paymentStructure === 'SPLIT_PAYMENT')
                     })
                   })
                 }}
@@ -370,11 +370,9 @@ export function CreateRoomModal({
                       <div key={policy.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
                         <div>
                           <p className="font-medium">{policy.name}</p>
-                          {policy.discountPercentage ? (
-                            <p className="text-sm text-gray-500">{policy.discountPercentage}% discount</p>
-                          ) : (
-                            <p className="text-sm text-gray-500">{policy.nightlyRate}€ per night</p>
-                          )}
+                          <p className="text-sm text-gray-500">
+                            {(policy as any).paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
+                          </p>
                         </div>
                         <button
                           onClick={() => removePolicy(policy.id)}
@@ -394,8 +392,8 @@ export function CreateRoomModal({
                 <AttachPoliciesModal
                   setIsAttachPoliciesModalOpen={setIsAttachPoliciesModalOpen}
                   ratepolicies={ratepolicies}
-                  isDiscountTab={isDiscountTab}
-                  setIsDiscountTab={setIsDiscountTab}
+                  isDiscountTab={!isFullPaymentTab}
+                  setIsDiscountTab={(value) => setIsFullPaymentTab(!value)}
                   selectedPolicies={selectedPolicies}
                   togglePolicySelection={togglePolicySelection}
                 />

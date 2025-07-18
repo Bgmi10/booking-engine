@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RiAddLine, RiCloseLine, RiDeleteBinLine, RiEditLine } from 'react-icons/ri';
+import { RiAddLine, RiCloseLine, RiEditLine } from 'react-icons/ri';
 import { baseUrl } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
