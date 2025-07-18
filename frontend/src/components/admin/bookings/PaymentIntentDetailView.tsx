@@ -2,6 +2,7 @@ import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users } from "l
 import type { PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
+import { baseUrl } from "../../../utils/constants"
 
   export default function PaymentIntentDetailsView({
     paymentIntent,
@@ -122,8 +123,83 @@ import { getStatusColor } from "../../../utils/helper"
                           {format(new Date(booking.checkOut), "EEEE, MMMM dd, yyyy")}
                         </div>
                       </div>
+                      {booking.selectedRateOption && (
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium text-gray-500">Rate Policy Applied</label>
+                          <div className="font-medium text-gray-900">{booking.selectedRateOption.name}</div>
+                          <div className="text-sm text-gray-600">{booking.selectedRateOption.description}</div>
+                        </div>
+                      )}
                     </div>
   
+                    {/* Rate Policy Details */}
+                    {booking.selectedRateOption && (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label className="text-sm font-semibold text-blue-800 mb-2 block">Policy Terms & Conditions</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${booking.selectedRateOption.refundable ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                            <span className="text-blue-900">
+                              {booking.selectedRateOption.refundable ? 'Refundable' : 'Non-refundable'}
+                            </span>
+                          </div>
+                          
+                          {booking.selectedRateOption.cancellationPolicy && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                              <span className="text-blue-900 capitalize">
+                                {booking.selectedRateOption.cancellationPolicy.toLowerCase().replace('_', ' ')} cancellation
+                              </span>
+                            </div>
+                          )}
+                          
+                          {booking.selectedRateOption.paymentStructure && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                              <span className="text-blue-900">
+                                {booking.selectedRateOption.paymentStructure === 'SPLIT_PAYMENT' ? 'Split payment (30% + 70%)' : 'Full payment required'}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {booking.selectedRateOption.fullPaymentDays && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                              <span className="text-blue-900">
+                                Final payment due {booking.selectedRateOption.fullPaymentDays} days before arrival
+                              </span>
+                            </div>
+                          )}
+                          
+                          {booking.selectedRateOption.changeAllowedDays && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                              <span className="text-blue-900">
+                                Changes allowed up to {booking.selectedRateOption.changeAllowedDays} days before
+                              </span>
+                            </div>
+                          )}
+                          
+                          {booking.selectedRateOption.discountPercentage > 0 && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                              <span className="text-blue-900">
+                                {booking.selectedRateOption.discountPercentage}% discount applied
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Admin Decision Support */}
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                          <p className="text-xs text-amber-800 font-medium">
+                            💡 <strong>Admin Note:</strong> Use these policy terms to make refund and modification decisions. 
+                            {!booking.selectedRateOption.refundable && " This booking selected a non-refundable rate."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {booking.roomDetails?.amenities && booking.roomDetails.amenities.length > 0 && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500">Amenities</label>
@@ -217,8 +293,8 @@ import { getStatusColor } from "../../../utils/helper"
                 
                 {/* Payment Status for Split Payments */}
                 {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && paymentIntent.remainingAmount > 0 && (
-                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center justify-between">
+                  <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-yellow-800">
                         Remaining payment of €{paymentIntent.remainingAmount} required
                       </span>
@@ -226,6 +302,105 @@ import { getStatusColor } from "../../../utils/helper"
                         <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-md">
                           Overdue
                         </span>
+                      )}
+                    </div>
+                    
+                    {/* Admin Actions for Second Payment */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/create-second-payment`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                            });
+                            
+                            if (response.ok) {
+                              const data = await response.json();
+                              alert('Second payment intent created successfully! Email sent to customer.');
+                              console.log('Payment intent created:', data.data.paymentIntentId);
+                              // Optionally refresh the payment intent data
+                              window.location.reload();
+                            } else {
+                              const error = await response.json();
+                              alert(`Error: ${error.message}`);
+                            }
+                          } catch (error) {
+                            console.error('Error creating payment link:', error);
+                            alert('Failed to create payment intent');
+                          }
+                        }}
+                        disabled={loadingAction}
+                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create Payment Intent
+                      </button>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                            });
+                            
+                            if (response.ok) {
+                              alert('Payment reminder sent successfully!');
+                            } else {
+                              const error = await response.json();
+                              alert(`Error: ${error.message}`);
+                            }
+                          } catch (error) {
+                            console.error('Error sending reminder:', error);
+                            alert('Failed to send reminder');
+                          }
+                        }}
+                        disabled={loadingAction}
+                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5-5-5h5v-12" />
+                        </svg>
+                        Send Reminder
+                      </button>
+                      
+                      {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                              });
+                              
+                              if (response.ok) {
+                                alert('Overdue notice sent successfully!');
+                              } else {
+                                const error = await response.json();
+                                alert(`Error: ${error.message}`);
+                              }
+                            } catch (error) {
+                              console.error('Error sending overdue notice:', error);
+                              alert('Failed to send overdue notice');
+                            }
+                          }}
+                          disabled={loadingAction}
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          Send Overdue Notice
+                        </button>
                       )}
                     </div>
                   </div>

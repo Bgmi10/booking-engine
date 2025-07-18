@@ -26,7 +26,6 @@ export default function UpdateRatePolicyModal({
 }: UpdateRatePolicyModalProps) {
   const [name, setName] = useState(ratePolicy?.name || "");
   const [description, setDescription] = useState(ratePolicy?.description || "");
-  const [nightlyRate, setNightlyRate] = useState(ratePolicy?.nightlyRate?.toString() || "");
   const [isActive, setIsActive] = useState(ratePolicy?.isActive ?? true);
   const [refundable, setRefundable] = useState(ratePolicy?.refundable ?? true);
   const [prepayPercentage, setPrepayPercentage] = useState(ratePolicy?.prepayPercentage?.toString() || "");
@@ -35,6 +34,11 @@ export default function UpdateRatePolicyModal({
   const [rebookValidityDays, setRebookValidityDays] = useState(ratePolicy?.rebookValidityDays?.toString() || "");
   const [loadingAction, setLoadingAction] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(ratePolicy?.discountPercentage?.toString() || "");
+  
+  // New fields for flexible rate management
+  const [isPromotion, setIsPromotion] = useState(ratePolicy?.isPromotion ?? false);
+  const [minStayNights, setMinStayNights] = useState(ratePolicy?.minStayNights?.toString() || "");
+  const [maxAdvanceBooking, setMaxAdvanceBooking] = useState(ratePolicy?.maxAdvanceBooking?.toString() || "");
   
   // New fields for flexible rate management
   const [paymentStructure, setPaymentStructure] = useState<'FULL_PAYMENT' | 'SPLIT_PAYMENT'>(
@@ -65,45 +69,30 @@ export default function UpdateRatePolicyModal({
       toast.error("Description is required");
       return;
     }
-    
-    if (discountPercentage) {
-      if (!discountPercentage || isNaN(Number(discountPercentage)) || Number(discountPercentage) <= 0) {
-        toast.error("Please enter a valid discount percentage");
-        return;
-      }
-    } else {
-      if (!nightlyRate.trim() || isNaN(Number(nightlyRate)) || Number(nightlyRate) <= 0) {
-        toast.error("Please enter a valid nightly rate");
-        return;
-      }
+
+    if (!discountPercentage.trim() || isNaN(Number(discountPercentage)) || Number(discountPercentage) < 0) {
+      toast.error("Please enter a valid discount percentage (0 for no discount)");
+      return;
     }
 
     setLoadingAction(true);
 
-    const singleRatePolicy = {
+    const policyData = {
         name,
         description,
-        nightlyRate: Number(nightlyRate),
+        discountPercentage: Number(discountPercentage),
         isActive,
         refundable,
         prepayPercentage: prepayPercentage ? Number(prepayPercentage) : undefined,
-        discountPercentage: discountPercentage ? Number(discountPercentage) : undefined,
         fullPaymentDays: fullPaymentDays ? Number(fullPaymentDays) : undefined,
         changeAllowedDays: changeAllowedDays ? Number(changeAllowedDays) : undefined,
         rebookValidityDays: rebookValidityDays ? Number(rebookValidityDays) : undefined,
         paymentStructure,
         cancellationPolicy,
+        isPromotion,
+        minStayNights: minStayNights ? Number(minStayNights) : undefined,
+        maxAdvanceBooking: maxAdvanceBooking ? Number(maxAdvanceBooking) : undefined,
     }
-
-    const discountRatePolicy = {
-      name,
-      description,
-      discountPercentage: Number(discountPercentage),
-      isActive,
-      paymentStructure,
-      cancellationPolicy,
-    }
-
 
     try {
       const response = await fetch(`${baseUrl}/admin/rate-policies/${ratePolicy.id}`, {
@@ -112,7 +101,7 @@ export default function UpdateRatePolicyModal({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(discountPercentage ? discountRatePolicy : singleRatePolicy),
+        body: JSON.stringify(policyData),
       });
 
       const data = await response.json();

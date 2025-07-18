@@ -69,7 +69,8 @@ export default function Settings() {
           dahuaPassword: currentSettings.dahuaPassword || '',
           dahuaIsEnabled: currentSettings.dahuaIsEnabled || false,
           dahuaGateId: currentSettings.dahuaGateId || '',
-          dahuaLicensePlateExpiryHours: String(currentSettings.dahuaLicensePlateExpiryHours || 24)
+          dahuaLicensePlateExpiryHours: String(currentSettings.dahuaLicensePlateExpiryHours || 24),
+          dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00'
         });
         setSettingsId(currentSettings.id);
 
@@ -92,7 +93,8 @@ export default function Settings() {
         setInitialSettings(null);
         setFormValues({ 
           minStayDays: '1',
-          taxPercentage: '0'
+          taxPercentage: '0',
+          dailyBookingStartTime: '00:00'
         }); // Default values if no settings found
         setSettingsId(null);
       }
@@ -322,7 +324,8 @@ export default function Settings() {
           dahuaPassword: formValues.dahuaPassword || null,
           dahuaIsEnabled: formValues.dahuaIsEnabled === true,
           dahuaGateId: formValues.dahuaGateId || null,
-          dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24
+          dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24,
+          dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00'
         }),
       });
       
@@ -383,6 +386,25 @@ export default function Settings() {
                       </div>
                       <p className="mt-2 text-sm text-gray-500">
                         The minimum number of nights required for a booking
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="dailyBookingStartTimeInput" className="block text-sm font-medium text-gray-700 mb-2">
+                        Daily Booking Start Time
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          id="dailyBookingStartTimeInput"
+                          name="dailyBookingStartTime"
+                          type="time"
+                          value={formValues.dailyBookingStartTime ?? '00:00'}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Time when customers can start booking for the current date (Italian time)
                       </p>
                     </div>
                   </div>

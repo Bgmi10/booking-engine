@@ -30,6 +30,7 @@ interface DateSelectorProps {
   minStayDays?: number
   selectedRoomId?: string
   selectedRatePolicyId?: string
+  dailyBookingStartTime?: string
 }
 
 const DateSelector = ({ 
@@ -40,6 +41,7 @@ const DateSelector = ({
   calenderOpen, 
   setCalenderOpen,
   minStayDays = 2,
+  dailyBookingStartTime = '00:00',
 }: DateSelectorProps) => {
   
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
@@ -55,6 +57,34 @@ const DateSelector = ({
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  // Check if booking is allowed for today based on Italian time
+  const isCurrentDateBookingAllowed = (date: Date): boolean => {
+    const dateStr = formatDateForAPI(date)
+    const todayStr = formatDateForAPI(new Date())
+    
+    // If it's not today, allow booking
+    if (dateStr !== todayStr) {
+      return true
+    }
+    
+    // Get current time in Italian timezone
+    const now = new Date()
+    const italianTime = new Intl.DateTimeFormat('it-IT', {
+      timeZone: 'Europe/Rome',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(now)
+    
+    const [currentHour, currentMinute] = italianTime.split(':').map(Number)
+    const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
+    
+    const currentMinutes = currentHour * 60 + currentMinute
+    const allowedMinutes = allowedHour * 60 + allowedMinute
+    
+    return currentMinutes >= allowedMinutes
+  }
 
   // Helper function to format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date): string => {
@@ -205,7 +235,7 @@ const DateSelector = ({
       return
     }
 
-    // Check if date is fully booked
+    // Priority 1: Check booking status first (overrides time restrictions)
     if (isDateFullyBooked(date)) {
       setWarningMessage("This date is fully booked")
       setTimeout(() => setWarningMessage(""), 3000)
@@ -214,7 +244,7 @@ const DateSelector = ({
 
     // If selecting arrival date
     if (!selectedDates.startDate || (selectedDates.startDate && selectedDates.endDate)) {
-      // Check if date is restricted for check-in
+      // Priority 2: Check calendar restrictions
       if (isDateRestrictedFromCheckIn(date)) {
         const restriction = getDateRestrictionInfo(date)
         const reasons = restriction?.restrictionReasons || ["Check-in not allowed on this date"]
@@ -223,12 +253,20 @@ const DateSelector = ({
         return
       }
 
-      // Check if date is restricted from stay
       if (isDateRestrictedFromStay(date)) {
         const restriction = getDateRestrictionInfo(date)
         const reasons = restriction?.restrictionReasons || ["Stay not allowed on this date"]
         setWarningMessage(reasons[0])
         setTimeout(() => setWarningMessage(""), 3000)
+        return
+      }
+
+      // Priority 3: Check time restrictions for available dates only
+      if (!isCurrentDateBookingAllowed(date)) {
+        const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
+        const timeStr = `${allowedHour.toString().padStart(2, '0')}:${allowedMinute.toString().padStart(2, '0')}`
+        setWarningMessage(`Booking for today is allowed after ${timeStr} (Italian time)`)
+        setTimeout(() => setWarningMessage(""), 5000)
         return
       }
 
@@ -349,6 +387,7 @@ const DateSelector = ({
       return "bg-gray-200 text-gray-800"
     }
   
+    // Priority 1: Show booking status first (overrides time restrictions)
     switch (availabilityState) {
       case 'restricted':
         return "bg-orange-100 text-orange-600 cursor-not-allowed"
@@ -357,8 +396,16 @@ const DateSelector = ({
       case 'partiallyBooked':
         return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
       case 'available':
+        // Priority 2: For available dates, check time restrictions
+        if (!isCurrentDateBookingAllowed(date)) {
+          return "bg-orange-100 text-orange-600 cursor-not-allowed"
+        }
         return "bg-green-50 text-green-800 hover:bg-green-100"
       default:
+        // Priority 3: For unknown status dates, check time restrictions
+        if (!isCurrentDateBookingAllowed(date)) {
+          return "bg-orange-100 text-orange-600 cursor-not-allowed"
+        }
         return "hover:bg-gray-100 text-gray-700"
     }
   }
@@ -377,11 +424,7 @@ const DateSelector = ({
       return validation.reason || "Cannot select this departure date"
     }
 
-    // Show restriction reasons
-    if (restriction && restriction.restrictionReasons.length > 0) {
-      return restriction.restrictionReasons[0]
-    }
-
+    // Priority 1: Show booking status first (overrides time restrictions)
     if (isDateFullyBooked(date)) {
       return "Fully booked - no rooms available"
     }
@@ -390,7 +433,20 @@ const DateSelector = ({
       return "Limited availability"
     }
 
-    if (isDateAvailable(date)) {
+    // Priority 2: Show restriction reasons
+    if (restriction && restriction.restrictionReasons.length > 0) {
+      return restriction.restrictionReasons[0]
+    }
+
+    // Priority 3: Show time restriction only for available dates
+    if (isDateAvailable(date) || getDateAvailabilityState(date) === 'unknown') {
+      // Check if current date booking is not allowed due to time restriction
+      if (!isCurrentDateBookingAllowed(date)) {
+        const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
+        const timeStr = `${allowedHour.toString().padStart(2, '0')}:${allowedMinute.toString().padStart(2, '0')}`
+        return `Booking for today is allowed after ${timeStr} (Italian time)`
+      }
+
       let tooltip = "Available"
       if (restriction) {
         if (restriction.minimumStay && restriction.minimumStay > minStayDays) {
@@ -467,8 +523,11 @@ const DateSelector = ({
   // Enhanced clickability check
   const isDateClickable = (date: Date): boolean => {
     if (isDateInPast(date)) return false
+    
+    // Priority 1: Check booking status first (fully booked overrides time restrictions)
     if (isDateFullyBooked(date)) return false
     
+    // Priority 2: Check calendar restrictions
     // For arrival date selection
     if (!selectedDates.startDate || (selectedDates.startDate && selectedDates.endDate)) {
       if (isDateRestrictedFromCheckIn(date) || isDateRestrictedFromStay(date)) return false
@@ -478,6 +537,9 @@ const DateSelector = ({
     if (selectedDates.startDate && !selectedDates.endDate) {
       if (isDateDisabledForDeparture(date)) return false
     }
+    
+    // Priority 3: Check time restrictions (only if not booked and not restricted)
+    if (!isCurrentDateBookingAllowed(date)) return false
     
     return true
   }

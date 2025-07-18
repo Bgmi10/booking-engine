@@ -40,7 +40,6 @@ interface EnhancedRoomAvailability {
 interface RateAvailability {
   ratePolicyId: string;
   name: string;
-  price: number;
   isAvailable: boolean;
   restrictions: string[];
 }
@@ -407,7 +406,6 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
         availableRates.push({
           ratePolicyId: roomRate.ratePolicy.id,
           name: roomRate.ratePolicy.name,
-          price: roomRate.ratePolicy.nightlyRate || room.price,
           isAvailable: isRateAvailable,
           restrictions: rateRestrictions
         });
@@ -432,8 +430,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       }
     }
 
-    const generalSettings = await prisma.generalSettings.findMany({
-      select: { minStayDays: true, taxPercentage: true }
+    const generalSettings = await prisma.generalSettings.findMany({ 
     });
 
     const response: EnhancedAvailabilityResponse = {

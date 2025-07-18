@@ -3110,6 +3110,193 @@ async function main() {
         routingNumber: { type: 'string', description: 'Routing number (for US banks)' },
         bookingDetails: { type: 'array', description: 'Array of booking details' }
       }
+    },
+    {
+      name: 'Booking Payment Reminder',
+      type: 'BOOKING_PAYMENT_REMINDER',
+      subject: 'Payment Reminder: Complete Your Booking (#{{confirmationId}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Reminder - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <div style="background: linear-gradient(135deg, ${emailStyles.warningColor} 0%, #f59e0b 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">⏰</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Payment Reminder</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">Complete your booking payment • Due {{dueDate}}</p>
+          </div>
+
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This is a friendly reminder about your remaining payment for your upcoming stay at La Torre sulla via Francigena.
+              </p>
+            </div>
+
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">💳 Payment Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Booking ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">#{{confirmationId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Amount Due:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 20px;">€{{remainingAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Due Date:</span>
+                    <span style="color: ${emailStyles.warningColor}; font-weight: 600;">{{dueDate}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="{{paymentUrl}}" style="display: inline-block; background: ${emailStyles.accentColor}; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 18px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
+                Complete Payment Now
+              </a>
+              <p style="margin: 16px 0 0 0; font-size: 14px; color: ${emailStyles.secondaryColor};">Secure payment powered by Stripe</p>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        confirmationId: { type: 'string', description: 'Booking confirmation ID' },
+        remainingAmount: { type: 'number', description: 'Amount due' },
+        dueDate: { type: 'string', description: 'Payment due date' },
+        paymentUrl: { type: 'string', description: 'Payment URL' }
+      }
+    },
+    {
+      name: 'Booking Payment Overdue',
+      type: 'BOOKING_PAYMENT_OVERDUE', 
+      subject: 'URGENT: Overdue Payment for Your Booking (#{{confirmationId}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Overdue Payment - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <div style="background: linear-gradient(135deg, ${emailStyles.errorColor} 0%, #dc2626 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🚨</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Payment Overdue</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">Immediate action required • Booking at risk</p>
+          </div>
+
+          <div style="padding: 0 32px 32px;">
+            <div style="background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 32px;">
+              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                <span style="font-size: 24px; margin-right: 12px;">⚠️</span>
+                <h3 style="margin: 0; color: #dc2626; font-size: 18px;">URGENT: Payment Required</h3>
+              </div>
+              <p style="margin: 0; color: #dc2626; font-size: 16px; line-height: 1.6;">
+                Dear {{customerName}}, your payment for booking #{{confirmationId}} is now overdue. 
+                Please complete your payment immediately to avoid cancellation.
+              </p>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="{{paymentUrl}}" style="display: inline-block; background: ${emailStyles.errorColor}; color: white; padding: 20px 40px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 20px; box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);">
+                PAY NOW TO SAVE BOOKING
+              </a>
+              <p style="margin: 16px 0 0 0; font-size: 14px; color: ${emailStyles.errorColor}; font-weight: 600;">⚡ Secure payment • Immediate confirmation</p>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        confirmationId: { type: 'string', description: 'Booking confirmation ID' },
+        remainingAmount: { type: 'number', description: 'Overdue amount' },
+        daysOverdue: { type: 'number', description: 'Days overdue' },
+        paymentUrl: { type: 'string', description: 'Payment URL' }
+      }
+    },
+    {
+      name: 'Second Payment Created',
+      type: 'SECOND_PAYMENT_CREATED',
+      subject: 'Final Payment Ready: Complete Your Booking (#{{confirmationId}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Final Payment - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #2563eb 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💳</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Final Payment Ready</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">Complete your booking • Almost there!</p>
+          </div>
+
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Your final payment is now ready! Complete this payment to fully secure your reservation at La Torre sulla via Francigena.
+              </p>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="{{paymentUrl}}" style="display: inline-block; background: ${emailStyles.infoColor}; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 18px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                Complete Final Payment
+              </a>
+              <p style="margin: 16px 0 0 0; font-size: 14px; color: ${emailStyles.secondaryColor};">🔒 Secure payment powered by Stripe</p>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer name' },
+        confirmationId: { type: 'string', description: 'Booking confirmation ID' },
+        paidAmount: { type: 'number', description: 'Amount already paid' },
+        remainingAmount: { type: 'number', description: 'Final payment amount' },
+        totalAmount: { type: 'number', description: 'Total booking amount' },
+        paymentUrl: { type: 'string', description: 'Payment URL' }
+      }
     }
   ]
 

@@ -4,7 +4,6 @@ import { BiLoader } from "react-icons/bi";
 import { FaCreditCard, FaPercent, FaCalendarAlt, FaShieldAlt } from "react-icons/fa";
 import { baseUrl } from "../../../utils/constants";
 import type { RatePolicy } from "../../../types/types";
-import RatePolicyTab from "../../ui/RatePolicyTab";
 import toast from "react-hot-toast";
 interface CreateRatePolicyModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void;
@@ -23,7 +22,6 @@ export default function CreateRatePolicyModal({
 }: CreateRatePolicyModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [nightlyRate, setNightlyRate] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [refundable, setRefundable] = useState(true);
   const [prepayPercentage, setPrepayPercentage] = useState("");
@@ -31,8 +29,12 @@ export default function CreateRatePolicyModal({
   const [changeAllowedDays, setChangeAllowedDays] = useState("");
   const [rebookValidityDays, setRebookValidityDays] = useState("");
   const [loadingAction, setLoadingAction] = useState(false);
-  const [discountPercentage, setDiscountPercentage] = useState(0);
-  const [isDiscountTab, setIsDiscountTab] = useState(false);
+  const [discountPercentage, setDiscountPercentage] = useState("");
+  
+  // New fields for flexible rate management
+  const [isPromotion, setIsPromotion] = useState(false);
+  const [minStayNights, setMinStayNights] = useState("");
+  const [maxAdvanceBooking, setMaxAdvanceBooking] = useState("");
   
   // New fields for flexible rate management
   const [paymentStructure, setPaymentStructure] = useState<'FULL_PAYMENT' | 'SPLIT_PAYMENT'>('FULL_PAYMENT');
@@ -49,25 +51,18 @@ export default function CreateRatePolicyModal({
       toast.error("Description is required");
       return;
     }
-    
-    if (isDiscountTab) {
-      if (!discountPercentage || isNaN(Number(discountPercentage)) || Number(discountPercentage) <= 0) {
-        toast.error("Please enter a valid discount percentage");
-        return;
-      }
-    } else {
-      if (!nightlyRate.trim() || isNaN(Number(nightlyRate)) || Number(nightlyRate) <= 0) {
-        toast.error("Please enter a valid nightly rate");
-        return;
-      }
+
+    if (!discountPercentage.trim() || isNaN(Number(discountPercentage)) || Number(discountPercentage) < 0) {
+      toast.error("Please enter a valid discount percentage (0 for no discount)");
+      return;
     }
 
     setLoadingAction(true);
 
-    const singlePolicy = {
+    const policyData = {
       name,
       description,
-      nightlyRate: Number(nightlyRate),
+      discountPercentage: Number(discountPercentage),
       isActive,
       refundable,
       prepayPercentage: prepayPercentage ? Number(prepayPercentage) : undefined,
@@ -76,15 +71,9 @@ export default function CreateRatePolicyModal({
       rebookValidityDays: rebookValidityDays ? Number(rebookValidityDays) : undefined,
       paymentStructure,
       cancellationPolicy,
-    }
-
-    const discountPolicy = {
-      name,
-      description,
-      discountPercentage: discountPercentage,
-      isActive,
-      paymentStructure,
-      cancellationPolicy,
+      isPromotion,
+      minStayNights: minStayNights ? Number(minStayNights) : undefined,
+      maxAdvanceBooking: maxAdvanceBooking ? Number(maxAdvanceBooking) : undefined,
     }
 
     try {
@@ -94,7 +83,7 @@ export default function CreateRatePolicyModal({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(isDiscountTab ? discountPolicy : singlePolicy),
+        body: JSON.stringify(policyData),
       });
 
       const data = await response.json();
@@ -142,8 +131,6 @@ export default function CreateRatePolicyModal({
         </div>
 
         <div className="flex-grow p-6 overflow-y-auto">
-          <RatePolicyTab isDiscountTab={isDiscountTab} setIsDiscountTab={setIsDiscountTab} />
-
           <div className="grid grid-cols-1 gap-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">
@@ -174,28 +161,26 @@ export default function CreateRatePolicyModal({
             </div>
 
             <div>
-              <label htmlFor="nightlyRate" className="block text-sm font-medium text-gray-700">
-                { isDiscountTab ? "Discount Percentage" : "Nightly Rate (EUR)"} <span className="text-red-500">*</span>
+              <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700">
+                Discount Percentage <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
-                id="nightlyRate"
-                value={isDiscountTab ? discountPercentage : nightlyRate}
-                onChange={(e) => {
-                  if (isDiscountTab) {
-                    setDiscountPercentage(Number(e.target.value));
-                  } else {
-                    setNightlyRate(e.target.value);
-                  }
-                }}
+                id="discountPercentage"
+                value={discountPercentage}
+                onChange={(e) => setDiscountPercentage(e.target.value)}
                 min="0"
+                max="100"
                 step="0.01"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="99.99"
+                placeholder="10.00"
               />
+              <p className="mt-1 text-sm text-gray-500">
+                Percentage discount from room base price (0 for no discount)
+              </p>
             </div>
 
-            {!isDiscountTab && <><div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="prepayPercentage" className="block text-sm font-medium text-gray-700">
                   Prepayment Percentage
@@ -258,7 +243,40 @@ export default function CreateRatePolicyModal({
                   placeholder="365"
                 />
               </div>
-            </div> </>}
+            </div>
+
+            {/* New Policy Management Fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="minStayNights" className="block text-sm font-medium text-gray-700">
+                  Minimum Stay Nights
+                </label>
+                <input
+                  type="number"
+                  id="minStayNights"
+                  value={minStayNights}
+                  onChange={(e) => setMinStayNights(e.target.value)}
+                  min="1"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="1"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="maxAdvanceBooking" className="block text-sm font-medium text-gray-700">
+                  Max Advance Booking (days)
+                </label>
+                <input
+                  type="number"
+                  id="maxAdvanceBooking"
+                  value={maxAdvanceBooking}
+                  onChange={(e) => setMaxAdvanceBooking(e.target.value)}
+                  min="1"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="365"
+                />
+              </div>
+            </div>
 
             {/* Payment Structure Selector */}
             <div>
@@ -364,7 +382,7 @@ export default function CreateRatePolicyModal({
                 </label>
               </div>
 
-              {!isDiscountTab && <div className="flex items-center">
+              <div className="flex items-center">
                 <input
                   id="refundable"
                   type="checkbox"
@@ -375,7 +393,20 @@ export default function CreateRatePolicyModal({
                 <label htmlFor="refundable" className="ml-2 block text-sm text-gray-900">
                   Refundable
                 </label>
-              </div>}
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  id="isPromotion"
+                  type="checkbox"
+                  checked={isPromotion}
+                  onChange={(e) => setIsPromotion(e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isPromotion" className="ml-2 block text-sm text-gray-900">
+                  Promotional Rate
+                </label>
+              </div>
             </div>
           </div>
         </div>

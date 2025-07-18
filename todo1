@@ -25,3 +25,5 @@
 [C] => While sending the payment link through stripe we need have optional bank transfer in email so, admin will change the satus of booking when they recieve money
 
 [] => rates apporach from client => rates needs to be flexible and do a policy things to a single rate and we do need to have a two things one is 30% by now and 70% on check-IN
+
+[C] => on the booking calendar we should have to allow the customers to book after dynamic value from admin settings italian time. 

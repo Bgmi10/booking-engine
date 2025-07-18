@@ -353,7 +353,8 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
             where: {
                 OR: [
                     { stripePaymentIntentId: paymentIntent.id },
-                    { id: paymentIntent.metadata?.paymentIntentId }
+                    { id: paymentIntent.metadata?.paymentIntentId },
+                    { secondPaymentIntentId: paymentIntent.id }
                 ]
             }
         });
@@ -478,7 +479,8 @@ async function handlePaymentIntentFailed(event: Stripe.Event) {
             where: {
                 OR: [
                     { stripePaymentIntentId: paymentIntent.id },
-                    { id: paymentIntent.metadata?.paymentIntentId }
+                    { id: paymentIntent.metadata?.paymentIntentId },
+                    { secondPaymentIntentId: paymentIntent.id }
                 ]
             },
             include: {
@@ -524,7 +526,8 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
             where: {
               OR: [
                 { stripePaymentIntentId: paymentIntent.id },
-                { id: paymentIntent.metadata?.paymentIntentId }
+                { id: paymentIntent.metadata?.paymentIntentId },
+                { secondPaymentIntentId: paymentIntent.id }
               ]
             },
             include: {

@@ -257,18 +257,22 @@ model RatePolicy {
   id                  String   @id @default(uuid())
   name                String
   description         String
-  nightlyRate         Float?
-  discountPercentage  Float?
+  discountPercentage  Float?   // Percentage discount from room base price
   isActive            Boolean  @default(true)
   refundable          Boolean? @default(false)
-  prepayPercentage    Int?
-  fullPaymentDays     Int?
-  changeAllowedDays   Int?
-  rebookValidityDays  Int?
+  prepayPercentage    Int?     // For deposits (not currently used with new split structure)
+  fullPaymentDays     Int?     // Days before arrival when remaining payment is due
+  changeAllowedDays   Int?     // Days before arrival when changes are allowed
+  rebookValidityDays  Int?     // Days to rebook if cancelled
   
   // New fields for flexible rate management
   paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
   cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
+  
+  // Policy type indicators
+  isPromotion         Boolean              @default(false) // Special promotional rates
+  minStayNights       Int?                 // Minimum stay requirement for this policy
+  maxAdvanceBooking   Int?                 // Maximum days in advance this policy can be booked
   
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -281,8 +285,22 @@ model RoomRate {
   roomId          String
   ratePolicy      RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
   ratePolicyId    String
+  
+  // Room-specific pricing overrides
+  customRate      Float?     // Optional custom rate for this room-policy combination
+  isActive        Boolean    @default(true) // Can deactivate specific room-policy combinations
+  
+  // Seasonal or time-based pricing (future enhancement)
+  validFrom       DateTime?  // When this rate becomes valid
+  validTo         DateTime?  // When this rate expires
+  
+  // Priority for rate selection (higher number = higher priority)
+  priority        Int        @default(0)
+  
   createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
   @@index([roomId, ratePolicyId])
+  @@index([roomId, isActive])
   @@unique([roomId, ratePolicyId])
 }
 
@@ -298,6 +316,7 @@ model GeneralSettings {
   dahuaIsEnabled               Boolean       @default(false) 
   dahuaGateId                  String?       
   dahuaLicensePlateExpiryHours Int           @default(24)
+  dailyBookingStartTime        String?       @default("00:00")
 }
 
 model Otp {

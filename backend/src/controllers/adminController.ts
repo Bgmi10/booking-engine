@@ -773,9 +773,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername } = req.body;
+  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, dailyBookingStartTime } = req.body;
 
-  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string } = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, dailyBookingStartTime?: string } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -810,6 +810,10 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   }
   if (typeof dahuaUsername !== 'undefined') {
     updateData.dahuaUsername = dahuaUsername;
+  }
+  
+  if (typeof dailyBookingStartTime !== 'undefined') {
+    updateData.dailyBookingStartTime = dailyBookingStartTime;
   }
   
   try {
@@ -1330,6 +1334,16 @@ const refund = async (req: express.Request, res: express.Response) => {
         // Use actualPaymentMethod if set, else fallback to paymentMethod
         const methodToRefund = (ourPaymentIntent as any).actualPaymentMethod || paymentMethod;
         
+        // Determine refund amount based on payment structure
+        let refundAmount = ourPaymentIntent.totalAmount || ourPaymentIntent.amount;
+        let refundNote = reason || `Refunded manually by admin (${methodToRefund})`;
+        
+        if (ourPaymentIntent.paymentStructure === 'SPLIT_PAYMENT') {
+          // For split payments, only refund the amount already paid (30%)
+          refundAmount = ourPaymentIntent.prepaidAmount || (ourPaymentIntent.totalAmount * 0.3);
+          refundNote = `${refundNote} - Partial refund (prepaid amount only)`;
+        }
+
         // Case 1: Manual payment methods (CASH or BANK_TRANSFER) - always use manual refund
         if (methodToRefund === "CASH" || methodToRefund === "BANK_TRANSFER") {
             await prisma.$transaction(async (tx) => {
@@ -1338,7 +1352,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                   where: { id: paymentIntentId },
                   data: { 
                     status: "REFUNDED",
-                    adminNotes: reason || `Refunded manually by admin (${methodToRefund})`
+                    adminNotes: refundNote
                   }
               });
 
@@ -1384,9 +1398,9 @@ const refund = async (req: express.Request, res: express.Response) => {
 
             await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
               refundId: `manual-${paymentIntentId}`,
-              refundAmount: ourPaymentIntent.totalAmount || ourPaymentIntent.amount,
+              refundAmount: refundAmount,
               refundCurrency: ourPaymentIntent.currency || 'EUR',
-              refundReason: reason || `Refunded manually by admin (${methodToRefund})`
+              refundReason: refundNote
             });
 
             responseHandler(res, 200, "Manual refund processed successfully", {
@@ -1481,12 +1495,15 @@ const refund = async (req: express.Request, res: express.Response) => {
                   return;
                 }
       
+                // Create refund with correct amount (partial for split payments)
                 const refund = await stripe.refunds.create({
                     payment_intent: ourPaymentIntent.stripePaymentIntentId,
+                    amount: Math.round(refundAmount * 100), // Convert to cents
                     reason: reason || "requested_by_customer",
                     metadata: {
                       paymentIntentId: paymentIntentId,
-                      refundReason: reason || "Admin initiated refund"
+                      refundReason: refundNote,
+                      paymentStructure: ourPaymentIntent.paymentStructure || 'FULL_PAYMENT'
                     }
                 });
       

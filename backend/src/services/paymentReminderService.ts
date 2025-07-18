@@ -1,8 +1,9 @@
 import prisma from '../prisma';
 import { EmailService } from './emailService';
-import { addDays } from 'date-fns';
+import { addDays, format, differenceInDays, isBefore, isAfter } from 'date-fns';
 
 export class PaymentReminderService {
+    // Wedding Payment Reminder Methods
     private static async getUpcomingPayments(daysThreshold: number) {
         const thresholdDate = addDays(new Date(), daysThreshold);
         
@@ -167,6 +168,212 @@ export class PaymentReminderService {
             return remindersSent;
         } catch (error) {
             console.error('[PaymentReminder] Error sending overdue payment reminders:', error);
+            throw error;
+        }
+    }
+
+    // Booking Payment Reminder Methods
+    private static async getUpcomingBookingPayments(daysThreshold: number) {
+        const thresholdDate = addDays(new Date(), daysThreshold);
+        
+        return await prisma.paymentIntent.findMany({
+            where: {
+                paymentStructure: 'SPLIT_PAYMENT',
+                remainingAmount: { gt: 0 },
+                remainingDueDate: {
+                    lte: thresholdDate,
+                    gt: new Date()
+                },
+                status: { in: ['SUCCEEDED', 'PAYMENT_LINK_SENT'] }
+            }
+        });
+    }
+
+    private static async getOverdueBookingPayments() {
+        return await prisma.paymentIntent.findMany({
+            where: {
+                paymentStructure: 'SPLIT_PAYMENT',
+                remainingAmount: { gt: 0 },
+                remainingDueDate: {
+                    lt: new Date()
+                },
+                status: { in: ['SUCCEEDED', 'PAYMENT_LINK_SENT'] }
+            }
+        });
+    }
+
+    public static async sendBookingPaymentReminders() {
+        try {
+            const upcomingPayments = await this.getUpcomingBookingPayments(7);
+            let remindersSent = 0;
+
+            for (const paymentIntent of upcomingPayments) {
+                if (!paymentIntent.customerData || !paymentIntent.remainingDueDate) continue;
+
+                const customerData = JSON.parse(paymentIntent.customerData);
+                const bookingData = JSON.parse(paymentIntent.bookingData);
+                const booking = bookingData[0]; // Primary booking
+                if (!booking) continue;
+
+                const daysUntilDue = differenceInDays(paymentIntent.remainingDueDate, new Date());
+
+                await EmailService.sendEmail({
+                    to: {
+                        email: customerData.email,
+                        name: `${customerData.firstName} ${customerData.lastName}`
+                    },
+                    templateType: 'BOOKING_PAYMENT_REMINDER',
+                    templateData: {
+                        customerName: customerData.firstName,
+                        confirmationNumber: `BK-${paymentIntent.id.slice(-6).toUpperCase()}`,
+                        roomName: booking.roomDetails?.name || 'Your Room',
+                        checkInDate: format(new Date(booking.checkIn), 'EEEE, MMMM dd, yyyy'),
+                        checkOutDate: format(new Date(booking.checkOut), 'EEEE, MMMM dd, yyyy'),
+                        remainingAmount: new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: paymentIntent.currency.toUpperCase()
+                            //@ts-ignore
+                        }).format(paymentIntent.remainingAmount),
+                        dueDate: format(paymentIntent.remainingDueDate, 'EEEE, MMMM dd, yyyy'),
+                        daysUntilDue: daysUntilDue,
+                        paymentLink: `${process.env.FRONTEND_URL}/payment/${paymentIntent.id}/remaining`
+                    }
+                });
+
+                remindersSent++;
+            }
+
+            console.log(`[BookingPaymentReminder] Sent ${remindersSent} booking payment reminders`);
+            return remindersSent;
+        } catch (error) {
+            console.error('[BookingPaymentReminder] Error sending booking payment reminders:', error);
+            throw error;
+        }
+    }
+
+    public static async sendBookingOverdueNotices() {
+        try {
+            const overduePayments = await this.getOverdueBookingPayments();
+            let noticesSent = 0;
+
+            for (const paymentIntent of overduePayments) {
+                if (!paymentIntent.customerData || !paymentIntent.remainingDueDate) continue;
+
+                const customerData = JSON.parse(paymentIntent.customerData);
+                const bookingData = JSON.parse(paymentIntent.bookingData);
+                const booking = bookingData[0]; // Primary booking
+                if (!booking) continue;
+
+                const daysOverdue = differenceInDays(new Date(), paymentIntent.remainingDueDate);
+
+                await EmailService.sendEmail({
+                    to: {
+                        email: customerData.email,
+                        name: `${customerData.firstName} ${customerData.lastName}`
+                    },
+                    templateType: 'BOOKING_PAYMENT_OVERDUE',
+                    templateData: {
+                        customerName: customerData.firstName,
+                        confirmationNumber: `BK-${paymentIntent.id.slice(-6).toUpperCase()}`,
+                        roomName: booking.roomDetails?.name || 'Your Room',
+                        checkInDate: format(new Date(booking.checkIn), 'EEEE, MMMM dd, yyyy'),
+                        checkOutDate: format(new Date(booking.checkOut), 'EEEE, MMMM dd, yyyy'),
+                        remainingAmount: new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: paymentIntent.currency.toUpperCase()
+                            //@ts-ignore
+                        }).format(paymentIntent.remainingAmount),
+                        originalDueDate: format(paymentIntent.remainingDueDate, 'EEEE, MMMM dd, yyyy'),
+                        daysOverdue: daysOverdue,
+                        paymentLink: `${process.env.FRONTEND_URL}/payment/${paymentIntent.id}/remaining`
+                    }
+                });
+
+                noticesSent++;
+            }
+
+            console.log(`[BookingPaymentOverdue] Sent ${noticesSent} booking overdue notices`);
+            return noticesSent;
+        } catch (error) {
+            console.error('[BookingPaymentOverdue] Error sending booking overdue notices:', error);
+            throw error;
+        }
+    }
+
+    public static async sendSecondPaymentCreatedEmail(paymentIntentId: string, paymentLink: string) {
+        try {
+            const paymentIntent = await prisma.paymentIntent.findUnique({
+                where: { id: paymentIntentId }
+            });
+
+            if (!paymentIntent || !paymentIntent.customerData) {
+                throw new Error('Payment intent or customer data not found');
+            }
+
+            const customerData = JSON.parse(paymentIntent.customerData);
+            const bookingData = JSON.parse(paymentIntent.bookingData);
+            const booking = bookingData[0]; // Primary booking
+            if (!booking) {
+                throw new Error('No booking found for payment intent');
+            }
+
+            await EmailService.sendEmail({
+                to: {
+                    email: customerData.email,
+                    name: `${customerData.firstName} ${customerData.lastName}`
+                },
+                templateType: 'SECOND_PAYMENT_CREATED',
+                templateData: {
+                    customerName: customerData.firstName,
+                    confirmationNumber: `BK-${paymentIntent.id.slice(-6).toUpperCase()}`,
+                    roomName: booking.roomDetails?.name || 'Your Room',
+                    checkInDate: format(new Date(booking.checkIn), 'EEEE, MMMM dd, yyyy'),
+                    checkOutDate: format(new Date(booking.checkOut), 'EEEE, MMMM dd, yyyy'),
+                    remainingAmount: new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: paymentIntent.currency.toUpperCase()
+                        //@ts-ignore
+                    }).format(paymentIntent.remainingAmount),
+                    dueDate: paymentIntent.remainingDueDate 
+                        ? format(paymentIntent.remainingDueDate, 'EEEE, MMMM dd, yyyy')
+                        : 'As soon as possible',
+                    paymentLink: paymentLink
+                }
+            });
+
+            console.log(`[SecondPaymentCreated] Sent second payment email for payment intent: ${paymentIntentId}`);
+            return true;
+        } catch (error) {
+            console.error('[SecondPaymentCreated] Error sending second payment created email:', error);
+            throw error;
+        }
+    }
+
+    // Combined cron job method for all payment reminders
+    public static async processAllPaymentReminders() {
+        try {
+            console.log('[PaymentReminderService] Starting payment reminder processing...');
+            
+            const results = await Promise.allSettled([
+                this.sendUpcomingPaymentReminders(), // Wedding payments
+                this.sendOverduePaymentReminders(),  // Wedding payments
+                this.sendBookingPaymentReminders(),  // Booking payments
+                this.sendBookingOverdueNotices()     // Booking payments
+            ]);
+
+            let totalReminders = 0;
+            results.forEach((result, index) => {
+                if (result.status === 'fulfilled') {
+                    totalReminders += result.value;
+                } else {
+                    console.error(`Payment reminder process ${index + 1} failed:`, result.reason);
+                }
+            });
+
+            console.log(`[PaymentReminderService] Processing complete. Total reminders sent: ${totalReminders}`);
+            return totalReminders;
+        } catch (error) {
+            console.error('[PaymentReminderService] Error in processAllPaymentReminders:', error);
             throw error;
         }
     }

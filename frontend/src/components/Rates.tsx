@@ -64,17 +64,16 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     // Room rates (if available)
     if (selectedRoom?.RoomRate && selectedRoom.RoomRate.length > 0) {
       selectedRoom.RoomRate.forEach((roomRate: any) => {
-        if (roomRate.ratePolicy.isActive) {
+        if (roomRate.ratePolicy.isActive && roomRate.isActive) {
           let finalPrice = basePrice;
           
-          // Apply discount if available
-          if (roomRate.ratePolicy.discountPercentage) {
-            finalPrice = basePrice * (1 - roomRate.ratePolicy.discountPercentage / 100);
+          // Use custom rate if specified for this room-policy combination
+          if (roomRate.customRate) {
+            finalPrice = roomRate.customRate;
           }
-          
-          // Use nightly rate if specified
-          if (roomRate.ratePolicy.nightlyRate) {
-            finalPrice = roomRate.ratePolicy.nightlyRate;
+          // Otherwise apply discount to room's base price
+          else if (roomRate.ratePolicy.discountPercentage) {
+            finalPrice = basePrice * (1 - roomRate.ratePolicy.discountPercentage / 100);
           }
 
           options.push({
@@ -582,16 +581,53 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         </span>
                       </div>
                       
+                      {/* Cancellation Policy */}
+                      {rateOption.cancellationPolicy && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-xs capitalize">
+                            {rateOption.cancellationPolicy.toLowerCase().replace('_', ' ')} cancellation
+                          </span>
+                        </div>
+                      )}
+                      
                       {rateOption.fullPaymentDays && (
                         <div className="flex items-start gap-2 text-gray-600">
                           <Clock className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                          <span className="text-xs">Full payment required {rateOption.fullPaymentDays} days before arrival</span>
+                          <span className="text-xs">Final payment due {rateOption.fullPaymentDays} days before arrival</span>
                         </div>
                       )}
                       
                       {rateOption.changeAllowedDays && (
-                        <div className="text-gray-600 ml-5">
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <svg className="h-3 w-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                           <span className="text-xs">Changes allowed up to {rateOption.changeAllowedDays} days before arrival</span>
+                        </div>
+                      )}
+
+                      {/* Minimum Stay */}
+                      {rateOption.minStayNights && (
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <svg className="h-3 w-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-xs">Minimum {rateOption.minStayNights} night{rateOption.minStayNights > 1 ? 's' : ''} stay</span>
+                        </div>
+                      )}
+
+                      {/* Promotional Badge */}
+                      {rateOption.isPromotion && (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-3 w-3 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                          <span className="px-2 py-1 rounded font-medium text-xs bg-purple-100 text-purple-800">
+                            Special Offer
+                          </span>
                         </div>
                       )}
                     </div>

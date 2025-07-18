@@ -27,6 +27,7 @@ interface AvailabilityData {
   taxPercentage: number
   restrictedDates: string[],
   dateRestrictions: {}
+  dailyBookingStartTime: string
 }
 
 // Cache interface for storing fetched data
@@ -48,7 +49,8 @@ export default function Booking() {
     minStayDays: 0,
     taxPercentage: 0.1,
     restrictedDates: [],
-    dateRestrictions: {}
+    dateRestrictions: {},
+    dailyBookingStartTime: '00:00'
   });
 
   const [calenderOpen, setCalenderOpen] = useState(false)
@@ -162,7 +164,8 @@ export default function Booking() {
               minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
               taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
               dateRestrictions: result.data.dateRestrictions,
-              restrictedDates: result.data.restrictedDates
+              restrictedDates: result.data.restrictedDates,
+              dailyBookingStartTime: result.data.generalSettings?.[0]?.dailyBookingStartTime || '00:00'
             },
             timestamp: Date.now()
             }
@@ -179,7 +182,8 @@ export default function Booking() {
         minStayDays: 0,
         taxPercentage: 0.1,
         restrictedDates: [],
-        dateRestrictions: {}
+        dateRestrictions: {},
+        dailyBookingStartTime: '00:00'
       }
       setAvailabilityData(emptyData)
     } finally {
@@ -274,6 +278,7 @@ export default function Booking() {
                         onSelect={handleDateSelect}
                         availabilityData={availabilityData}
                         isLoadingAvailability={isLoadingAvailability}
+                        dailyBookingStartTime={availabilityData.dailyBookingStartTime}
                         //@ts-ignore
                         onFetchAvailability={fetchCalendarAvailability}
                       />
