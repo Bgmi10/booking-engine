@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import prisma from "../prisma";
+import prisma from ".";
 import { hashPassword } from '../utils/bcrypt';
 import { adminEmails } from "../utils/constants";
 

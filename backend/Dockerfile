@@ -1,19 +1,19 @@
-FROM node:18-slim
+FROM node:20.12.0-alpine3.19
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y openssl
-
-COPY package*.json ./
-RUN npm install
+COPY package.json .
 
 COPY . .
 
-ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+RUN npm install
+
+EXPOSE 5000
 
 RUN npm run db:generate
 
 RUN npm run build
 
-EXPOSE 5000
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]
+
+
