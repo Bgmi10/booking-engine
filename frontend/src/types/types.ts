@@ -100,6 +100,10 @@ export interface PaymentIntent {
   prepaidAmount?: number
   remainingAmount?: number
   remainingDueDate?: string
+  // Second payment fields
+  secondPaymentLinkId?: string
+  secondPaymentExpiresAt?: string
+  secondPaymentStatus?: "CREATED" | "PAYMENT_LINK_SENT" | "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED"
 }
 
 export interface Booking {

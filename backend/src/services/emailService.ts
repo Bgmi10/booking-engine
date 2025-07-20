@@ -76,8 +76,6 @@ export class EmailService {
 
   public static async sendEmail({ to, templateType, templateData, attachments = [] }: EmailOptions) {
     try {
-      // Get template from database
-      console.log(templateType);
       const template = await this.getTemplate(templateType);
 
       // Compile subject and body

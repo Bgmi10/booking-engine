@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import { EmailService } from './emailService';
 import { addDays, format, differenceInDays } from 'date-fns';
+import { generateMergedBookingId } from '../utils/helper';
 
 export class PaymentReminderService {
     // Wedding Payment Reminder Methods
@@ -300,10 +301,13 @@ export class PaymentReminderService {
         }
     }
 
-    public static async sendSecondPaymentCreatedEmail(paymentIntentId: string, paymentLink: string) {
+    public static async sendSecondPaymentCreatedEmail(paymentIntentId: string, paymentUrl: string) {
         try {
             const paymentIntent = await prisma.paymentIntent.findUnique({
-                where: { id: paymentIntentId }
+                where: { id: paymentIntentId },
+                include: {
+                    bookings: true
+                }
             });
 
             if (!paymentIntent || !paymentIntent.customerData) {
@@ -311,11 +315,21 @@ export class PaymentReminderService {
             }
 
             const customerData = JSON.parse(paymentIntent.customerData);
-            const bookingData = JSON.parse(paymentIntent.bookingData);
-            const booking = bookingData[0]; // Primary booking
-            if (!booking) {
-                throw new Error('No booking found for payment intent');
+            
+            // Generate confirmation ID using generateMergedBookingId for consistency
+            let confirmationId;
+            if (paymentIntent.bookings && paymentIntent.bookings.length > 0) {
+                const bookingIds = paymentIntent.bookings.map(booking => booking.id);
+                confirmationId = generateMergedBookingId(bookingIds);
+            } else {
+                // Fallback if no bookings exist yet
+                confirmationId = `BK-${paymentIntent.id.slice(-6).toUpperCase()}`;
             }
+
+            // Calculate amounts for the template
+            const totalAmount = paymentIntent.totalAmount || paymentIntent.amount || 0;
+            const paidAmount = paymentIntent.prepaidAmount || (totalAmount * 0.3); // 30% already paid
+            const remainingAmount = paymentIntent.remainingAmount || (totalAmount - paidAmount);
 
             await EmailService.sendEmail({
                 to: {
@@ -325,19 +339,11 @@ export class PaymentReminderService {
                 templateType: 'SECOND_PAYMENT_CREATED',
                 templateData: {
                     customerName: customerData.firstName,
-                    confirmationNumber: `BK-${paymentIntent.id.slice(-6).toUpperCase()}`,
-                    roomName: booking.roomDetails?.name || 'Your Room',
-                    checkInDate: format(new Date(booking.checkIn), 'EEEE, MMMM dd, yyyy'),
-                    checkOutDate: format(new Date(booking.checkOut), 'EEEE, MMMM dd, yyyy'),
-                    remainingAmount: new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: paymentIntent.currency.toUpperCase()
-                        //@ts-ignore
-                    }).format(paymentIntent.remainingAmount),
-                    dueDate: paymentIntent.remainingDueDate 
-                        ? format(paymentIntent.remainingDueDate, 'EEEE, MMMM dd, yyyy')
-                        : 'As soon as possible',
-                    paymentLink: paymentLink
+                    confirmationId: confirmationId,
+                    paidAmount: paidAmount,
+                    remainingAmount: remainingAmount,
+                    totalAmount: totalAmount,
+                    paymentUrl: paymentUrl
                 }
             });
 

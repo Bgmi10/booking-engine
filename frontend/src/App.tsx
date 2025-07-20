@@ -9,6 +9,7 @@ import LaTorreLoader from "./components/LatorreLoader";
 import Success from "./components/Success";
 import Failure from "./components/Failure";
 import PaymentIntentStatus from "./components/PaymentIntentStatus";
+import SecondPaymentStatus from "./components/SecondPaymentStatus";
 import Qrcode from "./components/admin/customers/Qrcode";
 import { ChargeStatus } from "./components/ChargeStatus";
 import Order from "./components/orders/Order";
@@ -34,6 +35,7 @@ function App() {
         <Routes>
           <Route path="/" element={ showLoader ? <LaTorreLoader /> : <Booking />} />
           <Route path="/payment-intent/:id/check-status" element={<PaymentIntentStatus />} />
+          <Route path="/payment-intent/:id/check-second-payment-status" element={<SecondPaymentStatus />} />
           <Route path="/charge/:id" element={<ChargeStatus />} />
           <Route path="/booking/success" element={<Success />} />
           <Route path="/booking/failure" element={<Failure />} />

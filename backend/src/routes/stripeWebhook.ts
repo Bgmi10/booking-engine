@@ -354,12 +354,18 @@ async function handlePaymentIntentSucceeded(event: Stripe.Event) {
                 OR: [
                     { stripePaymentIntentId: paymentIntent.id },
                     { id: paymentIntent.metadata?.paymentIntentId },
-                    { secondPaymentIntentId: paymentIntent.id }
+                    { secondPaymentLinkId: paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT' ? paymentIntent.metadata?.paymentIntentId : undefined }
                 ]
             }
         });
 
         if (!ourPaymentIntent) {
+            return;
+        }
+
+        // Handle second installment payment
+        if (paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT') {
+            await handleSecondInstallmentPayment(ourPaymentIntent, paymentIntent);
             return;
         }
 
@@ -480,7 +486,7 @@ async function handlePaymentIntentFailed(event: Stripe.Event) {
                 OR: [
                     { stripePaymentIntentId: paymentIntent.id },
                     { id: paymentIntent.metadata?.paymentIntentId },
-                    { secondPaymentIntentId: paymentIntent.id }
+                    { secondPaymentLinkId: paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT' ? paymentIntent.metadata?.paymentIntentId : undefined }
                 ]
             },
             include: {
@@ -493,6 +499,16 @@ async function handlePaymentIntentFailed(event: Stripe.Event) {
         });
 
         if (ourPaymentIntent) {
+            // Handle second installment payment failure
+            if (paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT') {
+                await prisma.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { secondPaymentStatus: "FAILED" }
+                });
+                console.log(`Second installment payment failed for PaymentIntent ${ourPaymentIntent.id}`);
+                return;
+            }
+
             await prisma.$transaction(async (tx) => {
                 await tx.paymentIntent.update({
                   where: { id: ourPaymentIntent.id },
@@ -527,7 +543,7 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
               OR: [
                 { stripePaymentIntentId: paymentIntent.id },
                 { id: paymentIntent.metadata?.paymentIntentId },
-                { secondPaymentIntentId: paymentIntent.id }
+                { secondPaymentLinkId: paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT' ? paymentIntent.metadata?.paymentIntentId : undefined }
               ]
             },
             include: {
@@ -540,6 +556,16 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
         });
 
         if (ourPaymentIntent) {
+            // Handle second installment payment cancellation
+            if (paymentIntent.metadata?.paymentType === 'SECOND_INSTALLMENT') {
+                await prisma.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { secondPaymentStatus: "CANCELLED" }
+                });
+                console.log(`Second installment payment cancelled for PaymentIntent ${ourPaymentIntent.id}`);
+                return;
+            }
+
             await prisma.$transaction(async (tx) => {
                 await tx.paymentIntent.update({
                     where: { id: ourPaymentIntent.id },
@@ -557,6 +583,66 @@ async function handlePaymentIntentCanceled(event: Stripe.Event) {
         }
     } catch (error) {
         console.error("Error in handlePaymentIntentCanceled:", error);
+        throw error;
+    }
+}
+
+async function handleSecondInstallmentPayment(ourPaymentIntent: any, stripePayment: any) {
+    try {
+        // Check if second payment already processed
+        const existingSecondPayment = await prisma.payment.findFirst({
+            where: { 
+                paymentIntentId: ourPaymentIntent.id,
+                paymentType: 'SECOND_INSTALLMENT'
+            }
+        });
+
+        if (existingSecondPayment) {
+            console.log(`Second payment already processed for PaymentIntent ${ourPaymentIntent.id}`);
+            return;
+        }
+
+        // Check if second payment status is already SUCCEEDED
+        if (ourPaymentIntent.secondPaymentStatus === 'SUCCEEDED') {
+            console.log(`Second payment already marked as succeeded for PaymentIntent ${ourPaymentIntent.id}`);
+            return;
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Update payment intent second payment status
+            await tx.paymentIntent.update({
+                where: { id: ourPaymentIntent.id },
+                data: { 
+                    secondPaymentStatus: 'SUCCEEDED',
+                    remainingAmount: 0 // Clear remaining amount since it's now paid
+                }
+            });
+
+            // Update all bookings to mark final payment as completed
+            await tx.booking.updateMany({
+                where: { paymentIntentId: ourPaymentIntent.id },
+                data: { 
+                    finalPaymentStatus: 'COMPLETED'
+                }
+            });
+
+            // Create payment record for second installment
+            await tx.payment.create({
+                data: {
+                    stripePaymentIntentId: stripePayment.id,
+                    amount: stripePayment.amount / 100,
+                    currency: stripePayment.currency,
+                    status: "COMPLETED",
+                    paymentIntentId: ourPaymentIntent.id,
+                    paymentType: 'SECOND_INSTALLMENT',
+                    installmentNumber: 2,
+                }
+            });
+        });
+
+        console.log(`Second installment payment successfully processed for PaymentIntent ${ourPaymentIntent.id}`);
+    } catch (error) {
+        console.error('Error in handleSecondInstallmentPayment:', error);
         throw error;
     }
 }

@@ -216,6 +216,9 @@ model PaymentIntent {
   remainingAmount       Float?              // Amount due on checkin (70%)
   remainingDueDate      DateTime?           // When remaining amount is due
   secondPaymentIntentId String?             // Stripe PaymentIntent ID for remaining amount
+  secondPaymentLinkId   String?             // Stripe PaymentLink ID for second payment
+  secondPaymentExpiresAt DateTime?          // Expiry time for second payment link
+  secondPaymentStatus   PaymentIntentStatus? // Status of second payment (CREATED, SUCCEEDED, etc.)
   createdByAdmin        Boolean             @default(false)
   adminUserId           String?   
   adminNotes            String?   

@@ -300,71 +300,59 @@ import { baseUrl } from "../../../utils/constants"
                       )}
                     </div>
                     
-                    {/* Admin Actions for Second Payment */}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/create-second-payment`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                            });
-                            
-                            if (response.ok) {
-                              const data = await response.json();
-                              alert('Second payment intent created successfully! Email sent to customer.');
-                              console.log('Payment intent created:', data.data.paymentIntentId);
-                            } else {
-                              const error = await response.json();
-                              alert(`Error: ${error.message}`);
+                    {/* Second Payment Status Display */}
+                    {paymentIntent.secondPaymentStatus && (
+                      <div className="mb-3">
+                        <span className="text-sm font-medium text-gray-600">Second Payment Status: </span>
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-md ${
+                          paymentIntent.secondPaymentStatus === 'SUCCEEDED' 
+                            ? 'bg-green-100 text-green-800'
+                            : paymentIntent.secondPaymentStatus === 'FAILED' || paymentIntent.secondPaymentStatus === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : paymentIntent.secondPaymentStatus === 'EXPIRED'
+                            ? 'bg-gray-100 text-gray-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {paymentIntent.secondPaymentStatus}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Admin Actions for Second Payment - Only show if second payment not succeeded */}
+                    {paymentIntent.secondPaymentStatus !== 'SUCCEEDED' && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/create-second-payment`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                              });
+                              
+                              if (response.ok) {
+                                const data = await response.json();
+                                alert('Second payment intent created successfully! Email sent to customer.');
+                                console.log('Payment intent created:', data.data.paymentIntentId);
+                              } else {
+                                const error = await response.json();
+                                alert(`Error: ${error.message}`);
+                              }
+                            } catch (error) {
+                              console.error('Error creating payment link:', error);
+                              alert('Failed to create payment intent');
                             }
-                          } catch (error) {
-                            console.error('Error creating payment link:', error);
-                            alert('Failed to create payment intent');
-                          }
-                        }}
-                        disabled={loadingAction}
-                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Create Payment Intent
-                      </button>
-                      
-                      <button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                            });
-                            
-                            if (response.ok) {
-                              alert('Payment reminder sent successfully!');
-                            } else {
-                              const error = await response.json();
-                              alert(`Error: ${error.message}`);
-                            }
-                          } catch (error) {
-                            console.error('Error sending reminder:', error);
-                            alert('Failed to send reminder');
-                          }
-                        }}
-                        disabled={loadingAction}
-                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5-5-5h5v-12" />
-                        </svg>
-                        Send Reminder
-                      </button>
-                      
-                      {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                          }}
+                          disabled={loadingAction}
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Create Payment Intent
+                        </button>
+                        
                         <button
                           onClick={async () => {
                             try {
@@ -376,26 +364,76 @@ import { baseUrl } from "../../../utils/constants"
                               });
                               
                               if (response.ok) {
-                                alert('Overdue notice sent successfully!');
+                                alert('Payment reminder sent successfully!');
                               } else {
                                 const error = await response.json();
                                 alert(`Error: ${error.message}`);
                               }
                             } catch (error) {
-                              console.error('Error sending overdue notice:', error);
-                              alert('Failed to send overdue notice');
+                              console.error('Error sending reminder:', error);
+                              alert('Failed to send reminder');
                             }
                           }}
                           disabled={loadingAction}
-                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5-5-5h5v-12" />
                           </svg>
-                          Send Overdue Notice
+                          Send Reminder
                         </button>
-                      )}
-                    </div>
+                        
+                        {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                });
+                                
+                                if (response.ok) {
+                                  alert('Overdue notice sent successfully!');
+                                } else {
+                                  const error = await response.json();
+                                  alert(`Error: ${error.message}`);
+                                }
+                              } catch (error) {
+                                console.error('Error sending overdue notice:', error);
+                                alert('Failed to send overdue notice');
+                              }
+                            }}
+                            disabled={loadingAction}
+                            className="inline-flex items-center px-3 py-2 text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            Send Overdue Notice
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Show dummy refund button when second payment is succeeded */}
+                    {paymentIntent.secondPaymentStatus === 'SUCCEEDED' && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => {
+                            alert('Refund functionality will be implemented in the future.');
+                          }}
+                          disabled={loadingAction}
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-gray-600 border border-transparent rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m5 14v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3" />
+                          </svg>
+                          Refund Second Payment (Coming Soon)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
