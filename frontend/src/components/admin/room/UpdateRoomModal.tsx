@@ -72,7 +72,6 @@ export function UpdateRoomModal({
     fullPaymentPolicy: [],
     splitPaymentPolicy: []
   })
-  const [isFullPaymentTab, setIsFullPaymentTab] = useState(true)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
 
   // Initialize form with room data
@@ -380,8 +379,6 @@ export function UpdateRoomModal({
           <AttachPoliciesModal
             setIsAttachPoliciesModalOpen={setIsAttachPoliciesModalOpen}
             ratepolicies={ratepolicies}
-            isDiscountTab={!isFullPaymentTab}
-            setIsDiscountTab={(value) => setIsFullPaymentTab(!value)}
             selectedPolicies={selectedPolicies}
             togglePolicySelection={togglePolicySelection}
           />

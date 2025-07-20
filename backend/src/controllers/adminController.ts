@@ -847,8 +847,6 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
   //@ts-ignore
   const adminUserId = req.user?.id;
 
-  console.log("854", sendConfirmationEmail);
-
   try {
     // Check room availability (same as before)
     for (const booking of bookingItems) {
@@ -974,7 +972,6 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
         totalAmount: totalAmount.toString(),
         paymentIntentId: paymentIntent.id,
         customerRequest: customerRequest || customerDetails.specialRequests || '',
-   
       },
       after_completion: {
         type: 'redirect',

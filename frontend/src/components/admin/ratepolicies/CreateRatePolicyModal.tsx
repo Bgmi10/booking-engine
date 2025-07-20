@@ -34,6 +34,17 @@ export default function CreateRatePolicyModal({
   const [paymentStructure, setPaymentStructure] = useState<'FULL_PAYMENT' | 'SPLIT_PAYMENT'>('FULL_PAYMENT');
   const [cancellationPolicy, setCancellationPolicy] = useState<'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE'>('FLEXIBLE');
 
+  // Auto-update refundable based on cancellation policy
+  const handleCancellationPolicyChange = (policy: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE') => {
+    setCancellationPolicy(policy);
+    // Auto-set refundable based on policy
+    if (policy === 'FLEXIBLE' || policy === 'MODERATE') {
+      setRefundable(true);
+    } else {
+      setRefundable(false);
+    }
+  };
+
   const createRatePolicy = async () => {
     // Validation
     if (!name.trim()) {
@@ -44,6 +55,18 @@ export default function CreateRatePolicyModal({
     if (!description.trim()) {
       toast.error("Description is required");
       return;
+    }
+
+    // Validate split payment specific fields
+    if (paymentStructure === 'SPLIT_PAYMENT') {
+      if (!prepayPercentage) {
+        toast.error("Prepayment percentage is required for split payment");
+        return;
+      }
+      if (!fullPaymentDays) {
+        toast.error("Full payment days before is required for split payment");
+        return;
+      }
     }
 
     setLoadingAction(true);
@@ -145,39 +168,76 @@ export default function CreateRatePolicyModal({
               />
             </div>
 
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="prepayPercentage" className="block text-sm font-medium text-gray-700">
-                  Prepayment Percentage
-                </label>
-                <input
-                  type="number"
-                  id="prepayPercentage"
-                  value={prepayPercentage}
-                  onChange={(e) => setPrepayPercentage(e.target.value)}
-                  min="0"
-                  max="100"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="50"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fullPaymentDays" className="block text-sm font-medium text-gray-700">
-                  Full Payment Days Before
-                </label>
-                <input
-                  type="number"
-                  id="fullPaymentDays"
-                  value={fullPaymentDays}
-                  onChange={(e) => setFullPaymentDays(e.target.value)}
-                  min="0"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="30"
-                />
+            {/* Payment Structure Selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Payment Structure
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  onClick={() => setPaymentStructure('FULL_PAYMENT')}
+                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    paymentStructure === 'FULL_PAYMENT'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-400'
+                  }`}
+                >
+                  <FaCreditCard className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                  <h4 className="text-lg font-semibold text-center text-gray-900">Full Payment</h4>
+                  <p className="text-sm text-gray-600 text-center">100% payment upfront</p>
+                </div>
+                <div
+                  onClick={() => setPaymentStructure('SPLIT_PAYMENT')}
+                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    paymentStructure === 'SPLIT_PAYMENT'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-400'
+                  }`}
+                >
+                  <FaPercent className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                  <h4 className="text-lg font-semibold text-center text-gray-900">Split Payment</h4>
+                  <p className="text-sm text-gray-600 text-center">
+                    {prepayPercentage ? `${prepayPercentage}% now, ${100 - Number(prepayPercentage)}% on check-in` : '30% now, 70% on check-in'}
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Conditional Fields Based on Payment Structure */}
+            {paymentStructure === 'SPLIT_PAYMENT' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="prepayPercentage" className="block text-sm font-medium text-gray-700">
+                    Prepayment Percentage <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="prepayPercentage"
+                    value={prepayPercentage}
+                    onChange={(e) => setPrepayPercentage(e.target.value)}
+                    min="0"
+                    max="100"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="30"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fullPaymentDays" className="block text-sm font-medium text-gray-700">
+                    Full Payment Days Before <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="fullPaymentDays"
+                    value={fullPaymentDays}
+                    onChange={(e) => setFullPaymentDays(e.target.value)}
+                    min="0"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="30"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -211,40 +271,6 @@ export default function CreateRatePolicyModal({
               </div>
             </div>
 
-
-            {/* Payment Structure Selector */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Payment Structure
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div
-                  onClick={() => setPaymentStructure('FULL_PAYMENT')}
-                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    paymentStructure === 'FULL_PAYMENT'
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-400'
-                  }`}
-                >
-                  <FaCreditCard className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-                  <h4 className="text-lg font-semibold text-center text-gray-900">Full Payment</h4>
-                  <p className="text-sm text-gray-600 text-center">100% payment upfront</p>
-                </div>
-                <div
-                  onClick={() => setPaymentStructure('SPLIT_PAYMENT')}
-                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    paymentStructure === 'SPLIT_PAYMENT'
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-400'
-                  }`}
-                >
-                  <FaPercent className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-                  <h4 className="text-lg font-semibold text-center text-gray-900">Split Payment</h4>
-                  <p className="text-sm text-gray-600 text-center">30% now, 70% on check-in</p>
-                </div>
-              </div>
-            </div>
-
             {/* Cancellation Policy Selector */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -252,7 +278,7 @@ export default function CreateRatePolicyModal({
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div
-                  onClick={() => setCancellationPolicy('FLEXIBLE')}
+                  onClick={() => handleCancellationPolicyChange('FLEXIBLE')}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                     cancellationPolicy === 'FLEXIBLE'
                       ? 'border-green-600 bg-green-50'
@@ -264,7 +290,7 @@ export default function CreateRatePolicyModal({
                   <p className="text-xs text-gray-600 text-center">Cancel anytime</p>
                 </div>
                 <div
-                  onClick={() => setCancellationPolicy('MODERATE')}
+                  onClick={() => handleCancellationPolicyChange('MODERATE')}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                     cancellationPolicy === 'MODERATE'
                       ? 'border-yellow-600 bg-yellow-50'
@@ -276,7 +302,7 @@ export default function CreateRatePolicyModal({
                   <p className="text-xs text-gray-600 text-center">Cancel 30 days before</p>
                 </div>
                 <div
-                  onClick={() => setCancellationPolicy('STRICT')}
+                  onClick={() => handleCancellationPolicyChange('STRICT')}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                     cancellationPolicy === 'STRICT'
                       ? 'border-orange-600 bg-orange-50'
@@ -288,7 +314,7 @@ export default function CreateRatePolicyModal({
                   <p className="text-xs text-gray-600 text-center">Changes only, no cancel</p>
                 </div>
                 <div
-                  onClick={() => setCancellationPolicy('NON_REFUNDABLE')}
+                  onClick={() => handleCancellationPolicyChange('NON_REFUNDABLE')}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                     cancellationPolicy === 'NON_REFUNDABLE'
                       ? 'border-red-600 bg-red-50'
@@ -321,11 +347,11 @@ export default function CreateRatePolicyModal({
                   id="refundable"
                   type="checkbox"
                   checked={refundable}
-                  onChange={(e) => setRefundable(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  disabled={true}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded opacity-75 cursor-not-allowed"
                 />
                 <label htmlFor="refundable" className="ml-2 block text-sm text-gray-900">
-                  Refundable
+                  Refundable <span className="text-xs text-gray-500">(auto-set by cancellation policy)</span>
                 </label>
               </div>
             </div>

@@ -70,7 +70,6 @@ export default function Rooms() {
     fullPaymentPolicy: [],
     splitPaymentPolicy: []
   })
-  const [isFullPaymentTab, setIsFullPaymentTab] = useState(true)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
   const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'details' | 'pricing'>('details');
@@ -597,94 +596,72 @@ export default function Rooms() {
               </p>
             </div>
 
-            <div className="flex justify-center mb-6">
-              <div className="bg-gray-200 rounded-lg p-1 flex">
-                <button
-                  onClick={() => setIsFullPaymentTab(true)}
-                  className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${
-                    isFullPaymentTab ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
-                  }`}
-                >
-                  Full Payment
-                </button>
-                <button
-                  onClick={() => setIsFullPaymentTab(false)}
-                  className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${
-                    !isFullPaymentTab ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
-                  }`}
-                >
-                  Split Payment
-                </button>
-              </div>
-            </div>
-
             <div className="mt-4">
-              {isFullPaymentTab ? (
-                <div className="space-y-2">
-                  {ratepolicies?.fullPaymentPolicy?.map((policy) => (
-                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedPolicies.some(p => p.id === policy.id)}
-                        onChange={() => togglePolicySelection(policy)}
-                        className="cursor-pointer" 
-                      />
-                      <div className="flex-1">
-                        <h2 className="font-medium">{policy.name}</h2>
-                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                            Full Payment
-                          </span>
+              <h4 className="text-lg font-medium text-gray-900 mb-4">Available Rate Policies</h4>
+              <div className="space-y-2">
+                {/* Full Payment Policies */}
+                {ratepolicies?.fullPaymentPolicy?.map((policy) => (
+                  <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedPolicies.some(p => p.id === policy.id)}
+                      onChange={() => togglePolicySelection(policy)}
+                      className="cursor-pointer" 
+                    />
+                    <div className="flex-1">
+                      <h2 className="font-medium">{policy.name}</h2>
+                      <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          Full Payment
+                        </span>
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {policy.refundable ? "Refundable" : "Non-refundable"}
+                        </span>
+                        {(policy as any).cancellationPolicy && (
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {policy.refundable ? "Refundable" : "Non-refundable"}
+                            {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
                           </span>
-                          {(policy as any).cancellationPolicy && (
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {ratepolicies?.splitPaymentPolicy?.map((policy) => (
-                    <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedPolicies.some(p => p.id === policy.id)}
-                        onChange={() => togglePolicySelection(policy)}
-                        className="cursor-pointer" 
-                      />
-                      <div className="flex-1">
-                        <h2 className="font-medium">{policy.name}</h2>
-                        <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                            Split Payment (30% + 70%)
-                          </span>
+                  </div>
+                ))}
+                
+                {/* Split Payment Policies */}
+                {ratepolicies?.splitPaymentPolicy?.map((policy) => (
+                  <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedPolicies.some(p => p.id === policy.id)}
+                      onChange={() => togglePolicySelection(policy)}
+                      className="cursor-pointer" 
+                    />
+                    <div className="flex-1">
+                      <h2 className="font-medium">{policy.name}</h2>
+                      <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                          Split Payment {policy.prepayPercentage ? `(${policy.prepayPercentage}% + ${100 - policy.prepayPercentage}%)` : '(30% + 70%)'}
+                        </span>
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {policy.refundable ? "Refundable" : "Non-refundable"}
+                        </span>
+                        {policy.fullPaymentDays && (
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {policy.refundable ? "Refundable" : "Non-refundable"}
+                            Final payment {policy.fullPaymentDays} days before
                           </span>
-                          {policy.fullPaymentDays && (
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              Final payment {policy.fullPaymentDays} days before
-                            </span>
-                          )}
-                          {(policy as any).cancellationPolicy && (
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
-                            </span>
-                          )}
-                        </div>
+                        )}
+                        {(policy as any).cancellationPolicy && (
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {selectedPolicies.length > 0 && (

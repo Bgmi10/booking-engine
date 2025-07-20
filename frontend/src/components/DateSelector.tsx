@@ -78,12 +78,13 @@ const DateSelector = ({
     }).format(now)
     
     const [currentHour, currentMinute] = italianTime.split(':').map(Number)
-    const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
+    const [cutoffHour, cutoffMinute] = dailyBookingStartTime.split(':').map(Number)
     
     const currentMinutes = currentHour * 60 + currentMinute
-    const allowedMinutes = allowedHour * 60 + allowedMinute
+    const cutoffMinutes = cutoffHour * 60 + cutoffMinute
     
-    return currentMinutes >= allowedMinutes
+    // Reverse logic: allow booking BEFORE the cutoff time, not after
+    return currentMinutes < cutoffMinutes
   }
 
   // Helper function to format date as YYYY-MM-DD
@@ -263,9 +264,9 @@ const DateSelector = ({
 
       // Priority 3: Check time restrictions for available dates only
       if (!isCurrentDateBookingAllowed(date)) {
-        const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
-        const timeStr = `${allowedHour.toString().padStart(2, '0')}:${allowedMinute.toString().padStart(2, '0')}`
-        setWarningMessage(`Booking for today is allowed after ${timeStr} (Italian time)`)
+        const [cutoffHour, cutoffMinute] = dailyBookingStartTime.split(':').map(Number)
+        const timeStr = `${cutoffHour.toString().padStart(2, '0')}:${cutoffMinute.toString().padStart(2, '0')}`
+        setWarningMessage(`Booking for today is closed after ${timeStr} (Italian time)`)
         setTimeout(() => setWarningMessage(""), 5000)
         return
       }
@@ -442,9 +443,9 @@ const DateSelector = ({
     if (isDateAvailable(date) || getDateAvailabilityState(date) === 'unknown') {
       // Check if current date booking is not allowed due to time restriction
       if (!isCurrentDateBookingAllowed(date)) {
-        const [allowedHour, allowedMinute] = dailyBookingStartTime.split(':').map(Number)
-        const timeStr = `${allowedHour.toString().padStart(2, '0')}:${allowedMinute.toString().padStart(2, '0')}`
-        return `Booking for today is allowed after ${timeStr} (Italian time)`
+        const [cutoffHour, cutoffMinute] = dailyBookingStartTime.split(':').map(Number)
+        const timeStr = `${cutoffHour.toString().padStart(2, '0')}:${cutoffMinute.toString().padStart(2, '0')}`
+        return `Booking for today is closed after ${timeStr} (Italian time)`
       }
 
       let tooltip = "Available"

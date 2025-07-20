@@ -390,7 +390,7 @@ export default function Settings() {
                     </div>
                     <div>
                       <label htmlFor="dailyBookingStartTimeInput" className="block text-sm font-medium text-gray-700 mb-2">
-                        Daily Booking Start Time
+                        Daily Booking Close Time
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <input
@@ -404,7 +404,7 @@ export default function Settings() {
                         />
                       </div>
                       <p className="mt-2 text-sm text-gray-500">
-                        Time when customers can start booking for the current date (Italian time)
+                         (Italian time)
                       </p>
                     </div>
                   </div>

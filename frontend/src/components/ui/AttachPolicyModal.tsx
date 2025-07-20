@@ -1,13 +1,10 @@
 import { RiCloseLine } from "react-icons/ri";
 
 import type { RatePolicy } from "../../types/types";
-import RatePolicyTab from "./RatePolicyTab";
 
 export const AttachPoliciesModal = ({
     setIsAttachPoliciesModalOpen,
     ratepolicies,
-    isDiscountTab,
-    setIsDiscountTab,
     selectedPolicies,
     togglePolicySelection
   }: {
@@ -16,14 +13,12 @@ export const AttachPoliciesModal = ({
       fullPaymentPolicy: RatePolicy[];
       splitPaymentPolicy: RatePolicy[];
     }
-    isDiscountTab: boolean
-    setIsDiscountTab: (isDiscountTab: boolean) => void
     selectedPolicies?: RatePolicy[]
     togglePolicySelection: (policy: RatePolicy) => void
   }) => {
     return (
-      <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh]">
+      <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white z-10">
             <h3 className="text-xl font-semibold text-gray-900">Attach Policies</h3>
             <button 
@@ -33,31 +28,13 @@ export const AttachPoliciesModal = ({
               <RiCloseLine size={24} />
             </button>
           </div>
-          <div>
-            <RatePolicyTab isDiscountTab={isDiscountTab} setIsDiscountTab={setIsDiscountTab} />
-          </div>
-          {isDiscountTab ? (
-            <div>
-              {ratepolicies?.splitPaymentPolicy?.map((policy) => (
-                <div key={policy.id} className="flex items-center gap-4 p-3 border-b">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedPolicies?.some(p => p.id === policy.id)}
-                    onChange={() => togglePolicySelection(policy)}
-                    className="cursor-pointer" 
-                  />
-                  <div className="flex-1">
-                    <h2 className="font-medium">{policy.name}</h2>
-                    <p className="text-sm text-gray-500 line-clamp-1 w-20">{policy.description}</p>
-                    <p className="text-sm text-gray-500">Split Payment Available</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div>
+          
+          <div className="p-4">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Available Rate Policies</h4>
+            <div className="space-y-2">
+              {/* Full Payment Policies */}
               {ratepolicies?.fullPaymentPolicy?.map((policy) => (
-                <div key={policy.id} className="flex items-center gap-4 p-3 border-b">
+                <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
                   <input 
                     type="checkbox" 
                     checked={selectedPolicies?.some(p => p.id === policy.id)}
@@ -68,24 +45,73 @@ export const AttachPoliciesModal = ({
                     <h2 className="font-medium">{policy.name}</h2>
                     <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {(policy as any)?.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment' : 'Full Payment'}
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        Full Payment
                       </span>
                       <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                         {policy.refundable ? "Refundable" : "Non-refundable"}
                       </span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {policy.rebookValidityDays} days rebooking
+                      {(policy as any).cancellationPolicy && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
+                        </span>
+                      )}
+                      {policy.rebookValidityDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {policy.rebookValidityDays} days rebooking
+                        </span>
+                      )}
+                      {policy.fullPaymentDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {policy.fullPaymentDays} days full payment
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Split Payment Policies */}
+              {ratepolicies?.splitPaymentPolicy?.map((policy) => (
+                <div key={policy.id} className="flex items-center gap-4 p-3 border rounded-md">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedPolicies?.some(p => p.id === policy.id)}
+                    onChange={() => togglePolicySelection(policy)}
+                    className="cursor-pointer" 
+                  />
+                  <div className="flex-1">
+                    <h2 className="font-medium">{policy.name}</h2>
+                    <p className="text-sm text-gray-500 line-clamp-1">{policy.description}</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                        Split Payment {policy.prepayPercentage ? `(${policy.prepayPercentage}% + ${100 - policy.prepayPercentage}%)` : '(30% + 70%)'}
                       </span>
                       <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {policy.fullPaymentDays} days full payment
+                        {policy.refundable ? "Refundable" : "Non-refundable"}
                       </span>
+                      {(policy as any).cancellationPolicy && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {(policy as any).cancellationPolicy.replace('_', ' ').toLowerCase()}
+                        </span>
+                      )}
+                      {policy.rebookValidityDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {policy.rebookValidityDays} days rebooking
+                        </span>
+                      )}
+                      {policy.fullPaymentDays && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          Final payment {policy.fullPaymentDays} days before
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+          
           <div className="p-4 border-t sticky bottom-0 bg-white">
             <button
               onClick={() => setIsAttachPoliciesModalOpen(false)}

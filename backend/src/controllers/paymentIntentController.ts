@@ -91,6 +91,7 @@ export const createSecondPayment = async (req: express.Request, res: express.Res
             description: `Final Payment - Booking ${paymentIntent.id.slice(-6).toUpperCase()}`
         });
 
+
         // Update payment intent with second payment info
         await prisma.paymentIntent.update({
             where: { id: paymentIntentId },

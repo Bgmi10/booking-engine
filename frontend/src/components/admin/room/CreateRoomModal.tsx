@@ -57,7 +57,6 @@ export function CreateRoomModal({
   });
   const [amenities, setAmenities] = useState<string[]>([]);
   const [newAmenity, setNewAmenity] = useState("");
-  const [isFullPaymentTab, setIsFullPaymentTab] = useState(true)
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([]);
 
   // Use the custom image upload hook
@@ -392,8 +391,6 @@ export function CreateRoomModal({
                 <AttachPoliciesModal
                   setIsAttachPoliciesModalOpen={setIsAttachPoliciesModalOpen}
                   ratepolicies={ratepolicies}
-                  isDiscountTab={!isFullPaymentTab}
-                  setIsDiscountTab={(value) => setIsFullPaymentTab(!value)}
                   selectedPolicies={selectedPolicies}
                   togglePolicySelection={togglePolicySelection}
                 />
