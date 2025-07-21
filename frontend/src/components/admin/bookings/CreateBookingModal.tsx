@@ -344,19 +344,7 @@ export function CreateBookingModal({
   // Get rate options for a room
   const getRateOptions = (room: Room) => {
     const options = []
-
-    // Base rate (always available)
     const basePrice = room?.price || 0
-    options.push({
-      id: "base",
-      name: "Standard Rate",
-      description: "Our standard room rate with all basic amenities included",
-      price: basePrice,
-      discountPercentage: 0,
-      isActive: true,
-      refundable: true,
-      type: "base",
-    })
 
     // Room rates (if available)
     //@ts-ignore
@@ -376,12 +364,18 @@ export function CreateBookingModal({
             finalPrice = roomRate.ratePolicy.nightlyRate
           }
 
+          // Apply adjustment percentage if available
+          if (roomRate.ratePolicy.adjustmentPercentage !== undefined) {
+            finalPrice = finalPrice + (finalPrice * roomRate.ratePolicy.adjustmentPercentage / 100)
+          }
+
           options.push({
             id: roomRate.ratePolicy.id,
             name: roomRate.ratePolicy.name,
             description: roomRate.ratePolicy.description,
             price: finalPrice,
             discountPercentage: roomRate.ratePolicy.discountPercentage || 0,
+            adjustmentPercentage: roomRate.ratePolicy.adjustmentPercentage,
             isActive: roomRate.ratePolicy.isActive,
             refundable: roomRate.ratePolicy.refundable,
             fullPaymentDays: roomRate.ratePolicy.fullPaymentDays,
@@ -391,6 +385,21 @@ export function CreateBookingModal({
             type: "special",
           })
         }
+      })
+    }
+
+    // If no rate policies are available, show base room price as fallback
+    if (options.length === 0) {
+      options.push({
+        id: "base",
+        name: `${room?.name} Base Rate`,
+        description: "Standard room rate",
+        price: basePrice,
+        discountPercentage: 0,
+        adjustmentPercentage: 0,
+        isActive: true,
+        refundable: true,
+        type: "base",
       })
     }
 

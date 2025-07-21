@@ -255,6 +255,15 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                             -{rateOption.discountPercentage}%
                           </span>
                         )}
+                        {rateOption.adjustmentPercentage !== undefined && rateOption.adjustmentPercentage !== 0 && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            rateOption.adjustmentPercentage > 0 
+                              ? 'bg-orange-600 text-white' 
+                              : 'bg-green-600 text-white'
+                          }`}>
+                            {rateOption.adjustmentPercentage > 0 ? '+' : ''}{rateOption.adjustmentPercentage}%
+                          </span>
+                        )}
                       </div>
                     </div>
                     <p className={`text-xs ${hasDiscount ? "text-orange-700" : "text-gray-600"}`}>

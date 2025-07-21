@@ -257,17 +257,16 @@ model Payment {
 }
 
 model RatePolicy {
-  id                  String   @id @default(uuid())
-  name                String
-  description         String
-  isActive            Boolean  @default(true)
-  refundable          Boolean? @default(false)
-  prepayPercentage    Int?     // For deposits (not currently used with new split structure)
-  fullPaymentDays     Int?     // Days before arrival when remaining payment is due
-  changeAllowedDays   Int?     // Days before arrival when changes are allowed
-  rebookValidityDays  Int?     // Days to rebook if cancelled
-  
-  // Core business logic fields
+  id                    String   @id @default(uuid())
+  name                  String
+  description           String
+  isActive              Boolean  @default(true)
+  refundable            Boolean? @default(false)
+  prepayPercentage      Int?     // For deposits (not currently used with new split structure)
+  fullPaymentDays       Int?     // Days before arrival when remaining payment is due
+  changeAllowedDays     Int?     // Days before arrival when changes are allowed
+  rebookValidityDays    Int?     // Days to rebook if cancelled
+  adjustmentPercentage  Int?
   paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
   cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
   

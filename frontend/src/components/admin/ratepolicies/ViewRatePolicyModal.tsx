@@ -163,7 +163,7 @@ export default function ViewRatePolicyModal({
             </div>
 
             {/* Additional Policy Details Card */}
-            {(ratePolicy?.prepayPercentage !== undefined || ratePolicy?.fullPaymentDays !== undefined || ratePolicy?.changeAllowedDays !== undefined || ratePolicy?.rebookValidityDays !== undefined) && (
+            {(ratePolicy?.prepayPercentage !== undefined || ratePolicy?.fullPaymentDays !== undefined || ratePolicy?.changeAllowedDays !== undefined || ratePolicy?.rebookValidityDays !== undefined || (ratePolicy as any)?.adjustmentPercentage !== undefined) && (
               <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Policy Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,6 +171,21 @@ export default function ViewRatePolicyModal({
                     <div>
                       <h4 className="text-sm font-medium text-gray-500 mb-1">Prepayment Percentage</h4>
                       <p className="text-lg font-medium text-gray-900">{ratePolicy?.prepayPercentage}%</p>
+                    </div>
+                  )}
+
+                  {(ratePolicy as any)?.adjustmentPercentage !== undefined && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Price Adjustment</h4>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${
+                          (ratePolicy as any).adjustmentPercentage >= 0 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {(ratePolicy as any).adjustmentPercentage >= 0 ? '+' : ''}{(ratePolicy as any).adjustmentPercentage}%
+                        </span>
+                      </div>
                     </div>
                   )}
 

@@ -587,6 +587,7 @@ const createRatePolicy = async (req: express.Request, res: express.Response) => 
     fullPaymentDays, 
     changeAllowedDays, 
     rebookValidityDays, 
+    adjustmentPercentage,
     paymentStructure,
     cancellationPolicy
   } = req.body;
@@ -607,6 +608,7 @@ const createRatePolicy = async (req: express.Request, res: express.Response) => 
     if (fullPaymentDays !== undefined) createData.fullPaymentDays = fullPaymentDays;
     if (changeAllowedDays !== undefined) createData.changeAllowedDays = changeAllowedDays;
     if (rebookValidityDays !== undefined) createData.rebookValidityDays = rebookValidityDays;
+    if (adjustmentPercentage !== undefined) createData.adjustmentPercentage = adjustmentPercentage;
 
     const ratePolicy = await prisma.ratePolicy.create({ data: createData });
     responseHandler(res, 200, "Rate policy created successfully", ratePolicy);
@@ -626,6 +628,7 @@ const updateRatePolicy = async (req: express.Request, res: express.Response) => 
     fullPaymentDays, 
     changeAllowedDays, 
     rebookValidityDays, 
+    adjustmentPercentage,
     paymentStructure,
     cancellationPolicy
   } = req.body;
@@ -641,8 +644,7 @@ const updateRatePolicy = async (req: express.Request, res: express.Response) => 
   if (fullPaymentDays !== undefined) updateData.fullPaymentDays = fullPaymentDays;
   if (changeAllowedDays !== undefined) updateData.changeAllowedDays = changeAllowedDays;
   if (rebookValidityDays !== undefined) updateData.rebookValidityDays = rebookValidityDays;
-  
-  // Business logic fields
+  if (adjustmentPercentage !== undefined) updateData.adjustmentPercentage = adjustmentPercentage;
   if (paymentStructure !== undefined) updateData.paymentStructure = paymentStructure;
   if (cancellationPolicy !== undefined) updateData.cancellationPolicy = cancellationPolicy;
 

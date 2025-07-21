@@ -61,6 +61,12 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             finalPrice = roomRate.customRate;
           }
 
+          // Apply adjustment percentage if specified
+          if (roomRate.ratePolicy.adjustmentPercentage) {
+            const adjustmentMultiplier = 1 + (roomRate.ratePolicy.adjustmentPercentage / 100);
+            finalPrice = finalPrice * adjustmentMultiplier;
+          }
+
           options.push({
             id: roomRate.ratePolicy.id,
             name: roomRate.ratePolicy.name,
@@ -74,6 +80,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             rebookValidityDays: roomRate.ratePolicy.rebookValidityDays,
             paymentStructure: roomRate.ratePolicy.paymentStructure,
             cancellationPolicy: roomRate.ratePolicy.cancellationPolicy,
+            adjustmentPercentage: roomRate.ratePolicy.adjustmentPercentage,
             type: 'policy'
           });
         }
@@ -588,18 +595,29 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <h5 className="text-sm font-semibold text-blue-800 mb-2">Split Payment Plan</h5>
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                            <span className="text-sm text-blue-700">
-                              Pay 30% now (€{(totalPrice * 0.3).toFixed(2)})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span className="text-sm text-blue-700">
-                              Pay 70% later (€{(totalPrice * 0.7).toFixed(2)})
-                            </span>
-                          </div>
+                          {(() => {
+                            const prepayPercent = rateOption.prepayPercentage || 30; // fallback to 30% if not set
+                            const remainingPercent = 100 - prepayPercent;
+                            const prepayDecimal = prepayPercent / 100;
+                            const remainingDecimal = remainingPercent / 100;
+                            
+                            return (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                                  <span className="text-sm text-blue-700">
+                                    Pay {prepayPercent}% now (€{(totalPrice * prepayDecimal).toFixed(2)})
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                  <span className="text-sm text-blue-700">
+                                    Pay {remainingPercent}% later (€{(totalPrice * remainingDecimal).toFixed(2)})
+                                  </span>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                         {rateOption.fullPaymentDays && (
                           <p className="text-xs text-blue-600 mt-2">
@@ -619,10 +637,15 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         handleBookNow(rateOption, paymentStructure);
                       }}
                     >
-                      {rateOption.paymentStructure === 'SPLIT_PAYMENT' && (selectedPaymentStructures[rateOption.id] === 'SPLIT_PAYMENT' || !selectedPaymentStructures[rateOption.id])
-                        ? `Pay 30% Now - €${(totalPrice * 0.3).toFixed(2)}`
-                        : `Book This Rate - €${totalPrice.toFixed(2)}`
-                      }
+                      {(() => {
+                        if (rateOption.paymentStructure === 'SPLIT_PAYMENT' && 
+                            (selectedPaymentStructures[rateOption.id] === 'SPLIT_PAYMENT' || !selectedPaymentStructures[rateOption.id])) {
+                          const prepayPercent = rateOption.prepayPercentage || 30;
+                          const prepayDecimal = prepayPercent / 100;
+                          return `Pay ${prepayPercent}% Now - €${(totalPrice * prepayDecimal).toFixed(2)}`;
+                        }
+                        return `Book This Rate - €${totalPrice.toFixed(2)}`;
+                      })()}
                     </button>
                   </div>
                 </div>

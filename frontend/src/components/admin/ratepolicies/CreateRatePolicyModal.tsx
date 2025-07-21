@@ -28,6 +28,7 @@ export default function CreateRatePolicyModal({
   const [fullPaymentDays, setFullPaymentDays] = useState("");
   const [changeAllowedDays, setChangeAllowedDays] = useState("");
   const [rebookValidityDays, setRebookValidityDays] = useState("");
+  const [adjustmentPercentage, setAdjustmentPercentage] = useState("");
   const [loadingAction, setLoadingAction] = useState(false);
   
   // Core business logic fields
@@ -80,6 +81,7 @@ export default function CreateRatePolicyModal({
       fullPaymentDays: fullPaymentDays ? Number(fullPaymentDays) : undefined,
       changeAllowedDays: changeAllowedDays ? Number(changeAllowedDays) : undefined,
       rebookValidityDays: rebookValidityDays ? Number(rebookValidityDays) : undefined,
+      adjustmentPercentage: adjustmentPercentage ? Number(adjustmentPercentage) : undefined,
       paymentStructure,
       cancellationPolicy,
     }
@@ -269,6 +271,31 @@ export default function CreateRatePolicyModal({
                   placeholder="365"
                 />
               </div>
+            </div>
+
+            {/* Price Adjustment Section */}
+            <div>
+              <label htmlFor="adjustmentPercentage" className="block text-sm font-medium text-gray-700">
+                Price Adjustment Percentage
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  type="number"
+                  id="adjustmentPercentage"
+                  value={adjustmentPercentage}
+                  onChange={(e) => setAdjustmentPercentage(e.target.value)}
+                  min="-100"
+                  max="100"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm pr-8"
+                  placeholder="0"
+                />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">%</span>
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Positive values increase room prices, negative values decrease them (e.g., +30 for 30% markup, -20 for 20% discount)
+              </p>
             </div>
 
             {/* Cancellation Policy Selector */}

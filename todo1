@@ -30,5 +30,28 @@
 
 [C] => in the rate policy if it is flexible , moderate then refundable should be clicked automatically and for rest 
 non refund automatically
- 
+
 [C] => in the room all the policies should be in single tab
+
+[C] => mess in frontend rates user app. we should ideally calculate based on configured values
+
+[C] => based on the percentage price the room price should adapt and this value should +, - 
+
+[] => admin can able to change/edit the booked rooms. ideally we should track the all changes for a particular booking./ reason should be collectable from the admin side. 
+
+[] => in the booking admin able to see all the outstanding payments for every booking
+
+[] => we have to refactor the entire model of multiple booking. ideally this should be in seprate booking whatever the csutomer adds. we have to treat it as seprate under the bookings tab. and we have to group the bookings based on admin side logic creation and ideally we should automatically consider the booking have more then 3 on the same date but diff room. then that as considered to be one booking or group booking.
+
+[] => we want able assign all the charges to a single group/booking. 
+
+[] => current booking admin page list is taking the payment intent that need to 
+
+[] => Instead of returning guest change to sign to room  or pay the waiter
+
+[] => Instead of welcome change to "payment option" && Please verify to place an order. => Choose how you would like to pay.
+
+[] => basically step was wrong. user flow was wrong. ideally user needs to checkout first and then verification only for existing guest. if there temp we dont care we just go with flow no verification.
+
+
+

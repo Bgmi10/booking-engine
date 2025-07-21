@@ -66,6 +66,15 @@ export const AttachPoliciesModal = ({
                           {policy.fullPaymentDays} days full payment
                         </span>
                       )}
+                      {(policy as any).adjustmentPercentage !== undefined && (
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          (policy as any).adjustmentPercentage >= 0 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {(policy as any).adjustmentPercentage >= 0 ? '+' : ''}{(policy as any).adjustmentPercentage}% price
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -103,6 +112,15 @@ export const AttachPoliciesModal = ({
                       {policy.fullPaymentDays && (
                         <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                           Final payment {policy.fullPaymentDays} days before
+                        </span>
+                      )}
+                      {(policy as any).adjustmentPercentage !== undefined && (
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          (policy as any).adjustmentPercentage >= 0 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {(policy as any).adjustmentPercentage >= 0 ? '+' : ''}{(policy as any).adjustmentPercentage}% price
                         </span>
                       )}
                     </div>

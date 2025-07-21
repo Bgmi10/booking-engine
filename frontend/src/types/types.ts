@@ -38,6 +38,7 @@ export interface RatePolicy {
   changeAllowedDays?: number;
   rebookValidityDays?: number;
   discountPercentage?: number;
+  adjustmentPercentage?: number;
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT';
   cancellationPolicy?: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE';
   createdAt: string;
