@@ -2,22 +2,33 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../utils/constants';
 
-const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVerificationSuccess }) => {
-    const [activeTab, setActiveTab] = useState<'existing' | 'guest'>('existing');
+interface Room {
+    id: string;
+    name: string;
+    description: string;
+    capacity: number;
+    price: number;
+}
+
+const CustomerVerify: React.FC<{ 
+    onVerificationSuccess: () => void;
+    guestType: 'booked' | 'temp';
+}> = ({ onVerificationSuccess, guestType }) => {
     const [surname, setSurname] = useState('');
+    const [randomGuestName, setRandomGuestName] = useState('');
     const [roomName, setRoomName] = useState('');
-    const [occupiedRooms, setOccupiedRooms] = useState<string[]>([]);
+    const [allRooms, setAllRooms] = useState<Room[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchOccupiedRooms = async () => {
+        const fetchAllRooms = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch(`${baseUrl}/customers/occupied-rooms`);
+                const response = await fetch(`${baseUrl}/customers/all-rooms`);
                 const data = await response.json();
                 if (response.ok) {
-                    setOccupiedRooms(data.data);
+                    setAllRooms(data.data);
                 } else {
                     throw new Error(data.message || 'Failed to load rooms.');
                 }
@@ -28,31 +39,39 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
             }
         };
 
-        fetchOccupiedRooms();
-    }, []);
+        // Generate random guest name for temp users
+        if (guestType === 'temp') {
+            const location = new URLSearchParams(window.location.search).get("location") || "Venue";
+            const randomName = `Guest-${Math.random().toString(36).substring(2, 8)}-${location}`;
+            setRandomGuestName(randomName);
+        } else {
+            fetchAllRooms();
+        }
+    }, [guestType]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
 
-        if (!surname) {
-            setError('Please provide your surname.');
-            return;
-        }
-
-        if (activeTab === 'existing' && !roomName) {
-            setError('Please select a room.');
-            return;
+        if (guestType === 'booked') {
+            if (!surname) {
+                setError('Please provide your surname.');
+                return;
+            }
+            if (!roomName) {
+                setError('Please select a room.');
+                return;
+            }
         }
 
         setIsLoading(true);
         try {
             const requestBody = { 
-                surname, 
-                isGuest: activeTab === 'guest'
+                surname: guestType === 'booked' ? surname : randomGuestName, 
+                isGuest: guestType === 'temp'
             };
 
-            if (activeTab === 'existing') {
+            if (guestType === 'booked') {
                 //@ts-ignore
                 requestBody.roomName = roomName;
             }
@@ -82,84 +101,79 @@ const CustomerVerify: React.FC<{ onVerificationSuccess: () => void }> = ({ onVer
     };
 
     return (
-        <div className="bg-white shadow-md rounded-lg p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Welcome</h2>
-            <p className="text-center text-gray-600 mb-6">Please verify to place an order.</p>
-            
-            {/* Tab Headers */}
-            <div className="flex mb-6 border-b">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('existing')}
-                    className={`flex-1 py-2 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
-                        activeTab === 'existing'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    Returning Guest
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('guest')}
-                    className={`flex-1 py-2 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
-                        activeTab === 'guest'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    Continue as Guest
-                </button>
+        <div className="space-y-6">
+            <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                    {guestType === 'booked' ? 'Verify Your Booking' : 'Guest Information'}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                    {guestType === 'booked' 
+                        ? 'Please provide your surname and select your room to verify your booking'
+                        : 'We\'ll create a temporary guest profile for your order'
+                    }
+                </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label htmlFor="surname" className="block text-sm font-medium text-gray-700">
-                        Surname
-                    </label>
-                    <input
-                        id="surname"
-                        type="text"
-                        value={surname}
-                        onChange={(e) => setSurname(e.target.value)}
-                        placeholder="Enter your surname (last name)"
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        disabled={isLoading}
-                    />
-                </div>
-                
-                {activeTab === 'existing' && (
-                    <div>
-                        <label htmlFor="roomName" className="block text-sm font-medium text-gray-700">
-                            Room
-                        </label>
-                        <select
-                            id="roomName"
-                            value={roomName}
-                            onChange={(e) => setRoomName(e.target.value)}
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            disabled={isLoading || occupiedRooms.length === 0}
-                        >
-                            <option value="">{isLoading ? 'Loading rooms...' : 'Select your room'}</option>
-                            {occupiedRooms.map((room) => (
-                                <option key={room} value={room}>
-                                    {room}
-                                </option>
-                            ))}
-                        </select>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                {guestType === 'booked' ? (
+                    <>
+                        <div>
+                            <label htmlFor="surname" className="block text-sm font-medium text-gray-700">
+                                Surname (Last Name)
+                            </label>
+                            <input
+                                id="surname"
+                                type="text"
+                                value={surname}
+                                onChange={(e) => setSurname(e.target.value)}
+                                placeholder="Enter your surname"
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-black focus:border-black"
+                                disabled={isLoading}
+                                required
+                            />
+                        </div>
+                        
+                        <div>
+                            <label htmlFor="roomName" className="block text-sm font-medium text-gray-700">
+                                Select Your Room
+                            </label>
+                            <select
+                                id="roomName"
+                                value={roomName}
+                                onChange={(e) => setRoomName(e.target.value)}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
+                                disabled={isLoading || allRooms.length === 0}
+                                required
+                            >
+                                <option value="">{isLoading ? 'Loading rooms...' : 'Select your room'}</option>
+                                {allRooms.map((room) => (
+                                    <option key={room.id} value={room.name}>
+                                        {room.name} - {room.description}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                                We'll verify that you have an active booking for this room
+                            </p>
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-center py-4">
+                        <p className="text-gray-600">
+                            Ready to place your order as a walk-in guest.
+                        </p>
                     </div>
                 )}
                 
                 {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-                <div>
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                        {isLoading ? 'Verifying...' : 'Continue'}
-                    </button>
-                </div>
+                
+                <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50 transition-colors"
+                >
+                    {isLoading ? 'Verifying...' : (guestType === 'booked' ? 'Verify Booking' : 'Continue as Guest')}
+                </button>
             </form>
         </div>
     );

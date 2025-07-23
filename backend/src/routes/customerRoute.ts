@@ -32,12 +32,14 @@ import {
     rejectServiceRequestQuote
 } from '../controllers/serviceRequestController';
 import { getAllProducts } from "../controllers/productController";
+import { getAllRooms } from "../controllers/roomController";
 
 const customerRouter = Router();
 
 // Order Portal Routes
 customerRouter.get('/order-items', getOrderItemsByLocation);
 customerRouter.get('/occupied-rooms', getOccupiedRooms);
+customerRouter.get('/all-rooms', getAllRooms);
 customerRouter.post('/login', loginCustomer);
 customerRouter.get('/profile', customerAuthMiddleware, getCustomerProfile);
 customerRouter.post('/logout', customerLogout);

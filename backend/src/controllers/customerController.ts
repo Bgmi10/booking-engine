@@ -207,29 +207,14 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             );
 
             if (activeBooking) {
-                // Existing customer found with matching surname
+                // Existing customer found with matching surname and active booking
                 const customer = activeBooking.customer;
                 payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
                 customerData = customer;
             } else {
-                // No matching booking found, create temporary customer
-                const stripeCustomer = await stripe.customers.create({
-                    name: `Temporary Guest - ${surname}`,
-                    metadata: {
-                        source: 'POS Login',
-                        roomName: roomName
-                    }
-                });
-
-                const tempCustomer = await prisma.temporaryCustomer.create({
-                    data: {
-                        surname,
-                        stripeCustomerId: stripeCustomer.id
-                    },
-                });
-                         
-                payload = { id: tempCustomer.id, surname: tempCustomer.surname, type: 'TEMP_CUSTOMER', stripeCustomerId: tempCustomer.stripeCustomerId };
-                customerData = tempCustomer;
+                // No active booking found for this surname and room combination
+                responseHandler(res, 400, `No active booking found for ${surname} in room ${roomName}. Please check your details or contact reception.`);
+                return;
             }
         }
 

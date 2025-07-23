@@ -18,7 +18,24 @@ export default function Order() {
     const [selectedCategory, setSelectedCategory] = useState<OrderCategory | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCheckout, setShowCheckout] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | ''>('');
+    const [showVerification, setShowVerification] = useState(false);
+    const [guestType, setGuestType] = useState<'BOOKED_GUEST' | 'PAY_AT_WAITER' | ''>('');
+    const [finalPaymentMethod, setFinalPaymentMethod] = useState<'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | ''>('');
+    
+    // Reset states when checkout modal opens
+    const openCheckout = () => {
+        setGuestType('');
+        setFinalPaymentMethod('');
+        setShowCheckout(true);
+    };
+    
+    // Reset states when checkout modal closes
+    const closeCheckout = () => {
+        setShowCheckout(false);
+        setGuestType('');
+        setFinalPaymentMethod('');
+        setShowVerification(false);
+    };
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     useEffect(() => {
@@ -121,12 +138,63 @@ export default function Order() {
     
     const submitOrder = async () => {
         if (cart.length === 0) return;
-        if (!paymentMethod) {
-            toast.error("Please select a payment method.");
-            return;
+        
+        // Determine guest type and payment method
+        let paymentMethod = finalPaymentMethod;
+        let currentGuestType = guestType;
+        
+        // If authenticated, determine guest type from customer object
+        if (isAuthenticated && customer) {
+            if ('guestEmail' in customer) {
+                // Customer has guestEmail = existing/booked guest
+                currentGuestType = 'BOOKED_GUEST';
+                paymentMethod = 'ASSIGN_TO_ROOM';
+            } else {
+                // Customer doesn't have guestEmail = temp guest
+                currentGuestType = 'PAY_AT_WAITER';
+                paymentMethod = 'PAY_AT_WAITER';
+            }
+        } else if (!paymentMethod) {
+            // Not authenticated, use selected guest type
+            if (currentGuestType === 'PAY_AT_WAITER') {
+                paymentMethod = 'PAY_AT_WAITER';
+            } else if (currentGuestType === 'BOOKED_GUEST') {
+                paymentMethod = 'ASSIGN_TO_ROOM';
+            } else {
+                toast.error("Please select a guest type first.");
+                return;
+            }
         }
+        
+        // Update states
+        setGuestType(currentGuestType);
+        setFinalPaymentMethod(paymentMethod);
         setIsSubmitting(true);
         try {
+            // If not authenticated, create temporary customer session (for walk-in guests)
+            if (!isAuthenticated) {
+                const location = new URLSearchParams(window.location.search).get("location") || "Venue";
+                const tempGuestName = `Guest-${Math.random().toString(36).substring(2, 8)}-${location}`;
+                
+                const loginResponse = await fetch(`${baseUrl}/customers/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        surname: tempGuestName, 
+                        isGuest: true 
+                    }),
+                    credentials: 'include',
+                });
+                
+                if (!loginResponse.ok) {
+                    const errorData = await loginResponse.json();
+                    throw new Error(errorData.message || 'Failed to create guest session.');
+                }
+                
+                // Refresh customer context after creating session
+                await refresh();
+            }
+
             const orderData = {
                 items: cart,
                 total: cartTotal,
@@ -145,8 +213,7 @@ export default function Order() {
             }
             toast.success("Order placed successfully!");
             setCart([]);
-            setShowCheckout(false);
-            setPaymentMethod('');
+            closeCheckout();
         } catch (error: any) {
             toast.error(error.message);
         } finally {
@@ -169,74 +236,155 @@ export default function Order() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
-                    {isLoading ? (
-                         <div className="flex justify-center items-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+                    {cart.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="text-gray-600 mb-6">Your cart is empty.</p>
+                            <button 
+                                onClick={closeCheckout} 
+                                className="px-6 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                            >
+                                Continue Shopping
+                            </button>
                         </div>
                     ) : !isAuthenticated ? (
-                        <CustomerVerify onVerificationSuccess={refresh} />
-                    ) : (
                         <>
-                            <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Order</h2>
-                            {cart.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <p className="text-gray-600 mb-6">Your cart is empty.</p>
-                                    <button 
-                                        onClick={() => setShowCheckout(false)} 
-                                        className="px-6 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                                    >
-                                        Continue Shopping
-                                    </button>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-6">Payment Options</h2>
+                            <div className="space-y-4 mb-6">
+                                {cart.map((item: CartItem) => (
+                                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex items-center space-x-4">
+                                            <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
+                                            <div>
+                                                <h4 className="font-semibold text-gray-800">{item.name}</h4>
+                                                <p className="text-sm text-gray-500">€{item.price.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">-</button>
+                                            <span className="w-8 text-center font-medium text-gray-800">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">+</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="border-t border-gray-200 pt-4 mb-6">
+                                <div className="flex justify-between text-lg font-bold text-gray-800">
+                                    <span>Total:</span>
+                                    <span>€{cartTotal.toFixed(2)}</span>
                                 </div>
-                            ) : (
-                                <>
-                                    <div className="space-y-4 mb-6">
-                                        {cart.map((item: CartItem) => (
-                                            <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                <div className="flex items-center space-x-4">
-                                                    <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
-                                                    <div>
-                                                        <h4 className="font-semibold text-gray-800">{item.name}</h4>
-                                                        <p className="text-sm text-gray-500">€{item.price.toFixed(2)}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">-</button>
-                                                    <span className="w-8 text-center font-medium text-gray-800">{item.quantity}</span>
-                                                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">+</button>
+                            </div>
+                            <div className="mb-6">
+                                <h4 className="text-lg font-semibold text-gray-800 mb-3">Are you a guest with a reservation?</h4>
+                                <div className="space-y-3">
+                                    <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                                        <input type="radio" name="guestType" value="booked" checked={guestType === 'BOOKED_GUEST'} onChange={(e) => setGuestType('BOOKED_GUEST')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                        <div className="ml-4">
+                                            <span className="text-gray-800 font-medium">Yes, I have a reservation</span>
+                                            <p className="text-sm text-gray-500">I'm staying at the hotel and have a room</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                                        <input type="radio" name="guestType" value="temp" checked={guestType === 'PAY_AT_WAITER'} onChange={(e) => setGuestType('PAY_AT_WAITER')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                        <div className="ml-4">
+                                            <span className="text-gray-800 font-medium">No, I'm a walk-in guest</span>
+                                            <p className="text-sm text-gray-500">I don't have a reservation, pay the waiter</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="flex space-x-3">
+                                <button onClick={closeCheckout} className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Back</button>
+                                <button 
+                                    onClick={() => {
+                                        if (!guestType) {
+                                            toast.error("Please select an option");
+                                            return;
+                                        }
+                                        if (guestType === 'PAY_AT_WAITER') {
+                                            setFinalPaymentMethod('PAY_AT_WAITER');
+                                            // For temp guests, submit order directly (skip verification)
+                                            submitOrder();
+                                        } else if (guestType === 'BOOKED_GUEST') {
+                                            setFinalPaymentMethod('ASSIGN_TO_ROOM');
+                                            // For booked guests, show verification modal
+                                            setShowVerification(true);
+                                        }
+                                    }} 
+                                    disabled={!guestType} 
+                                    className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                                >
+                                    Place Order
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        (
+                            // Final order confirmation
+                            <>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-6">Confirm Order</h2>
+                                <div className="space-y-4 mb-6">
+                                    {cart.map((item: CartItem) => (
+                                        <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            <div className="flex items-center space-x-4">
+                                                <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-800">{item.name}</h4>
+                                                    <p className="text-sm text-gray-500">€{item.price.toFixed(2)}</p>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <div className="border-t border-gray-200 pt-4 mb-6">
-                                        <div className="flex justify-between text-lg font-bold text-gray-800">
-                                            <span>Total:</span>
-                                            <span>€{cartTotal.toFixed(2)}</span>
+                                            <span className="font-medium text-gray-800">x{item.quantity}</span>
                                         </div>
+                                    ))}
+                                </div>
+                                <div className="border-t border-gray-200 pt-4 mb-6">
+                                    <div className="flex justify-between text-lg font-bold text-gray-800">
+                                        <span>Total:</span>
+                                        <span>€{cartTotal.toFixed(2)}</span>
                                     </div>
-                                    <div className="mb-6">
-                                        <h4 className="text-lg font-semibold text-gray-800 mb-3">Payment Method</h4>
-                                        <div className="space-y-3">
-                                            {customer && 'guestEmail' in customer && (
-                                                <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                                                    <input type="radio" name="paymentMethod" value="ASSIGN_TO_ROOM" checked={paymentMethod === 'ASSIGN_TO_ROOM'} onChange={(e) => setPaymentMethod(e.target.value as any)} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
-                                                    <span className="ml-4 text-gray-800 font-medium">Assign to Room</span>
-                                                </label>
-                                            )}
-                                            <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                                                <input type="radio" name="paymentMethod" value="PAY_AT_WAITER" checked={paymentMethod === 'PAY_AT_WAITER'} onChange={(e) => setPaymentMethod(e.target.value as any)} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
-                                                <span className="ml-4 text-gray-800 font-medium">Pay at Waiter</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div className="flex space-x-3">
-                                        <button onClick={() => setShowCheckout(false)} className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Back</button>
-                                        <button onClick={submitOrder} disabled={!paymentMethod || isSubmitting} className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors">{isSubmitting ? 'Placing Order...' : 'Place Order'}</button>
-                                    </div>
-                                </>
-                            )}
-                        </>
+                                </div>
+                                <div className="mb-6">
+                                    <p className="text-sm text-gray-600">
+                                        Payment method: {finalPaymentMethod === 'ASSIGN_TO_ROOM' ? 'Sign to Room' : 'Pay the Waiter'}
+                                    </p>
+                                    {guestType === 'BOOKED_GUEST' && (
+                                        <p className="text-sm text-gray-600">
+                                            Guest: {'guestFirstName' in
+                                            //@ts-ignore
+                                            customer ? `${customer.guestFirstName} ${customer.guestLastName}` : customer.surname}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex space-x-3">
+                                    <button onClick={closeCheckout} className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Back</button>
+                                    <button onClick={submitOrder} disabled={isSubmitting} className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors">{isSubmitting ? 'Placing Order...' : 'Place Order'}</button>
+                                </div>
+                            </>
+                        )
                     )}
+                </div>
+            </div>
+        </div>
+    );
+
+    const VerificationModal = () => (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold text-gray-800">Verification</h2>
+                        <button onClick={() => setShowVerification(false)} className="text-gray-500 hover:text-gray-700">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <CustomerVerify 
+                        onVerificationSuccess={() => {
+                            refresh();
+                            setShowVerification(false);
+                        }} 
+                        guestType={guestType === 'BOOKED_GUEST' ? 'booked' : 'temp'}
+                    />
                 </div>
             </div>
         </div>
@@ -272,7 +420,7 @@ export default function Order() {
                                 </div>
                             </div>
                         )}
-                        <button onClick={() => setShowCheckout(true)} className="relative p-2 text-gray-600 hover:text-black">
+                        <button onClick={openCheckout} className="relative p-2 text-gray-600 hover:text-black">
                             <ShoppingBasket />
                             {cart.length > 0 && (
                             <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{cart.reduce((total, item) => total + item.quantity, 0)}</span>
@@ -393,6 +541,7 @@ export default function Order() {
                 {selectedCategory ? renderItemsForCategory(selectedCategory) : renderCategories()}
             </div>
             {showCheckout && <CheckoutModal />}
+            {showVerification && <VerificationModal />}
         </div>
     );
 }
