@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, deletePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -150,6 +150,15 @@ adminRouter.put('/email-templates/:id', authMiddleware, updateTemplate);
 adminRouter.delete('/email-templates/:id', authMiddleware, deleteTemplate); 
 
 adminRouter.post("/bookings/refund", authMiddleware, refund);
+
+// Partial refund endpoints
+adminRouter.post("/bookings/partial-refund", authMiddleware, processPartialRefund);
+
+adminRouter.post("/bookings/custom-partial-refund", authMiddleware, processCustomPartialRefund);
+
+adminRouter.get("/bookings/:id/refund-info", authMiddleware, getBookingRefundInfo);
+
+adminRouter.get("/payment-intents/:id/bookings", authMiddleware, getPaymentIntentBookings);
 
 adminRouter.get('/payment-intent/all', authMiddleware, getAllPaymentIntent);
 

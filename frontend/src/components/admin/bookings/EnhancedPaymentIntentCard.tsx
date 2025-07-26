@@ -1,39 +1,76 @@
-import { useState } from "react"
-import { differenceInDays, format, formatDistanceToNow } from "date-fns"
+import { useState, useEffect } from "react";
+import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Calendar,
   CreditCard,
   DollarSign,
   Eye,
   Mail,
-  MapPin,
-  Save,
-  Trash2,
-  X,
   Users,
   CheckCircle,
   Building2,
   Coins,
-} from "lucide-react"
-import { getStatusColor } from "../../../utils/helper"
-import type { PaymentIntentCardProps } from "../../../types/types"
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  MapPin,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+import { getStatusColor } from "../../../utils/helper";
+import IndividualBookingCard from "./IndividualBookingCard";
+import { baseUrl } from "../../../utils/constants";
 import toast from 'react-hot-toast';
-import { baseUrl } from "../../../utils/constants"
 
-// Add a simple spinner component
-const Spinner = () => (
-  <svg className="animate-spin h-4 w-4 mr-1 text-white" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-  </svg>
-);
+interface PaymentIntentData {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentMethod?: string;
+  stripePaymentLinkId?: string;
+  stripeSessionId?: string;
+  totalAmount: number;
+  bookingData: any[];
+  customerData: any;
+  createdAt: string;
+  expiresAt?: string;
+  paidAt?: string;
+  bookings?: any[]; // Individual booking records
+}
 
-export default function PaymentIntentCard({
+interface EnhancedPaymentIntentCardProps {
+  paymentIntent: PaymentIntentData;
+  onViewDetails?: (paymentIntent: any) => void;
+  onSendEmail?: (id: string) => void;
+  onCancel?: (paymentIntent: any) => void;
+  onRefund?: (paymentIntent: any) => void;
+  onViewPayment?: (stripePaymentIntentId: string) => void;
+  onEdit?: (paymentIntent: any) => void;
+  onDelete?: (id: string) => void;
+  loadingAction?: boolean;
+  isEditing?: boolean;
+  editFormData?: any;
+  onUpdateEditFormData?: (field: string, value: any) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
+  generateConfirmationNumber?: (paymentIntent: any) => string;
+  selectionMode?: boolean;
+  selectedBookingIds?: string[];
+  onBookingSelect?: (bookingId: string, checked: boolean) => void;
+  onConfirmBooking?: () => void;
+  onRefresh?: () => void;
+}
+
+export default function EnhancedPaymentIntentCard({
   paymentIntent,
   onViewDetails,
   onSendEmail,
+  onCancel,
   onRefund,
   onViewPayment,
+  onEdit,
   onDelete,
   loadingAction,
   isEditing,
@@ -46,23 +83,26 @@ export default function PaymentIntentCard({
   selectedBookingIds = [],
   onBookingSelect = () => {},
   onConfirmBooking,
-}: PaymentIntentCardProps) {
-  const totalBookings = paymentIntent.bookingData.length
-  const totalNights = paymentIntent.bookingData.reduce((sum, booking) => {
-    const checkIn = new Date(booking.checkIn)
-    const checkOut = new Date(booking.checkOut)
-    return sum + differenceInDays(checkOut, checkIn)
-  }, 0)
-
-
-  const displayData = isEditing && editFormData ? editFormData : paymentIntent
-
-  const [showConfirmEmail, setShowConfirmEmail] = useState(false)
-  const [showConfirmRefund, setShowConfirmRefund] = useState(false)
-  const [showConfirmBooking, setShowConfirmBooking] = useState(false)
+  onRefresh
+}: EnhancedPaymentIntentCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [individualBookings, setIndividualBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [showConfirmEmail, setShowConfirmEmail] = useState(false);
+  const [showConfirmRefund, setShowConfirmRefund] = useState(false);
+  const [showConfirmBooking, setShowConfirmBooking] = useState(false);
   const [loadingResend, setLoadingResend] = useState(false);
-  // Add handler for confirming as bank transfer
   const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);
+
+  // Calculate totals like original component
+  const totalBookings = paymentIntent.bookingData?.length || 0;
+  const totalNights = paymentIntent.bookingData?.reduce((sum, booking) => {
+    const checkIn = new Date(booking.checkIn);
+    const checkOut = new Date(booking.checkOut);
+    return sum + differenceInDays(checkOut, checkIn);
+  }, 0) || 0;
+
+  const displayData = isEditing && editFormData ? editFormData : paymentIntent;
 
   // Get payment method display info
   const getPaymentMethodInfo = () => {
@@ -100,16 +140,52 @@ export default function PaymentIntentCard({
     }
   };
 
-  const paymentMethodInfo = getPaymentMethodInfo();
+  // Fetch individual bookings when expanded
+  const fetchIndividualBookings = async () => {
+    if (individualBookings.length > 0) return; // Already loaded
+    
+    setLoadingBookings(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/payment-intents/${paymentIntent.id}/bookings`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIndividualBookings(data.data || []);
+      } else {
+        toast.error('Failed to load individual bookings');
+      }
+    } catch (error) {
+      console.error('Error fetching individual bookings:', error);
+      toast.error('Failed to load individual bookings');
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
-  // Check if booking can be confirmed (cash or bank transfer with PENDING status)
-  const canConfirmBooking = (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER') && paymentIntent.status === 'PENDING';
+  const handleExpand = () => {
+    if (!expanded) {
+      fetchIndividualBookings();
+    }
+    setExpanded(!expanded);
+  };
+
+  const handleBookingRefund = (bookingId: string) => {
+    // Refresh the individual bookings to show updated status
+    setIndividualBookings([]);
+    fetchIndividualBookings();
+    // Also trigger parent refresh if needed
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
 
   // Handler for resending bank transfer instructions
   const handleResendBankTransfer = async () => {
     setLoadingResend(true);
     try {
-      const res = await fetch( baseUrl + `/admin/bookings/${paymentIntent.id}/resend-bank-transfer`, {
+      const res = await fetch(baseUrl + `/admin/bookings/${paymentIntent.id}/resend-bank-transfer`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -150,8 +226,28 @@ export default function PaymentIntentCard({
     }
   };
 
+  const paymentMethodInfo = getPaymentMethodInfo();
+  const statusColor = getStatusColor(displayData.status);
+  const customerData = typeof displayData.customerData === 'string' 
+    ? JSON.parse(displayData.customerData) 
+    : displayData.customerData;
+
+  const confirmedBookings = individualBookings.filter(b => b.status === 'CONFIRMED').length;
+  const refundedBookings = individualBookings.filter(b => b.status === 'REFUNDED').length;
+
+  // Check if booking can be confirmed (cash or bank transfer with PENDING status)
+  const canConfirmBooking = (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER') && paymentIntent.status === 'PENDING';
+
+  // Add Spinner component like original
+  const Spinner = () => (
+    <svg className="animate-spin h-4 w-4 mr-1 text-white" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+    </svg>
+  );
+
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200">
+    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
       <div className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
@@ -161,14 +257,14 @@ export default function PaymentIntentCard({
                   <input
                     type="text"
                     value={displayData.customerData.firstName}
-                    onChange={(e) => onUpdateEditFormData("customerData.firstName", e.target.value)}
+                    onChange={(e) => onUpdateEditFormData?.("customerData.firstName", e.target.value)}
                     className="px-2 py-1 border border-gray-300 rounded text-lg font-semibold"
                     placeholder="First Name"
                   />
                   <input
                     type="text"
                     value={displayData.customerData.lastName}
-                    onChange={(e) => onUpdateEditFormData("customerData.lastName", e.target.value)}
+                    onChange={(e) => onUpdateEditFormData?.("customerData.lastName", e.target.value)}
                     className="px-2 py-1 border border-gray-300 rounded text-lg font-semibold"
                     placeholder="Last Name"
                   />
@@ -179,7 +275,7 @@ export default function PaymentIntentCard({
                 </h3>
               )}
               <span
-                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(displayData.status)}`}
+                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor.bg} ${statusColor.text}`}
               >
                 {displayData.status}
               </span>
@@ -194,12 +290,12 @@ export default function PaymentIntentCard({
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-gray-600">Confirmation: {generateConfirmationNumber(displayData)}</p>
+              <p className="text-sm text-gray-600">Confirmation: {generateConfirmationNumber?.(displayData)}</p>
               {isEditing ? (
                 <input
                   type="email"
                   value={displayData.customerData.email}
-                  onChange={(e) => onUpdateEditFormData("customerData.email", e.target.value)}
+                  onChange={(e) => onUpdateEditFormData?.("customerData.email", e.target.value)}
                   className="px-2 py-1 border border-gray-300 rounded text-sm w-full"
                   placeholder="Email"
                 />
@@ -211,7 +307,7 @@ export default function PaymentIntentCard({
                   <strong>Admin Notes:</strong> {displayData.adminNotes}
                 </p>
               )}
-              {paymentIntent.bookings[0]?.request && (
+              {paymentIntent.bookings?.[0]?.request && (
                 <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
                   <strong>Customer Request:</strong> {paymentIntent.bookings[0]?.request}
                 </p>
@@ -264,6 +360,27 @@ export default function PaymentIntentCard({
           </div>
         </div>
 
+        {/* Status Summary for Multi-Room Bookings */}
+        {expanded && individualBookings.length > 0 && (
+          <div className="bg-gray-50 rounded-lg p-3 mb-4">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600">Individual Room Status:</span>
+              <div className="flex space-x-4">
+                {confirmedBookings > 0 && (
+                  <span className="text-green-600 font-medium">
+                    {confirmedBookings} Active
+                  </span>
+                )}
+                {refundedBookings > 0 && (
+                  <span className="text-red-600 font-medium">
+                    {refundedBookings} Refunded
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-2 flex-wrap">
           {isEditing ? (
@@ -288,7 +405,7 @@ export default function PaymentIntentCard({
           ) : (
             <>
               <button
-                onClick={onViewDetails}
+                onClick={() => onViewDetails?.(paymentIntent)}
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               >
                 <Eye className="h-4 w-4 mr-1" />
@@ -301,7 +418,7 @@ export default function PaymentIntentCard({
                   {showConfirmEmail ? (
                     <>
                       <button
-                        onClick={onSendEmail}
+                        onClick={() => onSendEmail?.(paymentIntent.id)}
                         disabled={loadingAction}
                         className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700"
                       >
@@ -331,7 +448,7 @@ export default function PaymentIntentCard({
               {/* View Payment */}
               {paymentIntent.stripePaymentIntentId && (
                 <button
-                  onClick={onViewPayment}
+                  onClick={() => onViewPayment?.(paymentIntent.stripePaymentIntentId)}
                   className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
                   <CreditCard className="h-4 w-4 mr-1" />
@@ -341,7 +458,7 @@ export default function PaymentIntentCard({
 
               {/* Delete */}
               <button
-                onClick={onDelete}
+                onClick={() => onDelete?.(paymentIntent.id)}
                 disabled={loadingAction}
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
@@ -355,7 +472,7 @@ export default function PaymentIntentCard({
                   {showConfirmRefund ? (
                     <>
                       <button
-                        onClick={onRefund}
+                        onClick={() => onRefund?.(paymentIntent)}
                         disabled={loadingAction}
                         className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
                       >
@@ -420,7 +537,7 @@ export default function PaymentIntentCard({
               {/* Cancel Booking (Pending/Link Sent) */}
               {(paymentIntent.status === "PAYMENT_LINK_SENT" || paymentIntent.status === "PENDING") && (
                 <button
-                  onClick={onRefund}
+                  onClick={() => onRefund?.(paymentIntent)}
                   disabled={loadingAction}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
                 >
@@ -473,10 +590,59 @@ export default function PaymentIntentCard({
                   Paid by: {paymentIntent.actualPaymentMethod}
                 </span>
               )}
+
+              {/* Show Individual Rooms Button */}
+              <button
+                onClick={handleExpand}
+                className="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                <span className="mr-1">
+                  {expanded ? 'Hide Individual Rooms' : 'Show Individual Rooms'}
+                </span>
+                {expanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Individual Bookings */}
+      {expanded && (
+        <div className="border-t border-gray-200 bg-gray-50">
+          <div className="p-6">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">Individual Room Bookings</h4>
+            
+            {loadingBookings ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-5 w-5 animate-spin text-gray-400 mr-2" />
+                <span className="text-gray-600">Loading room details...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {individualBookings.map((booking) => (
+                  <IndividualBookingCard
+                    key={booking.id}
+                    booking={booking}
+                    onRefund={handleBookingRefund}
+                    onViewDetails={onViewDetails}
+                    showRefundButton={paymentIntent.status === 'SUCCEEDED'}
+                  />
+                ))}
+                
+                {individualBookings.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No individual booking records found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }

@@ -3297,6 +3297,163 @@ async function main() {
         totalAmount: { type: 'number', description: 'Total booking amount' },
         paymentUrl: { type: 'string', description: 'Payment URL' }
       }
+    },
+    {
+      name: 'Custom Partial Refund Confirmation',
+      type: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION',
+      subject: 'Partial Refund Processed - La Torre (€{{refundAmount}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Partial Refund Confirmation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Partial Refund Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.successColor} 0%, #10b981 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">💰</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Partial Refund Processed</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              A partial refund has been successfully processed for your booking.
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                We have processed a partial refund for your booking at La Torre sulla via Francigena. Please review the details below.
+              </p>
+            </div>
+    
+            <!-- Refund Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Refund Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Booking ID:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{bookingId}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Room:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{roomName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Amount:</span>
+                    <span style="color: ${emailStyles.successColor}; font-weight: 700; font-size: 18px;">{{refundCurrency}} {{refundAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refund Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{refundDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Reason:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{refundReason}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Booking Amount Breakdown -->
+            <div style="background: #f0fdf4; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.successColor}; margin: 0 0 20px 0; font-size: 20px;">💳 Amount Breakdown</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Original Amount:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{refundCurrency}} {{originalAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Refunded Amount:</span>
+                    <span style="color: ${emailStyles.successColor}; font-weight: 700;">{{refundCurrency}} {{refundAmount}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: ${emailStyles.backgroundColor}; padding: 12px; border-radius: 8px;">
+                    <span style="font-weight: 700; color: ${emailStyles.primaryColor};">Remaining Amount:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{refundCurrency}} {{remainingAmount}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+    
+            <!-- Refund Processing Note -->
+            {{#if (or (eq paymentMethod "STRIPE") (eq paymentMethod "BANK_TRANSFER"))}}
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Refund Processing Information
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #a16207; margin: 0; font-size: 15px; line-height: 1.7;">
+                  {{#if (eq paymentMethod "STRIPE")}}
+                    This partial refund has been processed through your original payment method. 
+                    It may take <strong>5-10 business days</strong> to appear on your statement, depending on your bank.
+                  {{else}}
+                    This partial refund will be processed manually for your bank transfer payment. 
+                    Our team will contact you within <strong>1-2 business days</strong> to arrange the refund transfer.
+                  {{/if}}
+                </p>
+              </div>
+            </div>
+            {{else}}
+            <div style="background: #e0f2fe; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid ${emailStyles.infoColor};">
+              <h3 style="color: #0277bd; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: ${emailStyles.infoColor};"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                Cash Refund Processed
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #0277bd; margin: 0; font-size: 15px; line-height: 1.7;">
+                  Your cash refund of <strong>{{refundCurrency}} {{refundAmount}}</strong> has been processed. 
+                  Please collect your refund from our front desk during your next visit or contact us to arrange pickup.
+                </p>
+              </div>
+            </div>
+            {{/if}}
+    
+            <!-- Contact Information -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Need Assistance?</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  If you have any questions about this partial refund or need further assistance, our team is here to help:
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Hours:</strong> 9:00 AM - 6:00 PM (CET)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+    
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        refundAmount: { type: 'number', description: 'The partial amount refunded', example: 150.00 },
+        refundCurrency: { type: 'string', description: 'The currency of the refund', example: 'EUR' },
+        bookingId: { type: 'string', description: 'The booking ID', example: 'BOOK123' },
+        roomName: { type: 'string', description: 'Name of the room', example: 'Deluxe Room' },
+        refundReason: { type: 'string', description: 'The reason for the partial refund', example: 'Early checkout' },
+        refundDate: { type: 'string', description: 'Date when refund was processed', example: 'January 15, 2024' },
+        remainingAmount: { type: 'number', description: 'Amount remaining after refund', example: 350.00 },
+        originalAmount: { type: 'number', description: 'Original booking amount', example: 500.00 },
+        paymentMethod: { type: 'string', description: 'Original payment method', example: 'STRIPE' }
+      }
     }
   ]
 

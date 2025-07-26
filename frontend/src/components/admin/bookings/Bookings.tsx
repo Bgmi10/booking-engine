@@ -875,6 +875,3 @@ export default function BookingManagement() {
     </div>
   )
 }
-
-
-

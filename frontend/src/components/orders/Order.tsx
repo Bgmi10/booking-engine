@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import { baseUrl } from "../../utils/constants";
 import { useCustomer } from "../../context/CustomerContext";
-import { ShoppingBasket, ArrowLeft } from "lucide-react";
+import { ShoppingBasket, ArrowLeft, Clock } from "lucide-react";
 import type { OrderItem, OrderCategory } from "../../types/types";
 import CustomerVerify from './CustomerVerify';
+import OrderSuccess from './OrderSuccess';
+import OrderHistory from './OrderHistory';
 
 interface CartItem extends OrderItem {
     quantity: number;
@@ -19,6 +21,8 @@ export default function Order() {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCheckout, setShowCheckout] = useState(false);
     const [showVerification, setShowVerification] = useState(false);
+    const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+    const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [guestType, setGuestType] = useState<'BOOKED_GUEST' | 'PAY_AT_WAITER' | ''>('');
     const [finalPaymentMethod, setFinalPaymentMethod] = useState<'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | ''>('');
     
@@ -35,6 +39,17 @@ export default function Order() {
         setGuestType('');
         setFinalPaymentMethod('');
         setShowVerification(false);
+    };
+
+    // Close order success modal
+    const closeOrderSuccess = () => {
+        setShowOrderSuccess(false);
+    };
+
+    // Handle order again functionality
+    const handleOrderAgain = () => {
+        setShowOrderSuccess(false);
+        setSelectedCategory(null);
     };
     const [isSubmitting, setIsSubmitting] = useState(false);
     
@@ -211,9 +226,14 @@ export default function Order() {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to place order.');
             }
-            toast.success("Order placed successfully!");
+            
+            // Refresh customer data to get the latest order
+            await refresh();
+            
+            // Show order success modal instead of toast
             setCart([]);
             closeCheckout();
+            setShowOrderSuccess(true);
         } catch (error: any) {
             toast.error(error.message);
         } finally {
@@ -406,6 +426,15 @@ export default function Order() {
                         </div>
                     )}
                     <div className="flex items-center space-x-4">
+                        {isAuthenticated && customer && customer.orders && customer.orders.length > 0 && (
+                            <button 
+                                onClick={() => setShowOrderHistory(true)}
+                                className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <Clock className="w-5 h-5" />
+                                <span className="font-medium">Orders</span>
+                            </button>
+                        )}
                         {isAuthenticated && customer && (
                             <div className="relative group">
                                 <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
@@ -542,6 +571,32 @@ export default function Order() {
             </div>
             {showCheckout && <CheckoutModal />}
             {showVerification && <VerificationModal />}
+            {showOrderSuccess && (
+                <OrderSuccess
+                    onOrderAgain={handleOrderAgain}
+                    onClose={closeOrderSuccess}
+                />
+            )}
+            {showOrderHistory && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold text-gray-800">Order History</h2>
+                                <button 
+                                    onClick={() => setShowOrderHistory(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <OrderHistory onClose={() => setShowOrderHistory(false)} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,6 +1,7 @@
 import { Calendar, RefreshCw } from "lucide-react"
 import type { PaymentIntentsListProps } from "../../../types/types"
 import PaymentIntentCard from "./PaymentIntentCard"
+import EnhancedPaymentIntentCard from "./EnhancedPaymentIntentCard"
 
 export default function PaymentIntentsList({
   paymentIntents,
@@ -23,10 +24,12 @@ export default function PaymentIntentsList({
   selectedBookingIds = [],
   onBookingSelect = () => {},
   onConfirmBooking,
+  onRefresh,
 }: PaymentIntentsListProps & {
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
+  onRefresh?: () => void;
 }) {
   if (loading) {
     return (
@@ -51,32 +54,66 @@ export default function PaymentIntentsList({
 
   return (
     <div className="grid gap-4">
-      {paymentIntents.map((paymentIntent) => (
-        <PaymentIntentCard
-          key={paymentIntent.id}
-          paymentIntent={paymentIntent}
-          onViewDetails={() => onViewDetails(paymentIntent)}
-          onSendEmail={() => onSendEmail(paymentIntent.id)}
-          onCancel={() => onCancel(paymentIntent)}
-          onRefund={() => onRefund(paymentIntent)}
-          onViewPayment={() =>
-            paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
-          }
-          onEdit={() => onEdit(paymentIntent)}
-          onDelete={() => onDelete(paymentIntent.id)}
-          loadingAction={loadingAction}
-          isEditing={editingPaymentIntent === paymentIntent.id}
-          editFormData={editFormData}
-          onUpdateEditFormData={onUpdateEditFormData}
-          onSaveEdit={onSaveEdit}
-          onCancelEdit={onCancelEdit}
-          generateConfirmationNumber={generateConfirmationNumber}
-          selectionMode={selectionMode}
-          selectedBookingIds={selectedBookingIds}
-          onBookingSelect={onBookingSelect}
-          onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
-        />
-      ))}
+      {paymentIntents.map((paymentIntent) => {
+        // Check if this payment intent has multiple bookings or if status is SUCCEEDED
+        // Use enhanced card for multi-room bookings or successful payments to enable partial refunds
+        const shouldUseEnhancedCard = 
+          paymentIntent.bookingData.length > 1 || 
+          paymentIntent.status === 'SUCCEEDED';
+
+        return shouldUseEnhancedCard ? (
+          <EnhancedPaymentIntentCard
+            key={paymentIntent.id}
+            paymentIntent={paymentIntent}
+            onViewDetails={() => onViewDetails(paymentIntent)}
+            onSendEmail={() => onSendEmail(paymentIntent.id)}
+            onCancel={() => onCancel(paymentIntent)}
+            onRefund={() => onRefund(paymentIntent)}
+            onViewPayment={() =>
+              paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
+            }
+            onEdit={() => onEdit(paymentIntent)}
+            onDelete={() => onDelete(paymentIntent.id)}
+            loadingAction={loadingAction}
+            isEditing={editingPaymentIntent === paymentIntent.id}
+            editFormData={editFormData}
+            onUpdateEditFormData={onUpdateEditFormData}
+            onSaveEdit={onSaveEdit}
+            onCancelEdit={onCancelEdit}
+            generateConfirmationNumber={generateConfirmationNumber}
+            selectionMode={selectionMode}
+            selectedBookingIds={selectedBookingIds}
+            onBookingSelect={onBookingSelect}
+            onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
+            onRefresh={onRefresh}
+          />
+        ) : (
+          <PaymentIntentCard
+            key={paymentIntent.id}
+            paymentIntent={paymentIntent}
+            onViewDetails={() => onViewDetails(paymentIntent)}
+            onSendEmail={() => onSendEmail(paymentIntent.id)}
+            onCancel={() => onCancel(paymentIntent)}
+            onRefund={() => onRefund(paymentIntent)}
+            onViewPayment={() =>
+              paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
+            }
+            onEdit={() => onEdit(paymentIntent)}
+            onDelete={() => onDelete(paymentIntent.id)}
+            loadingAction={loadingAction}
+            isEditing={editingPaymentIntent === paymentIntent.id}
+            editFormData={editFormData}
+            onUpdateEditFormData={onUpdateEditFormData}
+            onSaveEdit={onSaveEdit}
+            onCancelEdit={onCancelEdit}
+            generateConfirmationNumber={generateConfirmationNumber}
+            selectionMode={selectionMode}
+            selectedBookingIds={selectedBookingIds}
+            onBookingSelect={onBookingSelect}
+            onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
+          />
+        );
+      })}
     </div>
   )
 }

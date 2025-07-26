@@ -6,6 +6,7 @@ import { handleError, responseHandler, generateMergedBookingId } from "../utils/
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { dahuaService } from "../services/dahuaService";
+import { EmailService } from "../services/emailService";
 
 dotenv.config();
 
@@ -124,31 +125,95 @@ async function handleRefundCreated(event: Stripe.Event) {
             return;
         }
 
-        // Update payment intent and related records
+        // Handle partial vs full refund
+        const refundAmount = refund.amount / 100; // Convert from cents
+        const totalPaymentAmount = ourPaymentIntent.totalAmount;
+        const isFullRefund = refundAmount >= totalPaymentAmount;
+        
+        // Check if this is a partial refund for a specific booking
+        const specificBookingId = refund.metadata?.bookingId;
+        
         await prisma.$transaction(async (tx) => {
-            // Update payment intent status
-            await tx.paymentIntent.update({
-                where: { id: ourPaymentIntent.id },
-                data: { 
-                    status: "REFUNDED",
-                    adminNotes: refund.metadata?.refundReason || "Refund processed"
+            if (specificBookingId) {
+                // PARTIAL REFUND: Update only the specific booking
+                const specificBooking = await tx.booking.findFirst({
+                    where: { 
+                        id: specificBookingId,
+                        paymentIntentId: ourPaymentIntent.id 
+                    }
+                });
+                
+                if (specificBooking) {
+                    await tx.booking.update({
+                        where: { id: specificBookingId },
+                        data: { 
+                            status: "REFUNDED",
+                            refundAmount: refundAmount
+                        }
+                    });
+                    
+                    // Check if all bookings are now refunded
+                    const remainingBookings = await tx.booking.findMany({
+                        where: { 
+                            paymentIntentId: ourPaymentIntent.id,
+                            status: { not: "REFUNDED" }
+                        }
+                    });
+                    
+                    // Update payment intent status based on remaining bookings
+                    const paymentIntentStatus = remainingBookings.length === 0 ? "REFUNDED" : "SUCCEEDED";
+                    await tx.paymentIntent.update({
+                        where: { id: ourPaymentIntent.id },
+                        data: { 
+                            status: paymentIntentStatus,
+                            adminNotes: `Partial refund: €${refundAmount} for booking ${specificBookingId}. ${refund.metadata?.refundReason || "Refund processed"}`
+                        }
+                    });
+                    
+                    console.log(`Partial refund processed: €${refundAmount} for booking ${specificBookingId}`);
+                } else {
+                    console.log(`Booking ${specificBookingId} not found for partial refund`);
                 }
-            });
+            } else if (isFullRefund || refund.metadata?.isFullRefund === 'true') {
+                // FULL REFUND: Update payment intent and all bookings
+                await tx.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { 
+                        status: "REFUNDED",
+                        adminNotes: refund.metadata?.refundReason || "Full refund processed"
+                    }
+                });
 
-            // Update all bookings to refunded
-            await tx.booking.updateMany({
-                where: { paymentIntentId: ourPaymentIntent.id },
-                data: { status: "REFUNDED" }
-            });
+                // Update all bookings to refunded
+                await tx.booking.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: { 
+                        status: "REFUNDED",
+                        refundAmount: refundAmount / ourPaymentIntent.bookings.length // Split evenly if no specific booking
+                    }
+                });
 
-            // Update payment record
-            await tx.payment.updateMany({
-                where: { paymentIntentId: ourPaymentIntent.id },
-                data: { status: "REFUNDED" }
-            });
+                // Update payment record
+                await tx.payment.updateMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    data: { status: "REFUNDED" }
+                });
 
-            // Handle voucher refund logic
-            await handleVoucherRefund(tx, ourPaymentIntent);
+                // Handle voucher refund logic
+                await handleVoucherRefund(tx, ourPaymentIntent);
+                
+                console.log(`Full refund processed: €${refundAmount}`);
+            } else {
+                // PARTIAL REFUND without specific booking ID - don't know which booking to refund
+                console.log(`Partial refund of €${refundAmount} received but no bookingId in metadata. Manual intervention may be needed.`);
+                
+                await tx.paymentIntent.update({
+                    where: { id: ourPaymentIntent.id },
+                    data: { 
+                        adminNotes: `Partial refund €${refundAmount} received but no specific booking identified. ${refund.metadata?.refundReason || "Refund processed"}`
+                    }
+                });
+            }
         });
 
         if (ourPaymentIntent.bookings.length > 0) {
@@ -165,12 +230,85 @@ async function handleRefundCreated(event: Stripe.Event) {
               confirmationId: confirmationId
             }));
             
-            await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
-                refundId: refund.id,
-                refundAmount: refund.amount / 100,
-                refundCurrency: refund.currency,
-                refundReason: refund.metadata?.refundReason || "Refund processed"
-            });
+            // Check if this is a custom partial refund
+            if (refund.metadata?.refundType === 'custom_partial_refund' && specificBookingId) {
+                // Send custom partial refund email
+                const booking = ourPaymentIntent.bookings.find(b => b.id === specificBookingId);
+                if (booking && customerDetails) {
+                    const currentRefundAmount = booking.refundAmount || 0;
+                    const updatedRefundAmount = currentRefundAmount + (refund.amount / 100);
+                    
+                    await EmailService.sendEmail({
+                        to: {
+                            email: customerDetails.email,
+                            name: customerDetails.name
+                        },
+                        templateType: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION',
+                        templateData: {
+                            customerName: customerDetails.name,
+                            refundAmount: refund.amount / 100,
+                            refundCurrency: refund.currency.toUpperCase(),
+                            bookingId: booking.id,
+                            roomName: booking.room.name,
+                            refundReason: refund.metadata?.refundReason || 'Custom partial refund',
+                            refundDate: new Date().toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            }),
+                            remainingAmount: booking.totalAmount && booking?.totalAmount - updatedRefundAmount,
+                            originalAmount: booking.totalAmount,
+                            paymentMethod: 'STRIPE'
+                        }
+                    });
+                }
+            } else {
+                // Send regular refund confirmation email
+                // Check if this is a full refund (all bookings) or specific booking refund
+                let emailBookingData = updatedBookingData;
+                
+                if (refund.metadata?.isFullRefund === 'true') {
+                    // Full refund - include all bookings in the email
+                    // Map all bookings from database with their corresponding booking data
+                    emailBookingData = ourPaymentIntent.bookings.map((dbBooking: any) => {
+                        // Find the corresponding booking data by matching room details or booking specifics
+                        const correspondingBookingData = bookingData.find((booking: any) => 
+                            booking.roomDetails?.name === dbBooking.room?.name ||
+                            booking.roomName === dbBooking.room?.name
+                        ) || bookingData[0]; // Fallback to first booking data if no match
+                        
+                        return {
+                            ...correspondingBookingData,
+                            confirmationId: confirmationId,
+                            roomName: dbBooking.room?.name || correspondingBookingData.roomDetails?.name || 'Unknown Room',
+                            // Include additional booking details from database
+                            checkInDate: dbBooking.checkInDate,
+                            checkOutDate: dbBooking.checkOutDate,
+                            totalAmount: dbBooking.totalAmount
+                        };
+                    });
+                } else if (specificBookingId) {
+                    const specificBooking = ourPaymentIntent.bookings.find(b => b.id === specificBookingId);
+                    if (specificBooking && bookingData) {
+                        // Find the specific booking in the bookingData and use only that for the email
+                        const specificBookingIndex = ourPaymentIntent.bookings.findIndex(b => b.id === specificBookingId);
+                        if (specificBookingIndex !== -1 && bookingData[specificBookingIndex]) {
+                            emailBookingData = [{
+                                ...bookingData[specificBookingIndex],
+                                confirmationId: confirmationId,
+                                roomName: specificBooking.room.name
+                            }];
+                        }
+                    }
+                }
+                
+                await sendRefundConfirmationEmail(emailBookingData, customerDetails, {
+                    refundId: refund.id,
+                    refundAmount: refund.amount / 100,
+                    refundCurrency: refund.currency,
+                    refundReason: refund.metadata?.refundReason || "Refund processed"
+                });
+            }
         }
         
     } catch (error) {
@@ -737,7 +875,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                     }
                 });
             } else {
-                // For first payment or full payment, create bookings
+                
                 createdBookings = await processBookingsInTransaction(
                     tx,
                     bookingItems,
@@ -747,7 +885,8 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 );
 
                 if (createdBookings.length === 0) {
-                    throw new Error(`Failed to create bookings for paymentIntentId: ${ourPaymentIntent.id}`);
+                    console.error('No bookings were created. BookingItems:', JSON.stringify(bookingItems, null, 2));
+                    throw new Error(`Failed to create bookings for paymentIntentId: ${ourPaymentIntent.id}. No bookings were processed from ${bookingItems.length} booking items.`);
                 }
             }
 
@@ -1055,55 +1194,121 @@ async function processBookingsInTransaction(
     customerId: string
 ): Promise<any[]> {
     const createdBookings: any[] = [];
+    
     for (const booking of bookingItems) {
-        const { checkIn, checkOut, selectedRoom: roomId, adults, rooms } = booking;
+        try {
+            const { checkIn, checkOut, selectedRoom: roomId, adults, rooms } = booking;
 
-        const existingBooking = await tx.booking.findFirst({
-            where: {
-                roomId,
-                checkIn: new Date(checkIn),
-                checkOut: new Date(checkOut),
+            const existingBooking = await tx.booking.findFirst({
+                where: {
+                    roomId,
+                    checkIn: new Date(checkIn),
+                    checkOut: new Date(checkOut),
+                    paymentIntentId: paymentIntentId // Only check for same payment intent
+                }
+            });
+
+            if (existingBooking) {
+                console.log('Booking already exists for this payment intent and room:', roomId);
+                createdBookings.push(existingBooking); // Include existing booking in results
+                continue;
             }
-        });
 
-        if (existingBooking) {
-            continue;
-        }
+            // Check for conflicting bookings from other payment intents
+            const conflictingBooking = await tx.booking.findFirst({
+                where: {
+                    roomId,
+                    OR: [
+                        {
+                            checkIn: { lte: new Date(checkOut) },
+                            checkOut: { gte: new Date(checkIn) }
+                        }
+                    ],
+                    status: { in: ['CONFIRMED', 'PENDING'] },
+                    paymentIntentId: { not: paymentIntentId }
+                }
+            });
 
-        // Get payment intent to check payment structure
-        const paymentIntent = await tx.paymentIntent.findUnique({
-            where: { id: paymentIntentId }
-        });
+            if (conflictingBooking) {
+                console.error(`Room ${roomId} has conflicting booking from ${conflictingBooking.checkIn} to ${conflictingBooking.checkOut}`);
+                throw new Error(`Room ${roomId} is not available for the selected dates due to existing booking.`);
+            }
 
-        // Create the booking with payment structure information
-        const newBooking = await tx.booking.create({
-            data: {
-                totalGuests: adults * rooms,
-                checkIn: new Date(checkIn),
-                checkOut: new Date(checkOut),
-                room: { connect: { id: roomId } },
-                status: "CONFIRMED",
-                request: customerDetails.specialRequests || null,
-                carNumberPlate: customerDetails.carNumberPlate || null,
-                paymentIntent: { connect: { id: paymentIntentId } },
-                paymentStructure: paymentIntent?.paymentStructure || 'FULL_PAYMENT',
-                totalAmount: booking.totalPrice,
-                prepaidAmount: paymentIntent?.prepaidAmount,
-                remainingAmount: paymentIntent?.remainingAmount,
-                remainingDueDate: paymentIntent?.remainingDueDate,
-                finalPaymentStatus: paymentIntent?.paymentStructure === 'SPLIT_PAYMENT' ? 'PENDING' : 'COMPLETED',
-                ratePolicyId: booking.selectedRateOption?.id || null,
-                metadata: {
-                    selectedRateOption: booking.selectedRateOption || null,
-                    promotionCode: booking.promotionCode || null,
-                    totalPrice: booking.totalPrice,
-                    rooms: booking.rooms,
-                    receiveMarketing: customerDetails.receiveMarketing || false
+            // Get payment intent to check payment structure
+            const paymentIntent = await tx.paymentIntent.findUnique({
+                where: { id: paymentIntentId }
+            });
+
+            if (!paymentIntent) {
+                throw new Error(`Payment intent not found: ${paymentIntentId}`);
+            }
+
+            // Calculate total amount - handle different price field names
+            let totalAmount = 0;
+            if (booking.totalPrice !== undefined) {
+                totalAmount = booking.totalPrice;
+            } else if (booking.roomTotal !== undefined) {
+                totalAmount = booking.roomTotal;
+            } else {
+                // Fallback calculation
+                const nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 3600 * 24));
+                const roomRate = booking.selectedRateOption?.price || booking.roomDetails?.price || 0;
+                totalAmount = roomRate * nights * (rooms || 1);
+                
+                // Add enhancement costs if any
+                if (booking.selectedEnhancements?.length) {
+                    for (const enhancement of booking.selectedEnhancements) {
+                        let enhancementCost = enhancement.price || 0;
+                        if (enhancement.pricingType === "PER_GUEST") {
+                            enhancementCost *= adults * rooms;
+                        } else if (enhancement.pricingType === "PER_ROOM") {
+                            enhancementCost *= rooms;
+                        } else if (enhancement.pricingType === "PER_NIGHT") {
+                            enhancementCost *= nights * rooms;
+                        } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
+                            enhancementCost *= adults * rooms * nights;
+                        }
+                        totalAmount += enhancementCost;
+                    }
+                }
+            }
+
+            // Verify room exists before creating booking
+            const roomExists = await tx.room.findUnique({ where: { id: roomId } });
+            if (!roomExists) {
+                throw new Error(`Room with ID ${roomId} not found`);
+            }
+
+            const newBooking = await tx.booking.create({
+                data: {
+                    totalGuests: adults * (rooms || 1),
+                    checkIn: new Date(checkIn),
+                    checkOut: new Date(checkOut),
+                    room: { connect: { id: roomId } },
+                    status: "CONFIRMED",
+                    request: customerDetails.specialRequests || null,
+                    carNumberPlate: customerDetails.carNumberPlate || null,
+                    paymentIntent: { connect: { id: paymentIntentId } },
+                    paymentStructure: paymentIntent?.paymentStructure || 'FULL_PAYMENT',
+                    totalAmount: totalAmount,
+                    prepaidAmount: paymentIntent?.prepaidAmount,
+                    remainingAmount: paymentIntent?.remainingAmount,
+                    remainingDueDate: paymentIntent?.remainingDueDate,
+                    finalPaymentStatus: paymentIntent?.paymentStructure === 'SPLIT_PAYMENT' ? 'PENDING' : 'COMPLETED',
+                    ratePolicyId: booking.selectedRateOption?.id || null,
+                    metadata: {
+                        selectedRateOption: booking.selectedRateOption || null,
+                        promotionCode: booking.promotionCode || null,
+                        totalPrice: totalAmount,
+                        rooms: booking.rooms || 1,
+                        receiveMarketing: customerDetails.receiveMarketing || false
+                    },
+                    customer: { connect: { id: customerId }}
                 },
-                customer: { connect: { id: customerId }}
-            },
-            include: { room: true, paymentIntent: true }
-        });
+                include: { room: true, paymentIntent: true }
+            });
+            
+            console.log(`Successfully created booking: ${newBooking.id}`);
 
         // Handle license plate integration with Dahua camera
         if (customerDetails.carNumberPlate) {
@@ -1123,20 +1328,32 @@ async function processBookingsInTransaction(
             }
         }
 
-        if (booking.selectedEnhancements?.length) {
-            const enhancementData = booking.selectedEnhancements.map((enhancement: any) => ({
-                bookingId: newBooking.id,
-                enhancementId: enhancement.id,
-                quantity: enhancement.pricingType === "PER_GUEST" ? adults * rooms : rooms,
-                notes: enhancement.notes || null
-            }));
+            if (booking.selectedEnhancements?.length) {
+                try {
+                    const enhancementData = booking.selectedEnhancements.map((enhancement: any) => ({
+                        bookingId: newBooking.id,
+                        enhancementId: enhancement.id,
+                        quantity: enhancement.pricingType === "PER_GUEST" ? adults * (rooms || 1) : (rooms || 1),
+                        notes: enhancement.notes || null
+                    }));
 
-            await tx.enhancementBooking.createMany({ data: enhancementData });
+                    await tx.enhancementBooking.createMany({ data: enhancementData });
+                    console.log(`Created ${enhancementData.length} enhancement bookings for booking ${newBooking.id}`);
+                } catch (enhancementError) {
+                    console.error(`Failed to create enhancement bookings for booking ${newBooking.id}:`, enhancementError);
+                    // Don't fail the booking creation if enhancement creation fails
+                }
+            }
+
+            createdBookings.push(newBooking);
+            
+        } catch (bookingError) {
+            console.error(`Failed to create booking for room ${booking.selectedRoom}:`, bookingError);
+            throw bookingError; // Re-throw to fail the transaction
         }
-
-        createdBookings.push(newBooking);
     }
-
+    
+    console.log(`Successfully created ${createdBookings.length} bookings`);
     return createdBookings;
 }
 

@@ -8,6 +8,7 @@ import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
 import { Prisma } from "@prisma/client";
+import { PartialRefundService } from "../services/partialRefundService";
 import { sendConsolidatedBookingConfirmation, sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { baseUrl } from "../utils/constants";
@@ -1494,7 +1495,8 @@ const refund = async (req: express.Request, res: express.Response) => {
                     metadata: {
                       paymentIntentId: paymentIntentId,
                       refundReason: refundNote,
-                      paymentStructure: ourPaymentIntent.paymentStructure || 'FULL_PAYMENT'
+                      paymentStructure: ourPaymentIntent.paymentStructure || 'FULL_PAYMENT',
+                      isFullRefund: 'true'
                     }
                 });
       
@@ -2216,6 +2218,228 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod };
+// Partial Refund Functions
+const processPartialRefund = async (req: express.Request, res: express.Response) => {
+  const { bookingId, reason } = req.body;
+  //@ts-ignore
+  const adminUserId = req.user?.id;
+
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking ID is required");
+    return;
+  }
+
+  try {
+    // Get booking details for the refund metadata
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        room: true,
+        customer: true,
+        paymentIntent: true
+      }
+    });
+
+    if (!booking) {
+      responseHandler(res, 404, "Booking not found");
+      return;
+    }
+
+    const result = await PartialRefundService.processPartialRefund({
+      bookingId,
+      reason,
+      adminUserId
+    });
+
+    responseHandler(res, 200, "Partial refund initiated successfully", result);
+  } catch (e) {
+    console.error("Error processing partial refund:", e);
+    handleError(res, e as Error);
+  }
+};
+
+const getBookingRefundInfo = async (req: express.Request, res: express.Response) => {
+  const { bookingId } = req.params;
+
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking ID is required");
+    return;
+  }
+
+  try {
+    const refundInfo = await PartialRefundService.getBookingRefundInfo(bookingId);
+    responseHandler(res, 200, "Booking refund info retrieved successfully", refundInfo);
+  } catch (e) {
+    console.error("Error getting booking refund info:", e);
+    handleError(res, e as Error);
+  }
+};
+
+const getPaymentIntentBookings = async (req: express.Request, res: express.Response) => {
+  const { id: paymentIntentId } = req.params;
+
+  if (!paymentIntentId) {
+    responseHandler(res, 400, "Payment Intent ID is required");  
+    return;
+  }
+
+  try {
+    const bookings = await PartialRefundService.getPaymentIntentBookings(paymentIntentId);
+    responseHandler(res, 200, "Payment intent bookings retrieved successfully", bookings);
+  } catch (e) {
+    console.error("Error getting payment intent bookings:", e);
+    handleError(res, e as Error);
+  }
+};
+
+const processCustomPartialRefund = async (req: express.Request, res: express.Response) => {
+  const { bookingId, refundAmount, reason } = req.body;
+  //@ts-ignore
+  const adminUserId = req.user?.id;
+
+  if (!bookingId || !refundAmount) {
+    responseHandler(res, 400, "Booking ID and refund amount are required");
+    return;
+  }
+
+  if (refundAmount <= 0) {
+    responseHandler(res, 400, "Refund amount must be greater than 0");
+    return;
+  }
+
+  try {
+    // Get the booking with payment intent and room details
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        room: true,
+        paymentIntent: true,
+        customer: true
+      }
+    });
+
+    if (!booking) {
+      responseHandler(res, 404, "Booking not found");
+      return;
+    }
+
+    if (booking.status === 'REFUNDED') {
+      responseHandler(res, 400, "Booking is already fully refunded");
+      return;
+    }
+
+    if (!booking.paymentIntent) {
+      responseHandler(res, 400, "No payment intent found for this booking");
+      return;
+    }
+
+    if (!booking.paymentIntent.stripePaymentIntentId) {
+      responseHandler(res, 400, "No Stripe payment intent ID found for this booking");
+      return;
+    }
+
+    if (!booking.totalAmount) {
+      responseHandler(res, 400, "No total amount found for this booking");
+      return;
+    }
+
+    // Check if refund amount exceeds remaining refundable amount
+    const currentRefundAmount = booking.refundAmount || 0;
+    const remainingRefundable = booking.totalAmount - currentRefundAmount;
+
+    if (refundAmount > remainingRefundable) {
+      responseHandler(res, 400, `Refund amount (€${refundAmount}) exceeds remaining refundable amount (€${remainingRefundable})`);
+      return;
+    }
+
+    // Handle different payment methods
+    if (booking.paymentIntent.paymentMethod === 'CASH' || booking.paymentIntent.paymentMethod === 'BANK_TRANSFER') {
+      // For manual payment methods, just update the database
+      const updatedRefundAmount = currentRefundAmount + refundAmount;
+      const newStatus = updatedRefundAmount >= booking.totalAmount ? 'REFUNDED' : booking.status;
+
+      const updatedBooking = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          refundAmount: updatedRefundAmount,
+          status: newStatus
+        }
+      });
+
+      // Send custom partial refund email
+      const emailTemplate = await prisma.emailTemplate.findUnique({
+        //@ts-ignore
+        where: { type: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION' }
+      });
+
+      if (emailTemplate && booking.customer) {
+        await EmailService.sendEmail({
+          to: {
+            email: booking.customer.guestEmail,
+            name: `${booking.customer.guestFirstName} ${booking.customer.guestLastName}`
+          },
+          templateType: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION',
+          templateData: {
+            customerName: `${booking.customer.guestFirstName} ${booking.customer.guestLastName}`,
+            refundAmount: refundAmount,
+            refundCurrency: booking.paymentIntent.currency || 'EUR',
+            bookingId: booking.id,
+            roomName: booking.room.name,
+            refundReason: reason || 'Custom partial refund',
+            refundDate: new Date().toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            }),
+            remainingAmount: booking.totalAmount - updatedRefundAmount,
+            originalAmount: booking.totalAmount,
+            paymentMethod: booking.paymentIntent.paymentMethod
+          }
+        });
+      }
+
+      responseHandler(res, 200, "Custom partial refund processed successfully", {
+        success: true,
+        bookingId: booking.id,
+        refundAmount: refundAmount,
+        totalRefunded: updatedRefundAmount,
+        remainingAmount: booking.totalAmount - updatedRefundAmount,
+        message: `Custom partial refund of €${refundAmount} processed for ${booking.room.name}`
+      });
+    } else {
+      // For Stripe payments, create refund
+      const refund = await stripe.refunds.create({
+        payment_intent: booking.paymentIntent.stripePaymentIntentId,
+        amount: Math.round(refundAmount * 100), // Convert to cents
+        reason: 'requested_by_customer',
+        metadata: {
+          bookingId: booking.id,
+          roomName: booking.room.name,
+          refundReason: reason || 'Custom partial refund',
+          adminUserId: adminUserId || 'system',
+          refundType: 'custom_partial_refund'
+        }
+      });
+
+      console.log(`Custom partial refund initiated for booking ${bookingId}: €${refundAmount}`);
+      console.log(`Stripe refund ID: ${refund.id}`);
+
+      // The webhook will handle updating our database and sending emails when Stripe confirms the refund
+      responseHandler(res, 200, "Custom partial refund initiated successfully", {
+        success: true,
+        refundId: refund.id,
+        bookingId: booking.id,
+        refundAmount: refundAmount,
+        message: `Custom partial refund of €${refundAmount} initiated for ${booking.room.name}`
+      });
+    }
+
+  } catch (e) {
+    console.error("Error processing custom partial refund:", e);
+    handleError(res, e as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund };
 
 

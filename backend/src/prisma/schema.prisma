@@ -110,6 +110,8 @@ model Charge {
   order                 Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tempCustomerId        String?  
   tempCustomer          TemporaryCustomer?    @relation(fields: [tempCustomerId], references: [id])  
+  bookingGroupId        String?
+  bookingGroup          BookingGroup?         @relation(fields: [bookingGroupId], references: [id], onDelete: SetNull)
 }
         
 model Booking {        
@@ -145,6 +147,7 @@ model Booking {
   remainingDueDate    DateTime?             // When 70% is due
   finalPaymentStatus  PaymentStatus?        // Status of 70% payment
   ratePolicyId        String?               // Track which rate policy was used
+  refundAmount        Float?                // Amount refunded for this specific booking
   
   @@index([roomId, checkIn, checkOut, status])
 }
@@ -228,6 +231,8 @@ model PaymentIntent {
   paidAt                DateTime?
   customerId            String?  
   customer              Customer?           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookingGroupId        String?
+  bookingGroup          BookingGroup?       @relation(fields: [bookingGroupId], references: [id], onDelete: SetNull)
   bookings              Booking[]        
   temporaryHolds        TemporaryHold[]
   payments              Payment[] 
@@ -237,6 +242,7 @@ model PaymentIntent {
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
   @@index([stripeSessionId])
+  @@index([bookingGroupId])
 }
 
 model Payment {
@@ -254,6 +260,23 @@ model Payment {
   createdAt             DateTime         @default(now())
   paymentIntentId       String?
   paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+}
+
+model BookingGroup {
+  id               String          @id @default(uuid())
+  groupName        String?         // Optional descriptive name for the group
+  isAutoGrouped    Boolean         @default(false) // True if auto-grouped (3+ rooms)
+  totalAmount      Float           // Combined total of all PaymentIntents in group
+  currency         String          @default("eur")
+  status           BookingGroupStatus @default(ACTIVE)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  // Relations
+  paymentIntents   PaymentIntent[]
+  charges          Charge[]        // Charges assigned to the booking group
+  
+  @@index([status])
 }
 
 model RatePolicy {
@@ -1308,6 +1331,14 @@ enum PaymentType {
   FULL_PAYMENT        // Single full payment
   FIRST_INSTALLMENT   // 30% initial payment
   SECOND_INSTALLMENT  // 70% remaining payment
+}
+
+enum BookingGroupStatus {
+  ACTIVE              // Group is active with outstanding payments
+  COMPLETED           // All payments in group completed
+  PARTIALLY_REFUNDED  // Some payments refunded
+  FULLY_REFUNDED      // All payments refunded
+  CANCELLED           // Group cancelled
 }
 
 model BankDetails {

@@ -47,11 +47,22 @@ non refund automatically
 
 [] => current booking admin page list is taking the payment intent that need to 
 
-[] => Instead of returning guest change to sign to room  or pay the waiter
+[C] => Instead of returning guest change to sign to room  or pay the waiter
 
-[] => Instead of welcome change to "payment option" && Please verify to place an order. => Choose how you would like to pay.
+[C] => Instead of welcome change to "payment option" && Please verify to place an order. => Choose how you would like to pay.
 
-[] => basically step was wrong. user flow was wrong. ideally user needs to checkout first and then verification only for existing guest. if there temp we dont care we just go with flow no verification.
+[C] => basically step was wrong. user flow was wrong. ideally user needs to checkout first and then verification only for existing guest. if there temp we dont care we just go with flow no verification.
+
+[C] => once the user places the order we have to show the confimation order model and then show a according things there like back to order 
+
+[] => waiter need to have a history that shows all the payment methods by tabs like cash, stripe, etc when the user clicks that then it would show all the corresponding list and seprated by dates.
+
+[] => manager would able to see all waiters  orders summary by splitting in to tabs for example cash, stripe, 
+
+[] => manager will see exact summary of each day and ask the waiter for cash by validating the accepted orders.
+
+[] => 
+
 
 
 

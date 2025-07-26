@@ -391,11 +391,12 @@ export const getCustomerProfile = async(req: express.Request, res: express.Respo
                 include: { 
                     weddingProposals: {
                         select: { id: true }
-                    } 
+                    },
+                    orders: true
                 }
             });
         } else if (type === 'TEMP_CUSTOMER') {
-            customer = await prisma.temporaryCustomer.findUnique({ where: { id } });
+            customer = await prisma.temporaryCustomer.findUnique({ where: { id }, include: { orders: true } });
         } else {
             responseHandler(res, 403, "Invalid user type in token");
             return;

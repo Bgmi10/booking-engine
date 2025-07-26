@@ -1,8 +1,10 @@
-import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users } from "lucide-react"
+import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings } from "lucide-react"
 import type { PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
 import { baseUrl } from "../../../utils/constants"
+import CustomPartialRefundModal from "./CustomPartialRefundModal"
+import { useState } from "react"
 
   export default function PaymentIntentDetailsView({
     paymentIntent,
@@ -15,7 +17,15 @@ import { baseUrl } from "../../../utils/constants"
     loadingAction,
     generateConfirmationNumber,
   }: PaymentIntentDetailsViewProps) {
+    const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
+
+    const handleCustomRefundSuccess = () => {
+      // Refresh the payment intent data
+      window.location.reload(); // Simple approach, could be improved with proper state management
+    };
+
     return (
+      <>
       <div className="space-y-6">
         {/* Customer Information */}
         <div className="bg-white rounded-lg border border-gray-200">
@@ -507,15 +517,25 @@ import { baseUrl } from "../../../utils/constants"
                 <Mail className="h-4 w-4 mr-2" />
                 Send Confirmation Email
               </button>}
-              {(paymentIntent.status === "SUCCEEDED" || paymentIntent.status === "PENDING") && (
-                <button
-                  onClick={onRefund}
-                  disabled={loadingAction}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Cancel & Refund
-                </button>
+              {(paymentIntent.status === "SUCCEEDED") && (
+                <>
+                  <button
+                    onClick={() => setShowCustomPartialRefundModal(true)}
+                    disabled={loadingAction}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Custom Partial Refund
+                  </button>
+                  <button
+                    onClick={onRefund}
+                    disabled={loadingAction}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Cancel & Refund
+                  </button>
+                </>
               )}
   
               {
@@ -546,6 +566,14 @@ import { baseUrl } from "../../../utils/constants"
           </div>
         </div>
       </div>
+
+      <CustomPartialRefundModal
+        isOpen={showCustomPartialRefundModal}
+        onClose={() => setShowCustomPartialRefundModal(false)}
+        paymentIntent={paymentIntent}
+        onRefundSuccess={handleCustomRefundSuccess}
+      />
+      </>
     )
   }
   

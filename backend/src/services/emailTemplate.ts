@@ -401,91 +401,104 @@ export const sendRefundConfirmationEmail = async (
   console.log("387", bookings)
   if (!bookings || !bookings.length) return;
 
-  // Use the first booking (or extend for multiple if needed)
-  const bookingData = bookings[0];
+  // Process ALL bookings (not just the first one)
+  const processedBookings = bookings.map((bookingData: any) => {
+    // Safely handle dates
+    const checkIn = bookingData.checkIn ? new Date(bookingData.checkIn) : new Date();
+    const checkOut = bookingData.checkOut ? new Date(bookingData.checkOut) : new Date();
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Safely handle dates
-  const checkIn = bookingData.checkIn ? new Date(bookingData.checkIn) : new Date();
-  const checkOut = bookingData.checkOut ? new Date(bookingData.checkOut) : new Date();
-  const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    // Safely handle room details - check if roomDetails exists and has required properties
+    const room = bookingData.roomDetails || {};
+    const roomPrice = room.price || 0;
+    const roomTotal = roomPrice * nights;
 
-  // Safely handle room details - check if roomDetails exists and has required properties
-  const room = bookingData.roomDetails || {};
-  const roomPrice = room.price || 0;
-  const roomTotal = roomPrice * nights;
-
-  // Safely handle enhancements
-  const processedEnhancements = (bookingData.selectedEnhancements || []).map((enh: any) => {
-    if (!enh || typeof enh.price !== 'number') {
-      console.warn('Skipping invalid enhancement booking in cancellation email:', enh);
-      return undefined;
-    }
-    
-    let calculatedPrice = enh.price;
-    const totalGuests = bookingData.adults || bookingData.totalGuests || 1;
-    
-    // Handle different pricing types
-    switch (enh.pricingType) {
-      case 'PER_GUEST':
-        calculatedPrice = enh.price * totalGuests;
-        break;
-      case 'PER_DAY':
-        calculatedPrice = enh.price * nights;
-        break;
-      case 'PER_BOOKING':
-      default:
-        calculatedPrice = enh.price;
-        break;
-    }
-    
-    return {
-      title: enh.title || enh.name || 'Enhancement',
-      description: enh.description || '',
-      price: enh.price,
-      pricingType: enh.pricingType || 'PER_BOOKING',
-      calculatedPrice,
-      pricingDetails: {
-        basePrice: enh.price,
-        pricingType: enh.pricingType || 'PER_BOOKING',
-        nights: enh.pricingType === 'PER_DAY' ? nights : null,
-        guests: enh.pricingType === 'PER_GUEST' ? totalGuests : null
+    // Safely handle enhancements
+    const processedEnhancements = (bookingData.selectedEnhancements || []).map((enh: any) => {
+      if (!enh || typeof enh.price !== 'number') {
+        console.warn('Skipping invalid enhancement booking in cancellation email:', enh);
+        return undefined;
       }
+      
+      let calculatedPrice = enh.price;
+      const totalGuests = bookingData.adults || bookingData.totalGuests || 1;
+      
+      // Handle different pricing types
+      switch (enh.pricingType) {
+        case 'PER_GUEST':
+          calculatedPrice = enh.price * totalGuests;
+          break;
+        case 'PER_DAY':
+          calculatedPrice = enh.price * nights;
+          break;
+        case 'PER_BOOKING':
+        default:
+          calculatedPrice = enh.price;
+          break;
+      }
+      
+      return {
+        title: enh.title || enh.name || 'Enhancement',
+        description: enh.description || '',
+        price: enh.price,
+        pricingType: enh.pricingType || 'PER_BOOKING',
+        calculatedPrice,
+        pricingDetails: {
+          basePrice: enh.price,
+          pricingType: enh.pricingType || 'PER_BOOKING',
+          nights: enh.pricingType === 'PER_DAY' ? nights : null,
+          guests: enh.pricingType === 'PER_GUEST' ? totalGuests : null
+        }
+      };
+    }).filter(Boolean);
+
+    const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
+
+    return {
+      id: bookingData.id || 'N/A',
+      room: {
+        name: bookingData.roomName || room.name || 'Room',
+        description: room.description || 'Room booking',
+        price: roomPrice,
+        capacity: room.capacity || 1,
+        amenities: room.amenities || []
+      },
+      checkIn: bookingData.checkIn || new Date().toISOString(),
+      checkOut: bookingData.checkOut || new Date().toISOString(),
+      formattedCheckIn: Handlebars.helpers.formatDate(checkIn),
+      formattedCheckOut: Handlebars.helpers.formatDate(checkOut),
+      totalGuests: bookingData.adults || bookingData.totalGuests || 1,
+      nights: nights > 0 ? nights : 1,
+      basePrice: roomPrice,
+      roomTotal,
+      enhancementsTotal,
+      enhancements: processedEnhancements,
+      total: roomTotal + enhancementsTotal
     };
-  }).filter(Boolean);
+  });
 
-  const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
-
-  // Prepare bookings array for template (even if only one booking)
-  const bookingsForTemplate = [{
-    id: bookingData.id || 'N/A',
-    room: {
-      name: room.name || 'Room',
-      description: room.description || 'Room booking',
-      price: roomPrice,
-      capacity: room.capacity || 1,
-      amenities: room.amenities || []
-    },
-    checkIn: bookingData.checkIn || new Date().toISOString(),
-    checkOut: bookingData.checkOut || new Date().toISOString(),
-    totalGuests: bookingData.adults || bookingData.totalGuests || 1,
-    nights: nights > 0 ? nights : 1,
-    basePrice: roomPrice,
-    roomTotal,
-    enhancementsTotal,
-    enhancements: processedEnhancements
-  }];
+  // Calculate overall totals from all bookings
+  const firstBookingData = bookings[0];
+  const allCheckInDates = processedBookings.map((b) => new Date(b.checkIn));
+  const allCheckOutDates = processedBookings.map((b) => new Date(b.checkOut));
+  const earliestCheckIn = new Date(Math.min(...allCheckInDates.map((d) => d.getTime())));
+  const latestCheckOut = new Date(Math.max(...allCheckOutDates.map((d) => d.getTime())));
+  const totalNights = Math.ceil((latestCheckOut.getTime() - earliestCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+  const totalGuests = processedBookings.reduce((sum, booking) => sum + booking.totalGuests, 0);
+  const totalRooms = processedBookings.length;
 
   const templateData: any = {
-    confirmationId: bookingData.confirmationId || bookingData.id || 'N/A',
+    confirmationId: firstBookingData.confirmationId || firstBookingData.id || 'N/A',
     customerName: `${customerDetails.firstName} ${customerDetails.middleName || ''} ${customerDetails.lastName}`.trim(),
-    checkInDate: bookingData.checkIn ? Handlebars.helpers.formatDate(checkIn) : 'N/A',
-    checkOutDate: bookingData.checkOut ? Handlebars.helpers.formatDate(checkOut) : 'N/A',
-    totalNights: nights > 0 ? nights : 1,
-    totalGuests: bookingData.adults || bookingData.totalGuests || 1,
+    checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
+    checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
+    totalNights: totalNights > 0 ? totalNights : 1,
+    totalRooms: totalRooms,
+    totalGuests: totalGuests,
     currency: (refund && refund.refundCurrency) ? (refund.refundCurrency === 'EUR' ? '€' : refund.refundCurrency.toUpperCase()) : '€',
-    bookings: bookingsForTemplate,
-    paymentMethod: bookingData.paymentMethod || 'STRIPE',
-    isManualRefund: bookingData.paymentMethod === 'CASH' || bookingData.paymentMethod === 'BANK_TRANSFER',
+    bookings: processedBookings,
+    paymentMethod: firstBookingData.paymentMethod || 'STRIPE',
+    isManualRefund: firstBookingData.paymentMethod === 'CASH' || firstBookingData.paymentMethod === 'BANK_TRANSFER',
   };
 
   // Only add refund data if it exists
