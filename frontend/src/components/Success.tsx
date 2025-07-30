@@ -33,7 +33,7 @@ export default function Success() {
         try {
           const response = await fetch(`${baseUrl}/sessions/${sessionId}`)
           const data = await response.json()
-          
+          console.log(data);
           if (response.status === 200) {
             setSessionData(data.data)
             const bookingData = JSON.parse(data.data.data.bookingData)
@@ -501,6 +501,60 @@ export default function Success() {
             </div>
           ))}
 
+          {/* Voucher Applied */}
+          {payment?.voucherCode && payment?.status === "SUCCEEDED" && (
+            <div className="bg-green-50 rounded-lg shadow-sm border border-green-200 p-4 sm:p-6 mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <h3 className="text-lg font-medium text-green-800">Voucher Applied</h3>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-700">Voucher Code: <strong>{payment.voucherCode}</strong></span>
+                {payment.voucherUsages && payment.voucherUsages.length > 0 && payment.voucherUsages[0].discountAmount > 0 && (
+                  <span className="text-green-600 font-semibold">
+                    Saved €{payment.voucherUsages[0].discountAmount.toFixed(2)}
+                  </span>
+                )}
+              </div>
+
+              {/* Voucher Products */}
+              {payment.voucherUsages && payment.voucherUsages.length > 0 && (() => {
+                const products = JSON.parse(payment.voucherUsages[0].productsReceived || '[]');
+                return products && products.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-green-800 mb-3">What you received:</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {products.map((product: any, productIndex: number) => (
+                        <div key={productIndex} className="bg-white rounded-lg p-3 border border-green-200">
+                          <div className="flex items-start gap-3">
+                            {product.imageUrl && (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            )}
+                            <div className="flex-grow">
+                              <h5 className="font-medium text-gray-800 text-sm">{product.name}</h5>
+                              <p className="text-xs text-gray-600 mt-1">{product.description}</p>
+                              <span className="text-xs text-green-600 font-medium mt-1 block">
+                                Value: €{product.value}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Overall Payment Summary */}
           {bookings.length > 0 && payment?.status === "SUCCEEDED" && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
@@ -514,6 +568,14 @@ export default function Success() {
                   <span className="text-gray-600">Tax:</span>
                   <span className="font-medium">€{payment.taxAmount.toFixed(2)}</span>
                 </div>
+                {payment.voucherUsages && payment.voucherUsages.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Discount:</span>
+                    <span className="font-medium text-green-600">
+                      -€{payment.voucherUsages.reduce((total: number, usage: any) => total + (usage.discountAmount || 0), 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t pt-2">
                   <span className="text-gray-600 font-medium">Total Amount Paid:</span>
                   <span className="font-semibold">€{payment.totalAmount.toFixed(2)}</span>

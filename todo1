@@ -2,7 +2,7 @@
 
 [C] => remove the guest count in user facing app
 
-[] => allow admin to add an extra bed charges in admin dashboard.
+[C] => allow admin to add an extra bed charges in admin dashboard.
 
 [C] => improve the error message in details page in user facing app. "{room name} is currently being booked by another customer. Please wait for 30 min and try again"
 
@@ -14,7 +14,7 @@
 
 [] => fix the on date on voucher feature and also do mid night of starting data
 
-[] => voucher need to add in /booking/success && change the ui modification succeded to completed
+[C] => voucher need to add in /booking/success && change the ui modification succeded to completed
 
 [C] => change the booking id on confimation email template to original booking id && do a decimal point on currency and do a symbol instead of word "eur"
 

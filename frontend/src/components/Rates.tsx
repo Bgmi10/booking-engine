@@ -17,8 +17,19 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
+  
+  // Sync adults state with bookingData when it changes externally
+  useEffect(() => {
+    setAdults(bookingData.adults || 2);
+  }, [bookingData.adults]);
   //@ts-ignore
   const [selectedPaymentStructures, setSelectedPaymentStructures] = useState<any>({});
+  const [showRoomAlternatives, setShowRoomAlternatives] = useState(false);
+  const [alternativeRooms, setAlternativeRooms] = useState<any[]>([]);
+  const [extraBedConfig, setExtraBedConfig] = useState<{useExtraBed: boolean, extraBedCount: number}>({
+    useExtraBed: false,
+    extraBedCount: 0
+  });
 
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
@@ -36,14 +47,59 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const checkOutDate = new Date(bookingData.checkOut);
   const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Handle guest capacity validation on component load
+  // Calculate maximum guest capacity across all available rooms
+  const maxGuestCapacity = availabilityData.availableRooms.reduce((max: number, room: any) => {
+    const roomMaxCapacity = room.allowsExtraBed && room.maxCapacityWithExtraBed 
+      ? room.maxCapacityWithExtraBed 
+      : room.capacity;
+    return Math.max(max, roomMaxCapacity);
+  }, 0);
+
+  // Handle guest capacity validation and find alternatives
   useEffect(() => {
-    if (selectedRoom && bookingData.adults > selectedRoom.capacity) {
-      const newAdults = selectedRoom.capacity;
-      setAdults(newAdults);
-      setBookingData((prev: any) => ({ ...prev, adults: newAdults || 2 }));
+    if (!selectedRoom) return;
+
+    // Reset all states first for consistency
+    setShowRoomAlternatives(false);
+    setAlternativeRooms([]);
+    setExtraBedConfig({ useExtraBed: false, extraBedCount: 0 });
+
+    const currentAdults = adults; // Use local adults state for immediate updates
+
+    // Always find ALL rooms that can accommodate the guests
+    const availableRooms = availabilityData.availableRooms.filter((room: any) => {
+      // Check standard capacity
+      if (room.capacity >= currentAdults) return true;
+      
+      // Check capacity with extra beds
+      if (room.allowsExtraBed && room.maxCapacityWithExtraBed && 
+          room.maxCapacityWithExtraBed >= currentAdults) return true;
+      
+      return false;
+    });
+
+    if (currentAdults > selectedRoom.capacity) {
+      // Check if current room supports extra beds
+      if (selectedRoom.allowsExtraBed && selectedRoom.maxCapacityWithExtraBed && 
+          currentAdults <= selectedRoom.maxCapacityWithExtraBed) {
+        // Current room can accommodate with extra beds
+        const extraBedsNeeded = currentAdults - selectedRoom.capacity;
+        setExtraBedConfig({
+          useExtraBed: true,
+          extraBedCount: extraBedsNeeded
+        });
+      }
+
+      // ALWAYS show alternatives when guest count exceeds current room capacity
+      // regardless of whether current room has extra bed capability
+      const alternatives = availableRooms.filter((room: any) => room.id !== selectedRoom.id);
+      
+      if (alternatives.length > 0) {
+        setAlternativeRooms(alternatives);
+        setShowRoomAlternatives(true);
+      }
     }
-  }, [selectedRoom, bookingData.adults]);
+  }, [selectedRoom, adults, availabilityData.availableRooms]);
 
   // Prepare rate options - only from server data
   const getRateOptions = () => {
@@ -155,17 +211,27 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     if (type === 'rooms') {
       setRooms((prev: number) => Math.max(1, prev + change));
     } else {
-      const newAdults = Math.max(1, adults + change);
-      if (newAdults <= selectedRoom.capacity) {
-        setAdults(newAdults);
-        setBookingData((prev: any) => ({ ...prev, adults: newAdults }));
-      }
+      // Limit guest count to maximum available capacity across all rooms
+      const newAdults = Math.max(1, Math.min(maxGuestCapacity, adults + change));
+      
+      // Update local state immediately for UI responsiveness
+      setAdults(newAdults);
+      
+      // Update booking data state
+      setBookingData((prev: any) => ({ ...prev, adults: newAdults }));
     }
   }
 
   function handleBookNow(rateOption: any, selectedPaymentStructure?: string) {
     const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc: any, curr: any) => acc.price + curr.price + 0) : 0;
-    const totalPrice = rateOption.price * nights * rooms + enhancementPrice * bookingData.adults;
+    
+    // Calculate extra bed cost if applicable
+    let extraBedCost = 0;
+    if (extraBedConfig.useExtraBed && selectedRoom.extraBedPrice) {
+      extraBedCost = extraBedConfig.extraBedCount * selectedRoom.extraBedPrice * nights * rooms;
+    }
+    
+    const totalPrice = rateOption.price * nights * rooms + enhancementPrice * bookingData.adults + extraBedCost;
     
     setBookingData((prev: any) => ({
       ...prev,
@@ -173,11 +239,24 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       selectedPaymentStructure: selectedPaymentStructure || rateOption.paymentStructure || 'FULL_PAYMENT',
       rooms: rooms,
       adults: adults,
-      totalPrice: totalPrice
+      totalPrice: totalPrice,
+      hasExtraBed: extraBedConfig.useExtraBed,
+      extraBedCount: extraBedConfig.extraBedCount,
+      extraBedPrice: selectedRoom.extraBedPrice || 0
     }));
     setTimeout(() => {
         setCurrentStep(4);
     }, 20)
+  }
+
+  function handleSwitchToAlternativeRoom(roomId: string) {
+    // Reset all related states when switching rooms
+    setShowRoomAlternatives(false);
+    setAlternativeRooms([]);
+    setExtraBedConfig({ useExtraBed: false, extraBedCount: 0 });
+    
+    // Update booking data with new room
+    setBookingData((prev: any) => ({ ...prev, selectedRoom: roomId }));
   }
 
   useEffect(() => {
@@ -397,20 +476,125 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                       </button>
                       <span className="font-semibold text-base sm:text-lg">{adults}</span>
                       <button 
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors cursor-pointer"
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors ${
+                          adults >= maxGuestCapacity 
+                            ? 'bg-gray-200 cursor-not-allowed opacity-50' 
+                            : 'bg-gray-300 hover:bg-gray-400 cursor-pointer'
+                        }`}
                         onClick={() => updateOccupancy('adults', 1)}
-                        disabled={adults >= selectedRoom.capacity}
+                        disabled={adults >= maxGuestCapacity}
                       >
                         <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                     </div>
-                    {adults >= selectedRoom.capacity && (
-                      <p className="text-xs text-orange-600 mt-1">Maximum capacity reached</p>
+                    
+                    {/* Capacity status indicators */}
+                    {adults >= maxGuestCapacity && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Maximum available capacity reached ({maxGuestCapacity} guests)
+                      </p>
+                    )}
+                    
+                    {adults > selectedRoom.capacity && !extraBedConfig.useExtraBed && !showRoomAlternatives && adults < maxGuestCapacity && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Exceeds room capacity ({selectedRoom.capacity} guests)
+                      </p>
+                    )}
+                    
+                    {extraBedConfig.useExtraBed && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-blue-800">Extra Bed Added</span>
+                        </div>
+                        <p className="text-xs text-blue-700">
+                          {extraBedConfig.extraBedCount} extra bed{extraBedConfig.extraBedCount > 1 ? 's' : ''} for {adults - selectedRoom.capacity} additional guest{adults - selectedRoom.capacity > 1 ? 's' : ''}
+                        </p>
+                        {selectedRoom.extraBedPrice && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            +€{(extraBedConfig.extraBedCount * selectedRoom.extraBedPrice * nights).toFixed(2)} total
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Room Alternatives Section */}
+            {showRoomAlternatives && alternativeRooms.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-amber-200">
+                <h3 className="text-lg sm:text-xl font-semibold mb-4 text-amber-800">Alternative Rooms Available</h3>
+                <p className="text-sm text-amber-700 mb-4">
+                  {extraBedConfig.useExtraBed 
+                    ? `Your current room "${selectedRoom.name}" can accommodate ${adults} guests with extra beds. Here are other room options:`
+                    : `Your current room "${selectedRoom.name}" has a capacity of ${selectedRoom.capacity} guests. Here are rooms that can accommodate ${adults} guests:`
+                  }
+                </p>
+                
+                <div className="space-y-3">
+                  {alternativeRooms.map((room: any) => {
+                    const needsExtraBed = adults > room.capacity;
+                    const extraBedsNeeded = needsExtraBed ? adults - room.capacity : 0;
+                    const extraBedCost = needsExtraBed && room.extraBedPrice ? extraBedsNeeded * room.extraBedPrice * nights : 0;
+                    
+                    return (
+                      <div key={room.id} className="border border-gray-200 rounded-lg p-4 hover:border-amber-300 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{room.name}</h4>
+                            <div className="text-sm text-gray-600 mt-1">
+                              <p>Capacity: {room.capacity} guests</p>
+                              {needsExtraBed && (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-amber-700">
+                                    +{extraBedsNeeded} extra bed{extraBedsNeeded > 1 ? 's' : ''} needed
+                                  </p>
+                                  {room.extraBedPrice && (
+                                    <p className="text-amber-600">
+                                      Extra bed cost: €{extraBedCost.toFixed(2)} total
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2">
+                              <span className="text-lg font-semibold text-gray-900">
+                                €{room.price.toFixed(2)}
+                              </span>
+                              <span className="text-sm text-gray-500"> per night</span>
+                              {extraBedCost > 0 && (
+                                <span className="text-sm text-amber-600 ml-2">
+                                  (+ €{room.extraBedPrice.toFixed(2)}/night per extra bed)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSwitchToAlternativeRoom(room.id)}
+                            className="ml-4 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
+                          >
+                            Select Room
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600">
+                    <strong>Keep current room:</strong> 
+                    {extraBedConfig.useExtraBed 
+                      ? ` You can continue with "${selectedRoom.name}" which will accommodate ${adults} guests using ${extraBedConfig.extraBedCount} extra bed${extraBedConfig.extraBedCount > 1 ? 's' : ''}.`
+                      : ` The current room "${selectedRoom.name}" cannot accommodate ${adults} guests with its standard capacity of ${selectedRoom.capacity}.`
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+
  {/* Mobile Compact Enhancement Design */}
  {enhancements.length > 0 && (
             <div className="lg:hidden bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-4">
@@ -512,7 +696,10 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Available Rates</h3>
             
             {rateOptions.map((rateOption: any) => {
-              const totalPrice = rateOption.price * nights * rooms;
+              const basePrice = rateOption.price * nights * rooms;
+              const extraBedCost = extraBedConfig.useExtraBed && selectedRoom.extraBedPrice ? 
+                extraBedConfig.extraBedCount * selectedRoom.extraBedPrice * nights * rooms : 0;
+              const totalPrice = basePrice + extraBedCost;
               
               return (
                 <div key={rateOption.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -545,6 +732,24 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         <span className="text-base sm:text-lg font-bold text-gray-800">€{rateOption.price.toFixed(2)}</span>
                         <span className="text-xs sm:text-sm text-gray-600">per night</span>
                       </div>
+                      
+                      {/* Extra bed pricing breakdown */}
+                      {extraBedCost > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                          <h5 className="text-sm font-semibold text-blue-800">Extra Bed Charges</h5>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between text-blue-700">
+                              <span>Room rate ({nights} nights):</span>
+                              <span>€{basePrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-blue-700">
+                              <span>Extra beds ({extraBedConfig.extraBedCount} × €{selectedRoom.extraBedPrice} × {nights} nights):</span>
+                              <span>€{extraBedCost.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-base sm:text-lg font-semibold text-gray-700 border-t pt-2 gap-1 sm:gap-0">
                         <span className="text-sm sm:text-base">Total ({nights} nights, {rooms} room{rooms > 1 ? 's' : ''}):</span>
                         <span className="text-lg sm:text-xl font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>

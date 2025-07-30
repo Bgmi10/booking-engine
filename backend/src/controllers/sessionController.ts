@@ -37,7 +37,8 @@ export const sessionController = async (req: Request, res: Response) => {
                 select: {
                     id: true
                 }
-            }
+            },
+            voucherUsages: true
         }
     });
 

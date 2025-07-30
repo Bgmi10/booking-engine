@@ -228,12 +228,24 @@ const logout = async (_req: express.Request, res: express.Response) => {
 }   
 
 const createRoom = async (req: express.Request, res: express.Response) => {
-  const { name, price, description, images, capacity, ratePolicyId, amenities } = req.body;
+  const { name, price, description, images, capacity, ratePolicyId, amenities, allowsExtraBed, maxCapacityWithExtraBed, extraBedPrice } = req.body;
   try {
     const room = await prisma.room.create({
-      data: { name, price, description, capacity, images: { create: (images || []).map((image: string) => ({ url: image })) }, RoomRate: { create: ratePolicyId.map((id: string) => ({ ratePolicyId: id })) }, amenities },
+      data: { 
+        name, 
+        price, 
+        description, 
+        capacity, 
+        allowsExtraBed: allowsExtraBed || false,
+        maxCapacityWithExtraBed: allowsExtraBed ? maxCapacityWithExtraBed : null,
+        extraBedPrice: allowsExtraBed ? extraBedPrice : null,
+        images: { create: (images || []).map((image: string) => ({ url: image })) }, 
+        RoomRate: { create: ratePolicyId.map((id: string) => ({ ratePolicyId: id })) }, 
+        amenities 
+      },
       include: {
         RoomRate: true,
+        images: true,
       },
     });
     responseHandler(res, 200, "Room created successfully", room);
@@ -244,7 +256,7 @@ const createRoom = async (req: express.Request, res: express.Response) => {
 
 const updateRoom = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
-  const { name, price, description, capacity, ratePolicyId, amenities } = req.body;
+  const { name, price, description, capacity, ratePolicyId, amenities, allowsExtraBed, maxCapacityWithExtraBed, extraBedPrice } = req.body;
 
   try {
     // Build base update data
@@ -254,6 +266,13 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
       ...(description !== undefined && { description }),
       ...(capacity !== undefined && { capacity }),
       ...(amenities !== undefined && { amenities }),
+      ...(allowsExtraBed !== undefined && { allowsExtraBed }),
+      ...(allowsExtraBed !== undefined && { 
+        maxCapacityWithExtraBed: allowsExtraBed ? maxCapacityWithExtraBed : null 
+      }),
+      ...(allowsExtraBed !== undefined && { 
+        extraBedPrice: allowsExtraBed ? extraBedPrice : null 
+      }),
     };
 
     if (ratePolicyId !== undefined) {

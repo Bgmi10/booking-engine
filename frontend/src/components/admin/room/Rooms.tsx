@@ -38,6 +38,9 @@ interface Room {
   price: number
   description: string
   capacity: number
+  maxCapacityWithExtraBed?: number
+  extraBedPrice?: number
+  allowsExtraBed: boolean
   amenities: string[]
   images: RoomImage[]
   createdAt: string
@@ -248,6 +251,24 @@ export default function Rooms() {
                 </div>
                 
                 <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Extra Bed Configuration</h4>
+                  {selectedRoom.allowsExtraBed ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Configured
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Max: {selectedRoom.maxCapacityWithExtraBed} | {formatPrice(selectedRoom.extraBedPrice || 0)}/night
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Not Configured
+                    </span>
+                  )}
+                </div>
+                
+                <div>
                   <h4 className="text-sm font-medium text-gray-500 mb-1">Created</h4>
                   <p className="text-lg font-medium text-gray-900">{formatDate(selectedRoom.createdAt)}</p>
                 </div>
@@ -273,6 +294,52 @@ export default function Rooms() {
                 </div>
               </div>
             )}
+
+            {/* Extra Bed Configuration Card */}
+            <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Extra Bed Configuration</h3>
+              {selectedRoom.allowsExtraBed ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      ✓ Extra beds enabled
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Standard Capacity</h4>
+                      <p className="text-lg font-medium text-gray-900">{selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Max Capacity with Extra Bed</h4>
+                      <p className="text-lg font-medium text-gray-900">{selectedRoom.maxCapacityWithExtraBed} {selectedRoom.maxCapacityWithExtraBed === 1 ? 'person' : 'people'}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Extra Bed Price</h4>
+                      <p className="text-lg font-medium text-gray-900">{formatPrice(selectedRoom.extraBedPrice || 0)} per night</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Additional Capacity</h4>
+                      <p className="text-lg font-medium text-gray-900">+{(selectedRoom.maxCapacityWithExtraBed || 0) - selectedRoom.capacity} {((selectedRoom.maxCapacityWithExtraBed || 0) - selectedRoom.capacity) === 1 ? 'person' : 'people'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-800">
+                      This room can accommodate up to <strong>{selectedRoom.maxCapacityWithExtraBed} guests</strong> with extra beds at an additional cost of <strong>{formatPrice(selectedRoom.extraBedPrice || 0)} per bed per night</strong>.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 mb-3">
+                    Extra beds not configured
+                  </span>
+                  <p className="text-sm text-gray-600">
+                    This room is limited to its standard capacity of <strong>{selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}</strong>. Extra bed functionality has not been enabled for this room.
+                  </p>
+                </div>
+              )}
+            </div>
                 
             {selectedRoom.images && selectedRoom.images.length > 0 && (
               <div className="bg-white/70 rounded-xl p-6 border border-gray-200/50">
@@ -946,6 +1013,12 @@ export default function Rooms() {
                       </th>
                       <th
                         scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Extra Bed
+                      </th>
+                      <th
+                        scope="col"
                         className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         Actions
@@ -994,6 +1067,24 @@ export default function Rooms() {
                         </td>
                         <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-500">
                             {room.RoomRate.length}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            {room.allowsExtraBed ? (
+                              <div className="flex items-center">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  ✓ Configured
+                                </span>
+                                <div className="ml-2 text-xs text-gray-500">
+                                  Max: {room.maxCapacityWithExtraBed} | €{room.extraBedPrice}/night
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Not Configured
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end space-x-2">

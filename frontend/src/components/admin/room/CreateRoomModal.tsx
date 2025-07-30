@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-
 import { useState } from "react"
 import { 
   RiCloseLine, 
@@ -44,6 +41,9 @@ export function CreateRoomModal({
   const [price, setPrice] = useState("")
   const [description, setDescription] = useState("")
   const [capacity, setCapacity] = useState("")
+  const [allowsExtraBed, setAllowsExtraBed] = useState(false)
+  const [maxCapacityWithExtraBed, setMaxCapacityWithExtraBed] = useState("")
+  const [extraBedPrice, setExtraBedPrice] = useState("")
   const [loadingAction, setLoadingAction] = useState(false)
   const [localError, setLocalError] = useState("")
   const [localSuccess, setLocalSuccess] = useState("")
@@ -101,6 +101,18 @@ export function CreateRoomModal({
       setLocalError("Please add at least one amenity")
       return
     }
+
+    // Extra bed validation
+    if (allowsExtraBed) {
+      if (!maxCapacityWithExtraBed || isNaN(Number(maxCapacityWithExtraBed)) || Number(maxCapacityWithExtraBed) <= Number(capacity)) {
+        setLocalError("Max capacity with extra bed must be greater than standard capacity")
+        return
+      }
+      if (!extraBedPrice || isNaN(Number(extraBedPrice)) || Number(extraBedPrice) < 0) {
+        setLocalError("Please enter a valid extra bed price")
+        return
+      }
+    }
     
     setLoadingAction(true)
     setLocalError("")
@@ -118,6 +130,9 @@ export function CreateRoomModal({
           price: Number(price),
           description,
           capacity: Number(capacity),
+          allowsExtraBed,
+          maxCapacityWithExtraBed: allowsExtraBed ? Number(maxCapacityWithExtraBed) : null,
+          extraBedPrice: allowsExtraBed ? Number(extraBedPrice) : null,
           images,
           amenities,
           ratePolicyId: selectedPolicies.map(policy => policy.id)
@@ -256,6 +271,77 @@ export function CreateRoomModal({
                 min="1"
                 disabled={loadingAction}
               />
+            </div>
+
+            {/* Extra Bed Configuration */}
+            <div className="md:col-span-2">
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-medium text-gray-900">Extra Bed Configuration</h4>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="allowsExtraBed"
+                      checked={allowsExtraBed}
+                      onChange={(e) => setAllowsExtraBed(e.target.checked)}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      disabled={loadingAction}
+                    />
+                    <label htmlFor="allowsExtraBed" className="ml-2 text-sm text-gray-700">
+                      Allow extra beds
+                    </label>
+                  </div>
+                </div>
+
+                {allowsExtraBed && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="maxCapacityWithExtraBed" className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Capacity with Extra Bed *
+                      </label>
+                      <input
+                        type="number"
+                        id="maxCapacityWithExtraBed"
+                        value={maxCapacityWithExtraBed}
+                        onChange={(e) => setMaxCapacityWithExtraBed(e.target.value)}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        placeholder={`${Number(capacity) + 1}`}
+                        min={Number(capacity) + 1}
+                        disabled={loadingAction}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Must be greater than standard capacity ({capacity || '0'})
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="extraBedPrice" className="block text-sm font-medium text-gray-700 mb-1">
+                        Extra Bed Price per Night (€) *
+                      </label>
+                      <input
+                        type="number"
+                        id="extraBedPrice"
+                        value={extraBedPrice}
+                        onChange={(e) => setExtraBedPrice(e.target.value)}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        placeholder="25.00"
+                        min="0"
+                        step="0.01"
+                        disabled={loadingAction}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Price charged per extra bed per night
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-xs text-blue-800">
+                    <strong>Extra beds allow guests to exceed standard room capacity.</strong> When enabled, guests can book this room for more people than the standard capacity by paying additional charges for extra beds.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="md:col-span-2">

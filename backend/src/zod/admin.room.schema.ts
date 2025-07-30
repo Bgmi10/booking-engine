@@ -8,6 +8,9 @@ export const createRoomSchema = z.object({
   capacity: z.number().min(1),
   ratePolicyId: z.array(z.string().min(1)),
   amenities: z.array(z.string().min(1)).optional(),
+  extraBedPrice: z.number().optional().nullable(),
+  allowsExtraBed: z.boolean().optional(),
+  maxCapacityWithExtraBed: z.number().optional().nullable()
 });
 
 export const updateRoomSchema = z.object({
@@ -18,6 +21,9 @@ export const updateRoomSchema = z.object({
   capacity: z.number().min(1).optional(),
   ratePolicyId: z.array(z.string().min(1)).optional(),
   amenities: z.array(z.string().min(1)).optional(),
+  extraBedPrice: z.number().optional().nullable(),
+  maxCapacityWithExtraBed: z.number().optional().nullable(),
+  allowsExtraBed: z.boolean().optional()
 });
 
 export const updateRoomImageSchema = z.object({

@@ -33,20 +33,23 @@ model User {
 }            
 
 model Room {
-  id            String           @id @default(uuid())
-  name          String        
-  description   String        
-  amenities     String[]        
-  price         Float        
-  capacity      Int        
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  images        RoomImage[]
-  bookings      Booking[]
-  holds         TemporaryHold[]
-  RoomRate      RoomRate[]
-  notifications Notification[]
-  channelRooms  ChannelRoom[]
+  id                String           @id @default(uuid())
+  name              String        
+  description       String        
+  amenities         String[]        
+  price             Float        
+  capacity          Int        
+  maxCapacityWithExtraBed Int?      // Maximum capacity with extra bed
+  extraBedPrice     Float?           // Price for extra bed per night
+  allowsExtraBed    Boolean          @default(false) // Whether room allows extra bed
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  images            RoomImage[]
+  bookings          Booking[]
+  holds             TemporaryHold[]
+  RoomRate          RoomRate[]
+  notifications     Notification[]
+  channelRooms      ChannelRoom[]
 }
 
 model RoomImage {
@@ -144,6 +147,11 @@ model Booking {
   groupId             String?
   carNumberPlate      String?          
   notifications       Notification[]
+  
+  // Extra bed fields
+  hasExtraBed         Boolean               @default(false) // Whether booking includes extra bed
+  extraBedCount       Int                   @default(0) // Number of extra beds
+  extraBedPrice       Float?                // Price charged for extra bed per night
   
   // New fields for payment structure tracking
   paymentStructure    PaymentStructure      @default(FULL_PAYMENT)
@@ -310,18 +318,11 @@ model RoomRate {
   roomId          String
   ratePolicy      RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
   ratePolicyId    String
-  
-  // Room-specific pricing overrides
   customRate      Float?     // Optional custom rate for this room-policy combination
   isActive        Boolean    @default(true) // Can deactivate specific room-policy combinations
-  
-  // Seasonal or time-based pricing (future enhancement)
   validFrom       DateTime?  // When this rate becomes valid
   validTo         DateTime?  // When this rate expires
-  
-  // Priority for rate selection (higher number = higher priority)
   priority        Int        @default(0)
-  
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   @@index([roomId, ratePolicyId])
