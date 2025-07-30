@@ -24,6 +24,12 @@ model User {
   assignedAutomatedTasks    AutomatedTaskRule[]
   kitchenOrders             Order[]                     @relation("KitchenOrders")
   waiterOrders              Order[]                     @relation("WaiterOrders")
+  
+  // Cash Management Relations
+  waiterCashSummaries       WaiterCashSummary[]         @relation("WaiterCashSummaries")
+  managerVerifications      WaiterCashSummary[]         @relation("ManagerVerifications")
+  cashDepositsProcessed     CashDeposit[]               @relation("CashProcessingManager")
+  managerDailySummaries     ManagerDailySummary[]       @relation("ManagerDailySummaries")
 }            
 
 model Room {
@@ -1353,4 +1359,116 @@ model BankDetails {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Cash Management System Models
+model CashCalculationSettings {
+  id                    String   @id @default(uuid())
+  calculationPeriodDays Int      @default(1) // Number of days for calculation period
+  resetTime             String   @default("00:00") // Time when calculation period resets (Italian time)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model RevenueSettings {
+  id                    String   @id @default(uuid())
+  autoReminders         Boolean  @default(true)
+  reminderTime          String   @default("18:00")
+  discrepancyThreshold  Float    @default(10.00)
+  autoFinalizeDays      Int      @default(3)
+  managerEmail          Boolean  @default(true)
+  discrepancyAlerts     Boolean  @default(true)
+  dailySummaryEmail     Boolean  @default(true)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model WaiterCashSummary {
+  id                    String                 @id @default(uuid())
+  waiterId              String
+  waiter                User                   @relation("WaiterCashSummaries", fields: [waiterId], references: [id], onDelete: Cascade)
+  summaryDate           DateTime               // Date for this summary
+  periodStart           DateTime               // Start of calculation period
+  periodEnd             DateTime               // End of calculation period
+  totalCashOrders       Float                  @default(0) // Total cash orders for the period
+  outstandingBalance    Float                  @default(0) // Outstanding cash balance
+  status                WaiterCashStatus       @default(PENDING)
+  submittedAt           DateTime?              // When waiter submitted the summary
+  verifiedAt            DateTime?              // When manager verified
+  verifiedBy            String?                // Manager who verified
+  verifyingManager      User?                  @relation("ManagerVerifications", fields: [verifiedBy], references: [id])
+  deposits              CashDeposit[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  
+  @@index([waiterId, summaryDate])
+  @@index([status, summaryDate])
+  @@unique([waiterId, summaryDate])
+}
+
+model CashDeposit {
+  id                    String                 @id @default(uuid())
+  cashSummaryId         String
+  cashSummary           WaiterCashSummary      @relation(fields: [cashSummaryId], references: [id], onDelete: Cascade)
+  amount                Float                  // Amount deposited by waiter
+  actualReceived        Float?                 // Actual amount received by manager
+  difference            Float?                 // Difference between deposited and received
+  status                CashDepositStatus      @default(SUBMITTED)
+  depositedAt           DateTime               @default(now()) // When waiter deposited
+  processedAt           DateTime?              // When manager processed
+  processedBy           String?                // Manager who processed
+  processingManager     User?                  @relation("CashProcessingManager", fields: [processedBy], references: [id])
+  notes                 String?                // Manager notes about the deposit
+  acceptedLoss          Boolean                @default(false) // Whether manager accepted the loss
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  
+  @@index([status, depositedAt])
+  @@index([cashSummaryId])
+}
+
+model ManagerDailySummary {
+  id                    String                 @id @default(uuid())
+  managerId             String
+  manager               User                   @relation("ManagerDailySummaries", fields: [managerId], references: [id], onDelete: Cascade)
+  summaryDate           DateTime               // Date for this summary
+  totalCashDeposited    Float                  @default(0) // Total cash deposited by all waiters
+  totalCashReceived     Float                  @default(0) // Total cash actually received
+  totalDiscrepancy      Float                  @default(0) // Total discrepancy amount
+  totalAcceptedLoss     Float                  @default(0) // Total accepted losses
+  waiterCount           Int                    @default(0) // Number of waiters processed
+  status                ManagerSummaryStatus   @default(PENDING)
+  finalizedAt           DateTime?              // When manager finalized the daily summary
+  notes                 String?                // Manager notes for the day
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  
+  @@index([managerId, summaryDate])
+  @@index([status, summaryDate])
+  @@unique([managerId, summaryDate])
+}
+
+// Enums for Cash Management
+enum WaiterCashStatus {
+  PENDING       // Waiting for waiter to submit
+  SUBMITTED     // Waiter submitted for verification
+  VERIFIED      // Manager verified and accepted
+  DISCREPANCY   // There's a discrepancy in the cash
+  COMPLETED     // All settled
+}
+
+enum CashDepositStatus {
+  SUBMITTED     // Waiter submitted deposit
+  ACCEPTED      // Manager accepted exact amount
+  DISCREPANCY   // Manager found discrepancy
+  LOSS_ACCEPTED // Manager accepted the loss
+  COMPLETED     // Deposit fully processed
+}
+
+enum ManagerSummaryStatus {
+  PENDING       // Daily summary in progress
+  FINALIZED     // Manager finalized the daily summary
+  REPORTED      // Summary reported to admin
 }

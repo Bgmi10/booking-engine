@@ -41,7 +41,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     if (selectedRoom && bookingData.adults > selectedRoom.capacity) {
       const newAdults = selectedRoom.capacity;
       setAdults(newAdults);
-      setBookingData((prev: any) => ({ ...prev, adults: newAdults }));
+      setBookingData((prev: any) => ({ ...prev, adults: newAdults || 2 }));
     }
   }, [selectedRoom, bookingData.adults]);
 

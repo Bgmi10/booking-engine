@@ -5,6 +5,7 @@ import { dahuaService } from "../services/dahuaService";
 import { notificationService } from "../services/notificationService";
 import { PaymentReminderService } from "../services/paymentReminderService";
 import { WeddingReminderService } from "../services/weddingReminderService";
+import { cashReminderService } from "../services/cashReminderService";
 
 const now = new Date();
 
@@ -127,3 +128,29 @@ export const scheduleWeddingReminders = () => {
     }
   });
 };
+
+// Schedule cash collection reminders - runs daily at configured time
+export const scheduleCashReminders = () => {
+  cron.schedule("0 18 * * *", async () => { // Default to 6 PM
+    try {
+      console.log("[Cron] Starting cash reminder checks...");
+      const remindersSent = await cashReminderService.checkAndSendCashReminders();
+      console.log(`[Cron] Sent ${remindersSent} cash reminders`);
+    } catch (error) {
+      console.error("[Cron] Error in cash reminder job:", error);
+    }
+  });
+};
+
+// // Schedule daily cash summary emails - runs daily at 8 AM// Schedule cash summary emails every 2 seconds
+// export const scheduleDailyCashSummaryEmails = () => {
+//   setInterval(async () => {
+//     try {
+//       console.log("[Interval] Starting cash summary emails...");
+//       const emailsSent = await cashReminderService.sendDailySummaryEmail();
+//       console.log(`[Interval] Sent ${emailsSent} cash summary emails`);
+//     } catch (error) {
+//       console.error("[Interval] Error sending cash summary emails:", error);
+//     }
+//   }, 2000); // 2000 milliseconds = 2 seconds
+// };

@@ -20,6 +20,7 @@ import { initAdminWebSocket } from "../../utils/websocket";
 import { useAuth } from "../../context/AuthContext";
 import CreateOrderModal from "./orders/CreateOrderModal";
 import WeddingProposals from "./wedding-proposals/WeddingProposals";
+import RevenueManagement from "./revenue/RevenueManagement";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -86,6 +87,8 @@ export default function AdminDashboard() {
         return <WaiterOrders />;
       case "wedding-proposals":
         return <WeddingProposals />;
+      case "revenue-management":
+        return <RevenueManagement />;
       default:
         if (user?.role === 'WAITER') return <WaiterOrders />;
         if (user?.role === 'KITCHEN') return <KitchenOrders />;

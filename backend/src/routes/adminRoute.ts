@@ -33,6 +33,7 @@ import { createProposalSchema, updateProposalSchema, updateProposalStatusSchema 
 import { updateExternalVendor, deleteExternalVendor } from '../controllers/externalVendorController';
 import { updateServiceRequest, addServiceRequestMessage, getServiceRequestsForProposal, getServiceRequestById } from '../controllers/serviceRequestController';
 import channelManagerController from '../controllers/channelManagerController';
+import revenueRouter from './revenueRoutes';
 
 const adminRouter = Router();
 
@@ -364,5 +365,7 @@ adminRouter.get('/channel-managers/:channelId/stats', authMiddleware, channelMan
 adminRouter.get('/rooms/temp-holds/all', authMiddleware, getAllTempHolds);
 adminRouter.delete('/rooms/temp-holds/:id', authMiddleware, deleteTempHold);
 
+// Revenue Management Routes
+adminRouter.use('/revenue', revenueRouter);
 
 export default adminRouter;

@@ -121,38 +121,38 @@ export default function Details({
 
     // Calculate final price with voucher discount
     const calculateFinalPrice = () => {
-        const subtotal = calculateSubtotal();
-        const tax = calculateDisplayTax(subtotal);
-        const total = subtotal; // Total already includes tax
+        const totalWithTax = calculateSubtotal(); // This is the tax-inclusive amount
+        const subtotalExcludingTax = totalWithTax / (1 + taxPercentage); // Remove tax to get base amount
+        const tax = totalWithTax - subtotalExcludingTax; // Calculate actual tax amount
 
         if (voucherData) {
             if (voucherData.type === "DISCOUNT" && voucherData.discountPercent) {
-                const discount = (total * voucherData.discountPercent) / 100;
+                const discount = (totalWithTax * voucherData.discountPercent) / 100;
                 return {
-                    subtotal,
+                    subtotal: subtotalExcludingTax,
                     tax,
-                    originalTotal: total,
+                    originalTotal: totalWithTax,
                     discount,
-                    finalTotal: total - discount
+                    finalTotal: totalWithTax - discount
                 };
             } else if (voucherData.type === "FIXED" && voucherData.fixedAmount) {
-                const discount = Math.min(voucherData.fixedAmount, total);
+                const discount = Math.min(voucherData.fixedAmount, totalWithTax);
                 return {
-                    subtotal,
+                    subtotal: subtotalExcludingTax,
                     tax,
-                    originalTotal: total,
+                    originalTotal: totalWithTax,
                     discount,
-                    finalTotal: total - discount
+                    finalTotal: totalWithTax - discount
                 };
             }
         }
 
         return {
-            subtotal,
+            subtotal: subtotalExcludingTax,
             tax,
-            originalTotal: total,
+            originalTotal: totalWithTax,
             discount: 0,
-            finalTotal: total
+            finalTotal: totalWithTax
         };
     };
 

@@ -1,10 +1,12 @@
 [] => fonts need to be change in user site based 
 
-[] => remove the guest count in user facing app and allow admin to add a extra bed charges in admin dashboard.
+[C] => remove the guest count in user facing app
 
-[] => improve the error message in details page in user facing app. "{room name} is currently being booked by another customer. Please wait for 30 min and try again"
+[] => allow admin to add an extra bed charges in admin dashboard.
 
-[] => change the sub total reduce the tax amount in details page
+[C] => improve the error message in details page in user facing app. "{room name} is currently being booked by another customer. Please wait for 30 min and try again"
+
+[C] => change the sub total reduce the tax amount in details page
 
 [C] => In admin room reservation we need to allow admin to delete the temp holds room
 

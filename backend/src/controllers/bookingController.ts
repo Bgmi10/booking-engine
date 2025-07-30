@@ -58,7 +58,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       });
 
       if (overlappingHold) {
-       responseHandler(res, 400, `${booking.roomDetails.name} is temporarily held`);
+       responseHandler(res, 400, `${booking.roomDetails.name} is currently being booked by another customer. Please wait for 30 min and try again`);
        return;
       }
     }

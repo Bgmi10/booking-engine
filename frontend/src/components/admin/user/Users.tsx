@@ -10,11 +10,16 @@ import {
   RiCloseLine,
   RiCheckLine,
   RiErrorWarningLine,
-  RiUserReceived2Line
+  RiUserReceived2Line,
+  RiMoneyEuroCircleLine
 } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
 import type { User } from "../../../types/types";
 import { CreateUserModal } from "./CreateUserModal";
+import ManagerCashVerification from "./ManagerCashVerification";
+import DailyCashSummary from "./DailyCashSummary";
+import ManagerPaymentSummary from "./ManagerPaymentSummary";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function Users() {
   // States
@@ -33,6 +38,10 @@ export default function Users() {
   const [itemsPerPage] = useState(10);
   const [loadingAction, setLoadingAction] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showCashVerification, setShowCashVerification] = useState(false);
+  const [showDailySummary, setShowDailySummary] = useState(false);
+  const [showPaymentSummary, setShowPaymentSummary] = useState(false);
+  const { user: currentUser } = useAuth();
  
   // Fetch users
   const fetchUsers = async () => {
@@ -532,6 +541,32 @@ export default function Users() {
               Refresh
             </button>
             
+            {(currentUser?.role === 'MANAGER' || currentUser?.role === 'ADMIN') && (
+              <>
+                <button
+                  onClick={() => setShowCashVerification(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+                >
+                  <RiMoneyEuroCircleLine className="mr-2 h-5 w-5" />
+                  Cash Verification
+                </button>
+                <button
+                  onClick={() => setShowDailySummary(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
+                >
+                  <RiMoneyEuroCircleLine className="mr-2 h-5 w-5" />
+                  Daily Summary
+                </button>
+                <button
+                  onClick={() => setShowPaymentSummary(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none"
+                >
+                  <RiUserReceived2Line className="mr-2 h-5 w-5" />
+                  Payment Summary
+                </button>
+              </>
+            )}
+            
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
@@ -796,7 +831,10 @@ export default function Users() {
       {isViewModalOpen && <ViewUserModal />}
       {isRoleModalOpen && <UpdateRoleModal />}
       {isDeleteModalOpen && <DeleteUserModal />}
-      {isCreateModalOpen && <CreateUserModal  loadingAction={loadingAction} success={success} error={error} setLoadingAction={setLoadingAction} setError={setError} setSuccess={setSuccess} setUsers={setUsers} setIsCreateModalOpen={setIsCreateModalOpen} users={users} />}    
+      {isCreateModalOpen && <CreateUserModal  loadingAction={loadingAction} success={success} error={error} setLoadingAction={setLoadingAction} setError={setError} setSuccess={setSuccess} setUsers={setUsers} setIsCreateModalOpen={setIsCreateModalOpen} users={users} />}
+      {showCashVerification && <ManagerCashVerification onClose={() => setShowCashVerification(false)} />}
+      {showDailySummary && <DailyCashSummary onClose={() => setShowDailySummary(false)} />}
+      {showPaymentSummary && <ManagerPaymentSummary onClose={() => setShowPaymentSummary(false)} />}
     </div>
   );
 }

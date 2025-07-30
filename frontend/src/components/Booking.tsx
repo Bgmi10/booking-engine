@@ -59,7 +59,7 @@ export default function Booking() {
   const [bookingData, setBookingData] = useState({
     checkIn: null,
     checkOut: null,
-    adults: 0,
+    adults: 2,
     promotionCode: "",
     selectedEnhancements: [],
     selectedRoom: null,
@@ -284,25 +284,6 @@ export default function Booking() {
                       />
                     </div>
 
-                    <div className="mb-6">
-                      <label className="block text-gray-700 font-medium mb-2">Adults</label>
-                      <div className="flex items-center border rounded-md border-gray-300">
-                        <button
-                          className="px-4 py-2 text-gray-500 cursor-pointer"
-                          onClick={() => handleAdultsChange(-1)}
-                        >
-                          −
-                        </button>
-                        <span className="flex-1 text-center">{bookingData.adults}</span>
-                        <button
-                          className="px-4 py-2 text-gray-500 cursor-pointer"
-                          onClick={() => handleAdultsChange(1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="mb-6 ">
                       <label className="block text-gray-700 font-medium mb-2">Promotion code <span className="text-gray-500 text-sm">(optional)</span></label>
                       <input
@@ -314,9 +295,9 @@ export default function Booking() {
                     </div>
 
                     <button
-                      className={`w-full bg-gray-800 text-white py-3 rounded-md hover:bg-gray-700 transition-colors  ${!bookingData.checkIn && !bookingData.checkOut || bookingData.adults === 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} `}
+                      className={`w-full bg-gray-800 text-white py-3 rounded-md hover:bg-gray-700 transition-colors  ${!bookingData.checkIn && !bookingData.checkOut ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} `}
                       onClick={handleNext}
-                      disabled={!bookingData.checkIn || !bookingData.checkOut || bookingData.adults === 0}
+                      disabled={!bookingData.checkIn || !bookingData.checkOut}
                     >
                       Next
                     </button>

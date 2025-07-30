@@ -15,7 +15,7 @@ interface PaymentConfig {
   manual_transaction_id: boolean;
 }
 
-type SettingsTab = 'general' | 'templates' | 'payment' | 'notifications' | 'restriction' | 'bank-details';
+type SettingsTab = 'general' | 'templates' | 'payment' | 'cash-management' | 'notifications' | 'restriction' | 'bank-details';
 
 export default function Settings() {
   // General settings state
@@ -41,6 +41,13 @@ export default function Settings() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateVariables, setTemplateVariables] = useState<Record<string, Record<string, Variable>>>({});
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+
+  // Cash management state
+  const [cashSettings, setCashSettings] = useState({
+    calculationPeriodDays: '1',
+    resetTime: '00:00'
+  });
+  const [isSavingCashSettings, setIsSavingCashSettings] = useState(false);
 
   const fetchSettings = async () => {
     setIsLoading(true);
@@ -350,6 +357,7 @@ export default function Settings() {
     { id: 'general', name: 'General' },
     { id: 'templates', name: 'Email Templates' },
     { id: 'payment', name: 'Payment' },
+    { id: 'cash-management', name: 'Cash Management' },
     { id: 'notifications', name: 'Notifications' },
     { id: "restriction", name: "Calendar Restriction"},
     { id: "bank-details", name: "Bank Details"}
@@ -675,6 +683,125 @@ export default function Settings() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Settings</h3>
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <p className="text-gray-500 text-sm">Payment settings will be available soon.</p>
+              </div>
+            </div>
+          </div>
+        );
+      case 'cash-management':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Cash Management Settings</h3>
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-base font-medium text-gray-900 mb-4">Calculation Period Configuration</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Configure how often waiters need to reconcile their cash balances with management.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label htmlFor="calculationPeriodDays" className="block text-sm font-medium text-gray-700 mb-2">
+                          Calculation Period (Days)
+                        </label>
+                        <select
+                          id="calculationPeriodDays"
+                          value={cashSettings.calculationPeriodDays}
+                          onChange={(e) => setCashSettings(prev => ({...prev, calculationPeriodDays: e.target.value}))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isSavingCashSettings}
+                        >
+                          <option value="1">Daily (1 Day)</option>
+                          <option value="7">Weekly (7 Days)</option>
+                          <option value="14">Bi-weekly (14 Days)</option>
+                          <option value="30">Monthly (30 Days)</option>
+                        </select>
+                        <p className="mt-2 text-sm text-gray-500">
+                          How often waiters must submit their cash summary for verification
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label htmlFor="resetTime" className="block text-sm font-medium text-gray-700 mb-2">
+                          Reset Time (Italian Time)
+                        </label>
+                        <input
+                          id="resetTime"
+                          type="time"
+                          value={cashSettings.resetTime}
+                          onChange={(e) => setCashSettings(prev => ({...prev, resetTime: e.target.value}))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isSavingCashSettings}
+                        />
+                        <p className="mt-2 text-sm text-gray-500">
+                          Time when the calculation period resets (24-hour format, Italian timezone)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-200 pt-6">
+                    <h4 className="text-base font-medium text-gray-900 mb-4">Cash Flow Process</h4>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h5 className="font-medium text-blue-900 mb-2">How it works:</h5>
+                      <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                        <li>Waiters collect cash from customers for orders marked as "Pay at Waiter"</li>
+                        <li>System calculates total outstanding cash balance for each waiter</li>
+                        <li>At the end of each period, waiters see their cash summary and deposit to manager</li>
+                        <li>Manager verifies the actual amount received and confirms or logs discrepancies</li>
+                        <li>Manager can accept losses or track missing amounts for reporting</li>
+                        <li>Daily summaries are generated for management review</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsSavingCashSettings(true);
+                        setError(null);
+                        setSuccess(null);
+                        
+                        try {
+                          const response = await fetch(`${baseUrl}/admin/cash-settings`, {
+                            method: 'PUT',
+                            credentials: "include",
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              calculationPeriodDays: parseInt(cashSettings.calculationPeriodDays),
+                              resetTime: cashSettings.resetTime,
+                            }),
+                          });
+                          
+                          if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Failed to save cash settings');
+                          }
+                          
+                          setSuccess('Cash management settings updated successfully!');
+                        } catch (err: any) {
+                          console.error("Failed to save cash settings:", err);
+                          setError(err.message || 'Failed to save cash management settings.');
+                        } finally {
+                          setIsSavingCashSettings(false);
+                        }
+                      }}
+                      disabled={isSavingCashSettings}
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      {isSavingCashSettings ? (
+                        <BiLoader className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RiSave3Line className="w-4 h-4 mr-2" />
+                      )}
+                      {isSavingCashSettings ? 'Saving...' : 'Save Cash Settings'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

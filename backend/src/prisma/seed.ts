@@ -3454,6 +3454,240 @@ async function main() {
         originalAmount: { type: 'number', description: 'Original booking amount', example: 500.00 },
         paymentMethod: { type: 'string', description: 'Original payment method', example: 'STRIPE' }
       }
+    },
+    {
+      id: 'CASH_REMINDER',
+      name: 'Cash Collection Reminder',
+      type: 'CASH_REMINDER',
+      subject: 'Cash Collection Reminder - {{date}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cash Collection Reminder</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: ${emailStyles.backgroundColor}; font-family: ${emailStyles.fontFamily};">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.accentColor} 0%, #047857 100%); padding: 40px 24px; text-align: center;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 60px; margin-bottom: 20px;" />
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Cash Collection Reminder</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 12px 0 0 0; font-size: 16px;">{{date}}</p>
+          </div>
+
+          <div style="padding: 40px 24px;">
+            <!-- Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h2 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">Hello {{managerName}},</h2>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.6;">
+                This is a reminder that the following waiters have pending cash summaries that require collection and verification.
+              </p>
+            </div>
+
+            <!-- Pending Cash List -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid ${emailStyles.warningColor};">
+              <h3 style="color: #92400e; margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                💰 Pending Cash Collections
+              </h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                {{#each waiters}}
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                  <div>
+                    <strong style="color: ${emailStyles.primaryColor};">{{name}}</strong>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Outstanding Balance</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <span style="color: ${emailStyles.warningColor}; font-weight: 600; font-size: 18px;">€{{amount}}</span>
+                  </div>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+
+            <!-- Action Required -->
+            <div style="background: #e0f2fe; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 16px 0; font-size: 18px;">📋 Action Required</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 15px; line-height: 1.7;">
+                Please follow up with these waiters to collect their cash deposits and verify the amounts in the Revenue Management system.
+              </p>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        managerName: { type: 'string', description: 'Manager name', example: 'John Manager' },
+        date: { type: 'string', description: 'Current date', example: 'January 15, 2024' },
+        waiters: { type: 'array', description: 'Array of waiters with pending cash', example: [{ name: 'John Waiter', amount: '45.50' }] }
+      }
+    },
+    {
+      id: 'CASH_DISCREPANCY_ALERT',
+      name: 'Cash Discrepancy Alert',
+      type: 'CASH_DISCREPANCY_ALERT',
+      subject: 'Cash Discrepancy Alert - {{date}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cash Discrepancy Alert</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: ${emailStyles.backgroundColor}; font-family: ${emailStyles.fontFamily};">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.errorColor} 0%, #dc2626 100%); padding: 40px 24px; text-align: center;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 60px; margin-bottom: 20px;" />
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Cash Discrepancy Alert</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 12px 0 0 0; font-size: 16px;">{{date}}</p>
+          </div>
+
+          <div style="padding: 40px 24px;">
+            <!-- Alert Message -->
+            <div style="background: #fef2f2; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid ${emailStyles.errorColor};">
+              <h3 style="color: #dc2626; margin: 0 0 16px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                ⚠️ Urgent: Cash Discrepancies Detected
+              </h3>
+              <p style="color: #b91c1c; margin: 0; font-size: 16px; line-height: 1.6;">
+                Significant discrepancies have been found in today's cash deposits. Immediate attention required.
+              </p>
+            </div>
+
+            <!-- Discrepancy List -->
+            <div style="background: white; border: 2px solid #fecaca; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 18px;">Discrepancies Found:</h3>
+              {{#each discrepancies}}
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; margin-bottom: 12px; background: #fef2f2; border-radius: 8px;">
+                <div>
+                  <strong style="color: ${emailStyles.primaryColor};">{{waiterName}}</strong>
+                  <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Cash Deposit Discrepancy</div>
+                </div>
+                <div style="text-align: right;">
+                  <span style="color: ${emailStyles.errorColor}; font-weight: 600; font-size: 18px;">€{{amount}}</span>
+                  <div style="color: ${emailStyles.secondaryColor}; font-size: 12px;">difference</div>
+                </div>
+              </div>
+              {{/each}}
+            </div>
+
+            <!-- Next Steps -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 16px 0; font-size: 18px;">📋 Next Steps</h3>
+              <ul style="color: ${emailStyles.secondaryColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                <li>Review each discrepancy in the Revenue Management system</li>
+                <li>Investigate with the respective waiters</li>
+                <li>Document findings and take appropriate action</li>
+                <li>Update the cash deposit status once resolved</li>
+              </ul>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        managerName: { type: 'string', description: 'Manager name', example: 'John Manager' },
+        date: { type: 'string', description: 'Current date', example: 'January 15, 2024' },
+        discrepancies: { type: 'array', description: 'Array of discrepancies', example: [{ waiterName: 'John Waiter', amount: '25.50' }] }
+      }
+    },
+    {
+      id: 'DAILY_CASH_SUMMARY',
+      name: 'Daily Cash Summary Report',
+      type: 'DAILY_CASH_SUMMARY',
+      subject: 'Daily Cash Summary - {{date}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Daily Cash Summary</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: ${emailStyles.backgroundColor}; font-family: ${emailStyles.fontFamily};">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.accentColor} 0%, #047857 100%); padding: 40px 24px; text-align: center;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 60px; margin-bottom: 20px;" />
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Daily Cash Summary</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 12px 0 0 0; font-size: 16px;">{{date}}</p>
+          </div>
+
+          <div style="padding: 40px 24px;">
+            <!-- Summary Stats -->
+            <div style="margin-bottom: 32px;">
+              <h2 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 22px;">Hello {{managerName}},</h2>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">
+                Here's your daily cash summary for {{date}}:
+              </p>
+            </div>
+
+            <!-- Cash Summary Cards -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px;">
+              <div style="background: #f0fdf4; padding: 20px; border-radius: 12px; text-align: center;">
+                <h4 style="color: ${emailStyles.successColor}; margin: 0 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Total Deposited</h4>
+                <p style="color: ${emailStyles.primaryColor}; margin: 0; font-size: 24px; font-weight: 700;">€{{totalDeposited}}</p>
+              </div>
+              <div style="background: #eff6ff; padding: 20px; border-radius: 12px; text-align: center;">
+                <h4 style="color: ${emailStyles.infoColor}; margin: 0 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Total Received</h4>
+                <p style="color: ${emailStyles.primaryColor}; margin: 0; font-size: 24px; font-weight: 700;">€{{totalReceived}}</p>
+              </div>
+            </div>
+
+            <!-- Discrepancy Info -->
+            {{#if hasDiscrepancy}}
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid ${emailStyles.warningColor};">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px;">⚠️ Discrepancy: €{{discrepancy}}</h3>
+              <p style="color: #78350f; margin: 0; font-size: 15px; line-height: 1.6;">
+                There is a discrepancy of €{{discrepancy}} between deposited and received amounts. Please review and investigate.
+              </p>
+            </div>
+            {{else}}
+            <div style="background: #f0fdf4; border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid ${emailStyles.successColor};">
+              <h3 style="color: #15803d; margin: 0 0 16px 0; font-size: 18px;">✅ Perfect Match</h3>
+              <p style="color: #166534; margin: 0; font-size: 15px; line-height: 1.6;">
+                All cash deposits match received amounts. No discrepancies found.
+              </p>
+            </div>
+            {{/if}}
+
+            <!-- Waiter Summary -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 18px;">Waiter Summary ({{waiterCount}} waiters)</h3>
+              <div style="max-height: 200px; overflow-y: auto;">
+                {{#each waiters}}
+                <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                  <strong style="color: ${emailStyles.primaryColor};">{{name}}</strong>
+                  <span style="color: ${emailStyles.secondaryColor};">€{{amount}}</span>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        managerName: { type: 'string', description: 'Manager name', example: 'John Manager' },
+        date: { type: 'string', description: 'Summary date', example: 'January 15, 2024' },
+        totalDeposited: { type: 'number', description: 'Total cash deposited', example: 245.50 },
+        totalReceived: { type: 'number', description: 'Total cash received', example: 245.50 },
+        discrepancy: { type: 'number', description: 'Discrepancy amount', example: 0 },
+        hasDiscrepancy: { type: 'boolean', description: 'Whether there is a discrepancy', example: false },
+        waiterCount: { type: 'number', description: 'Number of waiters', example: 3 },
+        waiters: { type: 'array', description: 'Array of waiters and amounts', example: [{ name: 'John Waiter', amount: '45.50' }] }
+      }
     }
   ]
 
