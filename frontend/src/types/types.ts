@@ -686,13 +686,6 @@ export interface RoomForPricing {
   allowsExtraBed: boolean;
 }
 
-export interface RoomDatePrice {
-  id: string;
-  roomId: string;
-  date: string;
-  price: number;
-  isActive: boolean;
-}
 
 // Room with rate policies for main room management
 export interface RoomRate {
@@ -703,7 +696,3 @@ export interface RoomWithRates extends RoomForPricing {
   RoomRate: RoomRate[];
 }
 
-export interface UnifiedPricingTableProps {
-  rooms: RoomWithRates[];
-  setRooms: React.Dispatch<React.SetStateAction<RoomWithRates[]>>;
-}

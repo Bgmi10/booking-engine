@@ -16,7 +16,6 @@ import { CreateRoomModal } from "./CreateRoomModal"
 import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
 import type { RatePolicy, RoomWithRates } from "../../../types/types"
-import UnifiedPricingTable from './UnifiedPricingTable'
 import { toast } from "react-hot-toast"
 
 export default function Rooms() {
@@ -750,16 +749,6 @@ export default function Rooms() {
             >
               Details
             </button>
-            <button
-              onClick={() => setActiveTab('pricing')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'pricing'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Pricing
-            </button>
           </nav>
         </div>
       </div>
@@ -1110,14 +1099,6 @@ export default function Rooms() {
         </>
       )}
 
-      {activeTab === 'pricing' && (
-        <UnifiedPricingTable 
-          rooms={rooms} 
-          setRooms={setRooms}
-        />
-      )}
-
-      {/* Modals */}
       {isViewModalOpen && <ViewRoomModal />}
       {isDeleteModalOpen && <DeleteRoomModal />}
       {isUpdateModalOpen && (

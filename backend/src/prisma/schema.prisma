@@ -48,7 +48,6 @@ model Room {
   bookings          Booking[]
   holds             TemporaryHold[]
   RoomRate          RoomRate[]
-  roomDatePrices    RoomDatePrice[]
   rateDatePrices    RateDatePrice[]
   notifications     Notification[]
   channelRooms      ChannelRoom[]
@@ -306,6 +305,7 @@ model RatePolicy {
   changeAllowedDays     Int?     // Days before arrival when changes are allowed
   rebookValidityDays    Int?     // Days to rebook if cancelled
   adjustmentPercentage  Int?
+  basePrice             Float?               // Base price for this rate policy
   paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
   cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
   
@@ -321,7 +321,7 @@ model RoomRate {
   roomId          String
   ratePolicy      RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
   ratePolicyId    String
-  customRate      Float?     // Optional custom rate for this room-policy combination
+  percentageAdjustment Float? // Percentage adjustment from rate policy base price (can be positive or negative)
   isActive        Boolean    @default(true) // Can deactivate specific room-policy combinations
   validFrom       DateTime?  // When this rate becomes valid
   validTo         DateTime?  // When this rate expires
@@ -333,20 +333,6 @@ model RoomRate {
   @@unique([roomId, ratePolicyId])
 }
 
-model RoomDatePrice {
-  id              String     @id @default(uuid())
-  room            Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId          String
-  date            DateTime   // Specific date for pricing
-  price           Float      // Price for this specific date
-  isActive        Boolean    @default(true) // Can be disabled without deletion
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  
-  @@unique([roomId, date])
-  @@index([roomId, date, isActive])
-  @@index([date, isActive])
-}
 
 model RateDatePrice {
   id              String        @id @default(uuid())
@@ -1182,8 +1168,6 @@ model ChannelRoom {
 
 model ChannelRate {
   id                String          @id @default(uuid())
-  
-  // References
   channelRoom       ChannelRoom     @relation(fields: [channelRoomId], references: [id], onDelete: Cascade)
   channelRoomId     String
   channel           ChannelManager  @relation(fields: [channelId], references: [id], onDelete: Cascade)

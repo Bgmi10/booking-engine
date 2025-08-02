@@ -55,12 +55,6 @@ export const getAllRooms = async (req: Request, res: Response) => {
           ratePolicy: true
         }
       },
-      roomDatePrices: {
-        where: {
-          isActive: true,
-        },
-        orderBy: { date: 'asc' }
-      }
     };
 
     // Only include booking data if specifically requested (to reduce DB reads)
@@ -275,7 +269,7 @@ const checkBookingRestrictions = async (
 
 export const getCalendarAvailability = async (req: Request, res: Response) => {
   const { startDate, endDate } = req.query;
-  console.log(startDate, endDate)
+  
   if (startDate === "null" || endDate === "null" || !startDate || !endDate) {
     responseHandler(res, 400, "Missing startDate or endDate");
     return;
@@ -297,20 +291,26 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       include: {
         images: true,
         RoomRate: {
+          where: {
+            isActive: true
+          },
           include: {
-            ratePolicy: true
+            ratePolicy: {
+              include: {
+                rateDatePrices: {
+                  where: {
+                    date: {
+                      gte: effectiveStart,
+                      lte: end,
+                    },
+                    isActive: true,
+                  },
+                  orderBy: { date: 'asc' }
+                }
+              }
+            }
           }
         },
-        roomDatePrices: {
-          where: {
-            date: {
-              gte: effectiveStart,
-              lte: end,
-            },
-            isActive: true,
-          },
-          orderBy: { date: 'asc' }
-        }
       }
     });
 
@@ -639,16 +639,6 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
     const allRooms = await prisma.room.findMany({
       include: { 
         images: true,
-        roomDatePrices: {
-          where: {
-            date: {
-              gte: effectiveStart,
-              lte: end,
-            },
-            isActive: true,
-          },
-          orderBy: { date: 'asc' }
-        }
       }
     });
 
@@ -677,23 +667,13 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
       });
 
       if (!bookings && !hold) {
-        // Build dynamic prices map
-        const dynamicPrices: { [date: string]: number } = {};
-        if (room.roomDatePrices && room.roomDatePrices.length > 0) {
-          room.roomDatePrices.forEach((datePrice: any) => {
-            const dateKey = format(datePrice.date, 'yyyy-MM-dd');
-            dynamicPrices[dateKey] = datePrice.price;
-          });
-        }
-
         availableRooms.push({
           id: room.id,
           name: room.name,
           description: room.description,
           price: room.price,
           capacity: room.capacity,
-          images: room.images.map((i: any) => i.url),
-          dynamicPrices: Object.keys(dynamicPrices).length > 0 ? dynamicPrices : undefined
+          images: room.images.map((i: any) => i.url)
         });
       }
     }

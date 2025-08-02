@@ -199,3 +199,142 @@ export const deleteRateDatePrice = async (req: Request, res: Response) => {
     return handleError(res, error as Error);
   }
 };
+
+// Update rate policy base price
+export const updateRatePolicyBasePrice = async (req: Request, res: Response) => {
+  try {
+    const { ratePolicyId } = req.params;
+    const { basePrice } = req.body;
+
+    if (basePrice === undefined || basePrice === null) {
+      return responseHandler(res, 400, 'Base price is required');
+    }
+
+    const updatedRatePolicy = await prisma.ratePolicy.update({
+      where: { id: ratePolicyId },
+      data: { basePrice: parseFloat(basePrice) },
+    });
+
+    return responseHandler(res, 200, 'Rate policy base price updated successfully', updatedRatePolicy);
+  } catch (error) {
+    return handleError(res, error as Error);
+  }
+};
+
+// Update room percentage adjustments for a rate policy
+export const updateRoomPercentages = async (req: Request, res: Response) => {
+  try {
+    const { ratePolicyId } = req.params;
+    const { roomPercentages } = req.body;
+
+    if (!Array.isArray(roomPercentages)) {
+      return responseHandler(res, 400, 'roomPercentages must be an array');
+    }
+
+    // Verify rate policy exists
+    const ratePolicy = await prisma.ratePolicy.findUnique({
+      where: { id: ratePolicyId }
+    });
+
+    if (!ratePolicy) {
+      return responseHandler(res, 404, 'Rate policy not found');
+    }
+
+    const results = [];
+
+    for (const { roomId, percentageAdjustment } of roomPercentages) {
+      if (!roomId) continue;
+
+      // Check if RoomRate exists for this room and rate policy
+      const existingRoomRate = await prisma.roomRate.findUnique({
+        where: {
+          roomId_ratePolicyId: {
+            roomId,
+            ratePolicyId
+          }
+        }
+      });
+
+      if (existingRoomRate) {
+        // Update existing RoomRate
+        const updated = await prisma.roomRate.update({
+          where: {
+            roomId_ratePolicyId: {
+              roomId,
+              ratePolicyId
+            }
+          },
+          data: {
+            percentageAdjustment: parseFloat(percentageAdjustment) || 0
+          },
+          include: {
+            room: {
+              select: {
+                id: true,
+                name: true,
+                price: true
+              }
+            }
+          }
+        });
+        results.push(updated);
+      } else {
+        // Create new RoomRate
+        const created = await prisma.roomRate.create({
+          data: {
+            roomId,
+            ratePolicyId,
+            percentageAdjustment: parseFloat(percentageAdjustment) || 0,
+            isActive: true
+          },
+          include: {
+            room: {
+              select: {
+                id: true,
+                name: true,
+                price: true
+              }
+            }
+          }
+        });
+        results.push(created);
+      }
+    }
+
+    return responseHandler(res, 200, `Updated ${results.length} room percentages`, results);
+  } catch (error) {
+    return handleError(res, error as Error);
+  }
+};
+
+// Get rate policy with base price and room percentages
+export const getRatePolicyPricing = async (req: Request, res: Response) => {
+  try {
+    const { ratePolicyId } = req.params;
+
+    const ratePolicy = await prisma.ratePolicy.findUnique({
+      where: { id: ratePolicyId },
+      include: {
+        roomRates: {
+          include: {
+            room: {
+              select: {
+                id: true,
+                name: true,
+                price: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!ratePolicy) {
+      return responseHandler(res, 404, 'Rate policy not found');
+    }
+
+    return responseHandler(res, 200, 'Rate policy pricing fetched successfully', ratePolicy);
+  } catch (error) {
+    return handleError(res, error as Error);
+  }
+};

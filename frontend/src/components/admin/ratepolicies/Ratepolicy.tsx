@@ -9,6 +9,7 @@ import ViewRatePolicyModal from "./ViewRatePolicyModal";
 import RatePricingCalendar from "./RatePricingCalendar";
 import { toast } from "react-hot-toast";
 import type { RatePolicy } from "../../../types/types";
+
 export default function Ratepolicy() {
   const [ratePolicies, setRatePolicies] = useState<RatePolicy[]>([]);
   const [loading, setLoading] = useState(true);

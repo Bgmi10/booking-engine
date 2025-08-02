@@ -3,7 +3,10 @@ import {
   getRateDatePrices,
   upsertRateDatePrices,
   deleteRateDatePrice,
-  getRatePricesForDateRange
+  getRatePricesForDateRange,
+  updateRatePolicyBasePrice,
+  updateRoomPercentages,
+  getRatePolicyPricing
 } from '../controllers/rateDatePriceController';
 import authMiddleware from '../middlewares/authMiddlware';
 
@@ -23,5 +26,14 @@ router.post('/:ratePolicyId/date-prices', upsertRateDatePrices);
 
 // Delete a specific rate date price
 router.delete('/:ratePolicyId/date-prices/:id', deleteRateDatePrice);
+
+// Get rate policy pricing info (base price and room percentages)
+router.get('/:ratePolicyId', getRatePolicyPricing);
+
+// Update rate policy base price
+router.put('/:ratePolicyId/base-price', updateRatePolicyBasePrice);
+
+// Update room percentage adjustments
+router.put('/:ratePolicyId/room-percentages', updateRoomPercentages);
 
 export default router;

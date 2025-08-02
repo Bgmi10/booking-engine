@@ -31,26 +31,38 @@ export default function Categories({
   const { availableRooms, unavailableRooms } = useMemo(() => {
     const transformRoomData = (rooms: any[]) => {
       return rooms.map(room => {
-        const dynamicPrices: { [date: string]: number } = {};
-        if (room.roomDatePrices && Array.isArray(room.roomDatePrices) && room.roomDatePrices.length > 0) {
-          room.roomDatePrices.forEach((datePrice: any) => {
-            try {
-              const isoDate = new Date(datePrice.date);
-              const utcYear = isoDate.getUTCFullYear();
-              const utcMonth = String(isoDate.getUTCMonth() + 1).padStart(2, '0');
-              const utcDay = String(isoDate.getUTCDate()).padStart(2, '0');
-              const dateKey = `${utcYear}-${utcMonth}-${utcDay}`;
+        // Calculate minimum price across all rate policies for this room using new rate-based pricing
+        let minPrice = room.price; // Start with base room price as fallback
+        
+        if (room.RoomRate && Array.isArray(room.RoomRate)) {
+          room.RoomRate.forEach((roomRate: any) => {
+            if (roomRate.isActive && roomRate.ratePolicy && roomRate.ratePolicy.isActive) {
+              const ratePolicy = roomRate.ratePolicy;
               
-              dynamicPrices[dateKey] = datePrice.price;
-            } catch (error) {
-              console.error('Error formatting date:', datePrice.date, error);
+              // Calculate price using rate policy base price + room percentage adjustment
+              const basePrice = ratePolicy.basePrice;
+              if (basePrice && basePrice > 0) {
+                const percentageAdjustment = roomRate.percentageAdjustment || 0;
+                const adjustment = (basePrice * percentageAdjustment) / 100;
+                const calculatedPrice = Math.round((basePrice + adjustment) * 100) / 100;
+                minPrice = Math.min(minPrice, calculatedPrice);
+              }
+              
+              // Also check for any rate-specific price overrides
+              if (ratePolicy.rateDatePrices && Array.isArray(ratePolicy.rateDatePrices) && ratePolicy.rateDatePrices.length > 0) {
+                ratePolicy.rateDatePrices.forEach((rateDatePrice: any) => {
+                  if (rateDatePrice.roomId === room.id && rateDatePrice.isActive) {
+                    minPrice = Math.min(minPrice, rateDatePrice.price);
+                  }
+                });
+              }
             }
           });
         }
       
         return {
           ...room,
-          dynamicPrices: Object.keys(dynamicPrices).length > 0 ? dynamicPrices : undefined
+          displayPrice: minPrice // Use minimum price across all rate policies
         };
       });
     };
@@ -339,8 +351,8 @@ export default function Categories({
       
       for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
         const dateKey = format(date, 'yyyy-MM-dd');
-        const dynamicPrice = selectedRoom.dynamicPrices?.[dateKey];
-        dynamicTotalPrice += dynamicPrice || selectedRoom.price;
+        // Use the calculated display price (minimum across all rate policies)
+        dynamicTotalPrice += selectedRoom.displayPrice;
       }
     }
     
@@ -360,10 +372,10 @@ export default function Categories({
     return `€${amount.toFixed(2)}`
   }
 
-  // Calculate dynamic price for a room based on selected dates
+  // Calculate total price for a room based on selected dates using minimum rate policy price
   const calculateDynamicPrice = (room: any) => {
     if (!bookingData.checkIn || !bookingData.checkOut) {
-      return room.price; // Return base price if no dates selected
+      return room.displayPrice || room.price; // Return minimum price if no dates selected
     }
 
     let totalPrice = 0;
@@ -372,48 +384,20 @@ export default function Categories({
     
     // Generate all dates in the stay period (excluding checkout date)
     for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
-      const dateKey = format(date, 'yyyy-MM-dd');
-      
-      // Check if there's a dynamic price for this date
-      const dynamicPrice = room.dynamicPrices?.[dateKey];
-      const priceForDate = dynamicPrice || room.price;
-      
-      // Use dynamic price if available, otherwise use base price
-      totalPrice += priceForDate;
+      // Use the calculated display price (minimum across all rate policies)
+      totalPrice += room.displayPrice || room.price;
     }
     return totalPrice;
   }
 
-  // Calculate average nightly rate for display
+  // Calculate average nightly rate for display using minimum rate policy price
   const getAverageNightlyRate = (room: any) => {
     if (!bookingData.checkIn || !bookingData.checkOut || nightsSelected === 0) {
-      return room.price; // Return base price if no dates selected
+      return room.displayPrice || room.price; // Return minimum price if no dates selected
     }
     
-    const checkIn = new Date(bookingData.checkIn);
-    const checkOut = new Date(bookingData.checkOut);
-    const prices: number[] = [];
-    
-    // Collect all prices for the selected dates
-    for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
-      const dateKey = format(date, 'yyyy-MM-dd');
-      const dynamicPrice = room.dynamicPrices?.[dateKey];
-      const priceForDate = dynamicPrice || room.price;
-      prices.push(priceForDate);
-    }
-    
-    // Check if all prices are the same
-    const firstPrice = prices[0];
-    const allSamePrice = prices.every(price => price === firstPrice);
-    
-    if (allSamePrice) {
-      return firstPrice;
-    } else {
-      // If prices differ, return the average
-      const totalPrice = prices.reduce((sum, price) => sum + price, 0);
-      const average = totalPrice / prices.length;
-      return average;
-    }
+    // Since we're now using the minimum rate policy price, all nights use the same rate
+    return room.displayPrice || room.price;
   }
 
   // Check if room can be booked (considering all validations)
@@ -681,19 +665,11 @@ export default function Categories({
               {/* Price and booking */}
               <div className="flex items-center justify-between mt-4">
                 <div className="flex flex-col">
-                  {nightsSelected > 0 ? (
-                    <>
-                      <span className="text-gray-500 text-sm">Total for {nightsSelected} nights</span>
-                      <span className="text-2xl font-semibold text-gray-800">{formatCurrency(calculateDynamicPrice(room))}</span>
-                      <span className="text-gray-500 text-xs">Avg. {formatCurrency(getAverageNightlyRate(room))} per night</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-gray-500 text-sm">From</span>
-                      <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
-                      <span className="text-gray-500 text-xs">per room/nightly</span>
-                    </>
-                  )}
+                  <>
+                    <span className="text-gray-500 text-sm">From</span>
+                    <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.displayPrice || room.price)}</span>
+                    <span className="text-gray-500 text-xs">per night</span>
+                  </>
                 </div>
 
                 <button
@@ -771,19 +747,11 @@ export default function Categories({
                   {/* Price */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex flex-col">
-                      {nightsSelected > 0 ? (
-                        <>
-                          <span className="text-gray-500 text-sm">Total for {nightsSelected} nights</span>
-                          <span className="text-2xl font-semibold text-gray-800">{formatCurrency(calculateDynamicPrice(room))}</span>
-                          <span className="text-gray-500 text-xs">Avg. {formatCurrency(getAverageNightlyRate(room))} per night</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-gray-500 text-sm">From</span>
-                          <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
-                          <span className="text-gray-500 text-xs">per room/nightly</span>
-                        </>
-                      )}
+                      <>
+                        <span className="text-gray-500 text-sm">From</span>
+                        <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.displayPrice || room.price)}</span>
+                        <span className="text-gray-500 text-xs">per night</span>
+                      </>
                     </div>
 
                     <button className="bg-gray-200 text-gray-500 py-2 px-6 rounded-lg cursor-not-allowed" disabled>
