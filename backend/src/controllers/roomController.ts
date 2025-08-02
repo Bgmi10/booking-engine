@@ -46,15 +46,51 @@ interface RateAvailability {
 
 export const getAllRooms = async (req: Request, res: Response) => {
   try {
-    const rooms = await prisma.room.findMany({ 
-      include: {
-        images: true,   
-        RoomRate: {
-          select: {
-            ratePolicy: true
-          }
+    const { includeBookings } = req.query;
+    
+    const includeOptions: any = {
+      images: true,   
+      RoomRate: {
+        select: {
+          ratePolicy: true
         }
+      },
+      roomDatePrices: {
+        where: {
+          isActive: true,
+        },
+        orderBy: { date: 'asc' }
       }
+    };
+
+    // Only include booking data if specifically requested (to reduce DB reads)
+    if (includeBookings === 'true') {
+      includeOptions.bookings = {
+        where: {
+          status: { in: ['CONFIRMED', 'PENDING'] }
+        },
+        select: {
+          id: true,
+          checkIn: true,
+          checkOut: true,
+          status: true
+        }
+      };
+      includeOptions.holds = {
+        where: {
+          expiresAt: { gt: new Date() }
+        },
+        select: {
+          id: true,
+          checkIn: true,
+          checkOut: true,
+          expiresAt: true
+        }
+      };
+    }
+
+    const rooms = await prisma.room.findMany({ 
+      include: includeOptions
     });
     
     responseHandler(res, 200, "Rooms fetched successfully", rooms);
@@ -62,7 +98,7 @@ export const getAllRooms = async (req: Request, res: Response) => {
     handleError(res, e as Error);
   }
 };
-
+  
 export const getRoomById = async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -239,7 +275,7 @@ const checkBookingRestrictions = async (
 
 export const getCalendarAvailability = async (req: Request, res: Response) => {
   const { startDate, endDate } = req.query;
-
+  console.log(startDate, endDate)
   if (startDate === "null" || endDate === "null" || !startDate || !endDate) {
     responseHandler(res, 400, "Missing startDate or endDate");
     return;
@@ -256,7 +292,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       format(d, "yyyy-MM-dd")
     );
 
-    // 1. Fetch all rooms with rates
+    // 1. Fetch all rooms with rates and dynamic pricing
     const rooms = await prisma.room.findMany({
       include: {
         images: true,
@@ -264,6 +300,16 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
           include: {
             ratePolicy: true
           }
+        },
+        roomDatePrices: {
+          where: {
+            date: {
+              gte: effectiveStart,
+              lte: end,
+            },
+            isActive: true,
+          },
+          orderBy: { date: 'asc' }
         }
       }
     });
@@ -414,6 +460,8 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       const isFullyUnavailable = allDates.every((date) => 
         bookedSet.has(date) || roomRestrictedDates.includes(date)
       );
+
+
 
       const enhancedRoom: EnhancedRoomAvailability = {
         ...room,
@@ -589,7 +637,19 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
 
     // Get all rooms
     const allRooms = await prisma.room.findMany({
-      include: { images: true }
+      include: { 
+        images: true,
+        roomDatePrices: {
+          where: {
+            date: {
+              gte: effectiveStart,
+              lte: end,
+            },
+            isActive: true,
+          },
+          orderBy: { date: 'asc' }
+        }
+      }
     });
 
     const availableRooms = [];
@@ -617,13 +677,23 @@ export const getAvailableRooms = async (req: Request, res: Response) => {
       });
 
       if (!bookings && !hold) {
+        // Build dynamic prices map
+        const dynamicPrices: { [date: string]: number } = {};
+        if (room.roomDatePrices && room.roomDatePrices.length > 0) {
+          room.roomDatePrices.forEach((datePrice: any) => {
+            const dateKey = format(datePrice.date, 'yyyy-MM-dd');
+            dynamicPrices[dateKey] = datePrice.price;
+          });
+        }
+
         availableRooms.push({
           id: room.id,
           name: room.name,
           description: room.description,
           price: room.price,
           capacity: room.capacity,
-          images: room.images.map((i: any) => i.url)
+          images: room.images.map((i: any) => i.url),
+          dynamicPrices: Object.keys(dynamicPrices).length > 0 ? dynamicPrices : undefined
         });
       }
     }

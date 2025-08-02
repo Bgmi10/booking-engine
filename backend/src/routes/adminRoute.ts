@@ -34,6 +34,8 @@ import { updateExternalVendor, deleteExternalVendor } from '../controllers/exter
 import { updateServiceRequest, addServiceRequestMessage, getServiceRequestsForProposal, getServiceRequestById } from '../controllers/serviceRequestController';
 import channelManagerController from '../controllers/channelManagerController';
 import revenueRouter from './revenueRoutes';
+import roomDatePriceRoutes from './roomDatePriceRoutes';
+import rateDatePriceRoutes from './rateDatePriceRoutes';
 
 const adminRouter = Router();
 
@@ -111,6 +113,12 @@ adminRouter.post("/rooms/bulk-policies-update", authMiddleware, bulkPoliciesUpda
 adminRouter.put("/base-price", authMiddleware, updateBasePrice);
 
 adminRouter.put("/rooms/:id/price", authMiddleware, updateRoomPrice);
+
+// Room date-based pricing routes
+adminRouter.use("/rooms", roomDatePriceRoutes);
+
+// Rate date-based pricing routes
+adminRouter.use("/rate-policies", rateDatePriceRoutes);
 
 adminRouter.get("/settings", authMiddleware, getGeneralSettings);
 

@@ -1,8 +1,6 @@
 import { useState } from "react"
 import { 
-  RiCloseLine, 
-  RiCheckLine, 
-  RiErrorWarningLine,
+  RiCloseLine
 } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
@@ -10,6 +8,7 @@ import { PlusCircleIcon } from "lucide-react"
 import type { RatePolicy } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
 import { useImageUpload } from "../../../hooks/useImageUpload"
+import { toast } from "react-hot-toast"
 
 interface Room {
   id: string
@@ -26,16 +25,12 @@ interface CreateRoomModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
   setRooms: (rooms: Room[]) => void
   rooms: Room[]
-  setError: (error: string) => void
-  setSuccess: (success: string) => void
 }
 
 export function CreateRoomModal({
   setIsCreateModalOpen,
   setRooms,
-  rooms,
-  setError,
-  setSuccess
+  rooms
 }: CreateRoomModalProps) {
   const [name, setName] = useState("")
   const [price, setPrice] = useState("")
@@ -45,8 +40,6 @@ export function CreateRoomModal({
   const [maxCapacityWithExtraBed, setMaxCapacityWithExtraBed] = useState("")
   const [extraBedPrice, setExtraBedPrice] = useState("")
   const [loadingAction, setLoadingAction] = useState(false)
-  const [localError, setLocalError] = useState("")
-  const [localSuccess, setLocalSuccess] = useState("")
   const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
   const [ratepolicies, setRatepolicies] = useState<{
     fullPaymentPolicy: RatePolicy[];
@@ -83,40 +76,38 @@ export function CreateRoomModal({
   const createRoom = async () => {
     // Validation
     if (!name.trim()) {
-      setLocalError("Room name is required")
+      toast.error("Room name is required")
       return
     }
     
     if (!price || isNaN(Number(price)) || Number(price) <= 0) {
-      setLocalError("Please enter a valid price")
+      toast.error("Please enter a valid price")
       return
     }
     
     if (!capacity || isNaN(Number(capacity)) || Number(capacity) <= 0) {
-      setLocalError("Please enter a valid capacity")
+      toast.error("Please enter a valid capacity")
       return
     }
 
     if (amenities.length === 0) {
-      setLocalError("Please add at least one amenity")
+      toast.error("Please add at least one amenity")
       return
     }
 
     // Extra bed validation
     if (allowsExtraBed) {
       if (!maxCapacityWithExtraBed || isNaN(Number(maxCapacityWithExtraBed)) || Number(maxCapacityWithExtraBed) <= Number(capacity)) {
-        setLocalError("Max capacity with extra bed must be greater than standard capacity")
+        toast.error("Max capacity with extra bed must be greater than standard capacity")
         return
       }
       if (!extraBedPrice || isNaN(Number(extraBedPrice)) || Number(extraBedPrice) < 0) {
-        setLocalError("Please enter a valid extra bed price")
+        toast.error("Please enter a valid extra bed price")
         return
       }
     }
     
     setLoadingAction(true)
-    setLocalError("")
-    setLocalSuccess("")
     
     try {
       const res = await fetch(`${baseUrl}/admin/rooms`, {
@@ -145,8 +136,7 @@ export function CreateRoomModal({
         throw new Error(data.message || "Failed to create room")
       }
       
-      setLocalSuccess("Room created successfully!")
-      setSuccess("Room created successfully!")
+      toast.success("Room created successfully!")
       
       // Update rooms state
       setRooms([...rooms, data.data])
@@ -154,8 +144,7 @@ export function CreateRoomModal({
       
     } catch (error: any) {
       console.error(error)
-      setLocalError(error.message || "Failed to create room. Please try again.")
-      setError(error.message || "Failed to create room. Please try again.")
+      toast.error(error.message || "Failed to create room. Please try again.")
     } finally {
       setLoadingAction(false)
     }
@@ -198,31 +187,6 @@ export function CreateRoomModal({
         </div>
         
         <div className="flex-grow p-6 overflow-y-auto">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

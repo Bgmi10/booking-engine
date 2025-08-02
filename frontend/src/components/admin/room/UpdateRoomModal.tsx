@@ -1,59 +1,27 @@
 import { useState, useEffect } from "react"
 import { 
-  RiCloseLine, 
-  RiCheckLine, 
-  RiErrorWarningLine
+  RiCloseLine
 } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
 import { PlusCircleIcon } from "lucide-react"
-import type { RatePolicy } from "../../../types/types"
+import type { RatePolicy, Room, RoomRate } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
+import { toast } from "react-hot-toast"
 
-interface RoomImage {
-  id: string
-  url: string
-  roomId: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface RoomRate {
-  ratePolicy: RatePolicy
-}
-
-interface Room {
-  id: string
-  name: string
-  price: number
-  description: string
-  amenities: string[]
-  capacity: number
-  maxCapacityWithExtraBed?: number
-  extraBedPrice?: number
-  allowsExtraBed: boolean
-  images: RoomImage[]
-  createdAt: string
-  RoomRate: RoomRate[]
-  updatedAt: string
-}
 
 interface UpdateRoomModalProps {
   room: Room | null
   setIsUpdateModalOpen: (isOpen: boolean) => void
   setRooms: React.Dispatch<React.SetStateAction<Room[]>>
   rooms: Room[]
-  setError: (error: string) => void
-  setSuccess: (success: string) => void
 }
 
 export function UpdateRoomModal({
   room,
   setIsUpdateModalOpen,
   setRooms,
-  rooms,
-  setError,
-  setSuccess
+  rooms
 }: UpdateRoomModalProps) {
   const [name, setName] = useState("")
   const [price, setPrice] = useState("")
@@ -63,8 +31,6 @@ export function UpdateRoomModal({
   const [maxCapacityWithExtraBed, setMaxCapacityWithExtraBed] = useState("")
   const [extraBedPrice, setExtraBedPrice] = useState("")
   const [loadingAction, setLoadingAction] = useState(false)
-  const [localError, setLocalError] = useState("")
-  const [localSuccess, setLocalSuccess] = useState("")
   const [isAttachPoliciesModalOpen, setIsAttachPoliciesModalOpen] = useState(false)
   const [amenities, setAmenities] = useState<string[]>([])
   const [newAmenity, setNewAmenity] = useState("")
@@ -89,8 +55,8 @@ export function UpdateRoomModal({
       setExtraBedPrice(room.extraBedPrice?.toString() || "")
       setAmenities(room.amenities)
       // Initialize selected policies from room's existing policies
-      if (room.RoomRate) {
-        setSelectedPolicies(room.RoomRate.map(rate => rate.ratePolicy))
+      if (room.roomRates) {
+        setSelectedPolicies(room.roomRates.map((rate: RoomRate) => rate.ratePolicy))
       }
     }
   }, [room])
@@ -116,35 +82,33 @@ export function UpdateRoomModal({
     
     // Validation
     if (!name.trim()) {
-      setLocalError("Room name is required")
+      toast.error("Room name is required")
       return
     }
     
     if (!price || isNaN(Number(price)) || Number(price) <= 0) {
-      setLocalError("Please enter a valid price")
+      toast.error("Please enter a valid price")
       return
     }
     
     if (!capacity || isNaN(Number(capacity)) || Number(capacity) <= 0) {
-      setLocalError("Please enter a valid capacity")
+      toast.error("Please enter a valid capacity")
       return
     }
 
     // Extra bed validation
     if (allowsExtraBed) {
       if (!maxCapacityWithExtraBed || isNaN(Number(maxCapacityWithExtraBed)) || Number(maxCapacityWithExtraBed) <= Number(capacity)) {
-        setLocalError("Max capacity with extra bed must be greater than standard capacity")
+        toast.error("Max capacity with extra bed must be greater than standard capacity")
         return
       }
       if (!extraBedPrice || isNaN(Number(extraBedPrice)) || Number(extraBedPrice) < 0) {
-        setLocalError("Please enter a valid extra bed price")
+        toast.error("Please enter a valid extra bed price")
         return
       }
     }
     
     setLoadingAction(true)
-    setLocalError("")
-    setLocalSuccess("")
     
     try {
       const res = await fetch(`${baseUrl}/admin/rooms/${room.id}`, {
@@ -172,8 +136,7 @@ export function UpdateRoomModal({
         throw new Error(data.message || "Failed to update room")
       }
       
-      setLocalSuccess("Room updated successfully!")
-      setSuccess("Room updated successfully!")
+      toast.success("Room updated successfully!")
       
       setRooms(
         rooms.map((r) => (r.id === room.id ? { ...r, ...data.data } : r))
@@ -182,8 +145,7 @@ export function UpdateRoomModal({
       setIsUpdateModalOpen(false);
     } catch (error: any) {
       console.error(error)
-      setLocalError(error.message || "Failed to update room. Please try again.")
-      setError(error.message || "Failed to update room. Please try again.")
+      toast.error(error.message || "Failed to update room. Please try again.")
     } finally {
       setLoadingAction(false)
     }
@@ -211,32 +173,6 @@ export function UpdateRoomModal({
         </div>
         
         <div className="p-6">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">

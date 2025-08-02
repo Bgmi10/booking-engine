@@ -28,6 +28,8 @@ interface AvailabilityData {
   restrictedDates: string[],
   dateRestrictions: {}
   dailyBookingStartTime: string
+  availableRooms?: any[]
+  unavailableRooms?: any[]
 }
 
 // Cache interface for storing fetched data
@@ -50,7 +52,9 @@ export default function Booking() {
     taxPercentage: 0.1,
     restrictedDates: [],
     dateRestrictions: {},
-    dailyBookingStartTime: '00:00'
+    dailyBookingStartTime: '00:00',
+    availableRooms: [],
+    unavailableRooms: []
   });
 
   const [calenderOpen, setCalenderOpen] = useState(false)
@@ -97,14 +101,6 @@ export default function Booking() {
       checkOut: dates.endDate,
     }))
   }, [])
-
-  // Handle adults count change
-  const handleAdultsChange = (increment: number) => {
-    setBookingData((prev) => ({
-      ...prev,
-      adults: Math.max(0, prev.adults + increment),
-    }))
-  }
 
   // Handle promotion code change
   const handlePromotionCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +161,9 @@ export default function Booking() {
               taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
               dateRestrictions: result.data.dateRestrictions,
               restrictedDates: result.data.restrictedDates,
-              dailyBookingStartTime: result.data.generalSettings?.[0]?.dailyBookingStartTime || '00:00'
+              dailyBookingStartTime: result.data.generalSettings?.[0]?.dailyBookingStartTime || '00:00',
+              availableRooms: result.data.availableRooms || [],
+              unavailableRooms: result.data.unavailableRooms || []
             },
             timestamp: Date.now()
             }
@@ -183,7 +181,9 @@ export default function Booking() {
         taxPercentage: 0.1,
         restrictedDates: [],
         dateRestrictions: {},
-        dailyBookingStartTime: '00:00'
+        dailyBookingStartTime: '00:00',
+        availableRooms: [],
+        unavailableRooms: []
       }
       setAvailabilityData(emptyData)
     } finally {

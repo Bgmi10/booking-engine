@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import { 
-  RiSettings4Line,
+import {
   RiSaveLine,
   RiTimeLine,
-  RiCalendarLine,
   RiNotificationLine,
   RiSecurePaymentLine
 } from "react-icons/ri";
@@ -134,7 +132,7 @@ export default function RevenueSettings() {
   };
 
   const handleSettingChange = (section: string, key: string, value: any) => {
-    setSettings(prev => ({
+    setSettings((prev: any) => ({
       ...prev,
       [section]: typeof prev[section] === 'object' 
         ? { ...prev[section], [key]: value }

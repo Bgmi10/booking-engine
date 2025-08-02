@@ -1,6 +1,6 @@
 import type React from "react"
 import { format, differenceInDays, isWithinInterval, parseISO, isBefore, addDays } from "date-fns"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   ChevronDown,
   ChevronUp,
@@ -27,9 +27,39 @@ export default function Categories({
   setBookingData: (bookingData: any) => void
   minStayDays: number
 }) {
-  // Extract data from props
-  const availableRooms = availabilityData.availableRooms || []
-  const unavailableRooms = availabilityData.unavailableRooms || []
+  // Use useMemo to prevent infinite re-renders and ensure data transformation happens only when needed
+  const { availableRooms, unavailableRooms } = useMemo(() => {
+    const transformRoomData = (rooms: any[]) => {
+      return rooms.map(room => {
+        const dynamicPrices: { [date: string]: number } = {};
+        if (room.roomDatePrices && Array.isArray(room.roomDatePrices) && room.roomDatePrices.length > 0) {
+          room.roomDatePrices.forEach((datePrice: any) => {
+            try {
+              const isoDate = new Date(datePrice.date);
+              const utcYear = isoDate.getUTCFullYear();
+              const utcMonth = String(isoDate.getUTCMonth() + 1).padStart(2, '0');
+              const utcDay = String(isoDate.getUTCDate()).padStart(2, '0');
+              const dateKey = `${utcYear}-${utcMonth}-${utcDay}`;
+              
+              dynamicPrices[dateKey] = datePrice.price;
+            } catch (error) {
+              console.error('Error formatting date:', datePrice.date, error);
+            }
+          });
+        }
+      
+        return {
+          ...room,
+          dynamicPrices: Object.keys(dynamicPrices).length > 0 ? dynamicPrices : undefined
+        };
+      });
+    };
+
+    return {
+      availableRooms: transformRoomData(availabilityData.availableRooms || []),
+      unavailableRooms: transformRoomData(availabilityData.unavailableRooms || [])
+    };
+  }, [availabilityData.availableRooms, availabilityData.unavailableRooms]);
   const nightsSelected = bookingData.checkIn && bookingData.checkOut 
     ? differenceInDays(new Date(bookingData.checkOut), new Date(bookingData.checkIn))
     : 0
@@ -228,7 +258,15 @@ export default function Categories({
       return
     }
 
-    setBookingData({...bookingData, selectedRoom: roomId})
+    // Find the selected room to get its pricing info
+    const selectedRoom = availableRooms.find((room: any) => room.id === roomId);
+    const dynamicTotalPrice = selectedRoom ? calculateDynamicPrice(selectedRoom) : 0;
+    
+    setBookingData({
+      ...bookingData, 
+      selectedRoom: roomId,
+      totalPrice: dynamicTotalPrice
+    })
     setCurrentStep(3)
   }
 
@@ -289,7 +327,30 @@ export default function Categories({
     if (!validateDates()) {
       return
     }
-    setBookingData({...bookingData, selectedRoom: roomId, checkIn: adjustedDates.checkIn, checkOut: adjustedDates.checkOut})
+    
+    // Find the selected room and calculate price for adjusted dates
+    const selectedRoom = availableRooms.find((room: any) => room.id === roomId);
+    
+    // Calculate price with adjusted dates
+    let dynamicTotalPrice = 0;
+    if (selectedRoom && adjustedDates.checkIn && adjustedDates.checkOut) {
+      const checkIn = adjustedDates.checkIn;
+      const checkOut = adjustedDates.checkOut;
+      
+      for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
+        const dateKey = format(date, 'yyyy-MM-dd');
+        const dynamicPrice = selectedRoom.dynamicPrices?.[dateKey];
+        dynamicTotalPrice += dynamicPrice || selectedRoom.price;
+      }
+    }
+    
+    setBookingData({
+      ...bookingData, 
+      selectedRoom: roomId, 
+      checkIn: adjustedDates.checkIn, 
+      checkOut: adjustedDates.checkOut,
+      totalPrice: dynamicTotalPrice
+    })
     setShowDateAdjuster(null)
     setCurrentStep(3)
   }
@@ -297,6 +358,62 @@ export default function Categories({
   // Format currency
   const formatCurrency = (amount: number) => {
     return `€${amount.toFixed(2)}`
+  }
+
+  // Calculate dynamic price for a room based on selected dates
+  const calculateDynamicPrice = (room: any) => {
+    if (!bookingData.checkIn || !bookingData.checkOut) {
+      return room.price; // Return base price if no dates selected
+    }
+
+    let totalPrice = 0;
+    const checkIn = new Date(bookingData.checkIn);
+    const checkOut = new Date(bookingData.checkOut);
+    
+    // Generate all dates in the stay period (excluding checkout date)
+    for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
+      const dateKey = format(date, 'yyyy-MM-dd');
+      
+      // Check if there's a dynamic price for this date
+      const dynamicPrice = room.dynamicPrices?.[dateKey];
+      const priceForDate = dynamicPrice || room.price;
+      
+      // Use dynamic price if available, otherwise use base price
+      totalPrice += priceForDate;
+    }
+    return totalPrice;
+  }
+
+  // Calculate average nightly rate for display
+  const getAverageNightlyRate = (room: any) => {
+    if (!bookingData.checkIn || !bookingData.checkOut || nightsSelected === 0) {
+      return room.price; // Return base price if no dates selected
+    }
+    
+    const checkIn = new Date(bookingData.checkIn);
+    const checkOut = new Date(bookingData.checkOut);
+    const prices: number[] = [];
+    
+    // Collect all prices for the selected dates
+    for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const dynamicPrice = room.dynamicPrices?.[dateKey];
+      const priceForDate = dynamicPrice || room.price;
+      prices.push(priceForDate);
+    }
+    
+    // Check if all prices are the same
+    const firstPrice = prices[0];
+    const allSamePrice = prices.every(price => price === firstPrice);
+    
+    if (allSamePrice) {
+      return firstPrice;
+    } else {
+      // If prices differ, return the average
+      const totalPrice = prices.reduce((sum, price) => sum + price, 0);
+      const average = totalPrice / prices.length;
+      return average;
+    }
   }
 
   // Check if room can be booked (considering all validations)
@@ -564,9 +681,19 @@ export default function Categories({
               {/* Price and booking */}
               <div className="flex items-center justify-between mt-4">
                 <div className="flex flex-col">
-                  <span className="text-gray-500 text-sm">From</span>
-                  <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
-                  <span className="text-gray-500 text-xs">per room/nightly</span>
+                  {nightsSelected > 0 ? (
+                    <>
+                      <span className="text-gray-500 text-sm">Total for {nightsSelected} nights</span>
+                      <span className="text-2xl font-semibold text-gray-800">{formatCurrency(calculateDynamicPrice(room))}</span>
+                      <span className="text-gray-500 text-xs">Avg. {formatCurrency(getAverageNightlyRate(room))} per night</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-gray-500 text-sm">From</span>
+                      <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
+                      <span className="text-gray-500 text-xs">per room/nightly</span>
+                    </>
+                  )}
                 </div>
 
                 <button
@@ -644,9 +771,19 @@ export default function Categories({
                   {/* Price */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex flex-col">
-                      <span className="text-gray-500 text-sm">From</span>
-                      <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
-                      <span className="text-gray-500 text-xs">per room/nightly</span>
+                      {nightsSelected > 0 ? (
+                        <>
+                          <span className="text-gray-500 text-sm">Total for {nightsSelected} nights</span>
+                          <span className="text-2xl font-semibold text-gray-800">{formatCurrency(calculateDynamicPrice(room))}</span>
+                          <span className="text-gray-500 text-xs">Avg. {formatCurrency(getAverageNightlyRate(room))} per night</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-gray-500 text-sm">From</span>
+                          <span className="text-2xl font-semibold text-gray-800">{formatCurrency(room.price)}</span>
+                          <span className="text-gray-500 text-xs">per room/nightly</span>
+                        </>
+                      )}
                     </div>
 
                     <button className="bg-gray-200 text-gray-500 py-2 px-6 rounded-lg cursor-not-allowed" disabled>

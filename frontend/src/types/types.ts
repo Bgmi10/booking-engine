@@ -71,6 +71,11 @@ export interface Room {
   capacity: number
   images: Image
   minimumStay: number;
+  maxCapacityWithExtraBed?: number;
+  extraBedPrice?: number;
+  allowsExtraBed: boolean;
+  amenities: string[];
+  roomRates: RoomRate[];
 }
 
 export interface PaymentIntent {
@@ -655,5 +660,50 @@ export interface BankDetails {
 }
 
 // Payment Method type
-
 export type PaymentMethod = 'STRIPE' | 'CASH' | 'BANK_TRANSFER';
+
+// Room-related interfaces for pricing management
+export interface RoomImage {
+  id: string;
+  url: string;
+  roomId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoomForPricing {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  capacity: number;
+  amenities: string[];
+  images: RoomImage[];
+  createdAt: string;
+  updatedAt: string;
+  maxCapacityWithExtraBed?: number;
+  extraBedPrice?: number;
+  allowsExtraBed: boolean;
+}
+
+export interface RoomDatePrice {
+  id: string;
+  roomId: string;
+  date: string;
+  price: number;
+  isActive: boolean;
+}
+
+// Room with rate policies for main room management
+export interface RoomRate {
+  ratePolicy: RatePolicy;
+}
+
+export interface RoomWithRates extends RoomForPricing {
+  RoomRate: RoomRate[];
+}
+
+export interface UnifiedPricingTableProps {
+  rooms: RoomWithRates[];
+  setRooms: React.Dispatch<React.SetStateAction<RoomWithRates[]>>;
+}

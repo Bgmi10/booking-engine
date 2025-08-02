@@ -260,7 +260,7 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
 
   try {
     // Build base update data
-    const updateData: Prisma.RoomUpdateInput = {
+    const updateData: any = {
       ...(name !== undefined && { name }),
       ...(price !== undefined && { price }),
       ...(description !== undefined && { description }),
@@ -304,7 +304,7 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
         ...(policiesToAdd.length > 0 && {
           create: policiesToAdd.map(policyId => ({ ratePolicyId: policyId }))
         })
-      };
+      }; 
     }
 
     const room = await prisma.room.update({
@@ -325,7 +325,6 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
     handleError(res, e as Error);
   }
 };
-
 const deleteRoom = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
   const { images } = req.body;
@@ -1357,7 +1356,7 @@ const refund = async (req: express.Request, res: express.Response) => {
 
         // Case 1: Manual payment methods (CASH or BANK_TRANSFER) - always use manual refund
         if (methodToRefund === "CASH" || methodToRefund === "BANK_TRANSFER") {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: any) => {
               // Update payment intent status
               await tx.paymentIntent.update({
                   where: { id: paymentIntentId },
@@ -1388,7 +1387,7 @@ const refund = async (req: express.Request, res: express.Response) => {
             // Generate confirmation ID for the refund email - handle case where no bookings exist yet
             let refundConfirmationId: string;
             if (ourPaymentIntent.bookings && ourPaymentIntent.bookings.length > 0) {
-              const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+              const bookingIds = ourPaymentIntent.bookings.map((booking: any) => booking.id);
               if (bookingIds.length >= 1 && bookingIds.length <= 5) {
                 refundConfirmationId = generateMergedBookingId(bookingIds);
               } else {
@@ -1440,7 +1439,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                 }
       
                 // Update our database - mark as cancelled
-                await prisma.$transaction(async (tx) => {
+                await prisma.$transaction(async (tx: any) => {
                   // Update payment intent status
                   await tx.paymentIntent.update({
                       where: { id: paymentIntentId },
@@ -1465,7 +1464,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                 // Generate confirmation ID for the refund email
                 let cancelConfirmationId = `CANCEL-${paymentIntentId}`;
                 if (ourPaymentIntent.bookings && ourPaymentIntent.bookings.length > 0) {
-                  const bookingIds = ourPaymentIntent.bookings.map(booking => booking.id);
+                  const bookingIds = ourPaymentIntent.bookings.map((booking: any) => booking.id);
                   if (bookingIds.length >= 1 && bookingIds.length <= 5) {
                     cancelConfirmationId = generateMergedBookingId(bookingIds);
                   }
@@ -1604,7 +1603,7 @@ export const sendConfirmationEmail = async (req: express.Request, res: express.R
     const parsedCustomerDetails = JSON.parse(paymentIntent.customerData);
     
     // Generate merged booking ID for confirmation
-    const bookingIds = paymentIntent.bookings.map(booking => booking.id);
+    const bookingIds = paymentIntent.bookings.map((booking: any) => booking.id);
 
     const confirmationId = generateMergedBookingId(bookingIds);
     
@@ -1622,7 +1621,7 @@ export const sendConfirmationEmail = async (req: express.Request, res: express.R
       receipt_url = `${baseUrl}/sessions/receipts/${paymentIntent.id}`;
     }
 
-    const bookingsWithPaymentIntent = paymentIntent.bookings.map(booking => ({
+    const bookingsWithPaymentIntent = paymentIntent.bookings.map((booking: any) => ({
       ...booking,
       paymentIntent: {
         amount: paymentIntent.amount,
@@ -2167,7 +2166,7 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
 
   try {
     // Start a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Update the payment intent with the actual payment method and mark as succeeded
       const updatedPaymentIntent = await tx.paymentIntent.update({
         where: { id },

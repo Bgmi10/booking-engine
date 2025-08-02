@@ -12,8 +12,8 @@
 
 [] => change every date field to eur format ui only
 
-[] => fix the on date on voucher feature and also do mid night of starting data
-
+[] => fix the on date on voucher feature and also do mid night of starting data and it should be in italian time 
+ 
 [C] => voucher need to add in /booking/success && change the ui modification succeded to completed
 
 [C] => change the booking id on confimation email template to original booking id && do a decimal point on currency and do a symbol instead of word "eur"
@@ -63,7 +63,7 @@ non refund automatically
 
 [] => manager will see exact summary of each day and ask the waiter for cash by validating the accepted orders.
 
-[] => 
+[] => ability to change the rates at admin convinient && rate restriction based on configured value.  ability to configure the rates for future. basically you can tell that certain date and applicable for 
 
 
 

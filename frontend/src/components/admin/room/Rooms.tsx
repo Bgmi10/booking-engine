@@ -1,66 +1,35 @@
 import { useEffect, useState } from "react"
 import { 
   RiAddLine, 
-  RiRefreshLine, 
+  RiRefreshLine,    
   RiSearchLine,
   RiDeleteBin6Line,
   RiEyeLine,
   RiCloseLine,
-  RiCheckLine,
-  RiErrorWarningLine,
   RiEdit2Line,
-  RiImageAddLine
+  RiImageAddLine,
+  RiErrorWarningLine
 } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
 import { CreateRoomModal } from "./CreateRoomModal"
 import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
-import type { RatePolicy } from "../../../types/types"
-import RoomPricing from './RoomPricing'
-
-// Room type definition
-interface RoomImage {
-  id: string
-  url: string
-  roomId: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface RoomRate {
-  ratePolicy: RatePolicy
-}
-
-interface Room {
-  id: string
-  name: string
-  price: number
-  description: string
-  capacity: number
-  maxCapacityWithExtraBed?: number
-  extraBedPrice?: number
-  allowsExtraBed: boolean
-  amenities: string[]
-  images: RoomImage[]
-  createdAt: string
-  RoomRate: RoomRate[]
-  updatedAt: string
-}
+import type { RatePolicy, RoomWithRates } from "../../../types/types"
+import UnifiedPricingTable from './UnifiedPricingTable'
+import { toast } from "react-hot-toast"
 
 export default function Rooms() {
   // States
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>([])
+  const [rooms, setRooms] = useState<RoomWithRates[]>([])
+  const [filteredRooms, setFilteredRooms] = useState<RoomWithRates[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
+  const [selectedRoom, setSelectedRoom] = useState<RoomWithRates | null>(null)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [loadingAction, setLoadingAction] = useState(false)
@@ -80,7 +49,6 @@ export default function Rooms() {
   // Fetch rooms
   const fetchRooms = async () => {
     setLoading(true)
-    setError("")
     try {
       const res = await fetch(`${baseUrl}/admin/rooms/all`, {
         credentials: "include",
@@ -98,7 +66,7 @@ export default function Rooms() {
       setFilteredRooms(data.data)
     } catch (error) {
       console.error(error)
-      setError("Failed to load rooms. Please try again.")
+      toast.error("Failed to load rooms. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -127,8 +95,6 @@ export default function Rooms() {
   // Delete room
   const deleteRoom = async (roomId: string) => {
     setLoadingAction(true)
-    setError("")
-    setSuccess("")
     
     try {
       const res = await fetch(`${baseUrl}/admin/rooms/${roomId}`, {
@@ -145,7 +111,7 @@ export default function Rooms() {
         throw new Error(data.message || "Failed to delete room")
       }
       
-      setSuccess("Room deleted successfully!")
+      toast.success("Room deleted successfully!")
       
       // Update rooms state
       setRooms(rooms.filter(room => room.id !== roomId))
@@ -153,12 +119,11 @@ export default function Rooms() {
       // Close modal after success
       setTimeout(() => {
         setIsDeleteModalOpen(false)
-        setSuccess("")
       }, 2000)
       
     } catch (error: any) {
       console.error(error)
-      setError(error.message || "Failed to delete room. Please try again.")
+      toast.error(error.message || "Failed to delete room. Please try again.")
     } finally {
       setLoadingAction(false)
     }
@@ -501,31 +466,7 @@ export default function Rooms() {
           </div>
           
           <div className="p-6">
-            {error && (
-              <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {success && (
-              <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <RiCheckLine className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">{success}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+          
             
             <div className="mb-4">
               <div className="flex items-center justify-center mb-4 text-red-500">
@@ -587,13 +528,11 @@ export default function Rooms() {
 
   const handleBulkPolicyUpdate = async () => {
     if (selectedPolicies.length === 0) {
-      setError("Please select at least one policy to apply");
+      toast.error("Please select at least one policy to apply");
       return;
     }
 
     setBulkUpdateLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       const response = await fetch(`${baseUrl}/admin/rooms/bulk-policies-update`, {
@@ -613,11 +552,11 @@ export default function Rooms() {
         throw new Error(data.message || "Failed to apply policies");
       }
 
-      setSuccess("Policies applied successfully to all rooms!");
+      toast.success("Policies applied successfully to all rooms!");
       setIsApplyPoliciesModalOpen(false);
       fetchRooms(); // Refresh the rooms list
     } catch (error: any) {
-      setError(error.message || "Failed to apply policies. Please try again.");
+      toast.error(error.message || "Failed to apply policies. Please try again.");
     } finally {
       setBulkUpdateLoading(false);
     }
@@ -640,32 +579,6 @@ export default function Rooms() {
           </div>
 
           <div className="p-6">
-            {error && (
-              <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <RiCheckLine className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">{success}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="mb-4">
               <p className="text-sm text-gray-600">
                 Selected policies will be applied to all rooms. This action will add the selected policies to existing room policies.
@@ -850,34 +763,7 @@ export default function Rooms() {
           </nav>
         </div>
       </div>
-      
-      {/* Alerts */}
-      {error && !isDeleteModalOpen && !isUpdateModalOpen && !isImagesModalOpen && !isCreateModalOpen && (
-        <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {success && !isDeleteModalOpen && !isUpdateModalOpen && !isImagesModalOpen && !isCreateModalOpen && (
-        <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <RiCheckLine className="h-5 w-5 text-green-400" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-green-700">{success}</p>
-            </div>
-          </div>
-        </div>
-      )}
-      
+    
       {/* Actions bar */}
       {activeTab === 'details' && (
         <>
@@ -1225,15 +1111,10 @@ export default function Rooms() {
       )}
 
       {activeTab === 'pricing' && (
-        <div>
-          {/* RoomPricing component will go here */}
-          <RoomPricing 
-            rooms={rooms} 
-            setRooms={setRooms} 
-            setError={setError} 
-            setSuccess={setSuccess} 
-          />
-        </div>
+        <UnifiedPricingTable 
+          rooms={rooms} 
+          setRooms={setRooms}
+        />
       )}
 
       {/* Modals */}
@@ -1241,12 +1122,13 @@ export default function Rooms() {
       {isDeleteModalOpen && <DeleteRoomModal />}
       {isUpdateModalOpen && (
         <UpdateRoomModal
+          //@ts-ignore
           room={selectedRoom}
           setIsUpdateModalOpen={setIsUpdateModalOpen}
+          //@ts-ignore
           setRooms={setRooms}
+          //@ts-ignore
           rooms={rooms}
-          setError={setError}
-          setSuccess={setSuccess}
         />
       )}
       {isImagesModalOpen && (
@@ -1255,8 +1137,6 @@ export default function Rooms() {
           setIsImagesModalOpen={setIsImagesModalOpen}
           setRooms={setRooms}
           rooms={rooms}
-          setError={setError}
-          setSuccess={setSuccess}
         />
       )}
       {isCreateModalOpen && (
@@ -1265,8 +1145,6 @@ export default function Rooms() {
           //@ts-ignore
           setRooms={setRooms}
           rooms={rooms}
-          setError={setError}
-          setSuccess={setSuccess}
         />
       )}
       {isApplyPoliciesModalOpen && <BulkApplyPoliciesModal />}

@@ -13,7 +13,6 @@ export default function RevenueAnalytics() {
   const [dateRange, setDateRange] = useState("week");
   const [chartType, setChartType] = useState("overview");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
   const chartTypes = [
     { id: "overview", name: "Revenue Overview", icon: <RiBarChartLine className="w-5 h-5" /> },
@@ -34,7 +33,6 @@ export default function RevenueAnalytics() {
   }, [dateRange]);
 
   const fetchAnalytics = async () => {
-    setLoading(true);
     try {
       const params = new URLSearchParams({ dateRange });
       const response = await fetch(`${baseUrl}/admin/revenue/analytics?${params}`, {
@@ -92,8 +90,6 @@ export default function RevenueAnalytics() {
         paymentMethods: { cash: 0, card: 0, bank: 0 },
         dailyRevenue: []
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -268,7 +264,7 @@ export default function RevenueAnalytics() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {(analyticsData?.dailyRevenue || []).map((day) => (
+                      {(analyticsData?.dailyRevenue || []).map((day: any) => (
                         <tr key={day.date} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {day.date}

@@ -1,42 +1,16 @@
 import type React from "react"
 import { useState } from "react"
-import { RiCloseLine, RiCheckLine, RiErrorWarningLine, RiImageAddLine, RiDeleteBin6Line } from "react-icons/ri"
+import { RiCloseLine, RiImageAddLine, RiDeleteBin6Line } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
-import type { RatePolicy } from "../../../types/types"
-
-interface RoomImage {
-  id: string
-  url: string
-  roomId: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface RoomRate {
-  ratePolicy: RatePolicy
-}
-
-interface Room {
-  id: string
-  name: string
-  amenities: string[]
-  price: number
-  description: string
-  capacity: number
-  images: RoomImage[]
-  createdAt: string
-  RoomRate: RoomRate[]
-  updatedAt: string
-}
+import type { RoomWithRates } from "../../../types/types"
+import { toast } from "react-hot-toast"
 
 interface ManageImagesModalProps {
-  room: Room | null
+  room: RoomWithRates | null
   setIsImagesModalOpen: (isOpen: boolean) => void
-  setRooms: React.Dispatch<React.SetStateAction<Room[]>>
-  rooms: Room[]
-  setError: (error: string) => void
-  setSuccess: (success: string) => void
+  setRooms: React.Dispatch<React.SetStateAction<RoomWithRates[]>>
+  rooms: RoomWithRates[]
 }
 
 export function ManageImagesModal({
@@ -46,8 +20,6 @@ export function ManageImagesModal({
   rooms
 }: ManageImagesModalProps) {
   const [loadingAction] = useState(false)
-  const [localError, setLocalError] = useState("")
-  const [localSuccess, setLocalSuccess] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null)
 
@@ -58,7 +30,6 @@ export function ManageImagesModal({
     if (!e.target.files || e.target.files.length === 0) return
 
     setUploadingImage(true)
-    setLocalError("")
 
     try {
       const response = await Promise.all(Array.from(e.target.files).map(async (file) => {
@@ -121,10 +92,10 @@ export function ManageImagesModal({
         throw new Error(data.message || "Failed to add image")
       }
 
-      setLocalSuccess("Image added successfully!")
+      toast.success("Image added successfully!")
     } catch (error) {
       console.error(error)
-      setLocalError("Failed to upload image. Please try again.")
+      toast.error("Failed to upload image. Please try again.")
     } finally {
       setUploadingImage(false)
     }
@@ -133,7 +104,6 @@ export function ManageImagesModal({
   // Delete image
   const deleteImage = async (imageId: string, url: string) => {
     setDeletingImageId(imageId)
-    setLocalError("")
 
     try {
     await Promise.all(
@@ -156,7 +126,7 @@ export function ManageImagesModal({
         ]
       )
     
-      setLocalSuccess("Image deleted successfully!")
+      toast.success("Image deleted successfully!")
       const updatedRoom = {
         ...room,
         images: room.images.filter((img) => img.id !== imageId),
@@ -165,7 +135,7 @@ export function ManageImagesModal({
       setRooms(rooms.map((r) => (r.id === room.id ? updatedRoom : r)))
     } catch (error) {
       console.error(error)
-      setLocalError("Failed to delete image. Please try again.")
+      toast.error("Failed to delete image. Please try again.")
     } finally {
       setDeletingImageId(null)
     }
@@ -186,31 +156,6 @@ export function ManageImagesModal({
         </div>
 
         <div className="p-6">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="mb-6">
             <div className="flex gap-2 items-center">

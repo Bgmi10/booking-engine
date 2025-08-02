@@ -117,7 +117,7 @@ export const generateCustomReceiptPDF = async (req: Request, res: Response) => {
         const customerData = JSON.parse(dbPaymentIntent.customerData);
 
         // Generate confirmation ID
-        const bookingIds = dbPaymentIntent.bookings.map(b => b.id);
+        const bookingIds = dbPaymentIntent.bookings.map((b: any) => b.id);
         const confirmationId = generateMergedBookingId(bookingIds);
 
         // Prepare voucher information if voucher was used
@@ -141,7 +141,7 @@ export const generateCustomReceiptPDF = async (req: Request, res: Response) => {
                     discountAmount: dbPaymentIntent.voucherDiscount || 0,
                     originalAmount: dbPaymentIntent.totalAmount,
                     finalAmount: dbPaymentIntent.totalAmount,
-                    products: voucherDetails.products.map(product => ({
+                    products: voucherDetails.products.map((product: any) => ({
                         name: product.name,
                         description: product.description,
                         imageUrl: product.imageUrl,
@@ -424,7 +424,7 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
                     discountAmount: dbPaymentIntent.voucherDiscount || 0,
                     originalAmount: dbPaymentIntent.totalAmount,
                     finalAmount: dbPaymentIntent.totalAmount,
-                    products: voucherDetails.products.map(product => ({
+                    products: voucherDetails.products.map((product: any) => ({
                         name: product.name,
                         description: product.description,
                         imageUrl: product.imageUrl,
@@ -435,9 +435,9 @@ export const generateReceiptPDF = async (req: Request, res: Response) => {
         }
 
         // Get all booking IDs from the PaymentIntent
-        const bookingIds = dbPaymentIntent.bookings.map(b => b.id);
+        const bookingIds = dbPaymentIntent.bookings.map((b: any) => b.id); 
 
-        // Initialize totals
+        // Initialize totals        
         let totalAmount = 0;
         let totalEnhancements = 0;
         let totalRoomCharges = 0;

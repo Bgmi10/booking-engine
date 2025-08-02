@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { RiAddLine, RiDeleteBin6Line, RiEdit2Line, RiEyeLine } from "react-icons/ri";
+import { RiAddLine, RiDeleteBin6Line, RiEdit2Line, RiEyeLine, RiCalendarLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
 import { baseUrl } from "../../../utils/constants";
 import CreateRatePolicyModal from "./CreateRatePolicyModal";
 import UpdateRatePolicyModal from "./UpdateRatePolicyModal";
 import ViewRatePolicyModal from "./ViewRatePolicyModal";
+import RatePricingCalendar from "./RatePricingCalendar";
+import { toast } from "react-hot-toast";
 import type { RatePolicy } from "../../../types/types";
 export default function Ratepolicy() {
   const [ratePolicies, setRatePolicies] = useState<RatePolicy[]>([]);
@@ -16,6 +18,7 @@ export default function Ratepolicy() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isPricingCalendarOpen, setIsPricingCalendarOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<RatePolicy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [refundableFilter, setRefundableFilter] = useState<"all" | "refundable" | "non-refundable">("all");
@@ -34,7 +37,7 @@ export default function Ratepolicy() {
 
       setRatePolicies(data.data);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to fetch rate policies");
+      toast.error(error instanceof Error ? error.message : "Failed to fetch rate policies");
     } finally {
       setLoading(false);
     }
@@ -61,10 +64,10 @@ export default function Ratepolicy() {
         throw new Error(data.message || "Failed to delete rate policy");
       }
 
-      setSuccess("Rate policy deleted successfully");
+      toast.success("Rate policy deleted successfully");
       setRatePolicies(ratePolicies.filter((policy) => policy.id !== id));
     } catch (error: any) {
-      setError(error.message || "Failed to delete rate policy");
+      toast.error(error.message || "Failed to delete rate policy");
     }
   };
 
@@ -163,6 +166,7 @@ export default function Ratepolicy() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price Adj</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pricing</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -208,6 +212,18 @@ export default function Ratepolicy() {
                       }`}>
                         {policy?.refundable ? "Refundable" : "Non-refundable"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          setSelectedPolicy(policy);
+                          setIsPricingCalendarOpen(true);
+                        }}
+                        className="inline-flex items-center px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-full hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <RiCalendarLine className="mr-1" size={14} />
+                        Pricing Calendar
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -271,6 +287,16 @@ export default function Ratepolicy() {
         <ViewRatePolicyModal
           setIsViewModalOpen={setIsViewModalOpen}
           ratePolicy={selectedPolicy}
+        />
+      )}
+
+      {isPricingCalendarOpen && selectedPolicy && (
+        <RatePricingCalendar
+          ratePolicy={selectedPolicy}
+          onClose={() => {
+            setIsPricingCalendarOpen(false);
+            setSelectedPolicy(null);
+          }}
         />
       )}
     </div>

@@ -7,7 +7,6 @@ import {
   RiErrorWarningLine,
   RiEyeLine
 } from "react-icons/ri";
-import DailyCashSummary from "../user/DailyCashSummary";
 import { baseUrl } from "../../../utils/constants";
 
 export default function DailySummaries() {

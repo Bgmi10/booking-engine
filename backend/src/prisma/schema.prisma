@@ -48,6 +48,8 @@ model Room {
   bookings          Booking[]
   holds             TemporaryHold[]
   RoomRate          RoomRate[]
+  roomDatePrices    RoomDatePrice[]
+  rateDatePrices    RateDatePrice[]
   notifications     Notification[]
   channelRooms      ChannelRoom[]
 }
@@ -310,6 +312,7 @@ model RatePolicy {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   roomRates           RoomRate[]
+  rateDatePrices      RateDatePrice[]
 }
 
 model RoomRate {
@@ -328,6 +331,40 @@ model RoomRate {
   @@index([roomId, ratePolicyId])
   @@index([roomId, isActive])
   @@unique([roomId, ratePolicyId])
+}
+
+model RoomDatePrice {
+  id              String     @id @default(uuid())
+  room            Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId          String
+  date            DateTime   // Specific date for pricing
+  price           Float      // Price for this specific date
+  isActive        Boolean    @default(true) // Can be disabled without deletion
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  
+  @@unique([roomId, date])
+  @@index([roomId, date, isActive])
+  @@index([date, isActive])
+}
+
+model RateDatePrice {
+  id              String        @id @default(uuid())
+  ratePolicy      RatePolicy    @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
+  ratePolicyId    String
+  room            Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId          String
+  date            DateTime      // Specific date for pricing
+  price           Float         // Price for this specific date and rate policy
+  priceType       RatePriceType @default(ROOM_OVERRIDE) // Type of pricing override
+  isActive        Boolean       @default(true) // Can be disabled without deletion
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@unique([ratePolicyId, roomId, date])
+  @@index([ratePolicyId, date, isActive])
+  @@index([roomId, date, isActive])
+  @@index([date, isActive])
 }
 
 model GeneralSettings {        
@@ -432,7 +469,7 @@ model Voucher {
   description                       String?
   type                              VoucherType 
   discountPercent                   Float?
-  fixedAmount                       Float?
+  fixedAmount                       Float? 
   maxUsage                          Int?
   currentUsage                      Int                 @default(0)
   maxUsagePerUser                   Int?
@@ -1338,6 +1375,12 @@ enum PaymentType {
   FULL_PAYMENT        // Single full payment
   FIRST_INSTALLMENT   // 30% initial payment
   SECOND_INSTALLMENT  // 70% remaining payment
+}
+
+enum RatePriceType {
+  BASE_OVERRIDE       // Override base price for all rooms under this rate policy
+  ROOM_INCREASE       // Add amount to base room price
+  ROOM_OVERRIDE       // Complete override of room price for this rate policy
 }
 
 enum BookingGroupStatus {
