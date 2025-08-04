@@ -3,6 +3,7 @@ import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import "react-datepicker/dist/react-datepicker.css"
 import { baseUrl } from "../../../utils/constants"
+import { useCalendarAvailability } from "../../../hooks/useCalendarAvailability"
 import countryList from "country-list-with-dial-code-and-flag"
 import type { Room, Enhancement, CustomerDetails, BookingItem, BankDetails, PaymentMethod } from "../../../types/types"
 import { addDays, differenceInHours } from "date-fns"
@@ -81,28 +82,25 @@ export function CreateBookingModal({
     restrictedDates: [],
     dateRestrictions: {}
   });
-  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  // Use the centralized calendar availability hook
+  const { fetchCalendarAvailability: fetchCalendarAvailabilityHook, loading: isLoadingAvailability } = useCalendarAvailability();
 
-  // Fetch availability data for calendar
+  // Fetch availability data for calendar - wrapper to maintain interface
   const fetchCalendarAvailability = async (startDate: string, endDate: string) => {
-    setIsLoadingAvailability(true);
     try {
-      const response = await fetch(
-        `${baseUrl}/rooms/availability/calendar?startDate=${startDate}&endDate=${endDate}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        }
-      );
-      if (!response.ok) throw new Error("Failed to fetch availability");
-      const result = await response.json();
-      if (result.data) {
+      const calendarData = await fetchCalendarAvailabilityHook({
+        startDate,
+        endDate,
+        showError: true,
+        cacheEnabled: false // Disable cache for admin panel
+      });
+      
+      if (calendarData) {
         setAvailabilityData(prev => ({
           ...prev,
-          ...result.data,
-          minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
-          taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
+          ...calendarData,
+          minStayDays: calendarData.generalSettings?.[0]?.minStayDays || 2,
+          taxPercentage: calendarData.generalSettings?.[0]?.taxPercentage || 0.1,
         }));
       }
     } catch (e) {
@@ -115,8 +113,6 @@ export function CreateBookingModal({
         restrictedDates: [],
         dateRestrictions: {}
       });
-    } finally {
-      setIsLoadingAvailability(false);
     }
   };
 

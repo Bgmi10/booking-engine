@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from "react"
 import Header from "./Header"
 import DateSelector from "./DateSelector"
 import StepIndicator from "./StepIndicator"
-import { baseUrl } from "../utils/constants"
 import { BiLoader } from "react-icons/bi"
+import { useCalendarAvailability } from "../hooks/useCalendarAvailability"
 import Categories from "./Categories"
 import Rates from "./Rates"
 import Summary from "./Summary"
@@ -32,14 +32,6 @@ interface AvailabilityData {
   unavailableRooms?: any[]
 }
 
-// Cache interface for storing fetched data
-interface AvailabilityCache {
-  [key: string]: {
-    data: AvailabilityData
-    timestamp: number
-  }
-}
-
 export default function Booking() {
   // State management
   const [currentStep, setCurrentStep] = useState(1)
@@ -58,7 +50,6 @@ export default function Booking() {
   });
 
   const [calenderOpen, setCalenderOpen] = useState(false)
-  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const [bookingItems, setBookingItems] = useState([]);
   const [bookingData, setBookingData] = useState({
     checkIn: null,
@@ -71,20 +62,8 @@ export default function Booking() {
     totalPrice: 0,
   })
   
-  const [availabilityCache, setAvailabilityCache] = useState<AvailabilityCache>({})
-  
-  // Cache duration in milliseconds (5 minutes)
-  const CACHE_DURATION = 5 * 60 * 1000
-
-  // Helper function to generate cache key
-  const generateCacheKey = (startDate: string, endDate: string): string => {
-    return `${startDate}_${endDate}`
-  }
-
-  // Helper function to check if cache is valid
-  const isCacheValid = (timestamp: number): boolean => {
-    return Date.now() - timestamp < CACHE_DURATION
-  }
+  // Use the centralized calendar availability hook
+  const { fetchCalendarAvailability, loading: isLoadingAvailability } = useCalendarAvailability()
 
   // Handle moving to the next step
   const handleNext = () => {
@@ -110,68 +89,34 @@ export default function Booking() {
     }))
   }
 
-  // OPTIMIZED: Fetch availability with caching
-  const fetchCalendarAvailability = useCallback(async (startDate: string, endDate: string, isCallFromCalender: boolean) => {
-    const cacheKey = generateCacheKey(startDate, endDate)
-
-    if (!isCallFromCalender) {
-      const cachedData = availabilityCache[cacheKey]
-      if (cachedData && isCacheValid(cachedData.timestamp)) {
-        setAvailabilityData(cachedData.data)
-        return
-      }
-    }
-
+  // Fetch availability using the centralized hook
+  const fetchCalendarAvailabilityWrapper = useCallback(async (startDate: string, endDate: string, isCallFromCalender: boolean) => {
     try {
-      setIsLoadingAvailability(true)
+      const calendarData = await fetchCalendarAvailability({
+        startDate,
+        endDate,
+        showError: true,
+        cacheEnabled: !isCallFromCalender // Enable cache when not called from calendar
+      });
       
-      const response = await fetch(
-        `${baseUrl}/rooms/availability/calendar?startDate=${startDate}&endDate=${endDate}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      )
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.data) {
-        setAvailabilityData(prev => ({
-          ...prev,
-          ...result.data
-        }))
+      if (calendarData) {
+        const processedData = {
+          fullyBookedDates: calendarData.fullyBookedDates || [],
+          partiallyBookedDates: calendarData.partiallyBookedDates || [],
+          availableDates: calendarData.availableDates || [],
+          minStayDays: calendarData.generalSettings?.[0]?.minStayDays || 2,
+          taxPercentage: calendarData.generalSettings?.[0]?.taxPercentage || 0.1,
+          dateRestrictions: calendarData.dateRestrictions || {},
+          restrictedDates: calendarData.restrictedDates || [],
+          dailyBookingStartTime: calendarData.generalSettings?.[0]?.dailyBookingStartTime || '00:00',
+          availableRooms: calendarData.availableRooms || [],
+          unavailableRooms: calendarData.unavailableRooms || []
+        };
         
-        // Cache the data
-        if (!isCallFromCalender) {
-          setAvailabilityCache(prev => ({
-            ...prev,
-            [cacheKey]: {
-            data: {
-              fullyBookedDates: result.data.fullyBookedDates,
-              partiallyBookedDates: result.data.partiallyBookedDates,
-              availableDates: result.data.availableDates,
-              minStayDays: result.data.generalSettings?.[0]?.minStayDays || 2,
-              taxPercentage: result.data.generalSettings?.[0]?.taxPercentage || 0.1,
-              dateRestrictions: result.data.dateRestrictions,
-              restrictedDates: result.data.restrictedDates,
-              dailyBookingStartTime: result.data.generalSettings?.[0]?.dailyBookingStartTime || '00:00',
-              availableRooms: result.data.availableRooms || [],
-              unavailableRooms: result.data.unavailableRooms || []
-            },
-            timestamp: Date.now()
-            }
-          }))
-        }
+        setAvailabilityData(processedData);
       }
     } catch (error) {
-      console.error("Error fetching calendar availability:", error)
+      console.error("Error fetching calendar availability:", error);
       // Set empty availability data on error
       const emptyData = {
         fullyBookedDates: [],
@@ -184,18 +129,16 @@ export default function Booking() {
         dailyBookingStartTime: '00:00',
         availableRooms: [],
         unavailableRooms: []
-      }
-      setAvailabilityData(emptyData)
-    } finally {
-      setIsLoadingAvailability(false)
+      };
+      setAvailabilityData(emptyData);
     }
-  }, [availabilityCache])
+  }, [fetchCalendarAvailability])
 
   useEffect(() => {
     if (bookingData.checkIn && bookingData.checkOut) {
-      fetchCalendarAvailability(bookingData.checkIn, bookingData.checkOut, true)
+      fetchCalendarAvailabilityWrapper(bookingData.checkIn, bookingData.checkOut, true)
     }
-  }, [bookingData.checkIn, bookingData.checkOut])
+  }, [bookingData.checkIn, bookingData.checkOut, fetchCalendarAvailabilityWrapper])
 
   useEffect(() => {
     if (calenderOpen) {
@@ -215,28 +158,9 @@ export default function Booking() {
       const endDate = formatDateForAPI(endOfMonth)
       
       // This will now check cache first before making API call
-      fetchCalendarAvailability(startDate, endDate, false)
+      fetchCalendarAvailabilityWrapper(startDate, endDate, false)
     }
-  }, [calenderOpen, fetchCalendarAvailability])
-
-  // Optional: Clean up old cache entries periodically
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      setAvailabilityCache(prev => {
-        const cleaned: AvailabilityCache = {}
-        
-        Object.entries(prev).forEach(([key, value]) => {
-          if (isCacheValid(value.timestamp)) {
-            cleaned[key] = value
-          }
-        })
-        
-        return cleaned
-      })
-    }, CACHE_DURATION) // Clean up every 5 minutes
-
-    return () => clearInterval(cleanupInterval)
-  }, [])
+  }, [calenderOpen, fetchCalendarAvailabilityWrapper])
   
  return (
     <div className="flex flex-col min-h-screen">
@@ -280,7 +204,7 @@ export default function Booking() {
                         isLoadingAvailability={isLoadingAvailability}
                         dailyBookingStartTime={availabilityData.dailyBookingStartTime}
                         //@ts-ignore
-                        onFetchAvailability={fetchCalendarAvailability}
+                        onFetchAvailability={fetchCalendarAvailabilityWrapper}
                       />
                     </div>
 

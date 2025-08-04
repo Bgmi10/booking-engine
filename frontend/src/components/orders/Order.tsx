@@ -14,7 +14,7 @@ interface CartItem extends OrderItem {
 
 export default function Order() {
     const location = new URLSearchParams(window.location.search).get("location");
-    const { customer, isAuthenticated, isLoading, refresh, logout } = useCustomer();
+    const { customer, isAuthenticated, refresh, logout } = useCustomer();
 
     const [categories, setCategories] = useState<OrderCategory[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<OrderCategory | null>(null);
@@ -297,14 +297,14 @@ export default function Order() {
                                 <h4 className="text-lg font-semibold text-gray-800 mb-3">Are you a guest with a reservation?</h4>
                                 <div className="space-y-3">
                                     <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                                        <input type="radio" name="guestType" value="booked" checked={guestType === 'BOOKED_GUEST'} onChange={(e) => setGuestType('BOOKED_GUEST')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                        <input type="radio" name="guestType" value="booked" checked={guestType === 'BOOKED_GUEST'} onChange={() => setGuestType('BOOKED_GUEST')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
                                         <div className="ml-4">
                                             <span className="text-gray-800 font-medium">Yes, I have a reservation</span>
                                             <p className="text-sm text-gray-500">I'm staying at the hotel and have a room</p>
                                         </div>
                                     </label>
                                     <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                                        <input type="radio" name="guestType" value="temp" checked={guestType === 'PAY_AT_WAITER'} onChange={(e) => setGuestType('PAY_AT_WAITER')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
+                                        <input type="radio" name="guestType" value="temp" checked={guestType === 'PAY_AT_WAITER'} onChange={() => setGuestType('PAY_AT_WAITER')} className="h-5 w-5 text-black border-gray-300 focus:ring-black" />
                                         <div className="ml-4">
                                             <span className="text-gray-800 font-medium">No, I'm a walk-in guest</span>
                                             <p className="text-sm text-gray-500">I don't have a reservation, pay the waiter</p>

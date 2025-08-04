@@ -9,7 +9,7 @@ router.post('/webhooks/expedia/:channelId', channelWebhookController.expediaWebh
 router.post('/webhooks/airbnb/:channelId', channelWebhookController.airbnbWebhook);
 router.post('/webhooks/generic/:channelId', channelWebhookController.genericWebhook);
 
-// Conversion endpoint (requires authentication)
+// Conversion endpoint (requ    ires authentication)
 router.post('/webhooks/convert/:channelBookingId', channelWebhookController.convertToLocalBooking);
 
 // Health check

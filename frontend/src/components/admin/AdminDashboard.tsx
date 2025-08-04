@@ -21,6 +21,7 @@ import { useAuth } from "../../context/AuthContext";
 import CreateOrderModal from "./orders/CreateOrderModal";
 import WeddingProposals from "./wedding-proposals/WeddingProposals";
 import RevenueManagement from "./revenue/RevenueManagement";
+import ChannelManager from "./channel-manager/ChannelManager";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -89,6 +90,8 @@ export default function AdminDashboard() {
         return <WeddingProposals />;
       case "revenue-management":
         return <RevenueManagement />;
+      case "channel-manager":
+        return <ChannelManager />;
       default:
         if (user?.role === 'WAITER') return <WaiterOrders />;
         if (user?.role === 'KITCHEN') return <KitchenOrders />;

@@ -83,8 +83,7 @@ export default function DailyCashSummary({ onClose }: DailyCashSummaryProps) {
     }
   };
 
-  const fetchWaiterDetails = async (summaryId: string) => {
-    // Details are already loaded, just show them
+  const fetchWaiterDetails = async () => {
     setShowDetails(true);
   };
 
@@ -258,7 +257,7 @@ export default function DailyCashSummary({ onClose }: DailyCashSummaryProps) {
 
                 <div className="flex space-x-3">
                   <button
-                    onClick={() => fetchWaiterDetails(todaysSummary.id)}
+                    onClick={fetchWaiterDetails}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     View Waiter Details

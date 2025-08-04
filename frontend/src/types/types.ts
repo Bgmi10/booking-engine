@@ -1,3 +1,5 @@
+import type { JSX } from "react";
+
 export interface User {
     id: string;
     name: string;
@@ -192,6 +194,7 @@ export interface CustomerData {
   vipStatus: boolean,
   totalNigthsStayed: number;
   totalMoneySpent: number
+  orders: any
 }
 
 export interface BookingData {
@@ -694,5 +697,57 @@ export interface RoomRate {
 
 export interface RoomWithRates extends RoomForPricing {
   RoomRate: RoomRate[];
+}
+
+// Enhanced Payment Intent Card interfaces
+export interface PaymentIntentData {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentMethod?: string;
+  stripePaymentLinkId?: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  totalAmount: number;
+  bookingData: any[];
+  customerData: any;
+  createdAt: string;
+  expiresAt?: string;
+  paidAt?: string;
+  bookings?: any[]; // Individual booking records
+  createdByAdmin?: boolean;
+  adminNotes?: string;
+  actualPaymentMethod?: PaymentMethod;
+}
+
+export interface EnhancedPaymentIntentCardProps {
+  paymentIntent: PaymentIntentData;
+  onViewDetails?: (paymentIntent: any) => void;
+  onSendEmail?: (id: string) => void;
+  onCancel?: (paymentIntent: any) => void;
+  onRefund?: (paymentIntent: any) => void;
+  onViewPayment?: (stripePaymentIntentId: string) => void;
+  onEdit?: (paymentIntent: any) => void;
+  onDelete?: (id: string) => void;
+  loadingAction?: boolean;
+  isEditing?: boolean;
+  editFormData?: any;
+  onUpdateEditFormData?: (field: string, value: any) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
+  generateConfirmationNumber?: (paymentIntent: any) => string;
+  selectionMode?: boolean;
+  selectedBookingIds?: string[];
+  onBookingSelect?: (bookingId: string, checked: boolean) => void;
+  onConfirmBooking?: () => void;
+  onRefresh?: () => void;
+}
+
+export interface PaymentMethodInfo {
+  icon: JSX.Element;
+  label: string;
+  color: string;
+  bgColor: string;
 }
 

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { format, addDays, isToday } from "date-fns";
+import { format, addDays } from "date-fns";
 import { RiCloseLine } from "react-icons/ri";
 import { toast } from "react-hot-toast";
 import { baseUrl } from "../../../utils/constants";
-import type { RatePolicy } from "../../../types/types";
+import { useCalendarAvailability } from "../../../hooks/useCalendarAvailability";
+import type { RatePolicy, Room } from "../../../types/types";
 import BasePriceOverrideModal from "./BasePriceOverrideModal";
 import RoomPriceIncreaseModal from "./RoomPriceIncreaseModal";
 import RoomPriceOverrideModal from "./RoomPriceOverrideModal";
@@ -11,12 +12,6 @@ import RoomPriceOverrideModal from "./RoomPriceOverrideModal";
 interface RatePricingCalendarProps {
   ratePolicy: RatePolicy;
   onClose: () => void;
-}
-
-interface Room {
-  id: string;
-  name: string;
-  price: number;
 }
 
 interface RateDatePrice {
@@ -47,6 +42,9 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
   const [roomPercentages, setRoomPercentages] = useState<{ [roomId: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Use the centralized calendar availability hook
+  const { fetchCalendarAvailability, processBookingStatuses } = useCalendarAvailability();
+
   // Generate dates for the current 10-day period
   const periodDates = useMemo(() => {
     const dates = [];
@@ -61,51 +59,26 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
     room.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Fetch comprehensive calendar data
+  // Fetch comprehensive calendar data using the hook
   const fetchCalendarData = async () => {
     try {
-      const startDate = format(currentPeriodStart, 'yyyy-MM-dd');
-      const endDate = format(addDays(currentPeriodStart, 9), 'yyyy-MM-dd');
+      const startDate = currentPeriodStart;
+      const endDate = addDays(currentPeriodStart, 9);
       
-      const response = await fetch(
-        `${baseUrl}/rooms/availability/calendar?startDate=${startDate}&endDate=${endDate}`,
-        { credentials: 'include' }
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch calendar data');
-      }
-      
-      const data = await response.json();
-      const calendarData = data.data;
-      
-      setRooms(calendarData.availableRooms || []);
-      
-      // Build booking statuses from calendar data
-      const statuses: BookingStatus[] = [];
-      
-      calendarData.availableRooms?.forEach((room: any) => {
-        periodDates.forEach(date => {
-          const dateStr = format(date, 'yyyy-MM-dd');
-          let status: 'available' | 'confirmed' | 'provisional' | 'blocked' = 'available';
-          
-          if (room.bookedDates?.includes(dateStr)) {
-            status = 'confirmed';
-          } else if (room.restrictedDates?.includes(dateStr)) {
-            status = 'blocked';
-          } else if (calendarData.partiallyBookedDates?.includes(dateStr)) {
-            status = 'provisional';
-          }
-          
-          statuses.push({
-            roomId: room.id,
-            date: dateStr,
-            status
-          });
-        });
+      const calendarData = await fetchCalendarAvailability({
+        startDate,
+        endDate,
+        showError: true,
+        cacheEnabled: false // Disable cache for admin pricing calendar
       });
       
-      setBookingStatuses(statuses);
+      if (calendarData) {
+        setRooms(calendarData.availableRooms || []);
+        
+        // Process booking statuses using the hook helper
+        const statuses = processBookingStatuses(calendarData, periodDates);
+        setBookingStatuses(statuses);
+      }
     } catch (error) {
       console.error('Error fetching calendar data:', error);
       toast.error('Failed to load calendar data');
@@ -459,7 +432,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                 </tr>
               </thead>
               <tbody>
-                {filteredRooms.map((room: any, index) => (
+                {filteredRooms.map((room: any, index: number) => (
                   <tr key={room.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-blue-25 transition-colors`}>
                     {periodDates.map((date) => {
                       const priceInfo = getPriceForRoomAndDate(room.id, date);
@@ -554,7 +527,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
             room={selectedCell.room}
             date={selectedCell.date}
             onClose={() => setModalType(null)}
-            onSave={handlePriceUpdate}
+            onUpdate={handlePriceUpdate}
           />
         )}
         
@@ -564,7 +537,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
             room={selectedCell.room}
             date={selectedCell.date}
             onClose={() => setModalType(null)}
-            onSave={handlePriceUpdate}
+            onUpdate={handlePriceUpdate}
           />
         )}
         
@@ -574,7 +547,8 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
             room={selectedCell.room}
             date={selectedCell.date}
             onClose={() => setModalType(null)}
-            onSave={handlePriceUpdate}
+            onUpdate={handlePriceUpdate}
+            onSwitchModal={setModalType}
           />
         )}
       </div>

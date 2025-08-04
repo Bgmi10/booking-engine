@@ -12,7 +12,7 @@ export default function OrderSuccess({ onOrderAgain, onClose }: OrderSuccessProp
     const { customer } = useCustomer();
     const [showHistory, setShowHistory] = useState(false);
 
-    if (!customer || !customer.orders || customer.orders.length === 0) {
+    if (!customer || !customer?.orders || customer.orders.length === 0) {
         return null;
     }
 
@@ -139,7 +139,7 @@ export default function OrderSuccess({ onOrderAgain, onClose }: OrderSuccessProp
                     <div className="mb-6">
                         <h3 className="font-semibold text-gray-800 mb-3">Items Ordered</h3>
                         <div className="space-y-2">
-                            {latestOrder.items.map((item, index) => (
+                            {latestOrder.items.map((item: any, index: number) => (
                                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                     <div className="flex items-center space-x-3">
                                         <img 

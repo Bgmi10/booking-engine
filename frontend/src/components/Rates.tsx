@@ -17,6 +17,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
   const [rooms, setRooms] = useState(1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
+  const [expandedRateDetails, setExpandedRateDetails] = useState<{ [key: string]: boolean }>({});
   
   // Sync adults state with bookingData when it changes externally
   useEffect(() => {
@@ -103,39 +104,40 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   // Helper function to calculate rate-specific price for a given date
   const getRatePriceForDate = (ratePolicy: any, dateStr: string) => {
-    // Check if there's a rate-specific price override for this date
+    // First priority: Check if there's a rate-specific price override for this date
     if (ratePolicy.rateDatePrices && ratePolicy.rateDatePrices.length > 0) {
       const rateDatePrice = ratePolicy.rateDatePrices.find((rdp: any) => 
         format(new Date(rdp.date), 'yyyy-MM-dd') === dateStr && rdp.roomId === selectedRoom.id
       );
       
-      if (rateDatePrice) {
+      if (rateDatePrice && rateDatePrice.isActive) {
         return rateDatePrice.price;
       }
     }
     
-    // Calculate price using rate policy base price + room percentage adjustment
+    // Second priority: Calculate price using rate policy base price + room percentage adjustment
     const basePrice = ratePolicy.basePrice;
-    if (!basePrice || basePrice <= 0) {
-      // Fallback to room price if no base price is set
-      return selectedRoom?.price || 0;
+    if (basePrice && basePrice > 0) {
+      // Find the room rate for this rate policy to get percentage adjustment
+      const roomRate = selectedRoom?.RoomRate?.find((rr: any) => rr.ratePolicy.id === ratePolicy.id);
+      const percentageAdjustment = roomRate?.percentageAdjustment || 0;
+      
+      // Calculate final price: base price + percentage adjustment
+      const adjustment = (basePrice * percentageAdjustment) / 100;
+      return Math.round((basePrice + adjustment) * 100) / 100;
     }
     
-    // Find the room rate for this rate policy to get percentage adjustment
-    const roomRate = selectedRoom?.RoomRate?.find((rr: any) => rr.ratePolicy.id === ratePolicy.id);
-    const percentageAdjustment = roomRate?.percentageAdjustment || 0;
-    
-    // Calculate final price: base price + percentage adjustment
-    const adjustment = (basePrice * percentageAdjustment) / 100;
-    return Math.round((basePrice + adjustment) * 100) / 100;
+    // Only fall back to room price if no base price is set
+    return selectedRoom?.price || 0;
   };
 
-  // Calculate average price for the rate across all nights
-  const calculateAverageRatePrice = (ratePolicy: any) => {
+  // Calculate price breakdown for each night
+  const calculatePriceBreakdown = (ratePolicy: any) => {
     const checkInDate = new Date(bookingData.checkIn);
     const checkOutDate = new Date(bookingData.checkOut);
     const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
     
+    const breakdown: { date: string; price: number; isOverride: boolean }[] = [];
     let totalPrice = 0;
     const currentDate = new Date(checkInDate);
     
@@ -143,33 +145,51 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       let nightPrice = getRatePriceForDate(ratePolicy, dateStr);
       
-      // Apply rate policy adjustments if no specific override exists
+      // Check if this is a rate override
       const hasRateOverride = ratePolicy.rateDatePrices?.some((rdp: any) => 
-        format(new Date(rdp.date), 'yyyy-MM-dd') === dateStr && rdp.roomId === selectedRoom.id
+        format(new Date(rdp.date), 'yyyy-MM-dd') === dateStr && 
+        rdp.roomId === selectedRoom.id &&
+        rdp.isActive
       );
       
-      // Note: Price calculation is now handled in getRatePriceForDate using basePrice + percentage
+      breakdown.push({
+        date: dateStr,
+        price: nightPrice,
+        isOverride: hasRateOverride
+      });
       
       totalPrice += nightPrice;
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    return totalPrice / nights; // Return average price per night
+    return {
+      breakdown,
+      totalPrice,
+      averagePrice: totalPrice / nights
+    };
   };
 
   // Prepare rate options - only from server data with rate-specific pricing
   const getRateOptions = () => {
     const options: any = [];
-    const basePrice = selectedRoom?.price || 0;
 
     // Show room rates from server using new rate-based pricing model
     if (selectedRoom?.RoomRate && selectedRoom.RoomRate.length > 0) {
       selectedRoom.RoomRate.forEach((roomRate: any) => {
         if (roomRate.ratePolicy.isActive && roomRate.isActive) {
-          // Calculate rate-specific pricing based on base price + percentage (consistent with Categories)
+          // Calculate rate-specific pricing following the same priority logic
           const ratePolicy = roomRate.ratePolicy;
-          let finalPrice = basePrice; // fallback to room price
+          let finalPrice = selectedRoom?.price || 0; // fallback to room price
           
+          // First priority: Check for rate-specific price overrides
+          //@ts-ignore
+          let hasRateOverride = false;
+          if (ratePolicy.rateDatePrices && Array.isArray(ratePolicy.rateDatePrices) && ratePolicy.rateDatePrices.length > 0) {
+            // If there are rate date prices, we'll calculate average in calculateAverageRatePrice
+            hasRateOverride = true;
+          }
+          
+          // Second priority: Calculate price using rate policy base price + room percentage adjustment
           if (ratePolicy.basePrice && ratePolicy.basePrice > 0) {
             const percentageAdjustment = roomRate.percentageAdjustment || 0;
             const adjustment = (ratePolicy.basePrice * percentageAdjustment) / 100;
@@ -191,7 +211,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             cancellationPolicy: roomRate.ratePolicy.cancellationPolicy,
             adjustmentPercentage: roomRate.ratePolicy.adjustmentPercentage,
             type: 'policy',
-            rateDatePrices: roomRate.ratePolicy.rateDatePrices || []
+            rateDatePrices: roomRate.ratePolicy.rateDatePrices || [],
+            basePrice: ratePolicy.basePrice,
+            percentageAdjustment: roomRate.percentageAdjustment
           });
         }
       });
@@ -201,7 +223,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   };
 
   const rateOptions = getRateOptions();
-
   async function fetchEnhancements() {
     try {
         const res = await fetch(baseUrl + `/enhancements`, {
@@ -285,24 +306,14 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       extraBedCost = extraBedConfig.extraBedCount * selectedRoom.extraBedPrice * nights * rooms;
     }
     
-    // Calculate total rate cost considering rate-specific pricing for each night
-    let totalRateCost = 0;
-    const checkInDate = new Date(bookingData.checkIn);
-    const currentDate = new Date(checkInDate);
+    // Calculate total rate cost with price breakdown
+    const priceData = calculatePriceBreakdown(rateOption);
+    let totalRateCost = priceData.totalPrice;
     
-    for (let i = 0; i < nights; i++) {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      let nightPrice = getRatePriceForDate(rateOption, dateStr);
-      
-      // Apply rate policy adjustments if no specific override exists
-      const hasRateOverride = rateOption.rateDatePrices?.some((rdp: any) => 
-        format(new Date(rdp.date), 'yyyy-MM-dd') === dateStr && rdp.roomId === selectedRoom.id
-      );
-      
-      // Note: Price calculation is now handled in getRatePriceForDate using basePrice + percentage
-      
-      totalRateCost += nightPrice;
-      currentDate.setDate(currentDate.getDate() + 1);
+    // Apply adjustment percentage if present
+    if (rateOption.adjustmentPercentage && rateOption.adjustmentPercentage !== 0) {
+      const adjustmentFactor = 1 + (rateOption.adjustmentPercentage / 100);
+      totalRateCost = totalRateCost * adjustmentFactor;
     }
     
     const totalPrice = totalRateCost * rooms + enhancementPrice * bookingData.adults + extraBedCost;
@@ -331,6 +342,13 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     
     // Update booking data with new room
     setBookingData((prev: any) => ({ ...prev, selectedRoom: roomId }));
+  }
+
+  function toggleRateDetails(rateId: string) {
+    setExpandedRateDetails(prev => ({
+      ...prev,
+      [rateId]: !prev[rateId]
+    }));
   }
 
   useEffect(() => {
@@ -770,27 +788,22 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Available Rates</h3>
             
             {rateOptions.map((rateOption: any) => {
-              // Calculate total rate cost considering rate-specific pricing for each night
-              let totalRateCost = 0;
-              const checkInDate = new Date(bookingData.checkIn);
-              const currentDate = new Date(checkInDate);
+              // Calculate price breakdown for all nights
+              const priceData = calculatePriceBreakdown(rateOption);
+              const totalRateCost = priceData.totalPrice;
+              const averagePrice = priceData.averagePrice;
               
-              for (let i = 0; i < nights; i++) {
-                const dateStr = format(currentDate, 'yyyy-MM-dd');
-                let nightPrice = getRatePriceForDate(rateOption, dateStr);
-                
-                // Apply rate policy adjustments if no specific override exists
-                const hasRateOverride = rateOption.rateDatePrices?.some((rdp: any) => 
-                  format(new Date(rdp.date), 'yyyy-MM-dd') === dateStr && rdp.roomId === selectedRoom.id
-                );
-                
-                // Note: Price calculation is now handled in getRatePriceForDate using basePrice + percentage
-                
-                totalRateCost += nightPrice;
-                currentDate.setDate(currentDate.getDate() + 1);
+              // Apply adjustment percentage if present (-40% would reduce the price)
+              let adjustedTotalCost = totalRateCost;
+              let adjustedAveragePrice = averagePrice;
+              
+              if (rateOption.adjustmentPercentage && rateOption.adjustmentPercentage !== 0) {
+                const adjustmentFactor = 1 + (rateOption.adjustmentPercentage / 100);
+                adjustedTotalCost = totalRateCost * adjustmentFactor;
+                adjustedAveragePrice = averagePrice * adjustmentFactor;
               }
               
-              const basePrice = totalRateCost * rooms;
+              const basePrice = adjustedTotalCost * rooms;
               const extraBedCost = extraBedConfig.useExtraBed && selectedRoom.extraBedPrice ? 
                 extraBedConfig.extraBedCount * selectedRoom.extraBedPrice * nights * rooms : 0;
               const totalPrice = basePrice + extraBedCost;
@@ -823,9 +836,73 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                     {/* Pricing Display */}
                     <div className="space-y-2 sm:space-y-3 mb-4">
                       <div className="flex justify-between items-center">
-                        <span className="text-base sm:text-lg font-bold text-gray-800">€{rateOption.price.toFixed(2)}</span>
-                        <span className="text-xs sm:text-sm text-gray-600">per night</span>
+                        <span className="text-base sm:text-lg font-bold text-gray-800">€{adjustedAveragePrice.toFixed(2)}</span>
+                        <span className="text-xs sm:text-sm text-gray-600">avg per night</span>
                       </div>
+                      
+                      {/* Price variations indicator */}
+                      {priceData.breakdown.some(day => day.isOverride) && (
+                        <button
+                          onClick={() => toggleRateDetails(rateOption.id)}
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>View price breakdown</span>
+                          {expandedRateDetails[rateOption.id] ? 
+                            <ChevronUp className="h-3 w-3" /> : 
+                            <ChevronDown className="h-3 w-3" />
+                          }
+                        </button>
+                      )}
+                      
+                      {/* Expandable price breakdown */}
+                      {expandedRateDetails[rateOption.id] && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 space-y-2">
+                          <h5 className="text-sm font-semibold text-gray-700">Daily Price Breakdown:</h5>
+                          <div className="space-y-1">
+                            {priceData.breakdown.map((day, index) => (
+                              <div key={index} className="flex justify-between text-sm">
+                                <span className="text-gray-600">
+                                  {format(new Date(day.date), 'EEE, MMM dd')}
+                                  {day.isOverride && <span className="text-xs text-blue-600 ml-1">(Special Rate)</span>}
+                                </span>
+                                <span className={`font-medium ${day.isOverride ? 'text-blue-700' : 'text-gray-700'}`}>
+                                  €{day.price.toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                            
+                            {/* Show adjustment if applied */}
+                            {(() => {
+                              const hasAdjustment = rateOption.adjustmentPercentage && rateOption.adjustmentPercentage !== 0 && rateOption.adjustmentPercentage !== null;
+                              
+                              const totalRow = (
+                                <div className="flex justify-between text-sm font-bold text-gray-800 pt-1">
+                                  <span>Total for {nights} nights:</span>
+                                  <span>€{adjustedTotalCost.toFixed(2)}</span>
+                                </div>
+                              );
+                            
+                              return hasAdjustment ? (
+                                <div className="border-t pt-2 mt-2">
+                                  <div className="flex justify-between text-sm text-gray-600">
+                                    <span>Subtotal:</span>
+                                    <span>€{totalRateCost.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-sm text-blue-700">
+                                    <span>
+                                      Rate adjustment ({rateOption.adjustmentPercentage > 0 ? '+' : ''}{rateOption.adjustmentPercentage}%):
+                                    </span>
+                                    <span>
+                                      {rateOption.adjustmentPercentage > 0 ? '+' : ''}€{(adjustedTotalCost - totalRateCost).toFixed(2)}
+                                    </span>
+                                  </div>
+                                  {totalRow}
+                                </div>
+                              ) : totalRow;
+                            })()}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Extra bed pricing breakdown */}
                       {extraBedCost > 0 && (

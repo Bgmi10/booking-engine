@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Euro, CheckCircle, AlertTriangle, Clock, TrendingUp, Users } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Clock, TrendingUp, Users } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import toast from 'react-hot-toast';
 

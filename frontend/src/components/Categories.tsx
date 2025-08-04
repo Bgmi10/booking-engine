@@ -32,32 +32,45 @@ export default function Categories({
     const transformRoomData = (rooms: any[]) => {
       return rooms.map(room => {
         // Calculate minimum price across all rate policies for this room using new rate-based pricing
-        let minPrice = room.price; // Start with base room price as fallback
+        let minPrice: number | null = null; // Start with null, only fall back to room price if no rate policies
+        let hasValidRatePolicy = false;
         
         if (room.RoomRate && Array.isArray(room.RoomRate)) {
           room.RoomRate.forEach((roomRate: any) => {
             if (roomRate.isActive && roomRate.ratePolicy && roomRate.ratePolicy.isActive) {
               const ratePolicy = roomRate.ratePolicy;
+              let ratePolicyPrice = null;
               
-              // Calculate price using rate policy base price + room percentage adjustment
+              // Calculate base price from rate policy + room percentage adjustment
               const basePrice = ratePolicy.basePrice;
               if (basePrice && basePrice > 0) {
+                hasValidRatePolicy = true;
                 const percentageAdjustment = roomRate.percentageAdjustment || 0;
                 const adjustment = (basePrice * percentageAdjustment) / 100;
-                const calculatedPrice = Math.round((basePrice + adjustment) * 100) / 100;
-                minPrice = Math.min(minPrice, calculatedPrice);
+                ratePolicyPrice = Math.round((basePrice + adjustment) * 100) / 100;
               }
               
-              // Also check for any rate-specific price overrides
-              if (ratePolicy.rateDatePrices && Array.isArray(ratePolicy.rateDatePrices) && ratePolicy.rateDatePrices.length > 0) {
-                ratePolicy.rateDatePrices.forEach((rateDatePrice: any) => {
-                  if (rateDatePrice.roomId === room.id && rateDatePrice.isActive) {
-                    minPrice = Math.min(minPrice, rateDatePrice.price);
-                  }
-                });
+              // Apply rate policy adjustment percentage if present
+              if (ratePolicyPrice && ratePolicy.adjustmentPercentage && ratePolicy.adjustmentPercentage !== 0) {
+                const adjustmentFactor = 1 + (ratePolicy.adjustmentPercentage / 100);
+                ratePolicyPrice = ratePolicyPrice * adjustmentFactor;
+              }
+              
+              // Use the calculated price
+              if (ratePolicyPrice !== null) {
+                if (minPrice === null) {
+                  minPrice = ratePolicyPrice;
+                } else {
+                  minPrice = Math.min(minPrice, ratePolicyPrice);
+                }
               }
             }
           });
+        }
+        
+        // Only fall back to room price if no valid rate policies exist
+        if (!hasValidRatePolicy || minPrice === null) {
+          minPrice = room.price;
         }
       
         return {
@@ -72,6 +85,7 @@ export default function Categories({
       unavailableRooms: transformRoomData(availabilityData.unavailableRooms || [])
     };
   }, [availabilityData.availableRooms, availabilityData.unavailableRooms]);
+
   const nightsSelected = bookingData.checkIn && bookingData.checkOut 
     ? differenceInDays(new Date(bookingData.checkOut), new Date(bookingData.checkIn))
     : 0
@@ -350,8 +364,6 @@ export default function Categories({
       const checkOut = adjustedDates.checkOut;
       
       for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
-        const dateKey = format(date, 'yyyy-MM-dd');
-        // Use the calculated display price (minimum across all rate policies)
         dynamicTotalPrice += selectedRoom.displayPrice;
       }
     }
@@ -390,17 +402,6 @@ export default function Categories({
     return totalPrice;
   }
 
-  // Calculate average nightly rate for display using minimum rate policy price
-  const getAverageNightlyRate = (room: any) => {
-    if (!bookingData.checkIn || !bookingData.checkOut || nightsSelected === 0) {
-      return room.displayPrice || room.price; // Return minimum price if no dates selected
-    }
-    
-    // Since we're now using the minimum rate policy price, all nights use the same rate
-    return room.displayPrice || room.price;
-  }
-
-  // Check if room can be booked (considering all validations)
   const canBookRoom = (roomId: string) => {
     // Must meet minimum stay requirement
     if (!minStayValidation[roomId]) return false

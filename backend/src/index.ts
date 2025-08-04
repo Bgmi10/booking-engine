@@ -16,6 +16,7 @@ import customerRouter from "./routes/customerRoute";
 import WebSocketManager from "./websocket/websocketManager";
 import OrderEventService from "./services/orderEventService";
 import paymentPlanRouter from "./routes/paymentPlanRoute";
+import channelWebhookRouter from "./routes/channelWebhookRoutes";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use("/api/v1/vouchers", voucherRouter);
 app.use("/api/v1/charges", chargeRouter);
 app.use("/api/v1/customers", customerRouter);
 app.use("/api/v1/payment-plans", paymentPlanRouter);
+app.use("/api/v1/channels", channelWebhookRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();

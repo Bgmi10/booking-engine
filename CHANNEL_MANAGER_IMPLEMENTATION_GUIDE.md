@@ -4,7 +4,7 @@
 
 This implementation provides a comprehensive Channel Manager integration system that allows your booking engine to distribute rates and availability to third-party channels (Booking.com, Expedia, Airbnb) and receive bookings from them.
 
-## Key Features
+## Key Features 
 
 ### ✅ **Rate Distribution**
 - Distribute room rates to multiple channels

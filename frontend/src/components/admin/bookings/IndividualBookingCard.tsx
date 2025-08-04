@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
   Calendar,
   Users,
@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
 
 interface Booking {
+  bookingId: any;
   id: string;
   checkIn: string;
   checkOut: string;
@@ -21,6 +22,7 @@ interface Booking {
   status: 'PENDING' | 'CONFIRMED' | 'REFUNDED' | 'CANCELLED';
   totalAmount?: number;
   refundAmount?: number;
+  roomName: string;
   room: {
     id: string;
     name: string;

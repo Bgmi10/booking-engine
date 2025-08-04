@@ -103,7 +103,7 @@ export default function OrderHistory({ onClose }: OrderHistoryProps) {
                         <div className="space-y-2">
                             <h4 className="font-medium text-gray-700 text-sm">Items:</h4>
                             <div className="grid grid-cols-1 gap-2">
-                                {order.items.map((item, index) => (
+                                {order.items.map((item: any, index: number) => (
                                     <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
                                         <img 
                                             src={item.imageUrl} 

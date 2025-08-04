@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Calendar,
@@ -22,55 +22,19 @@ import { getStatusColor } from "../../../utils/helper";
 import IndividualBookingCard from "./IndividualBookingCard";
 import { baseUrl } from "../../../utils/constants";
 import toast from 'react-hot-toast';
-
-interface PaymentIntentData {
-  id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  paymentMethod?: string;
-  stripePaymentLinkId?: string;
-  stripeSessionId?: string;
-  totalAmount: number;
-  bookingData: any[];
-  customerData: any;
-  createdAt: string;
-  expiresAt?: string;
-  paidAt?: string;
-  bookings?: any[]; // Individual booking records
-}
-
-interface EnhancedPaymentIntentCardProps {
-  paymentIntent: PaymentIntentData;
-  onViewDetails?: (paymentIntent: any) => void;
-  onSendEmail?: (id: string) => void;
-  onCancel?: (paymentIntent: any) => void;
-  onRefund?: (paymentIntent: any) => void;
-  onViewPayment?: (stripePaymentIntentId: string) => void;
-  onEdit?: (paymentIntent: any) => void;
-  onDelete?: (id: string) => void;
-  loadingAction?: boolean;
-  isEditing?: boolean;
-  editFormData?: any;
-  onUpdateEditFormData?: (field: string, value: any) => void;
-  onSaveEdit?: () => void;
-  onCancelEdit?: () => void;
-  generateConfirmationNumber?: (paymentIntent: any) => string;
-  selectionMode?: boolean;
-  selectedBookingIds?: string[];
-  onBookingSelect?: (bookingId: string, checked: boolean) => void;
-  onConfirmBooking?: () => void;
-  onRefresh?: () => void;
-}
+import type { 
+  EnhancedPaymentIntentCardProps, 
+  PaymentMethodInfo,
+  Booking, 
+  BookingData
+} from "../../../types/types";
 
 export default function EnhancedPaymentIntentCard({
   paymentIntent,
   onViewDetails,
   onSendEmail,
-  onCancel,
   onRefund,
   onViewPayment,
-  onEdit,
   onDelete,
   loadingAction,
   isEditing,
@@ -86,7 +50,7 @@ export default function EnhancedPaymentIntentCard({
   onRefresh
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [individualBookings, setIndividualBookings] = useState<any[]>([]);
+  const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
@@ -105,7 +69,7 @@ export default function EnhancedPaymentIntentCard({
   const displayData = isEditing && editFormData ? editFormData : paymentIntent;
 
   // Get payment method display info
-  const getPaymentMethodInfo = () => {
+  const getPaymentMethodInfo = (): PaymentMethodInfo => {
     if (paymentIntent.stripePaymentLinkId || paymentIntent.stripeSessionId) {
       return {
         icon: <CreditCard className="h-4 w-4" />,
@@ -171,7 +135,7 @@ export default function EnhancedPaymentIntentCard({
     setExpanded(!expanded);
   };
 
-  const handleBookingRefund = (bookingId: string) => {
+  const handleBookingRefund = () => {
     // Refresh the individual bookings to show updated status
     setIndividualBookings([]);
     fetchIndividualBookings();
@@ -228,9 +192,6 @@ export default function EnhancedPaymentIntentCard({
 
   const paymentMethodInfo = getPaymentMethodInfo();
   const statusColor = getStatusColor(displayData.status);
-  const customerData = typeof displayData.customerData === 'string' 
-    ? JSON.parse(displayData.customerData) 
-    : displayData.customerData;
 
   const confirmedBookings = individualBookings.filter(b => b.status === 'CONFIRMED').length;
   const refundedBookings = individualBookings.filter(b => b.status === 'REFUNDED').length;
@@ -275,7 +236,9 @@ export default function EnhancedPaymentIntentCard({
                 </h3>
               )}
               <span
-                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor.bg} ${statusColor.text}`}
+                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  //@ts-ignore
+                  statusColor.bg} ${statusColor.text}`}
               >
                 {displayData.status}
               </span>
@@ -327,7 +290,7 @@ export default function EnhancedPaymentIntentCard({
         <div className="mb-4">
           <h4 className="font-medium text-gray-900 mb-2">Bookings ({totalBookings})</h4>
           <div className="grid gap-2">
-            {displayData.bookingData.map((booking, index) => (
+            {displayData.bookingData.map((booking: BookingData, index: number) => (
               <div key={index} className="bg-gray-50 rounded-lg p-3 flex items-center">
                 {selectionMode && (
                   <input
@@ -448,6 +411,7 @@ export default function EnhancedPaymentIntentCard({
               {/* View Payment */}
               {paymentIntent.stripePaymentIntentId && (
                 <button
+                //@ts-ignore
                   onClick={() => onViewPayment?.(paymentIntent.stripePaymentIntentId)}
                   className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
@@ -626,6 +590,7 @@ export default function EnhancedPaymentIntentCard({
                 {individualBookings.map((booking) => (
                   <IndividualBookingCard
                     key={booking.id}
+                    //@ts-ignore
                     booking={booking}
                     onRefund={handleBookingRefund}
                     onViewDetails={onViewDetails}

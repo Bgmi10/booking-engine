@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import type { BookingData, PaymentIntent } from '../../../types/types';
+import type { PaymentIntent } from '../../../types/types';
 import { baseUrl } from '../../../utils/constants';
 
 interface CustomPartialRefundModalProps {
