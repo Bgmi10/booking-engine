@@ -20,12 +20,12 @@ import ManagerCashVerification from "./ManagerCashVerification";
 import DailyCashSummary from "./DailyCashSummary";
 import ManagerPaymentSummary from "./ManagerPaymentSummary";
 import { useAuth } from "../../../context/AuthContext";
+import { useUsers } from "../../../hooks/useUsers";
 
 export default function Users() {
   // States
-  const [users, setUsers] = useState<User[]>([]);
+  const { users, loading, setUsers } = useUsers()
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -42,45 +42,12 @@ export default function Users() {
   const [showDailySummary, setShowDailySummary] = useState(false);
   const [showPaymentSummary, setShowPaymentSummary] = useState(false);
   const { user: currentUser } = useAuth();
- 
-  // Fetch users
-  const fetchUsers = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${baseUrl}/admin/users/all`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to fetch users");
-      }
-      
-      const data = await res.json();
-      setUsers(data.data);
-      setFilteredUsers(data.data);
-    } catch (error) {
-      console.error(error);
-      setError("Failed to load users. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Handle search
+  
   useEffect(() => {
     if (searchTerm.trim() === "") {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(
+      const filtered = users?.filter(
         (user) =>
           user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -114,10 +81,10 @@ export default function Users() {
       
       setSuccess("User role updated successfully!");
       
-      // Update users state
-      setUsers(users.map(user => 
-        user.id === userId ? { ...user, role } : user
-      ));
+      // // Update users state
+      // setUsers(users.map(user => 
+      //   user.id === userId ? { ...user, role } : user
+      // ));
       
       // Close modal after success
       setTimeout(() => {
@@ -534,7 +501,7 @@ export default function Users() {
           
           <div className="flex space-x-3">
             <button
-              onClick={fetchUsers}
+            
               className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
             >
               <RiRefreshLine className="mr-2 h-5 w-5" />

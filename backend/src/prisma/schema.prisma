@@ -15,7 +15,8 @@ model User {
   createdAt                 DateTime                    @default(now())
   role                      Role                   
   phone                     String?                   
-  basePrice                 Float?                   
+  basePrice                 Float?
+  numberPlate               String?                     // License plate number for ANPR system
   updatedAt                 DateTime                    @updatedAt
   assignedNotifications     Notification[]              @relation("AssignedNotifications")
   createdNotifications      Notification[]              @relation("CreatedNotifications")
@@ -30,6 +31,7 @@ model User {
   managerVerifications      WaiterCashSummary[]         @relation("ManagerVerifications")
   cashDepositsProcessed     CashDeposit[]               @relation("CashProcessingManager")
   managerDailySummaries     ManagerDailySummary[]       @relation("ManagerDailySummaries")
+  licensePlateEntries       LicensePlateEntry[]         @relation("UserLicensePlates")
 }            
 
 model Room {
@@ -365,6 +367,8 @@ model GeneralSettings {
   dahuaIsEnabled               Boolean       @default(false) 
   dahuaGateId                  String?       
   dahuaLicensePlateExpiryHours Int           @default(24)
+  licensePlateExpiryDays       Int           @default(30)
+  licensePlateDailyTriggerTime String        @default("00:00")
   dailyBookingStartTime        String?       @default("00:00")
 }
 
@@ -1499,4 +1503,36 @@ enum ManagerSummaryStatus {
   PENDING       // Daily summary in progress
   FINALIZED     // Manager finalized the daily summary
   REPORTED      // Summary reported to admin
+}
+
+// ANPR License Plate Management Models
+model LicensePlateEntry {
+  id                String             @id @default(uuid())
+  plateNo           String             @unique
+  type              LicensePlateType   @default(ALLOW_LIST)
+  ownerName         String
+  validStartTime    DateTime
+  validEndTime      DateTime
+  isActive          Boolean            @default(true)
+  
+  // Optional associations
+  userId            String?            // Link to user if applicable
+  user              User?              @relation("UserLicensePlates", fields: [userId], references: [id], onDelete: SetNull)
+  bookingId         String?            // Link to booking if created from booking
+  
+  // Metadata
+  notes             String?
+  createdBy         String             // Admin user who created this entry
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  @@index([plateNo, type, isActive])
+  @@index([validStartTime, validEndTime])
+  @@index([userId])
+  @@index([bookingId])
+}
+
+enum LicensePlateType {
+  ALLOW_LIST        // Allowed to enter
+  BLOCK_LIST        // Blocked from entering
 }

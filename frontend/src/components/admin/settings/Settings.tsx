@@ -6,6 +6,7 @@ import { Template as TemplateComponent } from './templates/Template';
 import type { Template, Variable } from './templates/types';
 import CalendarRestriction from './CalendarRestriction';
 import BankDetailsManagement from './BankDetailsManagement';
+import LicensePlateManagement from './LicensePlateManagement';
 import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
 
 interface PaymentConfig {
@@ -15,7 +16,7 @@ interface PaymentConfig {
   manual_transaction_id: boolean;
 }
 
-type SettingsTab = 'general' | 'templates' | 'payment' | 'cash-management' | 'notifications' | 'restriction' | 'bank-details';
+type SettingsTab = 'general' | 'templates' | 'cash-management' | 'restriction' | 'bank-details' | 'license-plates';
 
 export default function Settings() {
   // General settings state
@@ -77,6 +78,8 @@ export default function Settings() {
           dahuaIsEnabled: currentSettings.dahuaIsEnabled || false,
           dahuaGateId: currentSettings.dahuaGateId || '',
           dahuaLicensePlateExpiryHours: String(currentSettings.dahuaLicensePlateExpiryHours || 24),
+          licensePlateExpiryDays: String(currentSettings.licensePlateExpiryDays || 30),
+          licensePlateDailyTriggerTime: currentSettings.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00'
         });
         setSettingsId(currentSettings.id);
@@ -332,6 +335,8 @@ export default function Settings() {
           dahuaIsEnabled: formValues.dahuaIsEnabled === true,
           dahuaGateId: formValues.dahuaGateId || null,
           dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24,
+          licensePlateExpiryDays: Number(formValues.licensePlateExpiryDays) || 30,
+          licensePlateDailyTriggerTime: formValues.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00'
         }),
       });
@@ -356,11 +361,10 @@ export default function Settings() {
   const tabs: { id: SettingsTab; name: string }[] = [
     { id: 'general', name: 'General' },
     { id: 'templates', name: 'Email Templates' },
-    { id: 'payment', name: 'Payment' },
     { id: 'cash-management', name: 'Cash Management' },
-    { id: 'notifications', name: 'Notifications' },
     { id: "restriction", name: "Calendar Restriction"},
-    { id: "bank-details", name: "Bank Details"}
+    { id: "bank-details", name: "Bank Details"},
+    { id: "license-plates", name: "License Plates"}
   ];
 
   const renderTabContent = () => {
@@ -591,6 +595,51 @@ export default function Settings() {
                     )}
                   </div>
                 </div>
+
+                {/* License Plate Management Configuration */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">License Plate Management</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="licensePlateExpiryDays" className="block text-sm font-medium text-gray-700 mb-2">
+                        License Plate Expiry (days)
+                      </label>
+                      <input
+                        id="licensePlateExpiryDays"
+                        name="licensePlateExpiryDays"
+                        type="number"
+                        value={formValues.licensePlateExpiryDays || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="1"
+                        max="365"
+                        placeholder="30"
+                        disabled={isLoading}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Days after which expired license plates will be deleted automatically
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="licensePlateDailyTriggerTime" className="block text-sm font-medium text-gray-700 mb-2">
+                        Daily Export Time (Italian Time)
+                      </label>
+                      <input
+                        id="licensePlateDailyTriggerTime"
+                        name="licensePlateDailyTriggerTime"
+                        type="time"
+                        value={formValues.licensePlateDailyTriggerTime || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isLoading}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Time when daily license plate export email will be sent to admin
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -675,17 +724,6 @@ export default function Settings() {
             onDuplicateTemplate={handleDuplicateTemplate}
             isLoading={isLoadingTemplates}
           />
-        );
-      case 'payment':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Settings</h3>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <p className="text-gray-500 text-sm">Payment settings will be available soon.</p>
-              </div>
-            </div>
-          </div>
         );
       case 'cash-management':
         return (
@@ -806,17 +844,6 @@ export default function Settings() {
             </div>
           </div>
         );
-      case 'notifications':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Notification Settings</h3>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <p className="text-gray-500 text-sm">Notification settings will be available soon.</p>
-              </div>
-            </div>
-          </div>
-        );
         case 'restriction':
         return (
           <div className="space-y-6">
@@ -829,6 +856,8 @@ export default function Settings() {
         );
       case 'bank-details':
         return <BankDetailsManagement />;
+      case 'license-plates':
+        return <LicensePlateManagement />;
       default:
         return null;
     }

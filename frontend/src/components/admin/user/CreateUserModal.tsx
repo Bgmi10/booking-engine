@@ -12,7 +12,8 @@ import { BiLoader } from "react-icons/bi";
         email: "",
         password: "",
         role: "USER",
-        phone: ""
+        phone: "",
+        numberPlate: ""
       });
     
     
@@ -49,7 +50,8 @@ import { BiLoader } from "react-icons/bi";
               email: "",
               password: "",
               role: "USER",
-              phone: ""
+              phone: "",
+              numberPlate: ""
             });
             setIsCreateModalOpen(false);
             setSuccess("");
@@ -174,6 +176,24 @@ import { BiLoader } from "react-icons/bi";
                 />
               </div>
               
+              <div>
+                <label htmlFor="numberPlate" className="block text-sm font-medium text-gray-700">
+                  License Plate Number
+                </label>
+                <input
+                  type="text"
+                  id="numberPlate"
+                  name="numberPlate"
+                  value={formData.numberPlate}
+                  onChange={handleInputChange}
+                  placeholder="ABC123"
+                  className={`mt-1 border-gray-300 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Optional. Used for automatic gate access control.
+                </p>
+              </div>
+
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-gray-700">
                   Role *

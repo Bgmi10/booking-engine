@@ -35,6 +35,19 @@ import { updateServiceRequest, addServiceRequestMessage, getServiceRequestsForPr
 import channelManagerController from '../controllers/channelManagerController';
 import revenueRouter from './revenueRoutes';
 import rateDatePriceRoutes from './rateDatePriceRoutes';
+import { 
+  getLicensePlateEntries, 
+  getLicensePlateEntry, 
+  createLicensePlateEntry, 
+  updateLicensePlateEntry, 
+  deleteLicensePlateEntry,
+  exportLicensePlateEntries,
+  getLicensePlateStats
+} from '../controllers/licensePlateController';
+import { 
+  createLicensePlateSchema, 
+  updateLicensePlateSchema, 
+} from '../zod/licensePlate.schema';
 
 const adminRouter = Router();
 
@@ -372,5 +385,14 @@ adminRouter.delete('/rooms/temp-holds/:id', authMiddleware, deleteTempHold);
 
 // Revenue Management Routes
 adminRouter.use('/revenue', revenueRouter);
+
+// License Plate Management Routes
+adminRouter.get('/license-plates', authMiddleware, getLicensePlateEntries);
+adminRouter.get('/license-plates/stats', authMiddleware, getLicensePlateStats);
+adminRouter.get('/license-plates/export', authMiddleware, exportLicensePlateEntries);
+adminRouter.get('/license-plates/:id', authMiddleware, getLicensePlateEntry);
+adminRouter.post('/license-plates', authMiddleware, validateMiddleware(createLicensePlateSchema), createLicensePlateEntry);
+adminRouter.put('/license-plates/:id', authMiddleware, validateMiddleware(updateLicensePlateSchema), updateLicensePlateEntry);
+adminRouter.delete('/license-plates/:id', authMiddleware, deleteLicensePlateEntry);
 
 export default adminRouter;

@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, initializeDahuaService, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
@@ -17,11 +17,23 @@ import WebSocketManager from "./websocket/websocketManager";
 import OrderEventService from "./services/orderEventService";
 import paymentPlanRouter from "./routes/paymentPlanRoute";
 import channelWebhookRouter from "./routes/channelWebhookRoutes";
+import {
+  generalLimiter,
+  adminLimiter,
+  paymentLimiter,
+  webhookLimiter,
+  publicLimiter,
+  authLimiter,
+  speedLimiter,
+  aggressiveSpeedLimiter
+} from "./middlewares/rateLimiter";
 
 dotenv.config();
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const app = express();
+
+app.set('trust proxy', 1);
 
 app.use(cookieParser());
 app.use(cors({
@@ -31,27 +43,33 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+app.use(generalLimiter);
+app.use(speedLimiter);
+
 app.use("/api/v1/stripe", stipeWebhookRouter);
-app.use(express.json());
-app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/rooms", roomsRouter);
-app.use("/api/v1/bookings", bookingRouter);
-app.use("/api/v1/enhancements", enhancementRouter);
-app.use("/api/v1/sessions", sessionRouter);
-app.use("/api/v1/payment-intent", paymentIntentRouter);
-app.use("/api/v1/vouchers", voucherRouter);
-app.use("/api/v1/charges", chargeRouter);
-app.use("/api/v1/customers", customerRouter);
-app.use("/api/v1/payment-plans", paymentPlanRouter);
-app.use("/api/v1/channels", channelWebhookRouter);
+app.use(express.json({ limit: '10mb' }));
+app.use("/api/v1/admin", aggressiveSpeedLimiter, adminLimiter, adminRouter);
+app.use("/api/v1/auth", authLimiter);
+app.use("/api/v1/payment-intent", aggressiveSpeedLimiter, paymentLimiter, paymentIntentRouter);
+app.use("/api/v1/charges", aggressiveSpeedLimiter, paymentLimiter, chargeRouter);
+app.use("/api/v1/payment-plans", paymentLimiter, paymentPlanRouter);
+app.use("/api/v1/channels", webhookLimiter, channelWebhookRouter);
+app.use("/api/v1/rooms", publicLimiter, roomsRouter);
+app.use("/api/v1/bookings", publicLimiter, bookingRouter);
+app.use("/api/v1/enhancements", publicLimiter, enhancementRouter);
+app.use("/api/v1/sessions", publicLimiter, sessionRouter);
+app.use("/api/v1/vouchers", publicLimiter, voucherRouter);
+app.use("/api/v1/customers", publicLimiter, customerRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();
 cleanupExpiredLicensePlates();
-initializeDahuaService();
+//initializeDahuaService();
 triggerAutomatedTasks();
 schedulePaymentReminders();
 scheduleWeddingReminders();
+updateExpiredLicensePlates();
+scheduleLicensePlateExport(); // Dynamic cron for license plate export emails
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -1310,10 +1310,12 @@ async function processBookingsInTransaction(
             
             console.log(`Successfully created booking: ${newBooking.id}`);
 
-        // Handle license plate integration with Dahua camera
+        // Handle license plate integration with Dahua camera and database
         if (customerDetails.carNumberPlate) {
             try {
                 const guestName = `${customerDetails.firstName} ${customerDetails.lastName}`.trim();
+                
+                // Add to Dahua camera system
                 await dahuaService.addLicensePlate({
                     plateNumber: customerDetails.carNumberPlate,
                     checkInDate: new Date(checkIn),
@@ -1322,6 +1324,49 @@ async function processBookingsInTransaction(
                     bookingId: newBooking.id
                 });
                 console.log(`License plate ${customerDetails.carNumberPlate} added to Dahua camera for booking ${newBooking.id}`);
+                
+                // Create license plate entry in database for CSV export
+                try {
+                    await tx.licensePlateEntry.create({
+                        data: {
+                            plateNo: customerDetails.carNumberPlate.toUpperCase().trim(),
+                            type: 'ALLOW_LIST',
+                            ownerName: guestName,
+                            validStartTime: new Date(checkIn),
+                            validEndTime: new Date(checkOut),
+                            bookingId: newBooking.id,
+                            userId: null, // No user association for booking-generated entries
+                            notes: `Auto-created from booking ${newBooking.id}`,
+                            createdBy: 'SYSTEM' // Mark as system-generated
+                        }
+                    });
+                    console.log(`License plate entry created in database for ${customerDetails.carNumberPlate}`);
+                } catch (dbError) {
+                    // If plate already exists, update the entry with new dates if needed
+                    const existingEntry = await tx.licensePlateEntry.findUnique({
+                        where: { plateNo: customerDetails.carNumberPlate.toUpperCase().trim() }
+                    });
+                    
+                    if (existingEntry) {
+                        // Update existing entry to extend validity if this booking ends later
+                        const newEndTime = new Date(checkOut);
+                        if (newEndTime > existingEntry.validEndTime) {
+                            await tx.licensePlateEntry.update({
+                                where: { id: existingEntry.id },
+                                data: {
+                                    validEndTime: newEndTime,
+                                    notes: existingEntry.notes 
+                                        ? `${existingEntry.notes}; Extended by booking ${newBooking.id}`
+                                        : `Extended by booking ${newBooking.id}`
+                                }
+                            });
+                            console.log(`Extended license plate entry validity for ${customerDetails.carNumberPlate}`);
+                        }
+                    } else {
+                        console.error(`Failed to create license plate entry for ${customerDetails.carNumberPlate}:`, dbError);
+                    }
+                }
+                
             } catch (error) {
                 console.error(`Failed to add license plate to Dahua camera for booking ${newBooking.id}:`, error);
                 // Don't fail the booking creation if Dahua integration fails

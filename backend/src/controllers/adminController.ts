@@ -786,9 +786,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, dailyBookingStartTime } = req.body;
+  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime } = req.body;
 
-  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, dailyBookingStartTime?: string } = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -823,6 +823,14 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   }
   if (typeof dahuaUsername !== 'undefined') {
     updateData.dahuaUsername = dahuaUsername;
+  }
+  
+  if (typeof licensePlateExpiryDays !== 'undefined') {
+    updateData.licensePlateExpiryDays = licensePlateExpiryDays;
+  }
+  
+  if (typeof licensePlateDailyTriggerTime !== 'undefined') {
+    updateData.licensePlateDailyTriggerTime = licensePlateDailyTriggerTime;
   }
   
   if (typeof dailyBookingStartTime !== 'undefined') {

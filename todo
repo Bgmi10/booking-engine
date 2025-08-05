@@ -316,7 +316,7 @@ model Booking {
   totalAmount         Float
   prepaidAmount       Float?                // 30% paid
   remainingAmount     Float?                // 70% remaining
-  remainingDueDate    DateTime?             // When 70% is due
+  remainingDueDate    DateTime?             // When 70% is due  
   finalPaymentStatus  PaymentStatus?        // Status of 70% payment
   
   @@index([roomId, checkIn, checkOut, status])

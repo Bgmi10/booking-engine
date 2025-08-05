@@ -25,6 +25,7 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    numberPlate: "",
     newPassword: "",
     confirmPassword: ""
   });
@@ -49,6 +50,7 @@ export default function Profile() {
       setFormData({
         name: data.data.name,
         email: data.data.email,
+        numberPlate: data.data.numberPlate || "",
         newPassword: "",
         confirmPassword: ""
       });
@@ -117,7 +119,8 @@ export default function Profile() {
         },
         body: JSON.stringify({
           name: formData.name,
-          email: formData.email
+          email: formData.email,
+          numberPlate: formData.numberPlate || null
         })
       });
       
@@ -292,7 +295,8 @@ export default function Profile() {
                       setFormData({
                         ...formData,
                         name: profile.name,
-                        email: profile.email
+                        email: profile.email,
+                        numberPlate: profile.numberPlate || ""
                       });
                       setFormErrors({});
                     }}
@@ -317,7 +321,7 @@ export default function Profile() {
               )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 {editMode.basic ? (
@@ -359,6 +363,27 @@ export default function Profile() {
                   </>
                 ) : (
                   <p className="text-gray-900">{profile.email}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">License Plate</label>
+                {editMode.basic ? (
+                  <>
+                    <input
+                      type="text"
+                      name="numberPlate"
+                      value={formData.numberPlate}
+                      onChange={handleInputChange}
+                      placeholder="ABC123"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Optional. Used for automatic gate access control.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-gray-900">{profile.numberPlate || 'Not provided'}</p>
                 )}
               </div>
             </div>

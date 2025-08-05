@@ -3688,6 +3688,82 @@ async function main() {
         waiterCount: { type: 'number', description: 'Number of waiters', example: 3 },
         waiters: { type: 'array', description: 'Array of waiters and amounts', example: [{ name: 'John Waiter', amount: '45.50' }] }
       }
+    },
+    {
+      name: 'License Plate Daily Export',
+      type: 'LICENSE_PLATE_EXPORT',
+      subject: 'Daily License Plate Export - {{date}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>License Plate Export - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #3b82f6 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🚗</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Daily License Plate Export</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              {{date}}
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 32px;">
+            <div style="background: ${emailStyles.backgroundColor}; padding: 32px; border-radius: 12px; border: 1px solid ${emailStyles.borderColor}; margin-bottom: 32px;">
+              <h3 style="margin: 0 0 24px 0; color: ${emailStyles.primaryColor}; font-size: 24px; font-weight: 600;">Export Summary</h3>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px;">
+                <div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid ${emailStyles.borderColor};">
+                  <div style="color: ${emailStyles.secondaryColor}; font-size: 14px; font-weight: 500; margin-bottom: 8px;">TOTAL ENTRIES</div>
+                  <div style="color:${emailStyles.primaryColor}; font-size: 32px; font-weight: 700;">{{totalEntries}}</div>
+                </div>
+                <div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid ${emailStyles.borderColor};">
+                  <div style="color: ${emailStyles.secondaryColor}; font-size: 14px; font-weight: 500; margin-bottom: 8px;">ACTIVE PLATES</div>
+                  <div style="color: ${emailStyles.successColor}; font-size: 32px; font-weight: 700;">{{activeEntries}}</div>
+                </div>
+              </div>
+
+              <p style="margin: 0; color: ${emailStyles.secondaryColor}; font-size: 16px; line-height: 1.6;">
+                Please find the complete license plate export attached to this email as a CSV file. 
+                This export includes all active license plate entries from the ANPR system.
+              </p>
+            </div>
+
+            <div style="background: #fef3cd; padding: 24px; border-radius: 8px; border: 1px solid #fde047; margin-bottom: 32px;">
+              <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                <span style="font-size: 24px; margin-right: 12px;">⚠️</span>
+                <h4 style="margin: 0; color: #92400e; font-size: 18px; font-weight: 600;">Important Notes</h4>
+              </div>
+              <ul style="margin: 0; padding-left: 20px; color: #92400e; font-size: 15px; line-height: 1.6;">
+                <li>This export is generated automatically at the configured time</li>
+                <li>The CSV file contains all currently active license plate entries</li>
+                <li>Expired plates are automatically removed from the system</li>
+                <li>Please review the export for any necessary updates</li>
+              </ul>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        date: { type: 'string', description: 'Export date', example: 'January 15, 2024' },
+        totalEntries: { type: 'number', description: 'Total number of entries', example: 45 },
+        activeEntries: { type: 'number', description: 'Number of active entries', example: 42 }
+      }
     }
   ]
 

@@ -10,6 +10,7 @@ export interface User {
     phone: string;
     updatedAt: string;
     profilePicture: string;
+    numberPlate: string;
 }
 
 export interface Enhancement {
@@ -460,6 +461,8 @@ export interface GeneralSettings { // Represents the actual data structure from/
   dahuaIsEnabled?: boolean;
   dahuaGateId?: string;
   dahuaLicensePlateExpiryHours?: number;
+  licensePlateExpiryDays?: number;
+  licensePlateDailyTriggerTime?: string;
   // Add other settings properties here as they are defined in the backend model
 }
 
@@ -474,6 +477,8 @@ export interface SettingsFormValues {
   dahuaIsEnabled?: boolean;
   dahuaGateId?: string;
   dahuaLicensePlateExpiryHours?: string;
+  licensePlateExpiryDays?: string;
+  licensePlateDailyTriggerTime?: string;
 }
 
 export interface AvailabilityRule {

@@ -6,6 +6,8 @@ import { notificationService } from "../services/notificationService";
 import { PaymentReminderService } from "../services/paymentReminderService";
 import { WeddingReminderService } from "../services/weddingReminderService";
 import { cashReminderService } from "../services/cashReminderService";
+import { LicensePlateExportService } from "../services/licensePlateExportService";
+import { EmailService } from "../services/emailService";
 
 const now = new Date();
 
@@ -79,17 +81,17 @@ export const cleanupExpiredLicensePlates = () => {
   });
 };
 
-export const initializeDahuaService = () => {
-  cron.schedule("0 0 * * *", async () => {
-    try {
-      console.log("[Cron] Initializing Dahua service...");
-      await dahuaService.initialize();
-      console.log("[Cron] Dahua service initialization completed");
-    } catch (error) {
-      console.error("[Cron] Dahua service initialization failed:", error);
-    }
-  });
-};
+// export const initializeDahuaService = () => {
+//   cron.schedule("0 0 * * *", async () => {
+//     try {
+//       console.log("[Cron] Initializing Dahua service...");
+//       await dahuaService.initialize();
+//       console.log("[Cron] Dahua service initialization completed");
+//     } catch (error) {
+//       console.error("[Cron] Dahua service initialization failed:", error);
+//     }
+//   });
+// };
 
 export const triggerAutomatedTasks = () => {
   cron.schedule("*/5 * * * *", async () => {
@@ -140,6 +142,142 @@ export const scheduleCashReminders = () => {
       console.error("[Cron] Error in cash reminder job:", error);
     }
   });
+};
+
+export const updateExpiredLicensePlates = () => {
+  cron.schedule("0 0 * * *", async () => { // Run daily at midnight
+    try {
+      console.log("[Cron] Starting expired license plate update...");
+    
+      const now = new Date();
+      
+      // Find expired license plates that are still ALLOW_LIST
+      // A plate is expired if current time is past its validEndTime
+      const expiredPlates = await prisma.licensePlateEntry.findMany({
+        where: {
+          type: "ALLOW_LIST",
+          validEndTime: {
+            lt: now
+          },
+          isActive: true
+        }
+      });
+      
+      if (expiredPlates.length === 0) {
+        console.log("[Cron] No expired license plates found to update");
+      } else {
+        // Update expired plates to BLOCK_LIST and set as inactive
+        const updateResult = await prisma.licensePlateEntry.updateMany({
+          where: {
+            id: {
+              in: expiredPlates.map(plate => plate.id)
+            }
+          },
+          data: {
+            type: "BLOCK_LIST",
+            isActive: false, // Mark as inactive when expired
+            updatedAt: now
+          }
+        });
+        
+        console.log(`[Cron] Updated ${updateResult.count} expired license plates to BLOCK_LIST status`);
+        
+        // Log the updated plates for tracking
+        for (const plate of expiredPlates) {
+          console.log(`[Cron] License plate ${plate.plateNo} (${plate.ownerName}) updated to BLOCK_LIST - expired at ${plate.validEndTime}`);
+        }
+      }
+
+      // Delete old expired license plates based on configured expiry days
+      await LicensePlateExportService.deleteExpiredLicensePlates();
+      
+    } catch (error) {
+      console.error("[Cron] Error updating expired license plates:", error);
+    }
+  });
+};
+
+// Dynamic cron job for license plate export email
+export const scheduleLicensePlateExport = () => {
+  // Check every minute to see if it's time to send the export
+  cron.schedule("* * * * *", async () => {
+    try {
+      const settings = await prisma.generalSettings.findFirst();
+      if (!settings || !settings.licensePlateDailyTriggerTime) {
+        return; // No settings or no trigger time configured
+      }
+
+      // Convert trigger time to Italian timezone
+      const now = new Date();
+      const italianTime = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Rome',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(now);
+
+      const triggerTime = settings.licensePlateDailyTriggerTime;
+
+      // Check if current Italian time matches trigger time
+      if (italianTime === triggerTime) {
+        console.log(`[Cron] License plate export triggered at Italian time: ${italianTime}`);
+        await sendLicensePlateExport();
+      }
+      console.log("time doesnt match to send an csv file email to admin")
+    } catch (error) {
+      console.error("[Cron] Error in license plate export scheduler:", error);
+    }
+  });
+};
+
+// Function to send license plate export email
+const sendLicensePlateExport = async () => {
+  try {
+    console.log("[License Plate Export] Starting daily export...");
+
+    // Get license plate data and statistics
+    const data = await LicensePlateExportService.getLicensePlateData();
+    const totalEntries = data.length;
+    const activeEntries = data.filter(entry => entry.type === 'ALLOW_LIST').length;
+
+    // Create CSV attachment
+    const csvAttachment = await LicensePlateExportService.createCSVAttachment();
+
+    // Get admin email from environment
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      console.error("[License Plate Export] ADMIN_EMAIL not configured in environment variables");
+      return;
+    }
+
+    // Format date for email
+    const today = new Date();
+    const formattedDate = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Rome',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).format(today);
+
+    // Send email with attachment
+    await EmailService.sendEmail({
+      to: {
+        email: adminEmail,
+        name: 'Administrator'
+      },
+      templateType: 'LICENSE_PLATE_EXPORT',
+      templateData: {
+        date: formattedDate,
+        totalEntries,
+        activeEntries
+      },
+      attachments: [csvAttachment]
+    });
+
+    console.log(`[License Plate Export] Export email sent successfully to ${adminEmail} with ${totalEntries} entries`);
+  } catch (error) {
+    console.error("[License Plate Export] Failed to send export email:", error);
+  }
 };
 
 // // Schedule daily cash summary emails - runs daily at 8 AM// Schedule cash summary emails every 2 seconds
