@@ -39,7 +39,7 @@ export const generalLimiter = rateLimit({
 export const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 500, // Limit each IP to 100 requests per windowMs for admin routes
-  message: 'Too many admin requests from this IP, please try again later.',
+  message: 'Too many admin requests from this IP, please tr y again later.',
   standardHeaders: true,
   legacyHeaders: false,
   handler: createLimitHandler('🚫 Nice try, hacker! 😏 Admin routes aren\'t your playground. Take a timeout and rethink your life choices! 🤔💭'),
@@ -95,7 +95,7 @@ export const authLimiter = rateLimit({
 export const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 100, // Allow 100 requests per windowMs without delay
-  delayMs: 500, // Add 500ms delay per request after delayAfter
+  delayMs: () => 500, // Add 500ms delay per request after delayAfter
   maxDelayMs: 20000, // Maximum delay of 20 seconds
 });
 
@@ -103,7 +103,7 @@ export const speedLimiter = slowDown({
 export const aggressiveSpeedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 25, // Allow only 25 requests per windowMs without delay
-  delayMs: 1000, // Add 1 second delay per request after delayAfter
+  delayMs: () => 1000, // Add 1 second delay per request after delayAfter
   maxDelayMs: 30000, // Maximum delay of 30 seconds
 });
 

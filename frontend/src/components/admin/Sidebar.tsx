@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { 
-  RiDashboardLine, 
-  RiUser3Line, 
+  RiDashboardLine,
   RiHotelBedLine,
   RiCalendarCheckLine,
   RiSettings4Line,
-  RiUserSettingsLine,
   RiLogoutBoxLine,
   RiMenuFoldLine,
   RiMenuUnfoldLine,
@@ -48,7 +46,6 @@ export default function Sidebar({
 
   const menus = [
     { id: 1, title: "Dashboard", path: "dashboard", icon: <RiDashboardLine size={20} /> },
-    { id: 2, title: "Users", path: "users", icon: <RiUser3Line size={20} /> },
     { id: 3, title: "Rooms", path: "rooms", icon: <RiHotelBedLine size={20} /> },
     { id: 4, title: "Bookings", path: "bookings", icon: <RiCalendarCheckLine size={20} /> },
     { id: 18, title: "Channel Manager", path: "channel-manager", icon: <RiShareLine size={20} /> },
@@ -57,7 +54,6 @@ export default function Sidebar({
     { id: 111, title: "Notifications", path: "notifications", icon: <RiNotification3Line size={20} /> },
     { id: 5, title: "Enhancements", path: "enhancements", icon: <RiShoppingBasketLine size={20} /> },
     { id: 6, title: "Settings", path: "settings", icon: <RiSettings4Line size={20} /> },
-    { id: 7, title: "Profile", path: "profile", icon: <RiUserSettingsLine size={20} /> },
     { id: 8, title: "Rate Policies", path: "ratepolicies", icon: <RiFileTextLine size={20} /> },
     { id: 9, title: "Voucher", path: "vouchers", icon: <Ticket size={20} /> },
     { id: 10, title: "Customers", path: "customers", icon: <Users2 size={20} /> },

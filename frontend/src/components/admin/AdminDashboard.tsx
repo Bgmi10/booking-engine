@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Dashboard from "./Dashboard";
-import Users from "./user/Users";
 import Rooms from "./room/Rooms";
 import Bookings from ".//bookings/Bookings";
 import Settings from "./settings/Settings";
-import Profile from "./Profile";
 import AdminHeader from "./AdminHeader";
 import Enhancements from "./enhancements/Enhancements";
 import Ratepolicy from "./ratepolicies/Ratepolicy";
@@ -21,7 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 import CreateOrderModal from "./orders/CreateOrderModal";
 import WeddingProposals from "./wedding-proposals/WeddingProposals";
 import RevenueManagement from "./revenue/RevenueManagement";
-import ChannelManager from "./channel-manager/ChannelManager";
+import Beds24Manager from "./beds24/Beds24Manager";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -60,8 +58,6 @@ export default function AdminDashboard() {
     switch (currentPage) {
       case "dashboard":
         return <Dashboard />;
-      case "users":
-        return <Users />;
       case "rooms":
         return <Rooms />;
       case "bookings":
@@ -70,8 +66,6 @@ export default function AdminDashboard() {
         return <Enhancements />;
       case "settings":
         return <Settings />;
-      case "profile":
-        return <Profile />;
       case "ratepolicies":
         return <Ratepolicy />;
       case "vouchers":
@@ -91,7 +85,7 @@ export default function AdminDashboard() {
       case "revenue-management":
         return <RevenueManagement />;
       case "channel-manager":
-        return <ChannelManager />;
+        return <Beds24Manager />;
       default:
         if (user?.role === 'WAITER') return <WaiterOrders />;
         if (user?.role === 'KITCHEN') return <KitchenOrders />;

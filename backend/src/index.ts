@@ -16,7 +16,6 @@ import customerRouter from "./routes/customerRoute";
 import WebSocketManager from "./websocket/websocketManager";
 import OrderEventService from "./services/orderEventService";
 import paymentPlanRouter from "./routes/paymentPlanRoute";
-import channelWebhookRouter from "./routes/channelWebhookRoutes";
 import {
   generalLimiter,
   adminLimiter,
@@ -46,14 +45,13 @@ app.use(cors({
 app.use(generalLimiter);
 app.use(speedLimiter);
 
-app.use("/api/v1/stripe", stipeWebhookRouter);
+app.use("/api/v1/stripe", webhookLimiter, stipeWebhookRouter);
 app.use(express.json({ limit: '10mb' }));
 app.use("/api/v1/admin", aggressiveSpeedLimiter, adminLimiter, adminRouter);
 app.use("/api/v1/auth", authLimiter);
 app.use("/api/v1/payment-intent", aggressiveSpeedLimiter, paymentLimiter, paymentIntentRouter);
 app.use("/api/v1/charges", aggressiveSpeedLimiter, paymentLimiter, chargeRouter);
 app.use("/api/v1/payment-plans", paymentLimiter, paymentPlanRouter);
-app.use("/api/v1/channels", webhookLimiter, channelWebhookRouter);
 app.use("/api/v1/rooms", publicLimiter, roomsRouter);
 app.use("/api/v1/bookings", publicLimiter, bookingRouter);
 app.use("/api/v1/enhancements", publicLimiter, enhancementRouter);

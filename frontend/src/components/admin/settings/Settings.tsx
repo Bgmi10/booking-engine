@@ -8,6 +8,8 @@ import CalendarRestriction from './CalendarRestriction';
 import BankDetailsManagement from './BankDetailsManagement';
 import LicensePlateManagement from './LicensePlateManagement';
 import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
+import Profile from '../Profile';
+import Users from '../user/Users';
 
 interface PaymentConfig {
   qr_code: boolean;
@@ -16,7 +18,7 @@ interface PaymentConfig {
   manual_transaction_id: boolean;
 }
 
-type SettingsTab = 'general' | 'templates' | 'cash-management' | 'restriction' | 'bank-details' | 'license-plates';
+type SettingsTab = 'general' | 'templates' | 'cash-management' | 'restriction' | 'bank-details' | 'license-plates' | 'users' | 'profile';
 
 export default function Settings() {
   // General settings state
@@ -364,7 +366,9 @@ export default function Settings() {
     { id: 'cash-management', name: 'Cash Management' },
     { id: "restriction", name: "Calendar Restriction"},
     { id: "bank-details", name: "Bank Details"},
-    { id: "license-plates", name: "License Plates"}
+    { id: "license-plates", name: "License Plates"},
+    { id: "users", name: "Users Mangement"},
+    { id: "profile", name: "Profile"}
   ];
 
   const renderTabContent = () => {
@@ -858,6 +862,10 @@ export default function Settings() {
         return <BankDetailsManagement />;
       case 'license-plates':
         return <LicensePlateManagement />;
+      case "profile":
+        return <Profile />;
+      case "users":
+        return <Users />
       default:
         return null;
     }

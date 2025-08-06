@@ -1,66 +1,66 @@
-name: Build and push image to docker hub and deploy to ECS
+# name: Build and push image to docker hub and deploy to ECS
 
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'backend/**'
-      - '.github/workflows/cd.yml'
+# on:
+#   push:
+#     branches:
+#       - main
+#     paths:
+#       - 'backend/**'
+#       - '.github/workflows/cd.yml'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
+#     steps:
+#       - uses: actions/checkout@v3
 
-      - uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+#       - uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKER_USERNAME }}
+#           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push image to Docker Hub
-        uses: docker/build-push-action@v3
-        with:
-          context: backend
-          file: backend/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
+#       - name: Build and push image to Docker Hub
+#         uses: docker/build-push-action@v3
+#         with:
+#           context: backend
+#           file: backend/Dockerfile
+#           push: true
+#           tags: ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
 
-      - name: Verify Docker image
-        run: docker pull ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
+#       - name: Verify Docker image
+#         run: docker pull ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
 
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.ECS_HOST }}
-          username: ${{ secrets.ECS_USERNAME }}
-          key: ${{ secrets.ECS_KEY }}
-          script: |
-           # Stop and remove old backend container
-           sudo docker stop la-torre || true
-           sudo docker rm la-torre || true
+#       - name: Deploy to EC2
+#         uses: appleboy/ssh-action@v1
+#         with:
+#           host: ${{ secrets.ECS_HOST }}
+#           username: ${{ secrets.ECS_USERNAME }}
+#           key: ${{ secrets.ECS_KEY }}
+#           script: |
+#            # Stop and remove old backend container
+#            sudo docker stop la-torre || true
+#            sudo docker rm la-torre || true
          
-           # Create Docker network if it doesn't exist
-           sudo docker network create la-torre-net || true
+#            # Create Docker network if it doesn't exist
+#            sudo docker network create la-torre-net || true
 
-           # Pull latest backend image
-           sudo docker pull ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
+#            # Pull latest backend image
+#            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
          
-           # Run backend container
-           sudo docker run -d \
-             --name la-torre \
-             --network la-torre-net \
-             -v /home/ubuntu/env/la-torre.env:/app/.env \
-             -p 5000:5000 \
-             ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
+#            # Run backend container
+#            sudo docker run -d \
+#              --name la-torre \
+#              --network la-torre-net \
+#              -v /home/ubuntu/env/la-torre.env:/app/.env \
+#              -p 5000:5000 \
+#              ${{ secrets.DOCKER_USERNAME }}/la-torre:latest
           
-           sudo docker exec la-torre npx prisma migrate deploy --schema=src/prisma/schema.prisma
+#            sudo docker exec la-torre npx prisma migrate deploy --schema=src/prisma/schema.prisma
           
-           # Always regenerate Prisma client
-           sudo docker exec la-torre npm run db:generate
+#            # Always regenerate Prisma client
+#            sudo docker exec la-torre npm run db:generate
 
-           sudo docker exec la-torre npm run seed
-           echo "seed done"
-           echo "Deployment completed successfully"
+#            sudo docker exec la-torre npm run seed
+#            echo "seed done"
+#            echo "Deployment completed successfully"
