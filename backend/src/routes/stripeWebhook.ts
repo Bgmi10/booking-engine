@@ -148,7 +148,8 @@ async function handleRefundCreated(event: Stripe.Event) {
                         where: { id: specificBookingId },
                         data: { 
                             status: "REFUNDED",
-                            refundAmount: refundAmount
+                            refundAmount: refundAmount,
+                            refundStatus: "FULLY_REFUNDED"
                         }
                     });
                     
@@ -162,10 +163,13 @@ async function handleRefundCreated(event: Stripe.Event) {
                     
                     // Update payment intent status based on remaining bookings
                     const paymentIntentStatus = remainingBookings.length === 0 ? "REFUNDED" : "SUCCEEDED";
+                    const refundStatusValue = remainingBookings.length === 0 ? "FULLY_REFUNDED" : "PARTIALLY_REFUNDED";
+                    
                     await tx.paymentIntent.update({
                         where: { id: ourPaymentIntent.id },
                         data: { 
                             status: paymentIntentStatus,
+                            refundStatus: refundStatusValue,
                             adminNotes: `Partial refund: €${refundAmount} for booking ${specificBookingId}. ${refund.metadata?.refundReason || "Refund processed"}`
                         }
                     });
@@ -180,6 +184,7 @@ async function handleRefundCreated(event: Stripe.Event) {
                     where: { id: ourPaymentIntent.id },
                     data: { 
                         status: "REFUNDED",
+                        refundStatus: "FULLY_REFUNDED",
                         adminNotes: refund.metadata?.refundReason || "Full refund processed"
                     }
                 });
@@ -189,6 +194,7 @@ async function handleRefundCreated(event: Stripe.Event) {
                     where: { paymentIntentId: ourPaymentIntent.id },
                     data: { 
                         status: "REFUNDED",
+                        refundStatus: "FULLY_REFUNDED",
                         refundAmount: refundAmount / ourPaymentIntent.bookings.length // Split evenly if no specific booking
                     }
                 });
@@ -232,35 +238,38 @@ async function handleRefundCreated(event: Stripe.Event) {
             
             // Check if this is a custom partial refund
             if (refund.metadata?.refundType === 'custom_partial_refund' && specificBookingId) {
-                // Send custom partial refund email
-                const booking = ourPaymentIntent.bookings.find(b => b.id === specificBookingId);
-                if (booking && customerDetails) {
-                    const currentRefundAmount = booking.refundAmount || 0;
-                    const updatedRefundAmount = currentRefundAmount + (refund.amount / 100);
-                    
-                    await EmailService.sendEmail({
-                        to: {
-                            email: customerDetails.email,
-                            name: customerDetails.name
-                        },
-                        templateType: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION',
-                        templateData: {
-                            customerName: customerDetails.name,
-                            refundAmount: refund.amount / 100,
-                            refundCurrency: refund.currency.toUpperCase(),
-                            bookingId: booking.id,
-                            roomName: booking.room.name,
-                            refundReason: refund.metadata?.refundReason || 'Custom partial refund',
-                            refundDate: new Date().toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                            }),
-                            remainingAmount: booking.totalAmount && booking?.totalAmount - updatedRefundAmount,
-                            originalAmount: booking.totalAmount,
-                            paymentMethod: 'STRIPE'
-                        }
-                    });
+                // Send custom partial refund email only if requested
+                const sendEmailToCustomer = refund.metadata?.sendEmailToCustomer === 'true';
+                if (sendEmailToCustomer) {
+                    const booking = ourPaymentIntent.bookings.find(b => b.id === specificBookingId);
+                    if (booking && customerDetails) {
+                        const currentRefundAmount = booking.refundAmount || 0;
+                        const updatedRefundAmount = currentRefundAmount + (refund.amount / 100);
+                        
+                        await EmailService.sendEmail({
+                            to: {
+                                email: customerDetails.email,
+                                name: customerDetails.name
+                            },
+                            templateType: 'CUSTOM_PARTIAL_REFUND_CONFIRMATION',
+                            templateData: {
+                                customerName: customerDetails.name,
+                                refundAmount: refund.amount / 100,
+                                refundCurrency: refund.currency.toUpperCase(),
+                                bookingId: booking.id,
+                                roomName: booking.room.name,
+                                refundReason: refund.metadata?.refundReason || 'Custom partial refund',
+                                refundDate: new Date().toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                }),
+                                remainingAmount: booking.totalAmount && booking?.totalAmount - updatedRefundAmount,
+                                originalAmount: booking.totalAmount,
+                                paymentMethod: 'STRIPE'
+                            }
+                        });
+                    }
                 }
             } else {
                 // Send regular refund confirmation email
@@ -302,12 +311,16 @@ async function handleRefundCreated(event: Stripe.Event) {
                     }
                 }
                 
-                await sendRefundConfirmationEmail(emailBookingData, customerDetails, {
-                    refundId: refund.id,
-                    refundAmount: refund.amount / 100,
-                    refundCurrency: refund.currency,
-                    refundReason: refund.metadata?.refundReason || "Refund processed"
-                });
+                // Send regular refund confirmation email only if requested
+                const sendEmailToCustomer = refund.metadata?.sendEmailToCustomer === 'true';
+                if (sendEmailToCustomer) {
+                    await sendRefundConfirmationEmail(emailBookingData, customerDetails, {
+                        refundId: refund.id,
+                        refundAmount: refund.amount / 100,
+                        refundCurrency: refund.currency,
+                        refundReason: refund.metadata?.refundReason || "Refund processed"
+                    });
+                }
             }
         }
         
@@ -347,13 +360,17 @@ async function handleRefundUpdated(event: Stripe.Event) {
                     where: { id: ourPaymentIntent.id },
                     data: { 
                         status: "SUCCEEDED",
+                        refundStatus: "NOT_REFUNDED",
                         adminNotes: "Refund failed - payment still valid"
                     }
                 });
 
                 await tx.booking.updateMany({
                     where: { paymentIntentId: ourPaymentIntent.id },
-                    data: { status: "CONFIRMED" }
+                    data: { 
+                        status: "CONFIRMED",
+                        refundStatus: "NOT_REFUNDED"
+                    }
                 });
 
                 await tx.payment.updateMany({

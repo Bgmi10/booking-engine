@@ -13,6 +13,8 @@ import Occupancy from "./Occupancy"
 import type { PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
+import RefundConfirmationModal from "./RefundConfirmationModal"
+import FutureRefundModal from "./FutureRefundModal"
 import toast from 'react-hot-toast';
 
 export default function BookingManagement() {
@@ -38,6 +40,10 @@ export default function BookingManagement() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [tempHolds, setTempHolds] = useState<any[] | null>(null);
   const [loadingTempHoldDelete, setLoadingTempHoldDelete] = useState<string | null>(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundPaymentIntent, setRefundPaymentIntent] = useState<PaymentIntent | null>(null);
+  const [showFutureRefundModal, setShowFutureRefundModal] = useState(false);
+  const [futureRefundPaymentIntent, setFutureRefundPaymentIntent] = useState<PaymentIntent | null>(null);
 
   const fetchAllTempHolds = async () => {
     try {
@@ -234,52 +240,84 @@ export default function BookingManagement() {
   }
 
   const cancelAndRefundPaymentIntent = async (paymentIntent: PaymentIntent) => {
-    setLoadingAction(true)
+    // Show the refund confirmation modal instead of immediate processing
+    setRefundPaymentIntent(paymentIntent);
+    setShowRefundModal(true);
+  }
+
+  const handleFutureRefund = async (paymentIntent: PaymentIntent) => {
+    // Show the future refund confirmation modal
+    setFutureRefundPaymentIntent(paymentIntent);
+    setShowFutureRefundModal(true);
+  }
+
+  const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
+    if (!refundPaymentIntent) return;
+    
+    setLoadingAction(true);
     try {
-      let reason = '';
-      if (paymentIntent.paymentMethod === 'STRIPE') {
-        // Only allow Stripe's allowed reasons
-        const allowedReasons = [
-          { value: 'duplicate', label: 'Duplicate' },
-          { value: 'fraudulent', label: 'Fraudulent' },
-          { value: 'requested_by_customer', label: 'Requested by Customer' },
-        ];
-        const reasonPrompt = window.prompt(
-          'Enter the number for the refund reason:\n1. Duplicate\n2. Fraudulent\n3. Requested by Customer',
-          '3'
-        );
-        const idx = parseInt(reasonPrompt || '3', 10) - 1;
-        reason = allowedReasons[idx]?.value || 'requested_by_customer';
-      } else {
-        // Allow free-form note for cash/bank transfer
-        if (window.confirm('Would you like to add a note for the refund/cancellation?')) {
-          reason = window.prompt('Enter the note for the refund/cancellation:', '') || '';
-        }
-      }
       const response = await fetch(`${baseUrl}/admin/bookings/refund`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          paymentIntentId: paymentIntent.id,
-          bookingData: paymentIntent.bookingData,
-          customerDetails: paymentIntent.customerData,
-          paymentMethod: paymentIntent.paymentMethod || 'STRIPE',
-          reason,
+          paymentIntentId: refundPaymentIntent.id,
+          bookingData: refundPaymentIntent.bookingData,
+          customerDetails: refundPaymentIntent.customerData,
+          paymentMethod: refundPaymentIntent.paymentMethod || 'STRIPE',
+          reason: data.reason,
+          sendEmailToCustomer: data.sendEmailToCustomer,
+          processRefund: data.processRefund
         }),
-      })
+      });
 
       if (response.status === 200) {
-        toast.success("Payment intent cancelled and refunded successfully")
-        fetchPaymentIntents()
+        const successMessage = data.processRefund 
+          ? "Payment intent cancelled and refunded successfully"
+          : "Payment intent cancelled successfully";
+        toast.success(successMessage);
+        fetchPaymentIntents();
+        setShowRefundModal(false);
+        setRefundPaymentIntent(null);
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to process refund")
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to process request");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to cancel and refund payment intent")
+      toast.error(error.message || "Failed to process request");
     } finally {
-      setLoadingAction(false)
+      setLoadingAction(false);
+    }
+  }
+
+  const processFutureRefund = async (data: { sendEmailToCustomer: boolean }) => {
+    if (!futureRefundPaymentIntent) return;
+    
+    setLoadingAction(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/bookings/future-refund`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentIntentId: futureRefundPaymentIntent.id,
+          sendEmailToCustomer: data.sendEmailToCustomer
+        }),
+      });
+
+      if (response.status === 200) {
+        toast.success("Future refund processed successfully");
+        fetchPaymentIntents();
+        setShowFutureRefundModal(false);
+        setFutureRefundPaymentIntent(null);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to process future refund");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to process future refund");
+    } finally {
+      setLoadingAction(false);
     }
   }
 
@@ -720,6 +758,7 @@ export default function BookingManagement() {
             onSendEmail={sendConfirmationEmail}
             onCancel={cancelAndRefundPaymentIntent}
             onRefund={cancelAndRefundPaymentIntent}
+            onFutureRefund={handleFutureRefund}
             onViewPayment={fetchPaymentDetails}
             onEdit={startEditing}
             onDelete={deletePaymentIntent}
@@ -872,6 +911,30 @@ export default function BookingManagement() {
           )}
         </>
       )}
+
+      {/* Refund Confirmation Modal */}
+      <RefundConfirmationModal
+        isOpen={showRefundModal}
+        onClose={() => {
+          setShowRefundModal(false);
+          setRefundPaymentIntent(null);
+        }}
+        onConfirm={processRefund}
+        paymentIntent={refundPaymentIntent}
+        isLoading={loadingAction}
+      />
+
+      {/* Future Refund Modal */}
+      <FutureRefundModal
+        isOpen={showFutureRefundModal}
+        onClose={() => {
+          setShowFutureRefundModal(false);
+          setFutureRefundPaymentIntent(null);
+        }}
+        onConfirm={processFutureRefund}
+        paymentIntent={futureRefundPaymentIntent}
+        isLoading={loadingAction}
+      />
     </div>
   )
 }

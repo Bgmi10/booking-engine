@@ -1,16 +1,16 @@
 import type { JSX } from "react";
 
 export interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    createdAt: string;
-    isActive: boolean;
-    phone: string;
-    updatedAt: string;
-    profilePicture: string;
-    numberPlate: string;
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  isActive: boolean;
+  phone: string;
+  updatedAt: string;
+  profilePicture: string;
+  numberPlate: string;
 }
 
 export interface Enhancement {
@@ -81,6 +81,8 @@ export interface Room {
   roomRates: RoomRate[];
 }
 
+export type RefundStatus = "NOT_REFUNDED" | "CANCELLED_NO_REFUND" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "FULLY_REFUNDED" | "REFUND_DENIED";
+
 export interface PaymentIntent {
   id: string
   amount: number
@@ -92,6 +94,7 @@ export interface PaymentIntent {
   expiresAt: string
   createdByAdmin: boolean
   adminNotes?: string
+  refundStatus?: RefundStatus
   stripePaymentIntentId?: string
   stripeSessionId?: string
   stripePaymentLinkId?: string
@@ -142,6 +145,7 @@ export interface PaymentIntentsListProps {
   onSendEmail: (piId: string) => void
   onCancel: (pi: PaymentIntent) => void
   onRefund: (pi: PaymentIntent) => void
+  onFutureRefund?: (pi: PaymentIntent) => void
   onViewPayment: (paymentIntentId: string) => void
   onEdit: (pi: PaymentIntent) => void
   onDelete: (piId: string) => void
@@ -161,6 +165,7 @@ export interface PaymentIntentCardProps {
   onSendEmail: () => void
   onCancel: () => void
   onRefund: () => void
+  onFutureRefund?: () => void
   onViewPayment: () => void
   onEdit: () => void
   onDelete: () => void
@@ -724,6 +729,7 @@ export interface PaymentIntentData {
   createdByAdmin?: boolean;
   adminNotes?: string;
   actualPaymentMethod?: PaymentMethod;
+  refundStatus?: RefundStatus;
 }
 
 export interface EnhancedPaymentIntentCardProps {
@@ -732,6 +738,7 @@ export interface EnhancedPaymentIntentCardProps {
   onSendEmail?: (id: string) => void;
   onCancel?: (paymentIntent: any) => void;
   onRefund?: (paymentIntent: any) => void;
+  onFutureRefund?: (paymentIntent: any) => void;
   onViewPayment?: (stripePaymentIntentId: string) => void;
   onEdit?: (paymentIntent: any) => void;
   onDelete?: (id: string) => void;

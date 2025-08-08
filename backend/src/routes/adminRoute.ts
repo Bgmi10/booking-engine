@@ -8,7 +8,7 @@ import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhance
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
 import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate } from "../controllers/emailTemplateController";
-import { refund } from "../controllers/adminController";
+import { refund, processFutureRefund } from "../controllers/adminController";
 import { bookingRestrictionSchema, bookingRestrictionUpdateSchema } from "../zod/booking.schema";
 import { createVoucher, createVoucherProduct, deleteVoucher, deleteVoucherProduct, editVoucher, editVoucherProduct, getAllVoucherProducts, getAllVouchers, getVouchers } from "../controllers/voucherController";
 import { updateVoucherProductSchema, updateVoucherSchema, voucherProductSchema, voucherSchema } from "../zod/voucher.scheme";
@@ -169,6 +169,7 @@ adminRouter.put('/email-templates/:id', authMiddleware, updateTemplate);
 adminRouter.delete('/email-templates/:id', authMiddleware, deleteTemplate); 
 
 adminRouter.post("/bookings/refund", authMiddleware, refund);
+adminRouter.post("/bookings/future-refund", authMiddleware, processFutureRefund);
 
 // Partial refund endpoints
 adminRouter.post("/bookings/partial-refund", authMiddleware, processPartialRefund);

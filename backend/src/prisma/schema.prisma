@@ -25,13 +25,12 @@ model User {
   assignedAutomatedTasks    AutomatedTaskRule[]
   kitchenOrders             Order[]                     @relation("KitchenOrders")
   waiterOrders              Order[]                     @relation("WaiterOrders")
-  
-  // Cash Management Relations
   waiterCashSummaries       WaiterCashSummary[]         @relation("WaiterCashSummaries")
   managerVerifications      WaiterCashSummary[]         @relation("ManagerVerifications")
   cashDepositsProcessed     CashDeposit[]               @relation("CashProcessingManager")
   managerDailySummaries     ManagerDailySummary[]       @relation("ManagerDailySummaries")
   licensePlateEntries       LicensePlateEntry[]         @relation("UserLicensePlates")
+  bulkOverRideLogs          BulkOverRideLogs[]
 }            
 
 model Room {
@@ -165,8 +164,10 @@ model Booking {
   finalPaymentStatus  PaymentStatus?        // Status of 70% payment
   ratePolicyId        String?               // Track which rate policy was used
   refundAmount        Float?                // Amount refunded for this specific booking
+  refundStatus        RefundStatus          @default(NOT_REFUNDED) // Track individual booking refund status
   
   @@index([roomId, checkIn, checkOut, status])
+  @@index([refundStatus])
 }
 
 model Enhancement {
@@ -242,6 +243,7 @@ model PaymentIntent {
   createdByAdmin        Boolean             @default(false)
   adminUserId           String?   
   adminNotes            String?   
+  refundStatus          RefundStatus        @default(NOT_REFUNDED) // Track refund lifecycle
   expiresAt             DateTime?   
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -260,6 +262,7 @@ model PaymentIntent {
   @@index([stripePaymentIntentId])
   @@index([stripeSessionId])
   @@index([bookingGroupId])
+  @@index([refundStatus])
 }
 
 model Payment {
@@ -308,13 +311,13 @@ model RatePolicy {
   rebookValidityDays    Int?     // Days to rebook if cancelled
   adjustmentPercentage  Int?
   basePrice             Float?               // Base price for this rate policy
-  paymentStructure    PaymentStructure     @default(FULL_PAYMENT)
-  cancellationPolicy  CancellationPolicy   @default(FLEXIBLE)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  roomRates           RoomRate[]
-  rateDatePrices      RateDatePrice[]
+  paymentStructure      PaymentStructure     @default(FULL_PAYMENT)
+  cancellationPolicy    CancellationPolicy   @default(FLEXIBLE)
+  bulkOverRideLogs      BulkOverRideLogs[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  roomRates             RoomRate[]
+  rateDatePrices        RateDatePrice[]
 }
 
 model RoomRate {
@@ -541,6 +544,15 @@ enum PaymentIntentStatus {
   CANCELLED         // Payment cancelled
   EXPIRED           // Payment expired
   REFUNDED          // Payment refunded
+}
+
+enum RefundStatus {
+  NOT_REFUNDED              // No refund requested or processed
+  CANCELLED_NO_REFUND       // Cancelled by admin, no refund processed, can refund later
+  REFUND_PENDING            // Refund initiated but not yet processed
+  PARTIALLY_REFUNDED        // Partial refund processed
+  FULLY_REFUNDED            // Full refund processed
+  REFUND_DENIED             // Admin decided not to refund after cancellation
 }
 
 enum PaymentMethod {
@@ -1039,6 +1051,28 @@ model Order {
   temporaryCustomerId String?
   temporaryCustomer   TemporaryCustomer? @relation(fields: [temporaryCustomerId], references: [id], onDelete: Cascade)
   charge              Charge?        
+}
+
+model BulkOverRideLogs {
+  id                 String         @id @default(uuid())
+  userId             String     
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ratePolicyId       String        
+  ratePolicy         RatePolicy         @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
+  actionType         ActionTypeEnum      
+  dateRangeStart     DateTime
+  dateRangeEnd       DateTime
+  roomsAffected      String[]       
+  overRideDetails    Json
+  totalRoomsAffected Int            @default(0)
+  totalDatesAffected Int            @default(0)
+  createdAt          DateTime       @default(now())
+}
+
+enum ActionTypeEnum { 
+ BULK_OVERRIDE
+ BULK_INCREASE
+ BULK_DECREASE
 }
 
 enum OrderStatus {

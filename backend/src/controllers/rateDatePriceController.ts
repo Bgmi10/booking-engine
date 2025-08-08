@@ -99,7 +99,9 @@ export const getRatePricesForDateRange = async (req: Request, res: Response) => 
 export const upsertRateDatePrices = async (req: Request, res: Response) => {
   try {
     const { ratePolicyId } = req.params;
-    const { prices } = req.body;
+    //@ts-ignore
+    const user = req.user;
+    const { prices, bulkActionType } = req.body;
 
     if (!Array.isArray(prices)) {
       return responseHandler(res, 400, 'prices must be an array');
@@ -164,8 +166,36 @@ export const upsertRateDatePrices = async (req: Request, res: Response) => {
           }
         }
       });
-
+      
       results.push(result);
+    }
+
+    if (results.length > 0) {
+      const dates = prices.map(p => new Date(p.date)).sort((a, b) => a.getTime() - b.getTime());
+      const dateRangeStart = dates[0];
+      const dateRangeEnd = dates[dates.length - 1];
+      const roomsAffected = [...new Set(prices.map(p => p.roomId))];
+      const overRideDetails = {
+        action: bulkActionType,
+        changes: results.map((result) => ({
+          roomId:  result.roomId,
+          affectedDates: dates.length
+        }))
+      }
+
+      await prisma.bulkOverRideLogs.create({
+        data: {
+          actionType: bulkActionType || "BULK_OVERRIDE",
+          dateRangeEnd: new Date(dateRangeEnd),
+          dateRangeStart: new Date(dateRangeStart),
+          roomsAffected,
+          overRideDetails,
+          ratePolicyId,
+          userId: user.id,
+          totalDatesAffected: dates.length,
+          totalRoomsAffected: roomsAffected.length
+        }
+      })
     }
 
     return responseHandler(res, 200, `Updated ${results.length} rate date prices`, results);

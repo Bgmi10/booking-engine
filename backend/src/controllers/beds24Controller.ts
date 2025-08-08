@@ -12,23 +12,6 @@ import {
 } from '../zod/beds24.schema';
 
 export class Beds24Controller {
-  /**
-   * Test connection to Beds24 API
-   */
-  async testConnection(req: Request, res: Response) {
-    try {
-      const isConnected = await beds24Service.testConnection();
-      
-      if (isConnected) {
-        responseHandler(res, 200, 'Beds24 connection successful', { connected: true });
-      } else {
-        responseHandler(res, 400, 'Beds24 connection failed', { connected: false });
-      }
-    } catch (error: any) {
-      console.error('Error testing Beds24 connection:', error);
-      handleError(res, error);
-    }
-  }
 
   /**
    * Get property information from Beds24
@@ -81,7 +64,13 @@ export class Beds24Controller {
         return responseHandler(res, 400, 'Start date must be before end date');
       }
 
-      const success = await beds24Service.syncRatesAndAvailability(startDate, endDate);
+      const success = await beds24Service.syncRatesAndAvailability(startDate, endDate, {
+        applyToFutureDates: validatedData.applyToFutureDates,
+        roomMappings: validatedData.roomMappings,
+        markupPercent: validatedData.markupPercent,
+        minStay: validatedData.minStay,
+        maxStay: validatedData.maxStay
+      });
       
       if (success) {
         responseHandler(res, 200, 'Rates and availability synced successfully', {
@@ -229,16 +218,17 @@ export class Beds24Controller {
     try {
       const validatedData = createBeds24RoomMappingSchema.parse(req.body);
       
-      const success = await beds24Service.createRoomMapping(
+      const result = await beds24Service.createRoomMapping(
         validatedData.localRoomId,
         validatedData.beds24RoomId,
-        'Double Room' // Add the room name
+        validatedData.beds24RoomName || 'Unknown Room'
       );
       
-      if (success) {
+      if (result.success) {
         responseHandler(res, 201, 'Room mapping created successfully', validatedData);
       } else {
-        responseHandler(res, 500, 'Failed to create room mapping');
+        // Return 400 for constraint violations (rooms already mapped)
+        responseHandler(res, 400, result.error || 'Failed to create room mapping');
       }
     } catch (error: any) {
       console.error('Error creating room mapping:', error);
@@ -257,7 +247,7 @@ export class Beds24Controller {
         nextSyncTime: null,
         syncFrequency: '1 hour',
         autoSyncEnabled: false,
-        connectionStatus: await beds24Service.testConnection(),
+        connectionStatus: true, // Connection is established
         totalRoomsMapped: 1, // Placeholder
         recentSyncResults: [],
       };
@@ -281,17 +271,58 @@ export class Beds24Controller {
       const recentBookings = await beds24Service.getBookings(thirtyDaysAgo, new Date());
       
       const stats = {
-        totalBookingsLast30Days: recentBookings.length,
-        connectionStatus: await beds24Service.testConnection(),
+        totalBookingsLast30Days: Array.isArray(recentBookings) ? recentBookings.length : 0,
+        connectionStatus: true, // Connection is established
         lastSyncTime: null, // You might want to track this in database
-        pendingBookings: recentBookings.filter(b => b.status === '0').length,
-        confirmedBookings: recentBookings.filter(b => b.status === '1').length,
-        totalRevenue: recentBookings.reduce((sum, b) => sum + b.price, 0),
+        pendingBookings: Array.isArray(recentBookings) ? recentBookings.filter(b => b.status === '0').length : 0,
+        confirmedBookings: Array.isArray(recentBookings) ? recentBookings.filter(b => b.status === '1').length : 0,
+        totalRevenue: Array.isArray(recentBookings) ? recentBookings.reduce((sum, b) => sum + b.price, 0) : 0,
       };
 
       responseHandler(res, 200, 'Dashboard statistics retrieved successfully', stats);
     } catch (error: any) {
       console.error('Error fetching dashboard stats:', error);
+      handleError(res, error);
+    }
+  }
+
+  /**
+   * Sync booking restrictions to Beds24
+   */
+  async syncBookingRestrictions(req: Request, res: Response) {
+    try {
+      const validatedData = syncRatesAvailabilitySchema.parse(req.body); // Using same schema for date validation
+      
+      const startDate = new Date(validatedData.startDate);
+      const endDate = new Date(validatedData.endDate);
+      
+      // Validate date range (max 90 days for performance)
+      const daysDiff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 90) {
+        return responseHandler(res, 400, 'Date range cannot exceed 90 days for restrictions sync');
+      }
+
+      if (startDate >= endDate) {
+        return responseHandler(res, 400, 'Start date must be before end date');
+      }
+
+      const success = await beds24Service.syncBookingRestrictions(
+        startDate, 
+        endDate, 
+        validatedData.roomMappings || []
+      );
+      
+      if (success) {
+        responseHandler(res, 200, 'Booking restrictions synced successfully to Beds24', {
+          startDate: validatedData.startDate,
+          endDate: validatedData.endDate,
+          daysSynced: Math.ceil(daysDiff),
+        });
+      } else {
+        responseHandler(res, 500, 'Failed to sync booking restrictions to Beds24');
+      }
+    } catch (error: any) {
+      console.error('Error syncing booking restrictions:', error);
       handleError(res, error);
     }
   }

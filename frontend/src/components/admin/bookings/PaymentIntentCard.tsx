@@ -33,6 +33,7 @@ export default function PaymentIntentCard({
   onViewDetails,
   onSendEmail,
   onRefund,
+  onFutureRefund,
   onViewPayment,
   onDelete,
   loadingAction,
@@ -187,6 +188,25 @@ export default function PaymentIntentCard({
                 {paymentMethodInfo.icon}
                 {paymentMethodInfo.label}
               </span>
+              {paymentIntent.refundStatus && paymentIntent.refundStatus !== "NOT_REFUNDED" && (
+                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  paymentIntent.refundStatus === "CANCELLED_NO_REFUND" 
+                    ? "bg-yellow-100 text-yellow-800 border border-yellow-200" 
+                    : paymentIntent.refundStatus === "FULLY_REFUNDED" 
+                    ? "bg-green-100 text-green-800 border border-green-200"
+                    : paymentIntent.refundStatus === "PARTIALLY_REFUNDED"
+                    ? "bg-orange-100 text-orange-800 border border-orange-200"
+                    : paymentIntent.refundStatus === "REFUND_PENDING"
+                    ? "bg-blue-100 text-blue-800 border border-blue-200"
+                    : "bg-red-100 text-red-800 border border-red-200"
+                }`}>
+                  {paymentIntent.refundStatus === "CANCELLED_NO_REFUND" ? "Cancelled (No Refund)" 
+                   : paymentIntent.refundStatus === "FULLY_REFUNDED" ? "Refunded"
+                   : paymentIntent.refundStatus === "PARTIALLY_REFUNDED" ? "Partial Refund"
+                   : paymentIntent.refundStatus === "REFUND_PENDING" ? "Refund Pending"
+                   : paymentIntent.refundStatus}
+                </span>
+              )}
               {displayData.createdByAdmin && (
                 <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
                   Admin Created
@@ -425,6 +445,18 @@ export default function PaymentIntentCard({
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
                 >
                   Cancel Booking
+                </button>
+              )}
+
+              {/* Future Refund for Cancelled Without Refund */}
+              {paymentIntent.refundStatus === "CANCELLED_NO_REFUND" && onFutureRefund && (
+                <button
+                  onClick={onFutureRefund}
+                  disabled={loadingAction}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
+                  {loadingAction ? 'Processing...' : 'Process Refund'}
                 </button>
               )}
 

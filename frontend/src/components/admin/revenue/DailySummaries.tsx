@@ -8,9 +8,11 @@ import {
   RiEyeLine
 } from "react-icons/ri";
 import { baseUrl } from "../../../utils/constants";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function DailySummaries() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [summaries, setSummaries] = useState<any[]>([]);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedSummary, setSelectedSummary] = useState<any>(null);
@@ -21,7 +23,7 @@ export default function DailySummaries() {
 
   const fetchSummaries = async () => {
     try {
-      const response = await fetch(`${baseUrl}/admin/revenue/cash/daily-summary?date=${selectedDate}`, {
+      const response = await fetch(`${baseUrl}/admin/revenue/cash/daily-summary?date=${selectedDate.toISOString().split('T')[0]}`, {
         credentials: "include"
       });
 
@@ -35,7 +37,7 @@ export default function DailySummaries() {
           if (summary) {
             const transformedSummary = {
               id: summary.id,
-              date: selectedDate,
+              date: selectedDate.toISOString().split('T')[0],
               status: summary.status,
               totalCash: summary.totalCashDeposited,
               totalDeposits: summary.totalCashReceived,
@@ -102,10 +104,15 @@ export default function DailySummaries() {
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
             <RiCalendarCheckLine className="w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+            <DatePicker
+              selected={selectedDate}
+              onChange={(date: Date | null) => {
+                if (date) {
+                  setSelectedDate(date);
+                }
+              }}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="Select date"
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -127,7 +134,7 @@ export default function DailySummaries() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Cash</p>
               <p className="text-2xl font-semibold text-gray-900">
-                €{summaries.find(s => s.date === selectedDate)?.totalCash?.toFixed(2) || "0.00"}
+                €{summaries.find(s => s.date === selectedDate.toISOString().split('T')[0])?.totalCash?.toFixed(2) || "0.00"}
               </p>
             </div>
           </div>
@@ -141,7 +148,7 @@ export default function DailySummaries() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Deposits</p>
               <p className="text-2xl font-semibold text-gray-900">
-                €{summaries.find(s => s.date === selectedDate)?.totalDeposits?.toFixed(2) || "0.00"}
+                €{summaries.find(s => s.date === selectedDate.toISOString().split('T')[0])?.totalDeposits?.toFixed(2) || "0.00"}
               </p>
             </div>
           </div>
@@ -155,11 +162,11 @@ export default function DailySummaries() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Discrepancy</p>
               <p className={`text-2xl font-semibold ${
-                (summaries.find(s => s.date === selectedDate)?.discrepancy || 0) === 0 
+                (summaries.find(s => s.date === selectedDate.toISOString().split('T')[0])?.discrepancy || 0) === 0 
                   ? "text-green-600" 
                   : "text-red-600"
               }`}>
-                €{summaries.find(s => s.date === selectedDate)?.discrepancy?.toFixed(2) || "0.00"}
+                €{summaries.find(s => s.date === selectedDate.toISOString().split('T')[0])?.discrepancy?.toFixed(2) || "0.00"}
               </p>
             </div>
           </div>
@@ -173,7 +180,7 @@ export default function DailySummaries() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Waiters</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {summaries.find(s => s.date === selectedDate)?.waiterCount || 0}
+                {summaries.find(s => s.date === selectedDate.toISOString().split('T')[0])?.waiterCount || 0}
               </p>
             </div>
           </div>

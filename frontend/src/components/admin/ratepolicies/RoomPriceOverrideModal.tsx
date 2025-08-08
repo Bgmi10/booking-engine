@@ -16,6 +16,7 @@ interface RoomPriceOverrideModalProps {
   ratePolicy: RatePolicy;
   room: Room;
   date: Date;
+  calculatedPrice: number;
   onClose: () => void;
   onUpdate: () => void;
   onSwitchModal: (type: 'base' | 'increase' | 'override') => void;
@@ -25,11 +26,12 @@ export default function RoomPriceOverrideModal({
   ratePolicy, 
   room, 
   date, 
+  calculatedPrice,
   onClose, 
   onUpdate,
   onSwitchModal
 }: RoomPriceOverrideModalProps) {
-  const [overridePrice, setOverridePrice] = useState<string>(room.price.toString());
+  const [overridePrice, setOverridePrice] = useState<string>(calculatedPrice.toString());
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,7 +81,7 @@ export default function RoomPriceOverrideModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-md w-full">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
@@ -102,32 +104,11 @@ export default function RoomPriceOverrideModal({
               <div><strong>Room:</strong> {room.name}</div>
               <div><strong>Date:</strong> {format(date, "EEEE, MMMM dd, yyyy")}</div>
               <div className="mt-2 text-xs text-gray-500">
-                Current room price: €{room.price}
+                Current calculated price: €{calculatedPrice.toFixed(2)}
               </div>
             </div>
           </div>
-
-          {/* Quick Action Buttons */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-md">
-            <div className="text-sm font-medium text-gray-700 mb-3">Quick Actions:</div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => onSwitchModal('base')}
-                className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
-              >
-                Base Price Override
-              </button>
-              <button
-                type="button"
-                onClick={() => onSwitchModal('increase')}
-                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200"
-              >
-                Room Price Increase
-              </button>
-            </div>
-          </div>
-
+          
           <div className="mb-6">
             <label htmlFor="overridePrice" className="block text-sm font-medium text-gray-700 mb-2">
               Override Price *
@@ -152,15 +133,15 @@ export default function RoomPriceOverrideModal({
           </div>
 
           {/* Price Comparison */}
-          {overridePrice && parseFloat(overridePrice) !== room.price && (
+          {overridePrice && parseFloat(overridePrice) !== calculatedPrice && (
             <div className="mb-6 p-4 bg-gray-50 rounded-md">
               <div className="text-sm text-gray-700">
                 <div className="flex justify-between">
-                  <span>Current Price:</span>
-                  <span>€{room.price}</span>
+                  <span>Current Calculated Price:</span>
+                  <span>€{calculatedPrice.toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between ${
-                  parseFloat(overridePrice) > room.price ? 'text-red-600' : 'text-green-600'
+                  parseFloat(overridePrice) > calculatedPrice ? 'text-red-600' : 'text-green-600'
                 }`}>
                   <span>Override Price:</span>
                   <span>€{parseFloat(overridePrice).toFixed(2)}</span>
@@ -168,10 +149,10 @@ export default function RoomPriceOverrideModal({
                 <div className="border-t pt-2 mt-2 flex justify-between font-medium">
                   <span>Difference:</span>
                   <span className={
-                    parseFloat(overridePrice) > room.price ? 'text-red-600' : 'text-green-600'
+                    parseFloat(overridePrice) > calculatedPrice ? 'text-red-600' : 'text-green-600'
                   }>
-                    {parseFloat(overridePrice) > room.price ? '+' : ''}
-                    €{(parseFloat(overridePrice) - room.price).toFixed(2)}
+                    {parseFloat(overridePrice) > calculatedPrice ? '+' : ''}
+                    €{(parseFloat(overridePrice) - calculatedPrice).toFixed(2)}
                   </span>
                 </div>
               </div>

@@ -10,6 +10,7 @@ export default function PaymentIntentsList({
   onSendEmail,
   onCancel,
   onRefund,
+  onFutureRefund,
   onViewPayment,
   onEdit,
   onDelete,
@@ -69,6 +70,7 @@ export default function PaymentIntentsList({
             onSendEmail={() => onSendEmail(paymentIntent.id)}
             onCancel={() => onCancel(paymentIntent)}
             onRefund={() => onRefund(paymentIntent)}
+            onFutureRefund={onFutureRefund ? () => onFutureRefund(paymentIntent) : undefined}
             onViewPayment={() =>
               paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
             }
@@ -95,6 +97,7 @@ export default function PaymentIntentsList({
             onSendEmail={() => onSendEmail(paymentIntent.id)}
             onCancel={() => onCancel(paymentIntent)}
             onRefund={() => onRefund(paymentIntent)}
+            onFutureRefund={onFutureRefund ? () => onFutureRefund(paymentIntent) : undefined}
             onViewPayment={() =>
               paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
             }

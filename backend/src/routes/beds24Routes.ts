@@ -13,8 +13,6 @@ import {
 
 const beds24Router = Router();
 
-// Test connection to Beds24
-beds24Router.get('/test-connection', authMiddleware, beds24Controller.testConnection);
 
 // Get property information
 beds24Router.get('/property', authMiddleware, beds24Controller.getPropertyInfo);
@@ -28,6 +26,14 @@ beds24Router.post(
   authMiddleware,
   validateMiddleware(syncRatesAvailabilitySchema),
   beds24Controller.syncRatesAndAvailability
+);
+
+// Sync booking restrictions to Beds24
+beds24Router.post(
+  '/sync-booking-restrictions',
+  authMiddleware,
+  validateMiddleware(syncRatesAvailabilitySchema),
+  beds24Controller.syncBookingRestrictions
 );
 
 // Manually push specific rates to Beds24

@@ -13,6 +13,8 @@ import {
 import { baseUrl } from '../../../utils/constants';
 import { useUsers } from '../../../hooks/useUsers';
 import SearchSelectModal from '../../common/SearchSelectModal';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 interface LicensePlateEntry {
   id: string;
@@ -58,8 +60,8 @@ interface CreateLicensePlateData {
   plateNo: string;
   type: 'ALLOW_LIST' | 'BLOCK_LIST';
   ownerName: string;
-  validStartTime: string;
-  validEndTime: string;
+  validStartTime: Date;
+  validEndTime: Date;
   userId?: string;
   notes?: string;
 }
@@ -102,8 +104,8 @@ export default function LicensePlateManagement() {
     plateNo: '',
     type: 'ALLOW_LIST',
     ownerName: '',
-    validStartTime: '',
-    validEndTime: '',
+    validStartTime: new Date(),
+    validEndTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
     userId: '',
     notes: ''
   });
@@ -112,8 +114,8 @@ export default function LicensePlateManagement() {
     plateNo: '',
     type: 'ALLOW_LIST',
     ownerName: '',
-    validStartTime: '',
-    validEndTime: '',
+    validStartTime: new Date(),
+    validEndTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
     userId: '',
     notes: '',
     isActive: true
@@ -197,8 +199,8 @@ export default function LicensePlateManagement() {
         },
         body: JSON.stringify({
           ...createFormData,
-          validStartTime: createFormData.validStartTime ? new Date(createFormData.validStartTime).toISOString() : '',
-          validEndTime: createFormData.validEndTime ? new Date(createFormData.validEndTime).toISOString() : '',
+          validStartTime: createFormData.validStartTime.toISOString(),
+          validEndTime: createFormData.validEndTime.toISOString(),
           userId: createFormData.userId || null
         }),
       });
@@ -215,8 +217,8 @@ export default function LicensePlateManagement() {
         plateNo: '',
         type: 'ALLOW_LIST',
         ownerName: '',
-        validStartTime: '',
-        validEndTime: '',
+        validStartTime: new Date(),
+        validEndTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
         userId: '',
         notes: ''
       });
@@ -247,8 +249,8 @@ export default function LicensePlateManagement() {
         },
         body: JSON.stringify({
           ...editFormData,
-          validStartTime: editFormData.validStartTime ? new Date(editFormData.validStartTime).toISOString() : '',
-          validEndTime: editFormData.validEndTime ? new Date(editFormData.validEndTime).toISOString() : '',
+          validStartTime: editFormData.validStartTime.toISOString(),
+          validEndTime: editFormData.validEndTime.toISOString(),
           userId: editFormData.userId || null
         }),
       });
@@ -860,8 +862,8 @@ export default function LicensePlateManagement() {
                             plateNo: entry.plateNo,
                             type: entry.type,
                             ownerName: entry.ownerName,
-                            validStartTime: formatDateForInput(entry.validStartTime),
-                            validEndTime: formatDateForInput(entry.validEndTime),
+                            validStartTime: new Date(entry.validStartTime),
+                            validEndTime: new Date(entry.validEndTime),
                             userId: entry.userId || '',
                             notes: entry.notes || '',
                             isActive: entry.isActive
@@ -1061,12 +1063,17 @@ export default function LicensePlateManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Valid Start Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={createFormData.validStartTime}
-                    onChange={(e) => setCreateFormData(prev => ({ ...prev, validStartTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  <DatePicker
+                    selected={createFormData.validStartTime}
+                    onChange={(date: Date | null) => {
+                      if (date) {
+                        setCreateFormData(prev => ({ ...prev, validStartTime: date }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select start date"
+                    minDate={new Date()}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
@@ -1074,12 +1081,17 @@ export default function LicensePlateManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Valid End Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={createFormData.validEndTime}
-                    onChange={(e) => setCreateFormData(prev => ({ ...prev, validEndTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  <DatePicker
+                    selected={createFormData.validEndTime}
+                    onChange={(date: Date | null) => {
+                      if (date) {
+                        setCreateFormData(prev => ({ ...prev, validEndTime: date }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select end date"
+                    minDate={createFormData.validStartTime}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
@@ -1245,12 +1257,17 @@ export default function LicensePlateManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Valid Start Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={editFormData.validStartTime}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, validStartTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  <DatePicker
+                    selected={editFormData.validStartTime}
+                    onChange={(date: Date | null) => {
+                      if (date) {
+                        setEditFormData(prev => ({ ...prev, validStartTime: date }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select start date"
+                    minDate={new Date()}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
@@ -1258,12 +1275,17 @@ export default function LicensePlateManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Valid End Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={editFormData.validEndTime}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, validEndTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  <DatePicker
+                    selected={editFormData.validEndTime}
+                    onChange={(date: Date | null) => {
+                      if (date) {
+                        setEditFormData(prev => ({ ...prev, validEndTime: date }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select end date"
+                    minDate={editFormData.validStartTime}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 

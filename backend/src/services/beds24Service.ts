@@ -1,13 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import prisma from '../prisma';
 
-
-interface Beds24RoomMapping {
-  localRoomId: string;
-  beds24RoomId: string;
-  isActive: boolean;
-}
-
 interface Beds24Rate {
   roomId: string;
   date: string;
@@ -52,13 +45,7 @@ export class Beds24Service {
     
     // Add propKey property
     this.propKey = process.env.BEDS_24_PROP_KEY || '';
-    
-    console.log('Beds24Service initialized with:', {
-      apiKey: this.apiKey ? '***configured***' : 'NOT SET',
-      propertyId: this.propertyId,
-      propKey: this.propKey ? '***configured***' : 'NOT SET'
-    });
-  
+
     if (!this.apiKey || !this.propertyId) {
       throw new Error('Beds24 API credentials not configured in environment variables');
     }
@@ -72,27 +59,6 @@ export class Beds24Service {
     });
   }
 
-  /**
-   * Test connection to Beds24 API
-   */
-  async testConnection(): Promise<boolean> {
-    try {
-      const response = await this.apiClient.post('/json/getProperties', {
-        authentication: {
-          apiKey: this.apiKey
-        }
-      });
-
-      const data = response.data;
-      console.log('Beds24 connection test response:', data);
-
-      // Check if we got a valid response
-      return response.status === 200 && data && !data.error;
-    } catch (error) {
-      console.error('Beds24 connection test failed:', error);
-      return false;
-    }
-  }
 
   /**
    * Get all rooms from Beds24 for the configured property
@@ -265,12 +231,31 @@ export class Beds24Service {
   /**
    * Sync room rates and availability from our system to Beds24
    */
-  async syncRatesAndAvailability(startDate: Date, endDate: Date): Promise<boolean> {
+  async syncRatesAndAvailability(
+    startDate: Date, 
+    endDate: Date, 
+    options?: {
+      applyToFutureDates?: boolean;
+      roomMappings?: string[];
+      markupPercent?: number;
+      minStay?: number;
+      maxStay?: number;
+    }
+  ): Promise<boolean> {
     try {
-      const roomMappings = await prisma.beds24RoomMapping.findMany({
-        where: {
-          isActive: true
-        },
+      const whereClause: any = {
+        isActive: true
+      };
+      
+      // Filter by specific room mappings if provided
+      if (options?.roomMappings && options.roomMappings.length > 0) {
+        whereClause.id = {
+          in: options.roomMappings
+        };
+      }
+      
+      const roomMappings: any = await prisma.beds24RoomMapping.findMany({
+        where: whereClause,
         include: {
           room: {
             include: {
@@ -280,8 +265,20 @@ export class Beds24Service {
                     gte: startDate,
                     lte: endDate,
                   },
+                  isActive: true
                 },
+                include: {
+                  ratePolicy: true
+                }
               },
+              RoomRate: {
+                where: {
+                  isActive: true
+                },
+                include: {
+                  ratePolicy: true
+                }
+              }
             }
           }
         }
@@ -294,24 +291,77 @@ export class Beds24Service {
 
       const rates: Beds24Rate[] = [];
 
+      // Calculate final end date once, outside the loop
+      const finalEndDate = options?.applyToFutureDates 
+        ? new Date(endDate.getTime() + (90 * 24 * 60 * 60 * 1000)) // Add 90 days for future dates
+        : endDate;
+        
+      console.log(`Date range: ${startDate.toISOString().split('T')[0]} to ${finalEndDate.toISOString().split('T')[0]}`);
+      console.log(`Apply to future dates: ${options?.applyToFutureDates}`);
+
       // For each mapped room, calculate rates and availability
       for (const mapping of roomMappings) {
         const room = mapping.room;
 
-        const currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
+        console.log(`Processing room: ${room.name} (Local: ${room.id} -> Beds24: ${mapping.beds24RoomId})`);
+        
+        let currentDate = new Date(startDate);
+        
+        while (currentDate <= finalEndDate) {
           const dateStr = currentDate.toISOString().split('T')[0];
           
-          // Find specific rate for this date or use base price
-          const specificRate = room.rateDatePrices.find(rdp => 
-            rdp.date.toISOString().split('T')[0] === dateStr && rdp.isActive
+          let finalRate = 0;
+          
+          // 1. Check for specific date override first (highest priority)
+          const specificDateRate = room.rateDatePrices.find((rdp: any) => 
+            rdp.date.toISOString().split('T')[0] === dateStr
           );
           
-          let rate = specificRate ? specificRate.price : room.price;
+          if (specificDateRate) {
+            finalRate = specificDateRate.price;
+            console.log(`Using specific date rate for ${dateStr}: €${finalRate} (Policy: ${specificDateRate.ratePolicy.name})`);
+          } else {
+            // 2. Use active rate policies (get lowest base price from all active policies)
+            const activeRoomRates = room.RoomRate.filter((rr: any) => rr.isActive && rr.ratePolicy && rr.ratePolicy.isActive && rr.ratePolicy.basePrice);
+            
+            if (activeRoomRates.length > 0) {
+              // Find the policy with the lowest base price after adjustments
+              let lowestFinalRate = Infinity;
+              let selectedPolicy = null;
+              
+              for (const roomRate of activeRoomRates) {
+                const basePrice = roomRate.ratePolicy.basePrice;
+                const adjustment = roomRate.percentageAdjustment || 0;
+                const calculatedRate = basePrice * (1 + adjustment / 100);
+                
+                if (calculatedRate < lowestFinalRate) {
+                  lowestFinalRate = calculatedRate;
+                  selectedPolicy = roomRate;
+                }
+              }
+              
+              if (selectedPolicy) {
+                finalRate = lowestFinalRate;
+                const basePrice = selectedPolicy.ratePolicy.basePrice;
+                const adjustment = selectedPolicy.percentageAdjustment || 0;
+                console.log(`Using lowest rate policy: ${selectedPolicy.ratePolicy.name}, Base: €${basePrice}, Adjustment: ${adjustment}%, Final: €${finalRate} (from ${activeRoomRates.length} policies)`);
+              } else {
+                // 3. Last fallback to deprecated room.price (with warning)
+                finalRate = room.price;
+                console.warn(`⚠️  Using deprecated room.price for ${room.name}. Please set up rate policies!`);
+              }
+            } else {
+              // 3. Last fallback to deprecated room.price (with warning)
+              finalRate = room.price;
+              console.warn(`⚠️  Using deprecated room.price for ${room.name}. Please set up rate policies!`);
+            }
+          }
           
-          // Apply markup if configured
-          if (mapping.markupPercent && mapping.markupPercent > 0) {
-            rate = rate * (1 + mapping.markupPercent / 100);
+          // Apply Beds24-specific markup if configured (from mapping or options)
+          const markupPercent = options?.markupPercent || mapping.markupPercent || 0;
+          if (markupPercent > 0) {
+            finalRate = finalRate * (1 + markupPercent / 100);
+            console.log(`Applied Beds24 markup (${markupPercent}%): €${finalRate}`);
           }
           
           // Check availability
@@ -320,15 +370,19 @@ export class Beds24Service {
           rates.push({
             roomId: mapping.beds24RoomId,
             date: dateStr,
-            rate: Math.round(rate * 100) / 100, // Round to 2 decimal places
-            minStay: mapping.minStay || 1,
-            maxStay: mapping.maxStay || 30,
+            rate: Math.round(finalRate * 100) / 100, // Round to 2 decimal places
+            minStay: options?.minStay || mapping.minStay || 1,
+            maxStay: options?.maxStay || mapping.maxStay || 30,
             available: isAvailable ? 1 : 0,
           });
 
           currentDate.setDate(currentDate.getDate() + 1);
         }
       }
+
+      console.log(`\nTotal rates to sync: ${rates.length}`);
+      console.log(`Rooms to sync: ${roomMappings.length}`);
+      console.log(`Date range per room: ${Math.ceil((finalEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} days`);
       
       if (rates.length > 0) {
         const success = await this.pushRatesAndAvailability(rates);
@@ -469,17 +523,30 @@ export class Beds24Service {
   /**
    * Create a room mapping between local room and Beds24 room
    */
-  async createRoomMapping(localRoomId: string, beds24RoomId: string, beds24RoomName?: string): Promise<boolean> {
+  async createRoomMapping(localRoomId: string, beds24RoomId: string, beds24RoomName?: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`Creating room mapping: Local ${localRoomId} <-> Beds24 ${beds24RoomId}`);
       
-      // Check if mapping already exists
-      const existingMapping = await prisma.beds24RoomMapping.findUnique({
+      // Check if local room is already mapped
+      const existingLocalMapping = await prisma.beds24RoomMapping.findUnique({
         where: { localRoomId }
       });
 
-      if (existingMapping) {
-        // Update existing mapping
+      // Check if Beds24 room is already mapped
+      const existingBeds24Mapping = await prisma.beds24RoomMapping.findUnique({
+        where: { beds24RoomId }
+      });
+
+      // If Beds24 room is already mapped to a different local room, return error
+      if (existingBeds24Mapping && existingBeds24Mapping.localRoomId !== localRoomId) {
+        return {
+          success: false,
+          error: `Beds24 room '${beds24RoomName || beds24RoomId}' is already mapped to another local room. Please choose a different Beds24 room or remove the existing mapping first.`
+        };
+      }
+
+      if (existingLocalMapping) {
+        // Update existing mapping for this local room
         await prisma.beds24RoomMapping.update({
           where: { localRoomId },
           data: {
@@ -507,10 +574,30 @@ export class Beds24Service {
         console.log(`Created new room mapping for local room ${localRoomId}`);
       }
 
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('Failed to create room mapping:', error);
-      return false;
+      
+      // Handle Prisma unique constraint errors
+      if (error.code === 'P2002') {
+        const target = error.meta?.target;
+        if (target?.includes('beds24RoomId')) {
+          return {
+            success: false,
+            error: `Beds24 room '${beds24RoomName || beds24RoomId}' is already mapped to another room. Please choose a different Beds24 room.`
+          };
+        } else if (target?.includes('localRoomId')) {
+          return {
+            success: false,
+            error: 'This local room is already mapped. Please update the existing mapping instead.'
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        error: 'Failed to create room mapping. Please try again.'
+      };
     }
   }
 
@@ -559,6 +646,202 @@ export class Beds24Service {
       console.error('Failed to fetch property info:', error);
       throw new Error('Failed to fetch property info');
     }
+  }
+
+  /**
+   * Sync booking restrictions to Beds24
+   */
+  async syncBookingRestrictions(
+    startDate: Date,
+    endDate: Date,
+    roomMappings: string[] = []
+  ): Promise<boolean> {
+    try {
+      console.log('🔒 Starting booking restrictions sync to Beds24');
+      
+      // Add propKey validation
+      if (!this.propKey || this.propKey.length < 16) {
+        throw new Error(`Beds24 propKey is required for restriction sync. Please set BEDS_24_PROP_KEY environment variable.`);
+      }
+
+      // Get active booking restrictions for the date range
+      const restrictions = await prisma.bookingRestriction.findMany({
+        where: {
+          isActive: true,
+          AND: [
+            {
+              OR: [
+                {
+                  // Restrictions that start within our date range
+                  startDate: {
+                    gte: startDate,
+                    lte: endDate,
+                  },
+                },
+                {
+                  // Restrictions that end within our date range  
+                  endDate: {
+                    gte: startDate,
+                    lte: endDate,
+                  },
+                },
+                {
+                  // Restrictions that span our entire date range
+                  AND: [
+                    { startDate: { lte: startDate } },
+                    { endDate: { gte: endDate } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        include: {
+          exceptions: true,
+        },
+      });
+
+      console.log(`Found ${restrictions.length} active restrictions for date range`);
+
+      // Get room mappings
+      const whereClause: any = { isActive: true };
+      if (roomMappings.length > 0) {
+        whereClause.id = { in: roomMappings };
+      }
+
+      const mappings = await prisma.beds24RoomMapping.findMany({
+        where: whereClause,
+        include: { room: true },
+      });
+
+      if (mappings.length === 0) {
+        console.log('No active room mappings found for restriction sync');
+        return false;
+      }
+
+      console.log(`Syncing restrictions for ${mappings.length} room mappings`);
+
+      // Process each room mapping
+      for (const mapping of mappings) {
+        const restrictionDates: any = {};
+        
+        // Generate dates in the range
+        let currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateKey = currentDate.toISOString().split('T')[0].replace(/-/g, '');
+          const dateObj = new Date(currentDate);
+          
+          // Apply restrictions for this date
+          const dateRestrictions = this.getRestrictionsForDate(dateObj, restrictions, mapping);
+          
+          if (Object.keys(dateRestrictions).length > 0) {
+            restrictionDates[dateKey] = dateRestrictions;
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Send to Beds24 if we have restrictions to apply
+        if (Object.keys(restrictionDates).length > 0) {
+          const requestData = {
+            authentication: {
+              apiKey: this.apiKey,
+              propKey: this.propKey,
+            },
+            roomId: mapping.beds24RoomId,
+            dates: restrictionDates,
+          };
+
+          console.log(`📤 Sending ${Object.keys(restrictionDates).length} restriction dates for room ${mapping.room.name} (${mapping.beds24RoomId})`);
+          console.log('Request data:', JSON.stringify(requestData, null, 2));
+
+          const response = await this.apiClient.post('/json/setRoomDates', requestData);
+          
+          console.log(`📥 Beds24 response for ${mapping.room.name}:`, response.data);
+
+          if (response.data?.error) {
+            console.error(`❌ Error syncing restrictions for room ${mapping.room.name}:`, response.data);
+          } else {
+            console.log(`✅ Successfully synced restrictions for room ${mapping.room.name}`);
+          }
+
+          // Add delay between requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          console.log(`ℹ️  No restrictions to sync for room ${mapping.room.name}`);
+        }
+      }
+
+      console.log('🎉 Booking restrictions sync completed');
+      return true;
+
+    } catch (error) {
+      console.error('❌ Failed to sync booking restrictions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get restrictions that apply to a specific date and room mapping
+   */
+  private getRestrictionsForDate(date: Date, restrictions: any[], roomMapping: any): any {
+    const restrictionData: any = {};
+    
+    for (const restriction of restrictions) {
+      // Check if this restriction applies to this date
+      if (date < new Date(restriction.startDate) || date > new Date(restriction.endDate)) {
+        continue;
+      }
+
+      // Check if this restriction applies to this room
+      if (restriction.roomScope === 'SPECIFIC_ROOMS' && 
+          restriction.roomIds.length > 0 && 
+          !restriction.roomIds.includes(roomMapping.localRoomId)) {
+        continue;
+      }
+
+      // Check day of week restrictions
+      if (restriction.daysOfWeek.length > 0) {
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        if (!restriction.daysOfWeek.includes(dayOfWeek)) {
+          continue;
+        }
+      }
+
+      // Apply the restriction based on type
+      switch (restriction.type) {
+        case 'CLOSE_TO_ARRIVAL':
+          restrictionData.i = "0"; // Close arrival
+          console.log(`🚫 Closing arrival for ${date.toISOString().split('T')[0]} due to restriction: ${restriction.name}`);
+          break;
+          
+        case 'CLOSE_TO_DEPARTURE':
+          restrictionData.o = "0"; // Close departure (note: Beds24 uses "1" for allow, so "0" closes)
+          console.log(`🚫 Closing departure for ${date.toISOString().split('T')[0]} due to restriction: ${restriction.name}`);
+          break;
+          
+        case 'CLOSE_TO_STAY':
+          restrictionData.i = "0"; // Close both arrival and stay
+          console.log(`🚫 Closing stay for ${date.toISOString().split('T')[0]} due to restriction: ${restriction.name}`);
+          break;
+          
+        case 'MIN_LENGTH':
+          if (restriction.minLength) {
+            restrictionData.m = restriction.minLength.toString();
+            console.log(`📏 Setting min stay ${restriction.minLength} for ${date.toISOString().split('T')[0]} due to restriction: ${restriction.name}`);
+          }
+          break;
+          
+        case 'MAX_LENGTH':
+          if (restriction.maxLength) {
+            restrictionData.mx = restriction.maxLength.toString();
+            console.log(`📏 Setting max stay ${restriction.maxLength} for ${date.toISOString().split('T')[0]} due to restriction: ${restriction.name}`);
+          }
+          break;
+      }
+    }
+    
+    return restrictionData;
   }
 }
 

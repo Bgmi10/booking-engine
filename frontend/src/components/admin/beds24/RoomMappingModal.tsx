@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { RiCloseLine, RiLinkM, RiCheckLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl } from '../../../utils/constants';
@@ -77,6 +77,9 @@ export default function RoomMappingModal({
 
     setCreating(true);
     try {
+      // Find the selected Beds24 room to get its name
+      const selectedBeds24RoomData = beds24Rooms.find(room => room.roomId === selectedBeds24Room);
+      
       const response = await fetch(`${baseUrl}/admin/beds24/room-mappings`, {
         method: 'POST',
         credentials: 'include',
@@ -86,6 +89,7 @@ export default function RoomMappingModal({
         body: JSON.stringify({
           localRoomId: selectedLocalRoom,
           beds24RoomId: selectedBeds24Room,
+          beds24RoomName: selectedBeds24RoomData?.roomName || 'Unknown Room',
           isActive: true,
         }),
       });
@@ -109,7 +113,7 @@ export default function RoomMappingModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div className="fixed inset-0 bg-black/40 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

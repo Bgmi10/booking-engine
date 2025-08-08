@@ -3,7 +3,8 @@
     "allow": [
       "Bash(rm:*)",
       "WebFetch(domain:www.beds24.com)",
-      "WebFetch(domain:api.beds24.com)"
+      "WebFetch(domain:api.beds24.com)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

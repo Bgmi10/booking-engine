@@ -44,7 +44,7 @@ app.use(cors({
 
 app.use(generalLimiter);
 app.use(speedLimiter);
-
+// cmd
 app.use("/api/v1/stripe", webhookLimiter, stipeWebhookRouter);
 app.use(express.json({ limit: '10mb' }));
 app.use("/api/v1/admin", aggressiveSpeedLimiter, adminLimiter, adminRouter);

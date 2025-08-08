@@ -10,6 +10,9 @@ import {
 } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl } from '../../../utils/constants';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { format, isValid } from 'date-fns';
 import type { BookingRestriction, RatePolicy, RestrictionException, Room } from '../../../types/types';
 
 export default function BookingRestrictions() {
@@ -327,7 +330,7 @@ export default function BookingRestrictions() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(restriction.startDate).toLocaleDateString()} - {new Date(restriction.endDate).toLocaleDateString()}
+                      {restriction.startDate && isValid(new Date(restriction.startDate)) ? format(new Date(restriction.startDate), 'dd/MM/yyyy') : ''} - {restriction.endDate && isValid(new Date(restriction.endDate)) ? format(new Date(restriction.endDate), 'dd/MM/yyyy') : ''}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -416,24 +419,46 @@ export default function BookingRestrictions() {
               </div>
 
               {/* Date Range */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
-                  <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => handleInputChange('startDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => handleInputChange('endDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Date Range *</label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Date
+                    </label>
+                    <DatePicker
+                      selected={formData.startDate ? new Date(formData.startDate) : new Date()}
+                      onChange={(date: Date | null) => {
+                        if (date && isValid(date)) {
+                          handleInputChange('startDate', date.toISOString().split('T')[0]);
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      placeholderText="Select start date"
+                      minDate={new Date()}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                    />
+                  </div>
+                  
+                  <span className="text-gray-500 mt-0 sm:mt-6 text-center">to</span>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End Date
+                    </label>
+                    <DatePicker
+                      selected={formData.endDate ? new Date(formData.endDate) : new Date()}
+                      onChange={(date: Date | null) => {
+                        if (date && isValid(date)) {
+                          handleInputChange('endDate', date.toISOString().split('T')[0]);
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      placeholderText="Select end date"
+                      minDate={formData.startDate ? new Date(formData.startDate) : new Date()}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -613,7 +638,7 @@ export default function BookingRestrictions() {
             <div>
               {exception.exceptionStartDate && exception.exceptionEndDate ? (
                 <span className="text-sm">
-                  {new Date(exception.exceptionStartDate).toLocaleDateString()} - {new Date(exception.exceptionEndDate).toLocaleDateString()}
+                  {exception.exceptionStartDate && isValid(new Date(exception.exceptionStartDate)) ? format(new Date(exception.exceptionStartDate), 'dd/MM/yyyy') : ''} - {exception.exceptionEndDate && isValid(new Date(exception.exceptionEndDate)) ? format(new Date(exception.exceptionEndDate), 'dd/MM/yyyy') : ''}
                 </span>
               ) : (
                 <span className="text-sm">Custom rules</span>
@@ -723,24 +748,46 @@ const ExceptionModal = ({
   
           <div className="space-y-4">
             {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <input
-                  type="date"
-                  value={exception.exceptionStartDate || ''}
-                  onChange={(e) => handleChange('exceptionStartDate', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                <input
-                  type="date"
-                  value={exception.exceptionEndDate || ''}
-                  onChange={(e) => handleChange('exceptionEndDate', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Exception Period</label>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Exception Start Date
+                  </label>
+                  <DatePicker
+                    selected={exception.exceptionStartDate ? new Date(exception.exceptionStartDate) : new Date()}
+                    onChange={(date: Date | null) => {
+                      if (date && isValid(date)) {
+                        handleChange('exceptionStartDate', date.toISOString().split('T')[0]);
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select start date"
+                    minDate={new Date()}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                  />
+                </div>
+                
+                <span className="text-gray-500 mt-0 sm:mt-6 text-center">to</span>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Exception End Date
+                  </label>
+                  <DatePicker
+                    selected={exception.exceptionEndDate ? new Date(exception.exceptionEndDate) : new Date()}
+                    onChange={(date: Date | null) => {
+                      if (date && isValid(date)) {
+                        handleChange('exceptionEndDate', date.toISOString().split('T')[0]);
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select end date"
+                    minDate={exception.exceptionStartDate ? new Date(exception.exceptionStartDate) : new Date()}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                  />
+                </div>
               </div>
             </div>
   

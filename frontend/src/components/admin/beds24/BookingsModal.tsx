@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { RiCloseLine, RiDownloadLine, RiCheckLine, RiTimeLine, RiAlertLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { baseUrl } from '../../../utils/constants';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { isValid } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
 interface Beds24Booking {
@@ -35,10 +39,8 @@ interface BookingsModalProps {
 export default function BookingsModal({ isOpen, onClose }: BookingsModalProps) {
   const [bookings, setBookings] = useState<Beds24Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-  });
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+  const [endDate, setEndDate] = useState(new Date());
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
 
@@ -46,14 +48,14 @@ export default function BookingsModal({ isOpen, onClose }: BookingsModalProps) {
     if (isOpen) {
       fetchBookings();
     }
-  }, [isOpen, dateRange]);
+  }, [isOpen, startDate, endDate]);
 
   const fetchBookings = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        startDate: new Date(dateRange.startDate).toISOString(),
-        endDate: new Date(dateRange.endDate).toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
       });
 
       const response = await fetch(`${baseUrl}/admin/beds24/bookings?${params}`, {
@@ -142,27 +144,48 @@ export default function BookingsModal({ isOpen, onClose }: BookingsModalProps) {
 
         {/* Date Range Filter */}
         <div className="mb-6 flex items-end space-x-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Booking Period
             </label>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date
+                </label>
+                <DatePicker
+                  selected={startDate}
+                  onChange={(date: Date | null) => {
+                    if (date && isValid(date)) {
+                      setStartDate(date);
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Select start date"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                />
+              </div>
+              
+              <span className="text-gray-500 mt-0 sm:mt-6 text-center">to</span>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date
+                </label>
+                <DatePicker
+                  selected={endDate}
+                  onChange={(date: Date | null) => {
+                    if (date && isValid(date)) {
+                      setEndDate(date);
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Select end date"
+                  minDate={startDate}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                />
+              </div>
+            </div>
           </div>
           <button
             onClick={fetchBookings}
@@ -248,7 +271,7 @@ export default function BookingsModal({ isOpen, onClose }: BookingsModalProps) {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <p className="text-sm text-gray-900">
-                            {format(new Date(booking.arrival), 'MMM dd')} - {format(new Date(booking.departure), 'MMM dd')}
+                            {format(new Date(booking.arrival), 'dd/MM')} - {format(new Date(booking.departure), 'dd/MM')}
                           </p>
                           <p className="text-xs text-gray-500">
                             {Math.ceil((new Date(booking.departure).getTime() - new Date(booking.arrival).getTime()) / (1000 * 60 * 60 * 24))} nights

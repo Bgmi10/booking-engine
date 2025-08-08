@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const createBeds24RoomMappingSchema = z.object({
   localRoomId: z.string().uuid(),
   beds24RoomId: z.string().min(1),
+  beds24RoomName: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -14,6 +15,11 @@ export const syncRatesAvailabilitySchema = z.object({
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   roomIds: z.array(z.string().uuid()).optional(), // Specific rooms to sync, if not provided sync all
+  applyToFutureDates: z.boolean().default(false), // Apply rates to future dates
+  roomMappings: z.array(z.string()).optional(), // Specific room mappings to sync
+  markupPercent: z.number().default(0), // Markup percentage
+  minStay: z.number().int().min(1).default(1),
+  maxStay: z.number().int().min(1).default(30),
 });
 
 // Schema for manual rate push

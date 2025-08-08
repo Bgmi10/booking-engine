@@ -3,6 +3,9 @@ import { useState } from "react";
 import { baseUrl } from "../../../utils/constants";
 import countryList from "country-list-with-dial-code-and-flag";
 import { RiErrorWarningLine, RiCheckLine } from "react-icons/ri";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { format, isValid } from 'date-fns';
 
 interface CreateCustomerModalProps {
   setIsCreateModalOpen: (open: boolean) => void;
@@ -242,13 +245,17 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date of Birth
               </label>
-              <input
-                type="date"
-                name="dob"
-                value={formData.dob}
-                onChange={handleChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <DatePicker
+                selected={formData.dob ? new Date(formData.dob) : null}
+                onChange={(date: Date | null) => {
+                  if (date) {
+                    setFormData({ ...formData, dob: date.toISOString().split('T')[0] });
+                  }
+                }}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Select date of birth"
                 disabled={loading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -270,13 +277,18 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Passport Expiry
               </label>
-              <input
-                type="date"
-                name="passportExpiry"
-                value={formData.passportExpiry}
-                onChange={handleChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <DatePicker
+                selected={formData.passportExpiry ? new Date(formData.passportExpiry) : null}
+                onChange={(date: Date | null) => {
+                  if (date) {
+                    setFormData({ ...formData, passportExpiry: date.toISOString().split('T')[0] });
+                  }
+                }}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Select passport expiry date"
                 disabled={loading}
+                minDate={new Date()}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -284,13 +296,17 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Anniversary Date
               </label>
-              <input
-                type="date"
-                name="anniversaryDate"
-                value={formData.anniversaryDate}
-                onChange={handleChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <DatePicker
+                selected={formData.anniversaryDate ? new Date(formData.anniversaryDate) : null}
+                onChange={(date: Date | null) => {
+                  if (date) {
+                    setFormData({ ...formData, anniversaryDate: date.toISOString().split('T')[0] });
+                  }
+                }}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Select anniversary date"
                 disabled={loading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 

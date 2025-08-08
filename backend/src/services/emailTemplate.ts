@@ -44,6 +44,7 @@ interface RefundDetail {
   refundAmount: number;
   refundCurrency: string;
   refundReason: string;
+  isCancellationOnly?: boolean;
 }
 
 interface BookingDetails {
@@ -499,10 +500,11 @@ export const sendRefundConfirmationEmail = async (
     bookings: processedBookings,
     paymentMethod: firstBookingData.paymentMethod || 'STRIPE',
     isManualRefund: firstBookingData.paymentMethod === 'CASH' || firstBookingData.paymentMethod === 'BANK_TRANSFER',
+    isCancellationOnly: refund?.isCancellationOnly || false
   };
 
-  // Only add refund data if it exists
-  if (refund) {
+  // Only add refund data if it exists AND it's not a cancellation-only
+  if (refund && !refund.isCancellationOnly) {
     templateData.refund = {
       refundId: refund.refundId,
       refundAmount: refund.refundAmount,

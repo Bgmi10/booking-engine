@@ -5,16 +5,16 @@ import {
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
 import { PlusCircleIcon } from "lucide-react"
-import type { RatePolicy, Room, RoomRate } from "../../../types/types"
+import type { RatePolicy, Room, RoomRate, RoomWithRates } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
 import { toast } from "react-hot-toast"
 
 
 interface UpdateRoomModalProps {
-  room: Room | null
+  room: RoomWithRates | null
   setIsUpdateModalOpen: (isOpen: boolean) => void
-  setRooms: React.Dispatch<React.SetStateAction<Room[]>>
-  rooms: Room[]
+  setRooms: React.Dispatch<React.SetStateAction<RoomWithRates[]>>
+  rooms: RoomWithRates[]
 }
 
 export function UpdateRoomModal({
@@ -55,8 +55,8 @@ export function UpdateRoomModal({
       setExtraBedPrice(room.extraBedPrice?.toString() || "")
       setAmenities(room.amenities)
       // Initialize selected policies from room's existing policies
-      if (room.roomRates) {
-        setSelectedPolicies(room.roomRates.map((rate: RoomRate) => rate.ratePolicy))
+      if (room.RoomRate) {
+        setSelectedPolicies(room.RoomRate.map((rate: RoomRate) => rate.ratePolicy))
       }
     }
   }, [room])

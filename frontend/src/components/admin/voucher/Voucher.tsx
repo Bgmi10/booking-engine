@@ -8,6 +8,8 @@ import {
   Plus,
 } from "lucide-react";
 import { baseUrl } from "../../../utils/constants";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import type { RatePolicy, Room, Voucher, VoucherProduct } from "../../../types/types";
 
 
@@ -670,8 +672,8 @@ function VoucherModal({
     fixedAmount: voucher?.fixedAmount || null,
     maxUsage: voucher?.maxUsage || null,
     maxUsagePerUser: voucher?.maxUsagePerUser || null,
-    validFrom: voucher?.validFrom ? voucher.validFrom.split("T")[0] : "",
-    validTill: voucher?.validTill ? voucher.validTill.split("T")[0] : "",
+    validFrom: voucher?.validFrom ? new Date(voucher.validFrom) : new Date(),
+    validTill: voucher?.validTill ? new Date(voucher.validTill) : new Date(),
     roomScope: voucher?.roomScope || "ALL_ROOMS",
     roomIds: voucher?.roomIds || [],
     rateScope: voucher?.rateScope || "ALL_RATES",
@@ -715,8 +717,8 @@ function VoucherModal({
     e.preventDefault();
     onSave({
       ...formData,
-      validFrom: new Date(formData.validFrom).toISOString(),
-      validTill: new Date(formData.validTill).toISOString(),
+      validFrom: formData.validFrom.toISOString(),
+      validTill: formData.validTill.toISOString(),
     });
   };
 
@@ -842,24 +844,37 @@ function VoucherModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Valid From *</label>
-                <input
-                  type="date"
-                  value={formData.validFrom}
-                  onChange={(e) => handleChange("validFrom", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valid From *
+                </label>
+                <DatePicker
+                  selected={formData.validFrom}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      handleChange("validFrom", date);
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Select start date"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Valid Till *</label>
-                <input
-                  type="date"
-                  value={formData.validTill}
-                  onChange={(e) => handleChange("validTill", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valid Till *
+                </label>
+                <DatePicker
+                  selected={formData.validTill}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      handleChange("validTill", date);
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Select end date"
+                  minDate={formData.validFrom}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
