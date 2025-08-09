@@ -48,6 +48,7 @@ import {
   createLicensePlateSchema, 
   updateLicensePlateSchema, 
 } from '../zod/licensePlate.schema';
+import { getBulkOverRideLogs } from "../controllers/bulkOverRideLogsController";
 
 const adminRouter = Router();
 
@@ -126,8 +127,8 @@ adminRouter.put("/base-price", authMiddleware, updateBasePrice);
 
 adminRouter.put("/rooms/:id/price", authMiddleware, updateRoomPrice);
 
+adminRouter.get('/bulk-override-logs', authMiddleware, getBulkOverRideLogs);
 
-// Rate date-based pricing routes
 adminRouter.use("/rate-policies", rateDatePriceRoutes);
 
 adminRouter.get("/settings", authMiddleware, getGeneralSettings);

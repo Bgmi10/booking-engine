@@ -13,6 +13,31 @@ export interface User {
   numberPlate: string;
 }
 
+export interface BulkOverrideLog {
+  id: string;
+  userId: string;
+  ratePolicyId: string;
+  actionType: 'BULK_OVERRIDE' | 'BULK_INCREASE' | 'BULK_DECREASE';
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  roomsAffected: string[];
+  overRideDetails: any;
+  totalRoomsAffected: number;
+  totalDatesAffected: number;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  ratePolicy: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+}
+
 export interface Enhancement {
   id: string
   title: string
@@ -27,6 +52,49 @@ export interface Enhancement {
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface Beds24Booking {
+  bookId: string;
+  propId: string;
+  roomId: string;
+  arrival: string;
+  departure: string;
+  numAdult: number;
+  numChild: number;
+  guestFirstName: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  guestCountry: string;
+  price: number;
+  commission: number;
+  apiReference: string;
+  bookingTime: string;
+  status: string;
+  payStatus: string;
+  guestComments: string;
+}
+
+export interface SyncConfiguration {
+  autoSync: boolean;
+  syncFrequency: string;
+  markupPercent: number;
+  minStay: number;
+  maxStay: number;
+  syncStartDate: string | Date | any;
+  syncEndDate: string | Date | any;
+  applyToFutureDates: boolean;
+} 
+
+export interface RateDatePrice {
+  id: string;
+  roomId: string;
+  date: string;
+  price: number;
+  priceType: 'BASE_OVERRIDE' | 'ROOM_INCREASE' | 'ROOM_OVERRIDE';
+  room: Room;
+  isActive: boolean;
 }
 
 export interface RatePolicy {
@@ -46,6 +114,7 @@ export interface RatePolicy {
   cancellationPolicy?: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE';
   createdAt: string;
   updatedAt: string;
+  rateDatePrices: RateDatePrice[]
 }
 
 export interface PaymentIntentDetailsViewProps {
@@ -703,6 +772,7 @@ export interface RoomForPricing {
 // Room with rate policies for main room management
 export interface RoomRate {
   ratePolicy: RatePolicy;
+  percentageAdjustment: number
 }
 
 export interface RoomWithRates extends RoomForPricing {

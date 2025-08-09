@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { RiCloseLine, RiSave3Line, RiInformationLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';

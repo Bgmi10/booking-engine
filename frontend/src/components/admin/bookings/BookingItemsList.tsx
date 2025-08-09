@@ -12,12 +12,13 @@ interface BookingItemsListProps {
   updateBookingItem: (index: number, field: keyof BookingItem, value: any) => void;
   removeBookingItem: (index: number) => void;
   toggleEnhancement: (bookingIndex: number, enhancement: Enhancement) => void;
-  getRateOptions: (room: Room) => any[];
+  getRateOptions: (room: Room, checkIn?: string, checkOut?: string) => any[];
   selectRateOption: (bookingIndex: number, rateOption: any) => void;
   addBookingItem: () => void;
   availabilityData: any;
   isLoadingAvailability: boolean;
   fetchCalendarAvailability: (startDate: string, endDate: string) => Promise<void>;
+  refreshRatePricingForDates?: (startDate: string, endDate: string) => Promise<void>;
 }
 
 const BookingItemsList: React.FC<BookingItemsListProps> = ({
@@ -35,6 +36,7 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
   availabilityData,
   isLoadingAvailability,
   fetchCalendarAvailability,
+  refreshRatePricingForDates,
 }) => {
   return (
     <div className="mb-6">
@@ -67,6 +69,7 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
           availabilityData={availabilityData}
           isLoadingAvailability={isLoadingAvailability}
           fetchCalendarAvailability={fetchCalendarAvailability}
+          refreshRatePricingForDates={refreshRatePricingForDates}
         />
       ))}
     </div>

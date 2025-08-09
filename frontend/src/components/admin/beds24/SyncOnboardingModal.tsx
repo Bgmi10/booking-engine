@@ -10,6 +10,7 @@ import RatePolicyStep from './RatePolicyStep';
 import SyncConfigurationStep from './SyncConfigurationStep';
 import BookingRestrictionsStep from './BookingRestrictionsStep';
 import SummaryStep from './SummaryStep';
+import type { SyncConfiguration } from '../../../types/types';
 
 type Step = 'mapping' | 'policy' | 'sync' | 'restrictions' | 'summary';
 
@@ -31,7 +32,7 @@ export default function SyncOnboardingModal({
   const [roomMappings, setRoomMappings] = useState<any[]>([]);
   const [selectedRoomMappings, setSelectedRoomMappings] = useState<string[]>([]);
   const [selectedRatePolicy, setSelectedRatePolicy] = useState<string | null>(null);
-  const [syncConfiguration, setSyncConfiguration] = useState({
+  const [syncConfiguration, setSyncConfiguration] = useState<SyncConfiguration>({
     autoSync: true,
     syncFrequency: 'daily',
     markupPercent: 0,

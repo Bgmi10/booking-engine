@@ -45,7 +45,6 @@ export default function RoomMappingStep({
   selectedMappings, 
   onMappingsChange,
   onRefreshRooms,
-  onCreateMapping,
   onMappingCreated
 }: RoomMappingStepProps) {
   const [loading, setLoading] = useState(false);

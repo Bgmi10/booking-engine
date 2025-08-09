@@ -4,6 +4,7 @@ import { BiLoader } from "react-icons/bi";
 import type { BookingItem, Enhancement, Room } from "../../../types/types";
 import DateSelector from '../../DateSelector';
 import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 
 interface BookingItemCardProps {
@@ -16,12 +17,13 @@ interface BookingItemCardProps {
   updateBookingItem: (index: number, field: keyof BookingItem, value: any) => void;
   removeBookingItem: (index: number) => void;
   toggleEnhancement: (bookingIndex: number, enhancement: Enhancement) => void;
-  getRateOptions: (room: Room) => any[];
+  getRateOptions: (room: Room, checkIn?: string, checkOut?: string) => any[];
   selectRateOption: (bookingIndex: number, rateOption: any) => void;
   canRemove: boolean;
   availabilityData?: any;
   isLoadingAvailability?: boolean;
   fetchCalendarAvailability?: (startDate: string, endDate: string) => Promise<void>;
+  refreshRatePricingForDates?: (startDate: string, endDate: string) => Promise<void>;
 }
 
 const BookingItemCard: React.FC<BookingItemCardProps> = ({
@@ -40,14 +42,30 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
   availabilityData = { minStayDays: 2, fullyBookedDates: [], partiallyBookedDates: [], availableDates: [], restrictedDates: [], dateRestrictions: {} },
   isLoadingAvailability = false,
   fetchCalendarAvailability,
+  refreshRatePricingForDates,
 }) => {
   // Local state for calendar open/close
   const [calenderOpen, setCalenderOpen] = useState(false);
+  // Local state for price breakdown expansion
+  const [expandedBreakdowns, setExpandedBreakdowns] = useState<{[key: string]: boolean}>({});
 
   // Handler for date selection
-  const handleDateSelect = ({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) => {
-    updateBookingItem(index, 'checkIn', startDate ? startDate.toISOString().split('T')[0] : '');
-    updateBookingItem(index, 'checkOut', endDate ? endDate.toISOString().split('T')[0] : '');
+  const handleDateSelect = async ({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) => {
+    const checkIn = startDate ? startDate.toISOString().split('T')[0] : '';
+    const checkOut = endDate ? endDate.toISOString().split('T')[0] : '';
+    
+    // Refresh rate pricing data BEFORE updating booking items to ensure fresh data
+    if (refreshRatePricingForDates && checkIn && checkOut) {
+      try {
+        await refreshRatePricingForDates(checkIn, checkOut);
+      } catch (error) {
+        console.error('Error refreshing rate pricing:', error);
+      }
+    }
+    
+    // Update booking item dates after refreshing pricing data
+    updateBookingItem(index, 'checkIn', checkIn);
+    updateBookingItem(index, 'checkOut', checkOut);
     setCalenderOpen(false);
   };
 
@@ -201,7 +219,7 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
         <label className="block text-sm font-medium text-gray-700 mb-2">Rate Options</label>
         <div className="space-y-3">
           {item.roomDetails &&
-            getRateOptions(item.roomDetails).map((rateOption: any) => {
+            getRateOptions(item.roomDetails, item.checkIn, item.checkOut).map((rateOption: any) => {
               const hasDiscount = rateOption.discountPercentage > 0;
               const isSelected = item.selectedRateOption?.id === rateOption.id;
               const checkInDate = new Date(item.checkIn);
@@ -209,7 +227,10 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
               const nights = Math.ceil(
                 (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
               );
-              const totalPrice = rateOption.price * nights * item.rooms;
+              // Use price breakdown total if available, otherwise calculate from average price
+              const totalPrice = rateOption.priceBreakdown 
+                ? rateOption.priceBreakdown.totalPrice * item.rooms
+                : rateOption.price * nights * item.rooms;
               return (
                 <div
                   key={rateOption.id}
@@ -247,6 +268,16 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                           className={`font-medium text-sm ${hasDiscount ? "text-orange-800" : "text-gray-800"}`}
                         >
                           {rateOption.name}
+                          {rateOption.type === "configured" && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Room Rate
+                            </span>
+                          )}
+                          {rateOption.type === "available" && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Private Rate
+                            </span>
+                          )}
                         </h4>
                       </div>
                       <div className="flex gap-2">
@@ -276,8 +307,91 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                         <span className="text-sm font-medium text-gray-800">
                           €{rateOption.price.toFixed(2)}
                         </span>
-                        <span className="text-xs text-gray-600">per night</span>
+                        <span className="text-xs text-gray-600">{rateOption.priceLabel || 'per night'}</span>
                       </div>
+                      
+                      {/* Show price breakdown like user app if available */}
+                      {rateOption.priceBreakdown && rateOption.priceBreakdown.subtotalBeforeAdjustment && (
+                        <div className="space-y-1 text-sm border-t pt-2">
+                          <div className="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span>€{(rateOption.priceBreakdown.subtotalBeforeAdjustment * item.rooms).toFixed(2)}</span>
+                          </div>
+                          {rateOption.priceBreakdown.adjustmentAmount && (
+                            <div className="flex justify-between text-blue-700">
+                              <span>
+                                Rate adjustment ({rateOption.adjustmentPercentage > 0 ? '+' : ''}{rateOption.adjustmentPercentage}%):
+                              </span>
+                              <span>
+                                {rateOption.adjustmentPercentage > 0 ? '+' : ''}€{(rateOption.priceBreakdown.adjustmentAmount * item.rooms).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Daily price breakdown button (like user app) */}
+                      {rateOption.priceBreakdown && rateOption.priceBreakdown.breakdown && rateOption.priceBreakdown.breakdown.some((day: any) => day.isOverride) && (
+                        <div className="border-t pt-2">
+                          <button
+                            onClick={() => setExpandedBreakdowns(prev => ({
+                              ...prev,
+                              [rateOption.id]: !prev[rateOption.id]
+                            }))}
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>View price breakdown</span>
+                            {expandedBreakdowns[rateOption.id] ? 
+                              <ChevronUp className="h-3 w-3" /> : 
+                              <ChevronDown className="h-3 w-3" />
+                            }
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Expandable detailed breakdown */}
+                      {expandedBreakdowns[rateOption.id] && rateOption.priceBreakdown && rateOption.priceBreakdown.breakdown && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 space-y-2">
+                          <h5 className="text-sm font-semibold text-gray-700">Daily Price Breakdown:</h5>
+                          <div className="space-y-1">
+                            {rateOption.priceBreakdown.breakdown.map((day: any, dayIndex: number) => (
+                              <div key={dayIndex} className="flex justify-between text-sm">
+                                <span className="text-gray-600">
+                                  {new Date(day.date).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                  {day.isOverride && <span className="text-orange-600 ml-1">(Special Rate)</span>}
+                                </span>
+                                <span className="text-gray-900 font-medium">€{day.price.toFixed(2)}</span>
+                              </div>
+                            ))}
+                            
+                            {/* Subtotal and adjustment in breakdown */}
+                            <div className="border-t pt-2 mt-2 space-y-1">
+                              <div className="flex justify-between text-sm font-medium">
+                                <span>Subtotal:</span>
+                                <span>€{(rateOption.priceBreakdown.subtotalBeforeAdjustment || rateOption.priceBreakdown.totalPrice).toFixed(2)}</span>
+                              </div>
+                              
+                              {rateOption.priceBreakdown.adjustmentAmount && (
+                                <div className="flex justify-between text-sm text-blue-700">
+                                  <span>Rate adjustment ({rateOption.adjustmentPercentage > 0 ? '+' : ''}{rateOption.adjustmentPercentage}%):</span>
+                                  <span>{rateOption.adjustmentPercentage > 0 ? '+' : ''}€{rateOption.priceBreakdown.adjustmentAmount.toFixed(2)}</span>
+                                </div>
+                              )}
+                              
+                              <div className="flex justify-between text-sm font-semibold text-gray-900 border-t pt-1">
+                                <span>Total for {nights} nights:</span>
+                                <span>€{rateOption.priceBreakdown.totalPrice.toFixed(2)}</span>
+                              </div>
+                              
+                              <div className="flex justify-between text-sm font-bold text-gray-900 border-t pt-1">
+                                <span>Total ({nights} nights, {item.rooms} room{item.rooms > 1 ? 's' : ''}):</span>
+                                <span>€{(rateOption.priceBreakdown.totalPrice * item.rooms).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between items-center text-sm font-medium text-gray-700 border-t pt-2">
                         <span>Total ({nights} nights):</span>
                         <span className="font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>

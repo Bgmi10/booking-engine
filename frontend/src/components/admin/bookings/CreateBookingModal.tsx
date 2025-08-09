@@ -13,6 +13,8 @@ import TotalAmountSummary from "./TotalAmountSummary"
 import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
 import toast from 'react-hot-toast';
+import { calculatePriceBreakdown } from "../../../utils/ratePricing";
+import { useActiveRatePolicies, fetchRatePoliciesWithPricing } from "../../../hooks/useRatePolicies";
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
@@ -84,6 +86,24 @@ export function CreateBookingModal({
   });
   // Use the centralized calendar availability hook
   const { fetchCalendarAvailability: fetchCalendarAvailabilityHook, loading: isLoadingAvailability } = useCalendarAvailability();
+  
+  // Use rate policies hook for admin access to all rate policies
+  const { ratePolicies } = useActiveRatePolicies();
+  
+  // State for rate policies with pricing data
+  const [ratePoliciesWithPricing, setRatePoliciesWithPricing] = useState<any[]>([]);
+  
+  // Handler to refresh rate policies with pricing when dates change
+  const refreshRatePolicingForDates = async (startDate: string, endDate: string) => {
+    if (startDate && endDate) {
+      try {
+        const policiesWithPricing = await fetchRatePoliciesWithPricing(startDate, endDate, true);
+        setRatePoliciesWithPricing(policiesWithPricing);
+      } catch (error) {
+        console.error('Error in refreshRatePolicingForDates:', error);
+      }
+    }
+  };
 
   // Fetch availability data for calendar - wrapper to maintain interface
   const fetchCalendarAvailability = async (startDate: string, endDate: string) => {
@@ -130,40 +150,73 @@ export function CreateBookingModal({
     }
   }
 
-  // Fetch available rooms
-  const fetchRooms = async () => {
+  // Fetch rooms from calendar API data and load rate policies with pricing
+  const fetchRoomsAndPricing = async (startDate?: string, endDate?: string) => {
     setLoadingRooms(true)
     try {
-      const res = await fetch(`${baseUrl}/admin/rooms/all`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch rooms")
+      // Use calendar API to get room data instead of separate rooms/all call
+      let calendarData;
+      if (startDate && endDate) {
+        calendarData = await fetchCalendarAvailabilityHook({
+          startDate,
+          endDate,
+          showError: true,
+          cacheEnabled: false
+        });
       }
 
-      const data = await res.json()
-      setRooms(data.data)
+      // Extract rooms from calendar data or use fallback
+      let roomsData = [];
+      if (calendarData?.rooms) {
+        roomsData = calendarData.rooms;
+      } else {
+        // Fallback to direct rooms API if calendar doesn't provide room data
+        const res = await fetch(`${baseUrl}/admin/rooms/all`, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        
+        if (!res.ok) {
+          throw new Error("Failed to fetch rooms")
+        }
+        const data = await res.json()
+        roomsData = data.data;
+      }
+      
+      setRooms(roomsData);
+      
+      // Fetch rate policies with date-specific pricing if dates are provided
+      if (startDate && endDate) {
+        try {
+          const policiesWithPricing = await fetchRatePoliciesWithPricing(startDate, endDate, true);
+          setRatePoliciesWithPricing(policiesWithPricing);
+        } catch (error) {
+          console.error('Error fetching rate policies with pricing:', error);
+          setRatePoliciesWithPricing([]);
+        } 
+      }
 
-      if (data.data.length > 0) {
+      if (roomsData.length > 0) {
         setBookingItems((prev) =>
           prev.map((item, index) =>
             index === 0
-              ? { ...item, selectedRoom: data.data[0].id, roomDetails: data.data[0], totalPrice: data.data[0].price }
+              ? { ...item, selectedRoom: roomsData[0].id, roomDetails: roomsData[0], totalPrice: 0 }
               : item,
           ),
         )
       }
     } catch (error) {
-      console.error(error)
+      console.error("Error fetching rooms and pricing:", error)
       toast.error("Failed to load rooms. Please try again.")
     } finally {
       setLoadingRooms(false)
     }
   }
+
+  // Legacy fetchRooms function for compatibility
+  const fetchRooms = () => fetchRoomsAndPricing();
 
   const fetchAllEnhancements = async () => {
     try {
@@ -216,6 +269,14 @@ export function CreateBookingModal({
     })();
   }, [])
 
+  // Force re-render when rate policies with pricing changes
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  useEffect(() => {
+    // Force a re-render by updating a key
+    setRefreshKey(prev => prev + 1);
+  }, [ratePoliciesWithPricing]);
+
   // Calculate total amount
   useEffect(() => {
     let total = 0
@@ -226,9 +287,22 @@ export function CreateBookingModal({
         const checkOutDate = new Date(item.checkOut)
         const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
 
-        // Room cost based on selected rate option or default room price
-        const roomPrice = item.selectedRateOption?.price || item.roomDetails.price
-        const roomCost = roomPrice * nights * item.rooms
+        // Room cost using rate-based pricing - use the adjusted price if available
+        let roomCost = 0
+        if (item.selectedRateOption?.priceBreakdown?.totalPrice) {
+          // Use the already calculated adjusted price from the selected rate option
+          roomCost = item.selectedRateOption.priceBreakdown.totalPrice * item.rooms
+        } else if (item.selectedRateOption?.ratePolicy) {
+          // Fallback: calculate fresh (this shouldn't happen with new flow, but keep for safety)
+          const priceData = calculatePriceBreakdown(item.checkIn, item.checkOut, item.roomDetails, item.selectedRateOption.ratePolicy)
+          roomCost = priceData.totalPrice * item.rooms
+        } else if (item.selectedRateOption?.price) {
+          // Use selected rate option price
+          roomCost = item.selectedRateOption.price * nights * item.rooms
+        } else {
+          // Fallback to room price (deprecated path)
+          roomCost = item.roomDetails.price * nights * item.rooms
+        }
         total += roomCost
 
         // Enhancement costs
@@ -274,7 +348,7 @@ export function CreateBookingModal({
         selectedEnhancements: [],
         roomDetails: rooms.length > 0 ? rooms[0] : undefined,
         selectedRateOption: {},
-        totalPrice: rooms.length > 0 ? rooms[0].price : 0,
+        totalPrice: 0, // Will be calculated when rate option is selected
       },
     ])
   }
@@ -337,52 +411,92 @@ export function CreateBookingModal({
     )
   }
 
-  // Get rate options for a room
-  const getRateOptions = (room: Room) => {
-    const options = []
-    const basePrice = room?.price || 0
+  // Get rate options for a room - includes ALL active rate policies for admin flexibility
+  const getRateOptions = (room: Room, checkIn?: string, checkOut?: string) => {
+    const options = [];
+    
+    // Use rate policies with pricing data if dates are provided and available
+    const policiesToUse = (checkIn && checkOut && ratePoliciesWithPricing.length > 0) 
+      ? ratePoliciesWithPricing 
+      : ratePolicies;
+    
 
-    // Room rates (if available)
-    //@ts-ignore
-    if (room?.RoomRate && room.RoomRate.length > 0) {
-      //@ts-ignore
-      room.RoomRate.forEach((roomRate: any) => {
-        if (roomRate.ratePolicy.isActive) {
-          let finalPrice = basePrice
+    // Show ALL active rate policies, not just room-assigned ones
+    policiesToUse.forEach((ratePolicy: any) => {
+      if (ratePolicy.isActive) {
+        // Find if there's a room rate configuration for this policy
+        const roomRate = room?.roomRates?.find((rr: any) => rr.ratePolicy.id === ratePolicy.id);
+        const percentageAdjustment = roomRate?.percentageAdjustment || 0;
 
-          // Apply discount if available
-          if (roomRate.ratePolicy.discountPercentage) {
-            finalPrice = basePrice * (1 - roomRate.ratePolicy.discountPercentage / 100)
+        // Calculate display price (will be average if dates are provided)
+        let displayPrice = 0;
+        let priceLabel = "per night";
+        let priceBreakdown = null;
+
+        if (checkIn && checkOut) {
+          // Calculate pricing using the rate policy data (with or without rateDatePrices)
+          priceBreakdown = calculatePriceBreakdown(checkIn, checkOut, room, ratePolicy);
+          displayPrice = priceBreakdown.averagePrice;
+          priceLabel = priceBreakdown.breakdown.some(day => day.isOverride) ? "avg per night" : "per night";
+          
+        } else {
+          // Calculate base display price using rate policy
+          const basePrice = ratePolicy.basePrice || 0;
+          if (basePrice > 0) {
+            const adjustment = (basePrice * percentageAdjustment) / 100;
+            displayPrice = Math.round((basePrice + adjustment) * 100) / 100;
+          } else {
+            // Fall back to room price if no base price
+            displayPrice = room?.price || 0;
           }
-
-          // Use nightly rate if specified
-          if (roomRate.ratePolicy.nightlyRate) {
-            finalPrice = roomRate.ratePolicy.nightlyRate
-          }
-
-          // Apply adjustment percentage if available
-          if (roomRate.ratePolicy.adjustmentPercentage !== undefined) {
-            finalPrice = finalPrice + (finalPrice * roomRate.ratePolicy.adjustmentPercentage / 100)
-          }
-
-          options.push({
-            id: roomRate.ratePolicy.id,
-            name: roomRate.ratePolicy.name,
-            description: roomRate.ratePolicy.description,
-            price: finalPrice,
-            discountPercentage: roomRate.ratePolicy.discountPercentage || 0,
-            adjustmentPercentage: roomRate.ratePolicy.adjustmentPercentage,
-            isActive: roomRate.ratePolicy.isActive,
-            refundable: roomRate.ratePolicy.refundable,
-            fullPaymentDays: roomRate.ratePolicy.fullPaymentDays,
-            prepayPercentage: roomRate.ratePolicy.prepayPercentage,
-            changeAllowedDays: roomRate.ratePolicy.changeAllowedDays,
-            rebookValidityDays: roomRate.ratePolicy.rebookValidityDays,
-            type: "special",
-          })
         }
-      })
-    }
+
+        // Apply the rate policy adjustmentPercentage if present (like user app does)
+        let finalDisplayPrice = displayPrice;
+        let finalPriceBreakdown: any = priceBreakdown;
+        
+        if (priceBreakdown && ratePolicy.adjustmentPercentage && ratePolicy.adjustmentPercentage !== 0) {
+          const adjustmentFactor = 1 + (ratePolicy.adjustmentPercentage / 100);
+          const adjustedTotalPrice = Math.round(priceBreakdown.totalPrice * adjustmentFactor * 100) / 100;
+          // Calculate average from the adjusted total, not from adjusting the average directly
+          const nights = priceBreakdown.breakdown?.length || 1;
+          const adjustedAveragePrice = Math.round((adjustedTotalPrice / nights) * 100) / 100;
+          
+          finalPriceBreakdown = {
+            ...priceBreakdown,
+            totalPrice: adjustedTotalPrice,
+            averagePrice: adjustedAveragePrice,
+            subtotalBeforeAdjustment: priceBreakdown.totalPrice,
+            adjustmentAmount: adjustedTotalPrice - priceBreakdown.totalPrice,
+            adjustmentPercentage: ratePolicy.adjustmentPercentage
+          };
+          
+          finalDisplayPrice = adjustedAveragePrice;
+        }
+
+        options.push({
+          id: ratePolicy.id,
+          name: ratePolicy.name,
+          description: ratePolicy.description,
+          price: finalDisplayPrice,
+          priceLabel: priceLabel,
+          ratePolicy: ratePolicy, // Include full rate policy for price calculations
+          priceBreakdown: finalPriceBreakdown, // Include breakdown if calculated
+          discountPercentage: ratePolicy.discountPercentage || 0,
+          adjustmentPercentage: ratePolicy.adjustmentPercentage || 0, // Rate policy adjustment
+          roomPercentageAdjustment: percentageAdjustment, // Room-specific adjustment  
+          isActive: ratePolicy.isActive,
+          refundable: ratePolicy.refundable,
+          fullPaymentDays: ratePolicy.fullPaymentDays,
+          prepayPercentage: ratePolicy.prepayPercentage,
+          changeAllowedDays: ratePolicy.changeAllowedDays,
+          rebookValidityDays: ratePolicy.rebookValidityDays,
+          paymentStructure: ratePolicy.paymentStructure,
+          cancellationPolicy: ratePolicy.cancellationPolicy,
+          type: roomRate ? "configured" : "available", // Distinguish between configured and available policies
+        });
+      }
+    });
 
     // If no rate policies are available, show base room price as fallback
     if (options.length === 0) {
@@ -390,16 +504,17 @@ export function CreateBookingModal({
         id: "base",
         name: `${room?.name} Base Rate`,
         description: "Standard room rate",
-        price: basePrice,
+        price: room?.price || 0,
+        priceLabel: "per night",
         discountPercentage: 0,
         adjustmentPercentage: 0,
         isActive: true,
         refundable: true,
         type: "base",
-      })
+      });
     }
 
-    return options
+    return options;
   }
 
   // Select rate option for a booking item
@@ -411,6 +526,20 @@ export function CreateBookingModal({
           const checkInDate = new Date(item.checkIn)
           const checkOutDate = new Date(item.checkOut)
           const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+
+          // Calculate room cost using the adjusted pricing from rateOption
+          let roomCost = 0
+          if (rateOption.priceBreakdown && rateOption.priceBreakdown.totalPrice) {
+            // Use the already calculated adjusted price from getRateOptions (includes rate adjustments)
+            roomCost = rateOption.priceBreakdown.totalPrice * item.rooms
+          } else if (rateOption.ratePolicy && item.roomDetails) {
+            // Fallback: calculate fresh (this shouldn't happen with the new flow, but keep for safety)
+            const priceData = calculatePriceBreakdown(item.checkIn, item.checkOut, item.roomDetails, rateOption.ratePolicy)
+            roomCost = priceData.totalPrice * item.rooms
+          } else {
+            // Final fallback to simple rate option price
+            roomCost = rateOption.price * nights * item.rooms
+          }
 
           // Calculate enhancement costs
           let enhancementCost = 0
@@ -431,7 +560,7 @@ export function CreateBookingModal({
           })
 
           // Calculate total price
-          const totalPrice = rateOption.price * nights * item.rooms + enhancementCost
+          const totalPrice = roomCost + enhancementCost
 
           return {
             ...item,
@@ -766,6 +895,7 @@ const createBooking = async () => {
 
           {/* Booking Items Section */}
           <BookingItemsList
+            key={refreshKey}
             bookingItems={bookingItems}
             rooms={rooms}
             enhancements={enhancements}
@@ -780,6 +910,7 @@ const createBooking = async () => {
             availabilityData={availabilityData}
             isLoadingAvailability={isLoadingAvailability}
             fetchCalendarAvailability={fetchCalendarAvailability}
+            refreshRatePricingForDates={refreshRatePolicingForDates}
           />
 
           {/* Total Amount Display */}

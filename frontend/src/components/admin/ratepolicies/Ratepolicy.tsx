@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { RiAddLine, RiDeleteBin6Line, RiEdit2Line, RiEyeLine, RiCalendarLine } from "react-icons/ri";
 import { BiLoader } from "react-icons/bi";
 import { baseUrl } from "../../../utils/constants";
@@ -9,10 +9,12 @@ import ViewRatePolicyModal from "./ViewRatePolicyModal";
 import RatePricingCalendar from "./RatePricingCalendar";
 import { toast } from "react-hot-toast";
 import type { RatePolicy } from "../../../types/types";
+import { useRatePolicies } from "../../../hooks/useRatePolicies";
 
 export default function Ratepolicy() {
-  const [ratePolicies, setRatePolicies] = useState<RatePolicy[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use the rate policies hook
+  const { ratePolicies, loading, refetch } = useRatePolicies();
+  
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,30 +25,6 @@ export default function Ratepolicy() {
   const [selectedPolicy, setSelectedPolicy] = useState<RatePolicy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [refundableFilter, setRefundableFilter] = useState<"all" | "refundable" | "non-refundable">("all");
-
-  // Fetch rate policies
-  const fetchRatePolicies = async () => {
-    try {
-      const response = await fetch(`${baseUrl}/admin/rate-policies/all`, {
-        credentials: "include",
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to fetch rate policies");
-      }
-
-      setRatePolicies(data.data);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to fetch rate policies");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRatePolicies();
-  }, []);
 
   // Delete rate policy
   const handleDelete = async (id: string) => {
@@ -66,7 +44,7 @@ export default function Ratepolicy() {
       }
 
       toast.success("Rate policy deleted successfully");
-      setRatePolicies(ratePolicies.filter((policy) => policy.id !== id));
+      refetch(); // Refetch the data to update the list
     } catch (error: any) {
       toast.error(error.message || "Failed to delete rate policy");
     }
@@ -266,7 +244,7 @@ export default function Ratepolicy() {
       {isCreateModalOpen && (
         <CreateRatePolicyModal
           setIsCreateModalOpen={setIsCreateModalOpen}
-          setRatePolicies={setRatePolicies}
+          setRatePolicies={refetch} // Use refetch instead of setRatePolicies
           ratePolicies={ratePolicies}
           setError={setError}
           setSuccess={setSuccess}
@@ -276,7 +254,7 @@ export default function Ratepolicy() {
       {isUpdateModalOpen && selectedPolicy && (
         <UpdateRatePolicyModal
           setIsUpdateModalOpen={setIsUpdateModalOpen}
-          setRatePolicies={setRatePolicies}
+          setRatePolicies={refetch} // Use refetch instead of setRatePolicies
           ratePolicies={ratePolicies}
           setError={setError}
           setSuccess={setSuccess}

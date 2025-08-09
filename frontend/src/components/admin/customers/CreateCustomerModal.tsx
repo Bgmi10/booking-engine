@@ -4,8 +4,7 @@ import { baseUrl } from "../../../utils/constants";
 import countryList from "country-list-with-dial-code-and-flag";
 import { RiErrorWarningLine, RiCheckLine } from "react-icons/ri";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import { format, isValid } from 'date-fns';
+import "react-datepicker/dist/react-datepicker.css"
 
 interface CreateCustomerModalProps {
   setIsCreateModalOpen: (open: boolean) => void;

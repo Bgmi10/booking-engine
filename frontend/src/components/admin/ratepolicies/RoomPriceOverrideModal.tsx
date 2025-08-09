@@ -29,7 +29,6 @@ export default function RoomPriceOverrideModal({
   calculatedPrice,
   onClose, 
   onUpdate,
-  onSwitchModal
 }: RoomPriceOverrideModalProps) {
   const [overridePrice, setOverridePrice] = useState<string>(calculatedPrice.toString());
   const [loading, setLoading] = useState(false);

@@ -29,6 +29,7 @@ export default function BulkOverrideModal({
   const [priceType, setPriceType] = useState<'BASE_OVERRIDE' | 'ROOM_OVERRIDE'>('ROOM_OVERRIDE');
   const [loading, setLoading] = useState(false);
   const [bulkActionType, setBulkActionType] = useState<'BULK_OVERRIDE' | 'BULK_INCREASE' | 'BULK_DECREASE' | ''>("");
+  //@ts-ignore
   const [currentPrices, setCurrentPrices] = useState<{[key: string]: number}>({});
   
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

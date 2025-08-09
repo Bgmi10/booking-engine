@@ -1,30 +1,21 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, addDays } from "date-fns";
-import { RiCloseLine } from "react-icons/ri";
+import { RiCloseLine, RiHistoryLine } from "react-icons/ri";
 import { toast } from "react-hot-toast";
 import { baseUrl } from "../../../utils/constants";
 import { useCalendarAvailability } from "../../../hooks/useCalendarAvailability";
-import type { RatePolicy, Room } from "../../../types/types";
+import type { RateDatePrice, RatePolicy, Room } from "../../../types/types";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { isValid } from 'date-fns';
 import RoomPriceOverrideModal from "./RoomPriceOverrideModal";
 import BulkOverrideModal from "./BulkOverrideModal";
+import BulkOverrideHistory from "./BulkOverrideHistory";
 import Loader from "../../Loader";
 
 interface RatePricingCalendarProps {
   ratePolicy: RatePolicy;
   onClose: () => void;
-}
-
-interface RateDatePrice {
-  id: string;
-  roomId: string;
-  date: string;
-  price: number;
-  priceType: 'BASE_OVERRIDE' | 'ROOM_INCREASE' | 'ROOM_OVERRIDE';
-  room: Room;
-  isActive: boolean;
 }
 
 interface BookingStatus {
@@ -45,6 +36,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
   const [basePriceInput, setBasePriceInput] = useState<string>('');
   const [roomPercentages, setRoomPercentages] = useState<{ [roomId: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   
 
   // Use the centralized calendar availability hook
@@ -349,7 +341,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                   dateFormat="dd/MM/yyyy"
                   placeholderText="Select end date"
                   minDate={currentPeriodStart}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
+                  className="z-[9999px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40"
                 />
               </div>
             </div>
@@ -397,29 +389,31 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                 />
               </div>
 
-              {/* Bulk Override Section */}
-              <div className="flex-1 max-w-sm">
-                <div className="text-sm font-semibold text-gray-700 mb-2">Bulk Actions</div>
-                <button
-                  onClick={() => setModalType('bulk')}
-                  className="w-full px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
-                >
-                  Bulk Override Prices
-                </button>
-                <p className="mt-1 text-xs text-gray-500">
-                  Override prices for multiple dates and rooms at once
-                </p>
+                <div className="flex flex-col gap-2 items-center">
+                  <button
+                    onClick={() => setModalType('bulk')}
+                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+                  >
+                    Bulk Override Prices
+                  </button>
+                  <button
+                    onClick={() => setShowHistoryModal(true)}
+                    className="w-full px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <RiHistoryLine className="w-4 h-4" />
+                    <span>View History</span>
+                  </button>
               </div>
             </div>
           </div>
-
-          {/* Single Table for Room Info and Calendar */}
+          
           <div className="flex-1 overflow-auto bg-gray-50">
-            <table className="w-full border-collapse bg-white">
-              <thead className="sticky top-0 bg-white z-20 shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse bg-white">
+              <thead className="sticky top-0 bg-white z-0 shadow-sm">
                 <tr>
                   {/* Room Header Column */}
-                  <th className="sticky left-0 bg-white z-30 border-r border-b border-gray-200 px-4 py-3 text-left min-w-[280px]">
+                  <th className="sticky left-0 bg-white z-30 border-r border-b border-gray-200 px-4 py-3 text-left w-[280px]">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-700">Room / Rates</span>
                       <button
@@ -432,11 +426,11 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                   </th>
                   {/* Date Headers */}
                   {periodDates.map((date) => (
-                    <th key={date.toISOString()} className="border-b border-gray-200 px-3 py-3 text-center min-w-[100px]">
-                      <div className="text-xs font-medium text-gray-500 uppercase">
+                    <th key={date.toISOString()} className="border-b border-gray-200 px-2 py-2 text-center w-[85px]">
+                      <div className="text-xs font-medium text-gray-500 uppercase truncate">
                         {format(date, 'EEE')}
                       </div>
-                      <div className="text-sm font-bold text-gray-800">
+                      <div className="text-sm font-bold text-gray-800 truncate">
                         {format(date, 'dd/MM')}
                       </div>
                     </th>
@@ -447,7 +441,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                 {filteredRooms.map((room: any, index: number) => (
                   <tr key={room.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     {/* Room Info Column */}
-                    <td className="sticky left-0 bg-inherit z-10 border-r border-b border-gray-200 px-4 py-3">
+                    <td className="sticky left-0 bg-inherit z-10 border-r border-b border-gray-200 px-4 py-3 w-[280px]">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{room.name}</div>
@@ -500,16 +494,16 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                       return (
                         <td 
                           key={`${room.id}-${date.toISOString()}`} 
-                          className={`border-b border-gray-200 text-center cursor-pointer hover:bg-gray-100 transition-colors ${bgColor}`}
+                          className={`z-[-9999] border-b border-gray-200 text-center cursor-pointer hover:bg-gray-100 transition-colors ${bgColor} w-[85px]`}
                           onClick={() => handleCellClick(room, date)}
                         >
-                          <div className="py-3 px-2 relative">
+                          <div className="py-2 px-1 relative">
                             <div className={`text-sm font-medium ${textColor}`}>
                               {priceInfo.price.toFixed(2)}
                             </div>
                             {priceInfo.hasCustomPrice && (
                               <div className="absolute top-1 right-1">
-                                <span className={`inline-block w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                                <span className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${
                                   priceInfo.type === 'BASE_OVERRIDE' ? 'bg-red-500 text-white' :
                                   priceInfo.type === 'ROOM_INCREASE' ? 'bg-orange-500 text-white' :
                                   'bg-purple-500 text-white'
@@ -528,6 +522,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>}
 
@@ -557,15 +552,15 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
               </div>
               <div className="border-l border-gray-300 pl-6 ml-2 flex items-center space-x-4">
                 <div className="flex items-center space-x-1.5">
-                  <span className="inline-block w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">B</span>
+                  <span className="w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">B</span>
                   <span>Base Override</span>
                 </div>
                 <div className="flex items-center space-x-1.5">
-                  <span className="inline-block w-4 h-4 bg-orange-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">+</span>
+                  <span className="w-4 h-4 bg-orange-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">+</span>
                   <span>Room Increase</span>
                 </div>
                 <div className="flex items-center space-x-1.5">
-                  <span className="inline-block w-4 h-4 bg-purple-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">O</span>
+                  <span className="w-4 h-4 bg-purple-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">O</span>
                   <span>Room Override</span>
                 </div>
               </div>
@@ -591,6 +586,14 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
             rooms={rooms}
             onClose={() => setModalType(null)}
             onUpdate={handlePriceUpdate}
+          />
+        )}
+
+        {/* Bulk Override History Modal */}
+        {showHistoryModal && (
+          <BulkOverrideHistory
+            ratePolicyId={ratePolicy.id}
+            onClose={() => setShowHistoryModal(false)}
           />
         )}
       </div>

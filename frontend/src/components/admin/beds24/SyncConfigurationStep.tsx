@@ -6,17 +6,9 @@ import { useState } from 'react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format, isValid } from 'date-fns';
+import type { SyncConfiguration } from '../../../types/types';
 
-interface SyncConfiguration {
-  autoSync: boolean;
-  syncFrequency: string;
-  markupPercent: number;
-  minStay: number;
-  maxStay: number;
-  syncStartDate: Date;
-  syncEndDate: Date;
-  applyToFutureDates: boolean;
-}
+
 
 interface SyncConfigurationStepProps {
   configuration: SyncConfiguration;

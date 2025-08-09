@@ -1,35 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { RiCloseLine, RiDownloadLine, RiCheckLine, RiTimeLine, RiAlertLine } from 'react-icons/ri';
+import { useState, useEffect } from 'react';
+import { RiCloseLine, RiDownloadLine, RiAlertLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { baseUrl } from '../../../utils/constants';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { isValid } from 'date-fns';
 import { toast } from 'react-hot-toast';
-
-interface Beds24Booking {
-  bookId: string;
-  propId: string;
-  roomId: string;
-  arrival: string;
-  departure: string;
-  numAdult: number;
-  numChild: number;
-  guestFirstName: string;
-  guestName: string;
-  guestEmail: string;
-  guestPhone: string;
-  guestCountry: string;
-  price: number;
-  commission: number;
-  apiReference: string;
-  bookingTime: string;
-  status: string;
-  payStatus: string;
-  guestComments: string;
-}
+import type { Beds24Booking } from '../../../types/types';
 
 interface BookingsModalProps {
   isOpen: boolean;

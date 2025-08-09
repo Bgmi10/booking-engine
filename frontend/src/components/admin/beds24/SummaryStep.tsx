@@ -38,10 +38,8 @@ interface SummaryStepProps {
   restrictionsConfiguration?: RestrictionsConfiguration;
 }
 
-export default function SummaryStep({ 
-  connectionStatus, 
+export default function SummaryStep({  
   selectedMappings, 
-  selectedPolicy, 
   configuration, 
   roomMappings,
   restrictionsConfiguration

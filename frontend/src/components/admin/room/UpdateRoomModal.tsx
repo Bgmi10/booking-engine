@@ -5,7 +5,7 @@ import {
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
 import { PlusCircleIcon } from "lucide-react"
-import type { RatePolicy, Room, RoomRate, RoomWithRates } from "../../../types/types"
+import type { RatePolicy, RoomRate, RoomWithRates } from "../../../types/types"
 import { AttachPoliciesModal } from "../../ui/AttachPolicyModal"
 import { toast } from "react-hot-toast"
 
