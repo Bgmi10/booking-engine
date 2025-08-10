@@ -96,7 +96,7 @@ export const getRatePricesForDateRange = async (req: Request, res: Response) => 
   }
 };
 
-export const upsertRateDatePrices = async (req: Request, res: Response) => {
+export const  upsertRateDatePrices = async (req: Request, res: Response) => {
   try {
     const { ratePolicyId } = req.params;
     //@ts-ignore
@@ -175,6 +175,10 @@ export const upsertRateDatePrices = async (req: Request, res: Response) => {
       const dateRangeStart = dates[0];
       const dateRangeEnd = dates[dates.length - 1];
       const roomsAffected = [...new Set(prices.map(p => p.roomId))];
+      
+      // Calculate unique days affected (0=Sunday, 6=Saturday)
+      const daysAffected = [...new Set(dates.map(date => date.getDay()))].sort((a, b) => a - b);
+      
       const overRideDetails = {
         action: bulkActionType,
         changes: results.map((result) => ({
@@ -193,7 +197,8 @@ export const upsertRateDatePrices = async (req: Request, res: Response) => {
           ratePolicyId,
           userId: user.id,
           totalDatesAffected: dates.length,
-          totalRoomsAffected: roomsAffected.length
+          totalRoomsAffected: roomsAffected.length,
+          daysAffected
         }
       })
     }

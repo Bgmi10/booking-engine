@@ -500,7 +500,7 @@ export default function Settings() {
                 </div>
 
                 {/* Dahua Camera Configuration Section */}
-                <div className="p-6">
+                {/* <div className="p-6">
                   <h4 className="text-base font-medium text-gray-900 mb-4">Dahua Camera Integration</h4>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -619,10 +619,10 @@ export default function Settings() {
                       </div>
                     )}
                   </div>
-                </div>
-
+                </div> */}
+  
                 {/* License Plate Management Configuration */}
-                <div className="p-6">
+                {/* <div className="p-6">
                   <h4 className="text-base font-medium text-gray-900 mb-4">License Plate Management</h4>
                   <div className="space-y-4">
                     <div>
@@ -664,7 +664,7 @@ export default function Settings() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
 

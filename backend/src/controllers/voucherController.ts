@@ -84,7 +84,7 @@ export const editVoucherProduct = async (req: express.Request, res: express.Resp
 }
 
 export const createVoucher = async (req: express.Request, res: express.Response) => {
-    const { name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds, } = req.body;
+    const { name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, validFromTime, validTillTime, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds, } = req.body;
 
     //@ts-ignore
     const { userId } = req.user;
@@ -92,7 +92,26 @@ export const createVoucher = async (req: express.Request, res: express.Response)
     try {
      await prisma.voucher.create({
         data: {
-            name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds, createdBy: userId, products: productIds && productIds.length > 0
+            name, 
+            description, 
+            code, 
+            type, 
+            discountPercent, 
+            fixedAmount, 
+            maxUsage, 
+            maxUsagePerUser, 
+            validFrom, 
+            validTill, 
+            validFromTime: validFromTime || "00:00",
+            validTillTime: validTillTime || "23:59",
+            roomIds, 
+            roomScope, 
+            rateScope, 
+            ratePolicyIds, 
+            isActive, 
+            productIds, 
+            createdBy: userId, 
+            products: productIds && productIds.length > 0
             ? { connect: productIds.map((id: string) => ({ id }))}
             : undefined
         },
@@ -107,7 +126,7 @@ export const createVoucher = async (req: express.Request, res: express.Response)
 }
 
 export const editVoucher = async (req: express.Request, res: express.Response) => {
-    const { name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds, } = req.body;
+    const { name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, validFromTime, validTillTime, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds, } = req.body;
     const { id } = req.params;
 
     if (!id) {
@@ -119,7 +138,24 @@ export const editVoucher = async (req: express.Request, res: express.Response) =
      await prisma.voucher.update({
         where: { id },
         data: {
-            name, description, code, type, discountPercent, fixedAmount, maxUsage, maxUsagePerUser, validFrom, validTill, roomIds, roomScope, rateScope, ratePolicyIds, isActive, productIds
+            name, 
+            description, 
+            code, 
+            type, 
+            discountPercent, 
+            fixedAmount, 
+            maxUsage, 
+            maxUsagePerUser, 
+            validFrom, 
+            validTill, 
+            validFromTime: validFromTime || "00:00",
+            validTillTime: validTillTime || "23:59",
+            roomIds, 
+            roomScope, 
+            rateScope, 
+            ratePolicyIds, 
+            isActive, 
+            productIds
         }
      });
 
@@ -187,14 +223,40 @@ export const validateVoucher = async (req: express.Request, res: express.Respons
         responseHandler(res, 403, "This promotional code is no longer active");
         return;
       }
-  
-      if (voucher.validFrom > now) {
+
+      // Get current time in Italian timezone
+      const italianTime = new Date().toLocaleString("en-US", {
+        timeZone: "Europe/Rome"
+      });
+      const currentItalianDate = new Date(italianTime);
+      const currentDate = new Date(currentItalianDate.getFullYear(), currentItalianDate.getMonth(), currentItalianDate.getDate());
+      const currentTime = `${currentItalianDate.getHours().toString().padStart(2, '0')}:${currentItalianDate.getMinutes().toString().padStart(2, '0')}`;
+
+      // Check date range
+      const voucherStartDate = new Date(voucher.validFrom.getFullYear(), voucher.validFrom.getMonth(), voucher.validFrom.getDate());
+      const voucherEndDate = new Date(voucher.validTill.getFullYear(), voucher.validTill.getMonth(), voucher.validTill.getDate());
+      
+      if (currentDate < voucherStartDate) {
         responseHandler(res, 403, `This promotional code will be valid from ${voucher.validFrom.toDateString()}`);
         return;
       }
   
-      if (voucher.validTill < now) {
+      if (currentDate > voucherEndDate) {
         responseHandler(res, 403, "This promotional code has expired");
+        return;
+      }
+
+      // Check time range if it's the start or end date
+      const validFromTime = voucher.validFromTime || "00:00";
+      const validTillTime = voucher.validTillTime || "23:59";
+
+      if (currentDate.getTime() === voucherStartDate.getTime() && currentTime < validFromTime) {
+        responseHandler(res, 403, `This promotional code will be available from ${validFromTime} (Italian time)`);
+        return;
+      }
+
+      if (currentDate.getTime() === voucherEndDate.getTime() && currentTime > validTillTime) {
+        responseHandler(res, 403, `This promotional code expired at ${validTillTime} (Italian time)`);
         return;
       }
 

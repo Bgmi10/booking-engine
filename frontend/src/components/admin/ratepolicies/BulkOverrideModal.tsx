@@ -287,7 +287,7 @@ export default function BulkOverrideModal({
             <div className="mt-2 flex space-x-2">
               <button
                 type="button"
-                onClick={() => setSelectedDays([0, 6])}
+                onClick={() => setSelectedDays([5, 6])}
                 className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
               >
                 Weekends Only

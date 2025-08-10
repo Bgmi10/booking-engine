@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { RiEyeLine, RiFilterLine, RiCloseLine, RiCalendarLine, RiUser3Line, RiPriceTag3Line } from 'react-icons/ri';
+import { RiEyeLine, RiFilterLine, RiCloseLine, RiCalendarLine, RiUser3Line, RiPriceTag3Line, RiArrowDownSLine, RiArrowRightSLine } from 'react-icons/ri';
 import { format } from 'date-fns';
 import { baseUrl } from '../../../utils/constants';
 import { toast } from 'react-hot-toast';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Loader from '../../Loader';
-import type { BulkOverrideLog, User } from '../../../types/types';
+import type { BulkOverrideLog, User, Room } from '../../../types/types';
 
 interface BulkOverrideHistoryProps {
   ratePolicyId?: string;
@@ -84,7 +84,7 @@ const BulkOverrideHistory: React.FC<BulkOverrideHistoryProps> = ({ ratePolicyId,
         { credentials: 'include' }
       );
 
-      const data = await response.json();
+      const data = await response.json(); 
       
       if (response.ok) {
         setLogs(data.data.logs);
@@ -346,6 +346,10 @@ export default BulkOverrideHistory;
 
 // Detail Modal Component
 function BulkOverrideLogDetail({ log, onClose }: { log: BulkOverrideLog; onClose: () => void }) {
+  const [roomDetails, setRoomDetails] = useState<Record<string, Room>>({});
+  const [loadingRooms, setLoadingRooms] = useState<Set<string>>(new Set());
+  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   const getActionTypeColor = (actionType: string) => {
     switch (actionType) {
@@ -362,6 +366,39 @@ function BulkOverrideLogDetail({ log, onClose }: { log: BulkOverrideLog; onClose
       case 'BULK_DECREASE': return 'Price Decrease';
       case 'BULK_OVERRIDE': return 'Price Override';
       default: return actionType;
+    }
+  };
+
+  const toggleRoom = async (roomId: string) => {
+    const newExpanded = new Set(expandedRooms);
+    
+    if (expandedRooms.has(roomId)) {
+      newExpanded.delete(roomId);
+      setExpandedRooms(newExpanded);
+    } else {
+      newExpanded.add(roomId);
+      setExpandedRooms(newExpanded);
+      
+      // Fetch room details if not already loaded
+      if (!roomDetails[roomId] && !loadingRooms.has(roomId)) {
+        setLoadingRooms(prev => new Set(prev).add(roomId));
+        try {
+          const response = await fetch(`${baseUrl}/rooms/${roomId}`);
+          const data = await response.json();
+          
+          if (response.ok) {
+            setRoomDetails(prev => ({ ...prev, [roomId]: data.data }));
+          }
+        } catch (error) {
+          console.error('Error fetching room details:', error);
+        } finally {
+          setLoadingRooms(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(roomId);
+            return newSet;
+          });
+        }
+      }
     }
   };
 
@@ -435,6 +472,18 @@ function BulkOverrideLogDetail({ log, onClose }: { log: BulkOverrideLog; onClose
                     <span className="text-gray-600">Dates Modified</span>
                     <p className="font-medium text-gray-900 mt-0.5">{log.totalDatesAffected} dates</p>
                   </div>
+                  {log.daysAffected && log.daysAffected.length > 0 && (
+                    <div className="md:col-span-2">
+                      <span className="text-gray-600">Days of Week</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {log.daysAffected.map(day => (
+                          <span key={day} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            {dayNames[day]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -457,6 +506,105 @@ function BulkOverrideLogDetail({ log, onClose }: { log: BulkOverrideLog; onClose
                         </span>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Room Details */}
+              {log.roomsAffected && log.roomsAffected.length > 0 && (
+                <div className="bg-purple-50 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Room Details</h4>
+                  <div className="space-y-2">
+                    {log.roomsAffected.map((roomId) => (
+                      <div key={roomId} className="border border-purple-200 rounded-lg">
+                        <button
+                          onClick={() => toggleRoom(roomId)}
+                          className="w-full px-3 py-2 flex items-center justify-between hover:bg-purple-100 transition-colors rounded-lg"
+                        >
+                          <span className="text-sm font-medium text-gray-900">
+                            {roomDetails[roomId]?.name || `Room ${roomId.slice(0, 8)}...`}
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            {loadingRooms.has(roomId) && (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                            )}
+                            {expandedRooms.has(roomId) ? (
+                              <RiArrowDownSLine className="w-5 h-5 text-gray-400" />
+                            ) : (
+                              <RiArrowRightSLine className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                        </button>
+                        
+                        {expandedRooms.has(roomId) && roomDetails[roomId] && (
+                          <div className="px-3 pb-3 space-y-3 border-t border-purple-200">
+                            {/* Room Images */}
+                            {roomDetails[roomId].images && roomDetails[roomId].images?.length > 0 && (
+                              <div className="mt-3">
+                                <div className="flex gap-2 overflow-x-auto py-1">
+                                  {(roomDetails[roomId].images as unknown as Array<{ id: string; url: string }> | undefined)?.slice(0, 3).map((image, idx) => (
+                                    <div key={image.id ?? idx} className="relative flex-shrink-0">
+                                      <img
+                                        src={image.url}
+                                        alt={`${roomDetails[roomId].name} - ${idx + 1}`}
+                                        className="w-14 h-14 object-cover rounded-lg border border-purple-200"
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect width="80" height="80" fill="%23f3f4f6"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-family="system-ui" font-size="12"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                        }}
+                                      />
+                                      {idx === 3 && roomDetails[roomId].images.length > 4 && (
+                                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                          <span className="text-white text-sm font-medium">+{roomDetails[roomId].images.length - 4}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Room Details Grid */}
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-gray-600">Base Price</span>
+                                <p className="font-medium text-gray-900">€{roomDetails[roomId].price}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Capacity</span>
+                                <p className="font-medium text-gray-900">{roomDetails[roomId].capacity} guests</p>
+                              </div>
+                              {roomDetails[roomId].allowsExtraBed && (
+                                <>
+                                  <div>
+                                    <span className="text-gray-600">Max with Extra Bed</span>
+                                    <p className="font-medium text-gray-900">{roomDetails[roomId].maxCapacityWithExtraBed} guests</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-600">Extra Bed Price</span>
+                                    <p className="font-medium text-gray-900">€{roomDetails[roomId].extraBedPrice}</p>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            
+                            {/* Amenities */}
+                            {roomDetails[roomId].amenities && roomDetails[roomId].amenities.length > 0 && (
+                              <div>
+                                <span className="text-sm text-gray-600">Amenities</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {roomDetails[roomId].amenities.map((amenity: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                      {amenity}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

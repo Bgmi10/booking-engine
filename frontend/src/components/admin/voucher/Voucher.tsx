@@ -489,7 +489,14 @@ function VouchersTable({
                     {voucher.currentUsage}{voucher.maxUsage ? ` / ${voucher.maxUsage}` : ''}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(voucher.validFrom).toLocaleDateString()} - {new Date(voucher.validTill).toLocaleDateString()}
+                    <div>
+                      {new Date(voucher.validFrom).toLocaleDateString()} - {new Date(voucher.validTill).toLocaleDateString()}
+                    </div>
+                    {(voucher.validFromTime || voucher.validTillTime) && (
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {voucher.validFromTime || "00:00"} - {voucher.validTillTime || "23:59"} (IT)
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -674,6 +681,8 @@ function VoucherModal({
     maxUsagePerUser: voucher?.maxUsagePerUser || null,
     validFrom: voucher?.validFrom ? new Date(voucher.validFrom) : new Date(),
     validTill: voucher?.validTill ? new Date(voucher.validTill) : new Date(),
+    validFromTime: voucher?.validFromTime || "00:00",
+    validTillTime: voucher?.validTillTime || "23:59",
     roomScope: voucher?.roomScope || "ALL_ROOMS",
     roomIds: voucher?.roomIds || [],
     rateScope: voucher?.rateScope || "ALL_RATES",
@@ -719,6 +728,8 @@ function VoucherModal({
       ...formData,
       validFrom: formData.validFrom.toISOString(),
       validTill: formData.validTill.toISOString(),
+      validFromTime: formData.validFromTime,
+      validTillTime: formData.validTillTime,
     });
   };
 
@@ -876,6 +887,36 @@ function VoucherModal({
                   minDate={formData.validFrom}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valid From Time (Italian Time) *
+                </label>
+                <input
+                  type="time"
+                  value={formData.validFromTime}
+                  onChange={(e) => handleChange("validFromTime", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Time will be applied in Italian timezone (Europe/Rome)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valid Till Time (Italian Time) *
+                </label>
+                <input
+                  type="time"
+                  value={formData.validTillTime}
+                  onChange={(e) => handleChange("validTillTime", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Time will be applied in Italian timezone (Europe/Rome)</p>
               </div>
             </div>
 

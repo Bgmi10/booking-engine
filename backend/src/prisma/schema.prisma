@@ -468,6 +468,8 @@ model Voucher {
   maxUsagePerUser                   Int?
   validFrom                         DateTime
   validTill                         DateTime
+  validFromTime                     String?             @default("00:00") // Time in HH:MM format (Italian time)
+  validTillTime                     String?             @default("23:59") // Time in HH:MM format (Italian time)
   roomScope                         VoucherRoomScope    @default(ALL_ROOMS)
   roomIds                           String[]
   rateScope                         VoucherRateScope    @default(ALL_RATES)
@@ -1066,6 +1068,7 @@ model BulkOverRideLogs {
   overRideDetails    Json
   totalRoomsAffected Int            @default(0)
   totalDatesAffected Int            @default(0)
+  daysAffected       Int[]          @default([]) // Array of day indices (0=Sunday, 6=Saturday)
   createdAt          DateTime       @default(now())
 }
 

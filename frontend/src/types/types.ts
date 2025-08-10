@@ -24,6 +24,7 @@ export interface BulkOverrideLog {
   overRideDetails: any;
   totalRoomsAffected: number;
   totalDatesAffected: number;
+  daysAffected?: number[]; // Array of day indices (0=Sunday, 6=Saturday)
   createdAt: string;
   user: {
     id: string;
@@ -131,6 +132,8 @@ export interface PaymentIntentDetailsViewProps {
 }
 
 interface Image {
+  slice(arg0: number, arg1: number): unknown;
+  length: number;
   url: string;
   id: string;
 }
@@ -366,6 +369,8 @@ export type Voucher = {
   maxUsagePerUser: number | null;
   validFrom: string;
   validTill: string;
+  validFromTime?: string;
+  validTillTime?: string;
   roomScope: "ALL_ROOMS" | "SPECIFIC_ROOMS";
   roomIds: string[];
   rateScope: "ALL_RATES" | "SPECIFIC_RATES";
