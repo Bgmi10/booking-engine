@@ -10,9 +10,9 @@
 
 [C] => In admin room reservation we need to allow admin to delete the temp holds room
 
-[] => change every date field to eur format ui only
+[C] => change every date field to eur format ui only
 
-[] => fix the on date on voucher feature and also do mid night of starting data and it should be in italian time 
+[] => fix the on date on voucher feature and also do mid night of starting data and it should be in italian time  && [put the time to choose input can be collected from user]
  
 [C] => voucher need to add in /booking/success && change the ui modification succeded to completed
 
@@ -26,7 +26,7 @@
 
 [C] => While sending the payment link through stripe we need have optional bank transfer in email so, admin will change the satus of booking when they recieve money
 
-[] => rates apporach from client => rates needs to be flexible and do a policy things to a single rate and we do need to have a two things one is 30% by now and 70% on check-IN
+[C] => rates apporach from client => rates needs to be flexible and do a policy things to a single rate and we do need to have a two things one is 30% by now and 70% on check-IN
 
 [C] => on the booking calendar we should have to allow the customers to book after dynamic value from admin settings italian time. 
 
@@ -57,13 +57,13 @@ non refund automatically
 
 [C] => once the user places the order we have to show the confimation order model and then show a according things there like back to order 
 
-[] => waiter need to have a history that shows all the payment methods by tabs like cash, stripe, etc when the user clicks that then it would show all the corresponding list and seprated by dates.
+[C] => waiter need to have a history that shows all the payment methods by tabs like cash, stripe, etc when the user clicks that then it would show all the corresponding list and seprated by dates.
 
-[] => manager would able to see all waiters  orders summary by splitting in to tabs for example cash, stripe, 
+[C] => manager would able to see all waiters  orders summary by splitting in to tabs for example cash, stripe, 
 
-[] => manager will see exact summary of each day and ask the waiter for cash by validating the accepted orders.
+[C] => manager will see exact summary of each day and ask the waiter for cash by validating the accepted orders.
 
-[] => ability to change the rates at admin convinient && rate restriction based on configured value.  ability to configure the rates for future. basically you can tell that certain date and applicable for 
+[C] => ability to change the rates at admin convinient && rate restriction based on configured value.  ability to configure the rates for future. basically you can tell that certain date and applicable for 
 
 [] => so, we need to sync the calendar with all system
 

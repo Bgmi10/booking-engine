@@ -42,7 +42,7 @@ const BulkOverrideHistory: React.FC<BulkOverrideHistoryProps> = ({ ratePolicyId,
         `${baseUrl}/admin/bulk-override-logs?limit=100&offset=0`,
         { credentials: 'include' }
       );
-
+      
       const data = await response.json();
       
       if (response.ok && data.data.logs.length > 0) {
