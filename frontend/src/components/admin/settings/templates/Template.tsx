@@ -9,6 +9,7 @@ interface TemplateProps {
   onSaveTemplate: (template: Partial<TemplateType>) => Promise<void>;
   onDeleteTemplate: (templateId: string) => Promise<void>;
   onDuplicateTemplate: (template: TemplateType) => Promise<void>;
+  onBulkDeleteTemplates?: (templateIds: string[]) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -18,6 +19,7 @@ export const Template = ({
   onSaveTemplate,
   onDeleteTemplate,
   onDuplicateTemplate,
+  onBulkDeleteTemplates,
   isLoading
 }: TemplateProps) => {
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null);
@@ -55,6 +57,7 @@ export const Template = ({
               onEdit={setSelectedTemplate}
               onDelete={onDeleteTemplate}
               onDuplicate={onDuplicateTemplate}
+              onBulkDelete={onBulkDeleteTemplates}
               onCreateNew={() => setIsCreatingTemplate(true)}
             />
           )}

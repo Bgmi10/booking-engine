@@ -269,6 +269,27 @@ export default function Settings() {
       throw err;
     }
   };
+
+  const handleBulkDeleteTemplates = async (templateIds: string[]) => {
+    try {
+      const response = await fetch(`${baseUrl}/admin/email-templates/bulk`, {
+        method: 'DELETE',
+        credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emailTemplateIds: templateIds }),
+      });
+  
+      if (!response.ok) throw new Error('Failed to delete templates');
+  
+      await fetchTemplates();
+      setSuccess(`Successfully deleted ${templateIds.length} template${templateIds.length > 1 ? 's' : ''}!`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete templates');
+      throw err;
+    }
+  };
   
   const handleDuplicateTemplate = async (template: Template) => {
     try {
@@ -726,6 +747,7 @@ export default function Settings() {
             onSaveTemplate={handleSaveTemplate}
             onDeleteTemplate={handleDeleteTemplate}
             onDuplicateTemplate={handleDuplicateTemplate}
+            onBulkDeleteTemplates={handleBulkDeleteTemplates}
             isLoading={isLoadingTemplates}
           />
         );

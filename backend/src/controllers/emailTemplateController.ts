@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../prisma';
-import { responseHandler } from '../utils/helper';
+import { handleError, responseHandler } from '../utils/helper';
 
 // Template variable documentation
 const templateVariables = {
@@ -147,7 +147,26 @@ const templateVariables = {
   ],
 };
 
-// Get all templates
+export const deleteBulkEmailTemplates =  async (req: Request, res: Response) => {
+  const { emailTemplateIds } = req.body;
+
+  if (!Array.isArray(emailTemplateIds) || emailTemplateIds.length === 0) {
+    responseHandler(res, 400, "Ids are required");
+    return;
+  }
+
+  try {
+    await prisma.emailTemplate.deleteMany({
+      where: { id: { in: emailTemplateIds } }
+    })
+
+    responseHandler(res, 200, "Email templates deleted successfully")
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
 export const getTemplates = async (req: Request, res: Response) => {
   try {
     const templates = await prisma.emailTemplate.findMany({

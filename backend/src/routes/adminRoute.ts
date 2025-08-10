@@ -7,7 +7,7 @@ import { deleteTempHold, getAllRooms, getAllTempHolds } from "../controllers/roo
 import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhancement.schema";
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
-import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate } from "../controllers/emailTemplateController";
+import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate, deleteBulkEmailTemplates } from "../controllers/emailTemplateController";
 import { refund, processFutureRefund } from "../controllers/adminController";
 import { bookingRestrictionSchema, bookingRestrictionUpdateSchema } from "../zod/booking.schema";
 import { createVoucher, createVoucherProduct, deleteVoucher, deleteVoucherProduct, editVoucher, editVoucherProduct, getAllVoucherProducts, getAllVouchers, getVouchers } from "../controllers/voucherController";
@@ -156,6 +156,8 @@ adminRouter.post('/bank-details', authMiddleware, createBankDetails);
 adminRouter.put('/bank-details/:id', authMiddleware, updateBankDetails);
 
 adminRouter.delete('/bank-details/:id', authMiddleware, deleteBankDetails);
+
+adminRouter.delete('/email-templates/bulk', authMiddleware, deleteBulkEmailTemplates)
 
 adminRouter.get('/email-templates', authMiddleware, getTemplates);
 
