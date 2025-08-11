@@ -11,6 +11,7 @@ export const getAutomatedTaskRules = async (req: Request, res: Response) => {
   }
 };
 
+
 export const createAutomatedTaskRule = async (req: Request, res: Response) => {
   try {
     const rule = await notificationService.createAutomatedTaskRule(req.body);
