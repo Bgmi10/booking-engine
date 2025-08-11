@@ -19,6 +19,8 @@ interface BookingItemsListProps {
   isLoadingAvailability: boolean;
   fetchCalendarAvailability: (startDate: string, endDate: string) => Promise<void>;
   refreshRatePricingForDates?: (startDate: string, endDate: string) => Promise<void>;
+  handleSwitchToAlternativeRoom: (bookingIndex: number, roomId: string) => void;
+  getRoomMaxCapacity: (roomDetails?: Room) => number;
 }
 
 const BookingItemsList: React.FC<BookingItemsListProps> = ({
@@ -37,6 +39,8 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
   isLoadingAvailability,
   fetchCalendarAvailability,
   refreshRatePricingForDates,
+  handleSwitchToAlternativeRoom,
+  getRoomMaxCapacity,
 }) => {
   return (
     <div className="mb-6">
@@ -70,6 +74,8 @@ const BookingItemsList: React.FC<BookingItemsListProps> = ({
           isLoadingAvailability={isLoadingAvailability}
           fetchCalendarAvailability={fetchCalendarAvailability}
           refreshRatePricingForDates={refreshRatePricingForDates}
+          handleSwitchToAlternativeRoom={handleSwitchToAlternativeRoom}
+          getRoomMaxCapacity={getRoomMaxCapacity}
         />
       ))}
     </div>

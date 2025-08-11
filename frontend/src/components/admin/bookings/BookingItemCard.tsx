@@ -24,6 +24,8 @@ interface BookingItemCardProps {
   isLoadingAvailability?: boolean;
   fetchCalendarAvailability?: (startDate: string, endDate: string) => Promise<void>;
   refreshRatePricingForDates?: (startDate: string, endDate: string) => Promise<void>;
+  handleSwitchToAlternativeRoom: (bookingIndex: number, roomId: string) => void;
+  getRoomMaxCapacity: (roomDetails?: Room) => number;
 }
 
 const BookingItemCard: React.FC<BookingItemCardProps> = ({
@@ -43,6 +45,8 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
   isLoadingAvailability = false,
   fetchCalendarAvailability,
   refreshRatePricingForDates,
+  handleSwitchToAlternativeRoom,
+  getRoomMaxCapacity,
 }) => {
   // Local state for calendar open/close
   const [calenderOpen, setCalenderOpen] = useState(false);
@@ -126,12 +130,12 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Adults {item.roomDetails && `(Max: ${item.roomDetails.capacity * item.rooms})`}
+            Adults {item.roomDetails && `(Max: ${getRoomMaxCapacity(item.roomDetails)})`}
           </label>
           <input
             type="number"
             min="1"
-            max={item.roomDetails ? item.roomDetails.capacity * item.rooms : undefined}
+            max={getRoomMaxCapacity(item.roomDetails) || 99}
             value={item.adults}
             onChange={(e) => {
               const value = e.target.value;
@@ -147,13 +151,40 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
             onBlur={(e) => {
               const parsed = Number.parseInt(e.target.value);
               const min = 1;
-              const max = item.roomDetails ? item.roomDetails.capacity * item.rooms : Infinity;
+              const max = getRoomMaxCapacity(item.roomDetails) || 99;
               const sanitized = Math.min(Math.max(parsed || min, min), max);
               updateBookingItem(index, "adults", sanitized);
             }}
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             disabled={loadingAction}
           />
+          {/* Guest capacity status indicator */}
+          {item.roomDetails && item.adults > (item.roomDetails.capacity * item.rooms) && (
+            <div className="mt-2">
+              {item.roomDetails.allowsExtraBed ? (
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1 text-xs text-orange-600">
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <span>Capacity exceeded - Extra bed required</span>
+                  </div>
+                  {item.roomDetails.extraBedPrice && (
+                    <span className="text-xs text-gray-600">
+                      (+€{item.roomDetails.extraBedPrice.toFixed(2)}/night per extra bed)
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center space-x-1 text-xs text-red-600">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>Room capacity exceeded - Consider alternative rooms</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex gap-4 mb-4">
@@ -185,6 +216,46 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
           <p className="text-sm text-red-600">{item.error}</p>
         </div>
       )}
+      
+      {/* Alternative Room Suggestions */}
+      {item.showRoomAlternatives && item.alternativeRooms && item.alternativeRooms.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center mb-2">
+            <svg className="h-5 w-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <h4 className="text-sm font-medium text-blue-800">Alternative Room Suggestions</h4>
+          </div>
+          <p className="text-xs text-blue-700 mb-3">
+            These rooms can accommodate {item.adults} guests:
+          </p>
+          <div className="space-y-2">
+            {item.alternativeRooms.map((room) => (
+              <div
+                key={room.id}
+                className="flex items-center justify-between p-2 bg-white border border-blue-200 rounded-md"
+              >
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900">{room.name}</div>
+                  <div className="text-xs text-gray-600">
+                    Capacity: {room.capacity}{room.allowsExtraBed && room.maxCapacityWithExtraBed ? ` (up to ${room.maxCapacityWithExtraBed} with extra bed)` : ''}
+                  </div>
+                  <div className="text-xs text-gray-600">€{room.price}/night</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchToAlternativeRoom(index, room.id)}
+                  className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
+                  disabled={loadingAction}
+                >
+                  Switch to this room
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
       {/* Enhancements Section */}
       {enhancements.length > 0 && (
         <div>
@@ -392,9 +463,17 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                         </div>
                       )}
                       
+                      {/* Extra bed cost display */}
+                      {item.hasExtraBed && item.extraBedCount && item.extraBedPrice && (
+                        <div className="flex justify-between items-center text-sm text-orange-700 border-t pt-2">
+                          <span>Extra bed ({item.extraBedCount} × {nights} nights):</span>
+                          <span>+€{(item.extraBedCount * item.extraBedPrice * nights).toFixed(2)}</span>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between items-center text-sm font-medium text-gray-700 border-t pt-2">
-                        <span>Total ({nights} nights):</span>
-                        <span className="font-bold text-gray-900">€{totalPrice.toFixed(2)}</span>
+                        <span>Room total ({nights} nights{item.hasExtraBed && item.extraBedCount ? ` + ${item.extraBedCount} extra bed${item.extraBedCount > 1 ? 's' : ''}` : ''}):</span>
+                        <span className="font-bold text-gray-900">€{(totalPrice + (item.hasExtraBed && item.extraBedCount && item.extraBedPrice ? (item.extraBedCount * item.extraBedPrice * nights) : 0)).toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3 text-xs">

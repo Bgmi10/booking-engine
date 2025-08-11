@@ -305,6 +305,12 @@ export function CreateBookingModal({
         }
         total += roomCost
 
+        // Extra bed costs
+        if (item.hasExtraBed && item.extraBedCount && item.extraBedPrice) {
+          const extraBedCost = item.extraBedCount * item.extraBedPrice * nights * item.rooms;
+          total += extraBedCost;
+        }
+
         // Enhancement costs
         item.selectedEnhancements.forEach((enhancement) => {
           let enhancementCost = 0
@@ -360,12 +366,81 @@ export function CreateBookingModal({
     }
   }
 
+  // Helper function to calculate maximum guest capacity across all available rooms
+  const getMaxGuestCapacity = () => {
+    return rooms.reduce((max: number, room: Room) => {
+      const roomMaxCapacity = room.allowsExtraBed && room.maxCapacityWithExtraBed 
+        ? room.maxCapacityWithExtraBed 
+        : room.capacity;
+      return Math.max(max, roomMaxCapacity);
+    }, 0);
+  };
+
+  // Helper function to get maximum guest capacity for a specific room
+  const getRoomMaxCapacity = (roomDetails?: Room) => {
+    if (!roomDetails) return 0;
+    return roomDetails.allowsExtraBed && roomDetails.maxCapacityWithExtraBed 
+      ? roomDetails.maxCapacityWithExtraBed 
+      : roomDetails.capacity;
+  };
+
+  // Helper function to validate guest capacity and find alternatives for a booking item
+  const validateGuestCapacityForItem = (item: BookingItem, newAdults: number) => {
+    if (!item.roomDetails) return { ...item, adults: newAdults };
+
+    // Reset all states first for consistency
+    const resetItem = {
+      ...item,
+      adults: newAdults,
+      showRoomAlternatives: false,
+      alternativeRooms: [],
+      hasExtraBed: false,
+      extraBedCount: 0,
+      extraBedPrice: 0
+    };
+
+    // Always find ALL rooms that can accommodate the guests
+    const availableRooms = rooms.filter((room: Room) => {
+      // Check standard capacity
+      if (room.capacity >= newAdults) return true;
+      
+      // Check capacity with extra beds
+      if (room.allowsExtraBed && room.maxCapacityWithExtraBed && 
+          room.maxCapacityWithExtraBed >= newAdults) return true;
+      
+      return false;
+    });
+
+    if (newAdults > item.roomDetails.capacity) {
+      // Check if current room supports extra beds
+      if (item.roomDetails.allowsExtraBed && item.roomDetails.maxCapacityWithExtraBed && 
+          newAdults <= item.roomDetails.maxCapacityWithExtraBed) {
+        // Current room can accommodate with extra beds
+        const extraBedsNeeded = newAdults - item.roomDetails.capacity;
+        resetItem.hasExtraBed = true;
+        resetItem.extraBedCount = extraBedsNeeded;
+        resetItem.extraBedPrice = item.roomDetails.extraBedPrice || 0;
+      }
+
+      // ALWAYS show alternatives when guest count exceeds current room capacity
+      // regardless of whether current room has extra bed capability
+      const alternatives = availableRooms.filter((room: Room) => room.id !== item.roomDetails?.id);
+      
+      if (alternatives.length > 0) {
+        resetItem.alternativeRooms = alternatives;
+        resetItem.showRoomAlternatives = true;
+      }
+    }
+
+    return resetItem;
+  };
+
   // Update booking item
   const updateBookingItem = (index: number, field: keyof BookingItem, value: any) => {
     setBookingItems((prev) =>
       prev.map((item, i) => {
         if (i === index) {
-          const updatedItem = { ...item, [field]: value }
+          let updatedItem = { ...item, [field]: value }
 
           // If room is changed, update room details and reset enhancements
           if (field === "selectedRoom") {
@@ -373,18 +448,23 @@ export function CreateBookingModal({
             updatedItem.roomDetails = roomDetails
             updatedItem.selectedEnhancements = []
             updatedItem.selectedRateOption = {} // Reset rate option when room changes
-            // Ensure adults don't exceed room capacity
-            if (roomDetails && updatedItem.adults > roomDetails.capacity) {
-              updatedItem.adults = roomDetails.capacity
-            }
+            
+            // Reset extra bed configuration when room changes
+            updatedItem.showRoomAlternatives = false;
+            updatedItem.alternativeRooms = [];
+            updatedItem.hasExtraBed = false;
+            updatedItem.extraBedCount = 0;
+            updatedItem.extraBedPrice = 0;
+
+            // Validate guest capacity for new room
+            updatedItem = validateGuestCapacityForItem(updatedItem, updatedItem.adults);
           }
 
-          // Ensure adults don't exceed room capacity
-          if (field === "adults" && updatedItem.roomDetails) {
-            const maxAdults = updatedItem.roomDetails.capacity * updatedItem.rooms
-            if (value > maxAdults) {
-              updatedItem.adults = maxAdults
-            }
+          // If adults count changes, validate capacity and handle extra bed logic
+          if (field === "adults") {
+            const roomMaxCapacity = getRoomMaxCapacity(updatedItem.roomDetails);
+            const sanitizedValue = Math.max(1, Math.min(roomMaxCapacity || getMaxGuestCapacity(), value));
+            updatedItem = validateGuestCapacityForItem(updatedItem, sanitizedValue);
           }
 
           return updatedItem
@@ -393,6 +473,33 @@ export function CreateBookingModal({
       }),
     )
   }
+
+  // Handle switching to alternative room
+  const handleSwitchToAlternativeRoom = (bookingIndex: number, roomId: string) => {
+    setBookingItems((prev) =>
+      prev.map((item, i) => {
+        if (i === bookingIndex) {
+          // Reset all related states when switching rooms
+          const updatedItem = {
+            ...item,
+            selectedRoom: roomId,
+            roomDetails: rooms.find((r) => r.id === roomId),
+            showRoomAlternatives: false,
+            alternativeRooms: [],
+            hasExtraBed: false,
+            extraBedCount: 0,
+            extraBedPrice: 0,
+            selectedEnhancements: [], // Reset enhancements when changing rooms
+            selectedRateOption: {} // Reset rate option when changing rooms
+          };
+          
+          // Validate guest capacity for new room
+          return validateGuestCapacityForItem(updatedItem, item.adults);
+        }
+        return item;
+      })
+    );
+  };
 
   // Toggle enhancement selection
   const toggleEnhancement = (bookingIndex: number, enhancement: Enhancement) => {
@@ -541,6 +648,12 @@ export function CreateBookingModal({
             roomCost = rateOption.price * nights * item.rooms
           }
 
+          // Calculate extra bed costs
+          let extraBedCost = 0;
+          if (item.hasExtraBed && item.extraBedCount && item.extraBedPrice) {
+            extraBedCost = item.extraBedCount * item.extraBedPrice * nights * item.rooms;
+          }
+
           // Calculate enhancement costs
           let enhancementCost = 0
           item.selectedEnhancements.forEach((enhancement) => {
@@ -560,7 +673,7 @@ export function CreateBookingModal({
           })
 
           // Calculate total price
-          const totalPrice = roomCost + enhancementCost
+          const totalPrice = roomCost + extraBedCost + enhancementCost
 
           return {
             ...item,
@@ -911,6 +1024,8 @@ const createBooking = async () => {
             isLoadingAvailability={isLoadingAvailability}
             fetchCalendarAvailability={fetchCalendarAvailability}
             refreshRatePricingForDates={refreshRatePolicingForDates}
+            handleSwitchToAlternativeRoom={handleSwitchToAlternativeRoom}
+            getRoomMaxCapacity={getRoomMaxCapacity}
           />
 
           {/* Total Amount Display */}

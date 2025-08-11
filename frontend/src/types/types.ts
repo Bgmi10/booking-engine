@@ -222,7 +222,7 @@ export interface PaymentIntentsListProps {
   onFutureRefund?: (pi: PaymentIntent) => void
   onViewPayment: (paymentIntentId: string) => void
   onEdit: (pi: PaymentIntent) => void
-  onDelete: (piId: string) => void
+  onDelete: (piId: PaymentIntent) => void
   loadingAction: boolean
   editingPaymentIntent: string | null
   editFormData: PaymentIntent | null
@@ -518,6 +518,11 @@ export interface BookingItem {
   error?: string;
   selectedRateOption?: any;
   totalPrice?: number;
+  hasExtraBed?: boolean;
+  extraBedCount?: number;
+  extraBedPrice?: number;
+  showRoomAlternatives?: boolean;
+  alternativeRooms?: Room[];
 }
 
 export interface CustomerDetails {

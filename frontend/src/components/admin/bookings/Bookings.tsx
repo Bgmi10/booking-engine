@@ -162,7 +162,7 @@ export default function BookingManagement() {
 
   const handleRestore = async (id: string) => {
     setLoadingAction(true);
-    const success = await restore(id);
+    await restore(id);
     setLoadingAction(false);
   };
 
@@ -198,7 +198,7 @@ export default function BookingManagement() {
   const sendConfirmationEmail = async (paymentIntentId: string) => {
     setLoadingAction(true)
     try {
-      const paymentIntent = paymentIntents.find((pi) => pi.id === paymentIntentId)
+      const paymentIntent = activePaymentIntents.find((pi) => pi.id === paymentIntentId)
       if (!paymentIntent) throw new Error("Payment intent not found")
 
       const response = await fetch(`${baseUrl}/admin/bookings/${paymentIntentId}/send-confirmation`, {
@@ -225,7 +225,7 @@ export default function BookingManagement() {
   const confirmBooking = async (paymentIntentId: string) => {
     setLoadingAction(true)
     try {
-      const paymentIntent = paymentIntents.find((pi) => pi.id === paymentIntentId)
+      const paymentIntent = activePaymentIntents.find((pi) => pi.id === paymentIntentId)
       let customerRequest = paymentIntent?.customerData?.specialRequests || '';
       if (
         paymentIntent &&

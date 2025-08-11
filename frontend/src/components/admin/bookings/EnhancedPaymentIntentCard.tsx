@@ -29,13 +29,6 @@ import type {
   BookingData
 } from "../../../types/types";
 
-// Add a simple spinner component
-const Spinner = () => (
-  <svg className="animate-spin h-4 w-4 mr-1 text-white" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-  </svg>
-);
 
 export default function EnhancedPaymentIntentCard({
   paymentIntent,
