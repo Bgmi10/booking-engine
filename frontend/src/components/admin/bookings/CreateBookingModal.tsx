@@ -389,7 +389,14 @@ export function CreateBookingModal({
     if (!item.roomDetails) return { ...item, adults: newAdults };
 
     // Reset all states first for consistency
-    const resetItem = {
+    const resetItem: {
+      alternativeRooms: Room[],
+      showRoomAlternatives: boolean,
+      adults: number,
+      hasExtraBed: boolean,
+      extraBedCount: number,
+      extraBedPrice: number
+    } = {
       ...item,
       adults: newAdults,
       showRoomAlternatives: false,
@@ -440,7 +447,7 @@ export function CreateBookingModal({
     setBookingItems((prev) =>
       prev.map((item, i) => {
         if (i === index) {
-          let updatedItem = { ...item, [field]: value }
+          let updatedItem: any = { ...item, [field]: value }
 
           // If room is changed, update room details and reset enhancements
           if (field === "selectedRoom") {
@@ -476,8 +483,8 @@ export function CreateBookingModal({
 
   // Handle switching to alternative room
   const handleSwitchToAlternativeRoom = (bookingIndex: number, roomId: string) => {
-    setBookingItems((prev) =>
-      prev.map((item, i) => {
+    setBookingItems((prev: any) =>
+      prev.map((item: any, i: number) => {
         if (i === bookingIndex) {
           // Reset all related states when switching rooms
           const updatedItem = {

@@ -29,7 +29,6 @@ import type {
   BookingData
 } from "../../../types/types";
 
-
 export default function EnhancedPaymentIntentCard({
   paymentIntent,
   onViewDetails,
