@@ -1744,7 +1744,6 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
 
   try {
     const paymentIntent = await prisma.paymentIntent.findMany({
-      where: { isSoftDeleted: false ||  null },
       include: {
         bookings: {
           select: {
