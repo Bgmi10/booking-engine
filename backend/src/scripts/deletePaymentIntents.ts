@@ -1,4 +1,5 @@
 import prisma from "../prisma";
+import 'dotenv/config';
 
 async function main() {
   // Delete all PaymentIntent rows
