@@ -9,7 +9,6 @@
     "nd": "nodemon --exec ts-node src/index.ts",
     "start": "node dist/index.js",
     "seed": "ts-node src/prisma/seed.ts",
-    "flush:paymentIntent": "ts-node src/scripts/deletePaymentIntents.ts",
     "build": "tsc",
     "db:generate": "cd src/prisma && prisma generate",
     "db:migrate": "cd src/prisma && prisma migrate dev",
