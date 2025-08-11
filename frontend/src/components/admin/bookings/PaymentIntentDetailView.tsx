@@ -12,10 +12,12 @@ import { useState } from "react"
     loadingPayment,
     onSendEmail,
     onDelete,
+    onRestore,
     onRefund,
     onViewPayment,
     loadingAction,
     generateConfirmationNumber,
+    isDeletedTab = false,
   }: PaymentIntentDetailsViewProps) {
     const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
 
@@ -539,7 +541,7 @@ import { useState } from "react"
               )}
   
               {
-                paymentIntent?.status === "CANCELLED" &&  <button
+                paymentIntent?.status === "CANCELLED" && !isDeletedTab && <button
                 //@ts-ignore
                 onClick={() => onDelete(paymentIntent.id)}
                 disabled={loadingAction}
@@ -547,6 +549,28 @@ import { useState } from "react"
               >
                <Trash />
                 Delete
+              </button>
+              }
+
+              {
+                isDeletedTab && onRestore && <button
+                onClick={onRestore}
+                disabled={loadingAction}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Restore
+              </button>
+              }
+
+              {
+                isDeletedTab && <button
+                onClick={onDelete}
+                disabled={loadingAction}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+               <Trash className="h-4 w-4 mr-2" />
+                Hard Delete
               </button>
               }
   

@@ -7,7 +7,6 @@ import dotenv from "dotenv";
 import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
-import { Prisma } from "@prisma/client";
 import { PartialRefundService } from "../services/partialRefundService";
 import { sendConsolidatedBookingConfirmation, sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
@@ -17,6 +16,7 @@ import { licensePlateCleanupService } from '../services/licensePlateCleanupServi
 import { findOrCreatePrice } from "../config/stripeConfig";
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
+import { FileWatcherEventKind } from "typescript";
 
 dotenv.config();
 
@@ -1744,6 +1744,7 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
 
   try {
     const paymentIntent = await prisma.paymentIntent.findMany({
+      where: { isSoftDeleted: false },
       include: {
         bookings: {
           select: {
@@ -1759,7 +1760,28 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
   }
 }
 
-const deletePaymentIntent = async (req: express.Request, res: express.Response) => {
+export const getAllSoftDeletedPaymentIntent = async (req: express.Request, res: express.Response) => {
+  try {
+    const paymentIntents = await prisma.paymentIntent.findMany({
+      where: { isSoftDeleted: true },
+      include: {
+        bookings: {
+          select: {
+            id: true,
+            request: true
+          }
+        }
+      }
+    });
+
+    responseHandler(res, 200, "success", paymentIntents);
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const hardDeletePaymentIntent = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
 
   if (!id) {
@@ -1768,8 +1790,71 @@ const deletePaymentIntent = async (req: express.Request, res: express.Response) 
   }
 
   try {
+    // Check if payment intent exists and is soft deleted
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id },
+      select: { isSoftDeleted: true }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+
+    if (!paymentIntent.isSoftDeleted) {
+      responseHandler(res, 400, "Payment intent must be soft deleted before hard delete");
+      return;
+    }
+
+    // Perform hard delete
     await prisma.paymentIntent.delete({
       where: { id }
+    });
+
+    responseHandler(res, 200, "Payment intent permanently deleted");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const restorePaymentIntent = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Missing id in params");
+    return;
+  }
+
+  try {
+    await prisma.paymentIntent.update({
+      where: { id },
+      data: {
+        isSoftDeleted: false
+      }
+    });
+    
+    responseHandler(res, 200, "Payment intent restored successfully");
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+const softDeletePaymentIntent = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    responseHandler(res, 400, "Missing id in params");
+    return;
+  }
+
+  try {
+    await prisma.paymentIntent.update({
+      where: { id },
+      data: {
+        isSoftDeleted: true
+      }
     })
     responseHandler(res, 200, "success");
   } catch (e) {
@@ -2665,6 +2750,6 @@ const processCustomPartialRefund = async (req: express.Request, res: express.Res
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, deletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund };
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund };
 
 

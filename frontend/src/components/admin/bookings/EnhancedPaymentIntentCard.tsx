@@ -29,6 +29,14 @@ import type {
   BookingData
 } from "../../../types/types";
 
+// Add a simple spinner component
+const Spinner = () => (
+  <svg className="animate-spin h-4 w-4 mr-1 text-white" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+  </svg>
+);
+
 export default function EnhancedPaymentIntentCard({
   paymentIntent,
   onViewDetails,
@@ -36,6 +44,7 @@ export default function EnhancedPaymentIntentCard({
   onRefund,
   onViewPayment,
   onDelete,
+  onRestore,
   loadingAction,
   isEditing,
   editFormData,
@@ -47,7 +56,8 @@ export default function EnhancedPaymentIntentCard({
   selectedBookingIds = [],
   onBookingSelect = () => {},
   onConfirmBooking,
-  onRefresh
+  onRefresh,
+  isDeletedTab = false
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
@@ -420,15 +430,38 @@ export default function EnhancedPaymentIntentCard({
                 </button>
               )}
 
-              {/* Delete */}
-              <button
-                onClick={() => onDelete?.(paymentIntent.id)}
-                disabled={loadingAction}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
-                {loadingAction ? 'Processing...' : 'Delete'}
-              </button>
+              {/* Delete/Restore */}
+              {isDeletedTab ? (
+                <>
+                  {onRestore && (
+                    <button
+                      onClick={onRestore}
+                      disabled={loadingAction}
+                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {loadingAction ? <Spinner /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                      {loadingAction ? 'Processing...' : 'Restore'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onDelete?.(paymentIntent.id)}
+                    disabled={loadingAction}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
+                    {loadingAction ? 'Processing...' : 'Hard Delete'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => onDelete?.(paymentIntent.id)}
+                  disabled={loadingAction}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  {loadingAction ? 'Processing...' : 'Delete'}
+                </button>
+              )}
 
               {/* Cancel & Refund with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
@@ -587,9 +620,9 @@ export default function EnhancedPaymentIntentCard({
               </div>
             ) : (
               <div className="space-y-4">
-                {individualBookings.map((booking) => (
+                {individualBookings.map((booking, index) => (
                   <IndividualBookingCard
-                    key={booking.id}
+                    key={index}
                     //@ts-ignore
                     booking={booking}
                     onRefund={handleBookingRefund}

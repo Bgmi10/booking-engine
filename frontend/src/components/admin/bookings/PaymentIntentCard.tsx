@@ -36,6 +36,7 @@ export default function PaymentIntentCard({
   onFutureRefund,
   onViewPayment,
   onDelete,
+  onRestore,
   loadingAction,
   isEditing,
   editFormData,
@@ -47,6 +48,7 @@ export default function PaymentIntentCard({
   selectedBookingIds = [],
   onBookingSelect = () => {},
   onConfirmBooking,
+  isDeletedTab = false,
 }: PaymentIntentCardProps) {
   const totalBookings = paymentIntent.bookingData.length
   const totalNights = paymentIntent.bookingData.reduce((sum, booking) => {
@@ -359,15 +361,38 @@ export default function PaymentIntentCard({
                 </button>
               )}
 
-              {/* Delete */}
-              <button
-                onClick={onDelete}
-                disabled={loadingAction}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
-                {loadingAction ? 'Processing...' : 'Delete'}
-              </button>
+              {/* Delete/Restore */}
+              {isDeletedTab ? (
+                <>
+                  {onRestore && (
+                    <button
+                      onClick={onRestore}
+                      disabled={loadingAction}
+                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {loadingAction ? <Spinner /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                      {loadingAction ? 'Processing...' : 'Restore'}
+                    </button>
+                  )}
+                  <button
+                    onClick={onDelete}
+                    disabled={loadingAction}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
+                    {loadingAction ? 'Processing...' : 'Hard Delete'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={onDelete}
+                  disabled={loadingAction}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {loadingAction ? <Spinner /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  {loadingAction ? 'Processing...' : 'Delete'}
+                </button>
+              )}
 
               {/* Cancel & Refund with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (

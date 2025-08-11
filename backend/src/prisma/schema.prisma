@@ -232,6 +232,7 @@ model PaymentIntent {
   customerData          String          
   taxAmount             Float
   totalAmount           Float
+  isSoftDeleted         Boolean?            @default(false)
   paymentStructure      PaymentStructure    @default(FULL_PAYMENT)
   prepaidAmount         Float?              // Amount paid upfront (30%)
   remainingAmount       Float?              // Amount due on checkin (70%)

@@ -127,8 +127,10 @@ export interface PaymentIntentDetailsViewProps {
   onRefund: () => void
   onViewPayment: () => void
   onDelete: () => any
+  onRestore?: () => void
   loadingAction: boolean
   generateConfirmationNumber: (pi: PaymentIntent) => string
+  isDeletedTab?: boolean
 }
 
 interface Image {
@@ -241,6 +243,7 @@ export interface PaymentIntentCardProps {
   onViewPayment: () => void
   onEdit: () => void
   onDelete: () => void
+  onRestore?: () => void
   loadingAction: boolean
   isEditing: boolean
   editFormData: PaymentIntent | null
@@ -252,6 +255,7 @@ export interface PaymentIntentCardProps {
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
   onConfirmBooking?: () => void;
+  isDeletedTab?: boolean;
 }
 
 
@@ -817,6 +821,7 @@ export interface EnhancedPaymentIntentCardProps {
   onViewPayment?: (stripePaymentIntentId: string) => void;
   onEdit?: (paymentIntent: any) => void;
   onDelete?: (id: string) => void;
+  onRestore?: () => void;
   loadingAction?: boolean;
   isEditing?: boolean;
   editFormData?: any;
@@ -829,6 +834,7 @@ export interface EnhancedPaymentIntentCardProps {
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
   onConfirmBooking?: () => void;
   onRefresh?: () => void;
+  isDeletedTab?: boolean;
 }
 
 export interface PaymentMethodInfo {

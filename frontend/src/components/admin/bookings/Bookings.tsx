@@ -9,18 +9,18 @@ import {
 import { baseUrl } from "../../../utils/constants"
 import { generateMergedBookingId } from "../../../utils/helper"
 import { CreateBookingModal } from "./CreateBookingModal"
-import Occupancy from "./Occupancy"
+import Occupancy from "./Occupancy" 
 import type { PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
 import RefundConfirmationModal from "./RefundConfirmationModal"
 import FutureRefundModal from "./FutureRefundModal"
 import toast from 'react-hot-toast';
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import { usePaymentIntents } from "../../../hooks/usePaymentIntents";
 
 export default function BookingManagement() {
-  const [paymentIntents, setPaymentIntents] = useState<PaymentIntent[]>([])
   const [filteredPaymentIntents, setFilteredPaymentIntents] = useState<PaymentIntent[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("ALL")
@@ -29,6 +29,8 @@ export default function BookingManagement() {
   const [loadingPayment, setLoadingPayment] = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletePaymentIntent, setDeletePaymentIntent] = useState<PaymentIntent | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingPaymentIntent, setEditingPaymentIntent] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<PaymentIntent | null>(null)
@@ -44,6 +46,27 @@ export default function BookingManagement() {
   const [refundPaymentIntent, setRefundPaymentIntent] = useState<PaymentIntent | null>(null);
   const [showFutureRefundModal, setShowFutureRefundModal] = useState(false);
   const [futureRefundPaymentIntent, setFutureRefundPaymentIntent] = useState<PaymentIntent | null>(null);
+
+  // Use the custom hooks for active and deleted payment intents
+  const {
+    paymentIntents: activePaymentIntents,
+    loading: activeLoading,
+    softDelete,
+    hardDelete,
+    refetch: refetchActive
+  } = usePaymentIntents('active');
+
+  const {
+    paymentIntents: deletedPaymentIntents,
+    loading: deletedLoading,
+    restore,
+    hardDelete: hardDeleteDeleted,
+    refetch: refetchDeleted
+  } = usePaymentIntents('deleted', false);
+
+  // Determine current data based on active tab
+  const currentPaymentIntents = activeTab === "deleted" ? deletedPaymentIntents : activePaymentIntents;
+  const currentLoading = activeTab === "deleted" ? deletedLoading : activeLoading;
 
   const fetchAllTempHolds = async () => {
     try {
@@ -75,38 +98,18 @@ export default function BookingManagement() {
   useEffect(() => {
     if (activeTab === "temp-holds") {
       fetchAllTempHolds();
+    } else if (activeTab === "deleted" && deletedPaymentIntents.length === 0) {
+      refetchDeleted();
     }
   }, [activeTab])
 
-  const fetchPaymentIntents = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`${baseUrl}/admin/payment-intent/all`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      })
-      const data = await response.json()
-      if (response.status === 200 && data) {
-        const parseData = data.data.map((item: PaymentIntent) => {
-          return {
-            ...item,
-            //@ts-ignore
-            bookingData: item.bookingData ? JSON.parse(item.bookingData) : [],
-            //@ts-ignore
-            customerData: item.customerData ? JSON.parse(item.customerData) : {},
-          }
-        })
-
-        setPaymentIntents(parseData)
-        setFilteredPaymentIntents(parseData)
-      }
-    } catch (error) {
-      console.error("Failed to fetch payment intents:", error)
-      toast.error("Failed to load payment intents")
-    } finally {
-      setLoading(false)
+  const fetchPaymentIntents = () => {
+    if (activeTab === "deleted") {
+      refetchDeleted();
+    } else {
+      refetchActive();
     }
-  }
+  };
 
   const fetchPaymentDetails = async (paymentIntentId: string) => {
     setLoadingPayment(true)
@@ -125,32 +128,43 @@ export default function BookingManagement() {
     }
   }
 
-  const deletePaymentIntent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this payment intent? This action cannot be undone.")) {
-      return
-    }
+  const handleDeleteClick = (paymentIntent: PaymentIntent) => {
+    setDeletePaymentIntent(paymentIntent);
+    setShowDeleteModal(true);
+  };
 
-    setLoadingAction(true)
-    try {
-      const response = await fetch(`${baseUrl}/admin/payment-intent/${id}/delete`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      })
-
-      if (response.ok) {
-        toast.success("Payment intent deleted successfully")
-        fetchPaymentIntents()
-        setSelectedPaymentIntent(null)
-      } else {
-        throw new Error("Failed to delete payment intent")
-      }
-    } catch (error) {
-      toast.error("Failed to delete payment intent")
-    } finally {
-      setLoadingAction(false)
+  const handleSoftDelete = async () => {
+    if (!deletePaymentIntent) return;
+    
+    setLoadingAction(true);
+    const success = await softDelete(deletePaymentIntent.id);
+    if (success) {
+      setSelectedPaymentIntent(null);
     }
-  }
+    setLoadingAction(false);
+    setShowDeleteModal(false);
+    setDeletePaymentIntent(null);
+  };
+
+  const handleHardDelete = async () => {
+    if (!deletePaymentIntent) return;
+    
+    setLoadingAction(true);
+    const deleteFunction = activeTab === "deleted" ? hardDeleteDeleted : hardDelete;
+    const success = await deleteFunction(deletePaymentIntent.id);
+    if (success) {
+      setSelectedPaymentIntent(null);
+    }
+    setLoadingAction(false);
+    setShowDeleteModal(false);
+    setDeletePaymentIntent(null);
+  };
+
+  const handleRestore = async (id: string) => {
+    setLoadingAction(true);
+    const success = await restore(id);
+    setLoadingAction(false);
+  };
 
   const updatePaymentIntent = async (id: string, data: PaymentIntent) => {
     setLoadingAction(true)
@@ -370,11 +384,11 @@ export default function BookingManagement() {
   }
 
   useEffect(() => {
-    fetchPaymentIntents()
+    // Data is automatically fetched by the hooks
   }, [])
 
   useEffect(() => {
-    let filtered = paymentIntents
+    let filtered = currentPaymentIntents;
 
     // Filter by tab (admin created vs all)
     if (activeTab === "admin") {
@@ -405,7 +419,7 @@ export default function BookingManagement() {
     }
 
     setFilteredPaymentIntents(filtered)
-  }, [paymentIntents, activeTab, statusFilter, searchTerm, paymentMethodFilter])
+  }, [currentPaymentIntents, activeTab, statusFilter, searchTerm, paymentMethodFilter])
 
   const generateConfirmationNumber = (paymentIntent: PaymentIntent) => {
     if (paymentIntent.bookings.length === 0) {
@@ -502,10 +516,10 @@ export default function BookingManagement() {
         <div className="gap-2 flex">
           <button
             onClick={fetchPaymentIntents}
-            disabled={loading}
+            disabled={currentLoading}
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${currentLoading ? "animate-spin" : ""}`} />
             Refresh
           </button>
 
@@ -574,6 +588,16 @@ export default function BookingManagement() {
           >
             Temp Holds Rooms 
           </button>
+          <button
+            onClick={() => setActiveTab("deleted")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "deleted"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Deleted ({deletedPaymentIntents.length})
+          </button>
         </nav>
       </div>
 
@@ -633,7 +657,7 @@ export default function BookingManagement() {
           }
         </div>
       ) : activeTab === "occupancy" ? (
-        <Occupancy bookings={paymentIntents} />
+        <Occupancy bookings={activePaymentIntents} />
       ) : activeTab === "groups" ? (
         <div className="space-y-8">
           {/* Render Groups */}
@@ -753,7 +777,7 @@ export default function BookingManagement() {
           {/* Payment Intents List */}
           <PaymentIntentsList
             paymentIntents={filteredPaymentIntents}
-            loading={loading}
+            loading={currentLoading}
             onViewDetails={(pi) => setSelectedPaymentIntent(pi)}
             onSendEmail={sendConfirmationEmail}
             onCancel={cancelAndRefundPaymentIntent}
@@ -761,7 +785,8 @@ export default function BookingManagement() {
             onFutureRefund={handleFutureRefund}
             onViewPayment={fetchPaymentDetails}
             onEdit={startEditing}
-            onDelete={deletePaymentIntent}
+            onDelete={handleDeleteClick}
+            onRestore={activeTab === "deleted" ? handleRestore : undefined}
             loadingAction={loadingAction}
             editingPaymentIntent={editingPaymentIntent}
             editFormData={editFormData}
@@ -773,6 +798,7 @@ export default function BookingManagement() {
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={handleBookingSelect}
             onConfirmBooking={confirmBooking}
+            isDeletedTab={activeTab === "deleted"}
           />
 
           {/* Payment Intent Details Modal */}
@@ -796,8 +822,8 @@ export default function BookingManagement() {
 
                 <div className="p-6">
                   <PaymentIntentDetailsView
-                  //@ts-ignore
-                   onDelete={deletePaymentIntent}
+                    onDelete={() => handleDeleteClick(selectedPaymentIntent)}
+                    onRestore={activeTab === "deleted" ? () => handleRestore(selectedPaymentIntent.id) : undefined}
                     paymentIntent={selectedPaymentIntent}
                     paymentDetails={paymentDetails}
                     loadingPayment={loadingPayment}
@@ -810,6 +836,7 @@ export default function BookingManagement() {
                     }
                     loadingAction={loadingAction}
                     generateConfirmationNumber={generateConfirmationNumber}
+                    isDeletedTab={activeTab === "deleted"}
                   />
                 </div>
               </div>
@@ -934,6 +961,20 @@ export default function BookingManagement() {
         onConfirm={processFutureRefund}
         paymentIntent={futureRefundPaymentIntent}
         isLoading={loadingAction}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setDeletePaymentIntent(null);
+        }}
+        onSoftDelete={handleSoftDelete}
+        onHardDelete={handleHardDelete}
+        paymentIntent={deletePaymentIntent}
+        isLoading={loadingAction}
+        isSoftDeleted={activeTab === "deleted"}
       />
     </div>
   )

@@ -26,11 +26,15 @@ export default function PaymentIntentsList({
   onBookingSelect = () => {},
   onConfirmBooking,
   onRefresh,
+  onRestore,
+  isDeletedTab = false,
 }: PaymentIntentsListProps & {
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
   onRefresh?: () => void;
+  onRestore?: (id: string) => void;
+  isDeletedTab?: boolean;
 }) {
   if (loading) {
     return (
@@ -75,7 +79,8 @@ export default function PaymentIntentsList({
               paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
             }
             onEdit={() => onEdit(paymentIntent)}
-            onDelete={() => onDelete(paymentIntent.id)}
+            onDelete={() => onDelete(paymentIntent)}
+            onRestore={onRestore ? () => onRestore(paymentIntent.id) : undefined}
             loadingAction={loadingAction}
             isEditing={editingPaymentIntent === paymentIntent.id}
             editFormData={editFormData}
@@ -88,6 +93,7 @@ export default function PaymentIntentsList({
             onBookingSelect={onBookingSelect}
             onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
             onRefresh={onRefresh}
+            isDeletedTab={isDeletedTab}
           />
         ) : (
           <PaymentIntentCard
@@ -102,7 +108,8 @@ export default function PaymentIntentsList({
               paymentIntent.stripePaymentIntentId && onViewPayment(paymentIntent.stripePaymentIntentId)
             }
             onEdit={() => onEdit(paymentIntent)}
-            onDelete={() => onDelete(paymentIntent.id)}
+            onDelete={() => onDelete(paymentIntent)}
+            onRestore={onRestore ? () => onRestore(paymentIntent.id) : undefined}
             loadingAction={loadingAction}
             isEditing={editingPaymentIntent === paymentIntent.id}
             editFormData={editFormData}
@@ -114,6 +121,7 @@ export default function PaymentIntentsList({
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={onBookingSelect}
             onConfirmBooking={onConfirmBooking ? () => onConfirmBooking(paymentIntent.id) : undefined}
+            isDeletedTab={isDeletedTab}
           />
         );
       })}
