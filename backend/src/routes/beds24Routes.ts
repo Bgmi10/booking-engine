@@ -67,6 +67,15 @@ beds24Router.post(
 // Get sync status
 beds24Router.get('/sync-status', authMiddleware, beds24Controller.getSyncStatus);
 
+// Get Beds24 rooms for mapping
+beds24Router.get('/rooms', authMiddleware, beds24Controller.getBeds24Rooms);
+
+// Create/update room mapping  
+beds24Router.post('/room-mapping', authMiddleware, beds24Controller.createRoomMapping);
+
+// Mark all rooms for sync (debug endpoint)
+beds24Router.post('/mark-rooms-for-sync', authMiddleware, beds24Controller.markAllRoomsForSync);
+
 // Get dashboard statistics
 beds24Router.get('/dashboard-stats', authMiddleware, beds24Controller.getDashboardStats);
 

@@ -5,7 +5,8 @@
       "WebFetch(domain:www.beds24.com)",
       "WebFetch(domain:api.beds24.com)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:wiki.beds24.com)"
     ],
     "deny": []
   }

@@ -37,6 +37,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
   const [roomPercentages, setRoomPercentages] = useState<{ [roomId: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
 
   // Use the centralized calendar availability hook
@@ -86,14 +87,19 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
   };
 
   // Fetch rate date prices
-  const fetchRateDatePrices = async () => {
+  const fetchRateDatePrices = async (bustCache = false) => {
     try {
       const startDate = format(currentPeriodStart, 'yyyy-MM-dd');
       const endDate = format(currentPeriodEnd, 'yyyy-MM-dd');
       
+      // Add cache-busting parameter when needed
+      const cacheBuster = bustCache ? `&t=${Date.now()}` : '';
+      
       const response = await fetch(
-        `${baseUrl}/admin/rate-policies/${ratePolicy.id}/date-prices?startDate=${startDate}&endDate=${endDate}`,
-        { credentials: 'include' }
+        `${baseUrl}/admin/rate-policies/${ratePolicy.id}/date-prices?startDate=${startDate}&endDate=${endDate}${cacheBuster}`,
+        { 
+          credentials: 'include',
+        }
       );
       
       if (!response.ok) {
@@ -164,11 +170,19 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
   // Get price for room and date
   const getPriceForRoomAndDate = (roomId: string, date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
-    const rateDatePrice = rateDatePrices.find(
+    
+    // Find ALL matching prices for this room and date
+    const matchingPrices = rateDatePrices.filter(
       rdp => rdp.roomId === roomId && rdp.date.split('T')[0] === dateStr
     );
     
-    if (rateDatePrice) {
+    if (matchingPrices.length > 0) {
+      // Get the most recent override (last updated)
+      const rateDatePrice = matchingPrices.sort((a, b) => 
+        new Date(b.updatedAt || b.createdAt || '').getTime() - 
+        new Date(a.updatedAt || a.createdAt || '').getTime()
+      )[0];
+      
       return {
         price: rateDatePrice.price,
         type: rateDatePrice.priceType,
@@ -264,9 +278,18 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
     setModalType('override'); // Default to room price override
   };
 
-  const handlePriceUpdate = () => {
-    fetchRateDatePrices();
-    fetchCalendarData();
+  const handlePriceUpdate = async () => {
+    // Add a small delay to ensure backend has processed the update
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Refresh data with cache-busting and force re-render
+    await fetchRateDatePrices(true); // Bust cache
+    await fetchCalendarData();
+    
+    // Force a complete re-render with new key
+    setRefreshKey(prev => prev + 1);
+    setLoading(false);
+    
     setModalType(null);
     setSelectedCell(null);
   };
@@ -493,7 +516,7 @@ export default function RatePricingCalendar({ ratePolicy, onClose }: RatePricing
                       
                       return (
                         <td 
-                          key={`${room.id}-${date.toISOString()}`} 
+                          key={`${room.id}-${date.toISOString()}-${refreshKey}`} 
                           className={`z-[-9999] border-b border-gray-200 text-center cursor-pointer hover:bg-gray-100 transition-colors ${bgColor} w-[85px]`}
                           onClick={() => handleCellClick(room, date)}
                         >

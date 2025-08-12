@@ -7,6 +7,7 @@ import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification,
 import { stripe } from "../config/stripeConfig";
 import { dahuaService } from "../services/dahuaService";
 import { EmailService } from "../services/emailService";
+import { markForChannelSync } from "../cron/cron";
 
 dotenv.config();
 
@@ -190,7 +191,7 @@ async function handleRefundCreated(event: Stripe.Event) {
                 });
 
                 // Update all bookings to refunded
-                await tx.booking.updateMany({
+                const refundedBookings = await tx.booking.updateMany({
                     where: { paymentIntentId: ourPaymentIntent.id },
                     data: { 
                         status: "REFUNDED",
@@ -198,6 +199,21 @@ async function handleRefundCreated(event: Stripe.Event) {
                         refundAmount: refundAmount / ourPaymentIntent.bookings.length // Split evenly if no specific booking
                     }
                 });
+                
+                // Mark all affected bookings and rooms for channel sync
+                const affectedBookings = await tx.booking.findMany({
+                    where: { paymentIntentId: ourPaymentIntent.id },
+                    select: { id: true, roomId: true }
+                });
+                
+                for (const booking of affectedBookings) {
+                    try {
+                        await markForChannelSync.booking(booking.id);
+                        await markForChannelSync.room(booking.roomId);
+                    } catch (syncError) {
+                        console.error(`Failed to mark refunded booking for sync:`, syncError);
+                    }
+                }
 
                 // Update payment record
                 await tx.payment.updateMany({
@@ -1408,6 +1424,15 @@ async function processBookingsInTransaction(
             }
 
             createdBookings.push(newBooking);
+            
+            // Mark room for channel sync when booking is created
+            try {
+                await markForChannelSync.booking(newBooking.id);
+                await markForChannelSync.room(roomId);
+            } catch (syncError) {
+                console.error(`Failed to mark for channel sync:`, syncError);
+                // Don't fail booking creation if sync marking fails
+            }
             
         } catch (bookingError) {
             console.error(`Failed to create booking for room ${booking.selectedRoom}:`, bookingError);

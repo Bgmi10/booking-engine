@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../prisma';
 import { handleError, responseHandler } from '../utils/helper';
+import { markForChannelSync } from '../cron/cron';
 
 export const getRateDatePrices = async (req: Request, res: Response) => {
   try {
@@ -96,7 +97,7 @@ export const getRatePricesForDateRange = async (req: Request, res: Response) => 
   }
 };
 
-export const  upsertRateDatePrices = async (req: Request, res: Response) => {
+export const upsertRateDatePrices = async (req: Request, res: Response) => {
   try {
     const { ratePolicyId } = req.params;
     //@ts-ignore
@@ -167,6 +168,26 @@ export const  upsertRateDatePrices = async (req: Request, res: Response) => {
         }
       });
       
+      // Mark rate date price and room for channel sync (safe/optional)
+      try {
+        // Only try to sync if the functions exist and room has beds24 mapping
+        if (markForChannelSync && typeof markForChannelSync.room === 'function') {
+          const roomHasMapping = await prisma.room.findFirst({
+            where: { 
+              id: roomId,
+              beds24Mapping: { isActive: true }
+            },
+            include: { beds24Mapping: true }
+          });
+          
+          if (roomHasMapping?.beds24Mapping) {
+            await markForChannelSync.room(roomId);
+          }
+        }
+      } catch (syncError) {
+        // Completely ignore sync errors to protect existing functionality
+      }
+      
       results.push(result);
     }
 
@@ -175,10 +196,6 @@ export const  upsertRateDatePrices = async (req: Request, res: Response) => {
       const dateRangeStart = dates[0];
       const dateRangeEnd = dates[dates.length - 1];
       const roomsAffected = [...new Set(prices.map(p => p.roomId))];
-      
-      // Calculate unique days affected (0=Sunday, 6=Saturday)
-      const daysAffected = [...new Set(dates.map(date => date.getDay()))].sort((a, b) => a - b);
-      
       const overRideDetails = {
         action: bulkActionType,
         changes: results.map((result) => ({
@@ -197,8 +214,7 @@ export const  upsertRateDatePrices = async (req: Request, res: Response) => {
           ratePolicyId,
           userId: user.id,
           totalDatesAffected: dates.length,
-          totalRoomsAffected: roomsAffected.length,
-          daysAffected
+          totalRoomsAffected: roomsAffected.length
         }
       })
     }
@@ -249,6 +265,15 @@ export const updateRatePolicyBasePrice = async (req: Request, res: Response) => 
       where: { id: ratePolicyId },
       data: { basePrice: parseFloat(basePrice) },
     });
+
+    // Mark rate policy for channel sync when base price is updated (safe/optional)
+    try {
+      if (markForChannelSync && typeof markForChannelSync.ratePolicy === 'function') {
+        await markForChannelSync.ratePolicy(ratePolicyId);
+      }
+    } catch (syncError) {
+      // Completely ignore sync errors to protect existing functionality
+    }
 
     return responseHandler(res, 200, 'Rate policy base price updated successfully', updatedRatePolicy);
   } catch (error) {

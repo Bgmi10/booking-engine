@@ -8,6 +8,7 @@ import { WeddingReminderService } from "../services/weddingReminderService";
 import { cashReminderService } from "../services/cashReminderService";
 import { LicensePlateExportService } from "../services/licensePlateExportService";
 import { EmailService } from "../services/emailService";
+import beds24Service from "../services/beds24Service";
 
 const now = new Date();
 
@@ -284,7 +285,7 @@ const sendLicensePlateExport = async () => {
 // export const scheduleDailyCashSummaryEmails = () => {
 //   setInterval(async () => {
 //     try {
-//       console.log("[Interval] Starting cash summary emails...");
+//       console.log("[Interval] Starting cash sync emails...");
 //       const emailsSent = await cashReminderService.sendDailySummaryEmail();
 //       console.log(`[Interval] Sent ${emailsSent} cash summary emails`);
 //     } catch (error) {
@@ -292,3 +293,441 @@ const sendLicensePlateExport = async () => {
 //     }
 //   }, 2000); // 2000 milliseconds = 2 seconds
 // };
+
+// Channel Manager Sync Configuration
+const MAX_RETRY_ATTEMPTS = 3;
+let isChannelSyncRunning = false;
+
+// Main channel sync cron job - runs every 15 minutes
+export const startChannelSync = () => {
+  console.log('[Channel Sync] Cron job scheduled: every 15 minutes');
+  
+  // Mark all mapped rooms for initial sync on startup
+  markAllMappedRoomsForSync();
+  
+  cron.schedule('*/1 * * * *', async () => {
+    if (isChannelSyncRunning) {
+      console.log('[Channel Sync] Already running, skipping...');
+      return;
+    }
+
+    try {
+      isChannelSyncRunning = true;
+      console.log('[Channel Sync] Starting automated sync...');
+      await runChannelSync();
+      console.log('[Channel Sync] Completed successfully');
+    } catch (error) {
+      console.error('[Channel Sync] Error:', error);
+    } finally {
+      isChannelSyncRunning = false;
+    }
+  });
+};
+
+// Main sync execution function
+async function runChannelSync() {
+  // Sync in order for efficiency
+  await syncRooms();
+  await syncRatePolicies();
+  await syncRateDatePrices();
+  await syncBookingRestrictions();
+  await syncAvailability();
+  await processIncomingBookings();
+}
+
+// Sync room data to channels
+async function syncRooms() {
+  console.log('[Channel Sync] Starting room sync...');
+  
+  // Get all rooms that need sync with their rate policies and overrides
+  const roomsToSync = await prisma.room.findMany({
+    where: {
+      needsChannelSync: true,
+      channelSyncFailCount: { lt: MAX_RETRY_ATTEMPTS }
+    },
+    include: { 
+      beds24Mapping: true,
+      rateDatePrices: {
+        where: {
+          isActive: true,
+          date: {
+            gte: new Date(), // Only today and future dates
+            lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next 30 days to match syncRoomData range
+          }
+        },
+        include: {
+          ratePolicy: true
+        }
+      },
+      RoomRate: {
+        where: { isActive: true },
+        include: {
+          ratePolicy: true
+        }
+      }
+    }
+  });
+
+  console.log(`[Channel Sync] Found ${roomsToSync.length} rooms to sync`);
+
+  for (const room of roomsToSync) {
+    try {
+      // Check if room has beds24Mapping and it is active
+      if ((room as any).beds24Mapping && (room as any).beds24Mapping.isActive) {
+        console.log(`[Channel Sync] Syncing room with mapping: ${room.name}`);
+        await beds24Service.syncRoomData(room);
+        
+        // Success: Reset sync flag
+        await prisma.room.update({
+          where: { id: room.id },
+          data: {
+            needsChannelSync: false,
+            lastChannelSyncAt: new Date(),
+            channelSyncFailCount: 0
+          }
+        });
+
+        await prisma.beds24RoomMapping.update({
+          where: { id: (room as any).beds24Mapping.id },
+          data: {
+            needsSync: false,
+            lastSyncAt: new Date(),
+            syncStatus: 'SYNCED',
+            syncFailCount: 0,
+            lastSyncError: null
+          }
+        });
+        console.log(`[Channel Sync] Room ${room.name} synced successfully`);
+      } else {
+        // Room has no mapping - attempt to create one or skip with warning
+        console.warn(`[Channel Sync] Room "${room.name}" has no Beds24 mapping - skipping sync`);
+        console.warn(`[Channel Sync] To sync this room, create a mapping via admin panel or API`);
+        
+        // Reset sync flag to prevent repeated attempts
+        await prisma.room.update({
+          where: { id: room.id },
+          data: {
+            needsChannelSync: false,
+            channelSyncFailCount: 0
+          }
+        });
+      }
+    } catch (error: any) {
+      console.error(`[Channel Sync] Failed to sync room ${room.id}:`, error);
+      
+      await prisma.room.update({
+        where: { id: room.id },
+        data: { channelSyncFailCount: { increment: 1 } }
+      });
+
+      if ((room as any).beds24Mapping) {
+        await prisma.beds24RoomMapping.update({
+          where: { id: (room as any).beds24Mapping.id },
+          data: {
+            syncStatus: 'FAILED',
+            syncFailCount: { increment: 1 },
+            lastSyncError: error.message || 'Unknown error'
+          }
+        });
+      }
+    }
+  }
+}
+
+// Sync rate policies
+async function syncRatePolicies() {
+  const ratesToSync = await prisma.ratePolicy.findMany({
+    where: {
+      needsChannelSync: true,
+      channelSyncFailCount: { lt: MAX_RETRY_ATTEMPTS },
+      isActive: true
+    }
+  });
+
+  for (const ratePolicy of ratesToSync) {
+    try {
+      const roomMappings = await prisma.beds24RoomMapping.findMany({
+        where: { isActive: true, autoSync: true },
+        include: {
+          room: {
+            include: {
+              RoomRate: {
+                where: { ratePolicyId: ratePolicy.id, isActive: true }
+              }
+            }
+          }
+        }
+      });
+
+      for (const mapping of roomMappings) {
+        await beds24Service.syncRatePolicy(mapping, ratePolicy);
+      }
+
+      await prisma.ratePolicy.update({
+        where: { id: ratePolicy.id },
+        data: {
+          needsChannelSync: false,
+          lastChannelSyncAt: new Date(),
+          channelSyncFailCount: 0
+        }
+      });
+      console.log(`[Channel Sync] Rate policy ${ratePolicy.name} synced successfully`);
+    } catch (error) {
+      console.error(`[Channel Sync] Failed to sync rate policy ${ratePolicy.id}:`, error);
+      await prisma.ratePolicy.update({
+        where: { id: ratePolicy.id },
+        data: { channelSyncFailCount: { increment: 1 } }
+      });
+    }
+  }
+}
+
+// Sync date-specific rate overrides
+async function syncRateDatePrices() {
+  const overridesToSync = await prisma.rateDatePrice.findMany({
+    where: {
+      needsChannelSync: true,
+      channelSyncFailCount: { lt: MAX_RETRY_ATTEMPTS },
+      isActive: true,
+      date: { gte: new Date() }
+    },
+    include: {
+      room: { include: { beds24Mapping: true } },
+      ratePolicy: true
+    }
+  });
+
+  const groupedOverrides = overridesToSync.reduce((acc, override) => {
+    const key = `${override.roomId}_${override.date.toISOString().split('T')[0]}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(override);
+    return acc;
+  }, {} as Record<string, typeof overridesToSync>);
+
+  for (const [key, overrides] of Object.entries(groupedOverrides)) {
+    try {
+      const room = overrides[0].room;
+      if (room.beds24Mapping && room.beds24Mapping.isActive) {
+        await beds24Service.syncDatePrices(room, overrides);
+      }
+
+      await prisma.rateDatePrice.updateMany({
+        where: { id: { in: overrides.map(o => o.id) } },
+        data: {
+          needsChannelSync: false,
+          lastChannelSyncAt: new Date(),
+          channelSyncFailCount: 0
+        }
+      });
+      console.log(`[Channel Sync] Rate overrides for ${key} synced successfully`);
+    } catch (error) {
+      console.error(`[Channel Sync] Failed to sync rate overrides for ${key}:`, error);
+      await prisma.rateDatePrice.updateMany({
+        where: { id: { in: overrides.map(o => o.id) } },
+        data: { channelSyncFailCount: { increment: 1 } }
+      });
+    }
+  }
+}
+
+// Sync booking restrictions
+async function syncBookingRestrictions() {
+  const restrictionsToSync = await prisma.bookingRestriction.findMany({
+    where: {
+      needsChannelSync: true,
+      channelSyncFailCount: { lt: MAX_RETRY_ATTEMPTS },
+      isActive: true,
+      endDate: { gte: new Date() }
+    }
+  });
+
+  for (const restriction of restrictionsToSync) {
+    try {
+      await beds24Service.syncBookingRestrictions(restriction.startDate, restriction.endDate, []);
+      await prisma.bookingRestriction.update({
+        where: { id: restriction.id },
+        data: {
+          needsChannelSync: false,
+          lastChannelSyncAt: new Date(),
+          channelSyncFailCount: 0
+        }
+      });
+      console.log(`[Channel Sync] Booking restriction ${restriction.name} synced successfully`);
+    } catch (error) {
+      console.error(`[Channel Sync] Failed to sync booking restriction ${restriction.id}:`, error);
+      await prisma.bookingRestriction.update({
+        where: { id: restriction.id },
+        data: { channelSyncFailCount: { increment: 1 } }
+      });
+    }
+  }
+}
+
+// Sync availability based on bookings
+async function syncAvailability() {
+  const bookingsToSync = await prisma.booking.findMany({
+    where: {
+      needsChannelSync: true,
+      channelSyncFailCount: { lt: MAX_RETRY_ATTEMPTS },
+      status: { in: ['CONFIRMED', 'PENDING'] },
+      checkOut: { gte: new Date() }
+    },
+    include: {
+      room: { include: { beds24Mapping: true } }
+    }
+  });
+
+  const groupedBookings = bookingsToSync.reduce((acc, booking) => {
+    if (!acc[booking.roomId]) acc[booking.roomId] = [];
+    acc[booking.roomId].push(booking);
+    return acc;
+  }, {} as Record<string, typeof bookingsToSync>);
+
+  for (const [roomId, bookings] of Object.entries(groupedBookings)) {
+    try {
+      const room = bookings[0].room;
+      if (room.beds24Mapping && room.beds24Mapping.isActive) {
+        await beds24Service.syncRoomAvailability(room, bookings);
+      }
+
+      await prisma.booking.updateMany({
+        where: { id: { in: bookings.map(b => b.id) } },
+        data: {
+          needsChannelSync: false,
+          lastChannelSyncAt: new Date(),
+          channelSyncFailCount: 0
+        }
+      });
+      console.log(`[Channel Sync] Availability for room ${roomId} synced successfully`);
+    } catch (error) {
+      console.error(`[Channel Sync] Failed to sync availability for room ${roomId}:`, error);
+      await prisma.booking.updateMany({
+        where: { id: { in: bookings.map(b => b.id) } },
+        data: { channelSyncFailCount: { increment: 1 } }
+      });
+    }
+  }
+}
+
+// Process incoming bookings from channels
+async function processIncomingBookings() {
+  try {
+    const activeMappings = await prisma.beds24RoomMapping.findMany({
+      where: { isActive: true, autoSync: true }
+    });
+
+    if (activeMappings.length === 0) return;
+
+    const newBookings = await beds24Service.fetchNewBookings();
+    
+    for (const beds24Booking of newBookings) {
+      const existingBooking = await prisma.booking.findFirst({
+        where: { channelBookingId: beds24Booking.bookId }
+      });
+
+      if (!existingBooking) {
+        const mapping = activeMappings.find(m => m.beds24RoomId === beds24Booking.roomId);
+        if (mapping) {
+          await beds24Service.createBookingFromChannel(beds24Booking, mapping);
+          console.log(`[Channel Sync] Created booking from Beds24: ${beds24Booking.bookId}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Channel Sync] Failed to process incoming bookings:', error);
+  }
+}
+
+// Helper function to set sync flags when data changes
+export const markForChannelSync = {
+  room: async (roomId: string) => {
+    await prisma.room.update({
+      where: { id: roomId },
+      data: { needsChannelSync: true, channelSyncFailCount: 0 }
+    });
+  },
+  
+  ratePolicy: async (ratePolicyId: string) => {
+    await prisma.ratePolicy.update({
+      where: { id: ratePolicyId },
+      data: { needsChannelSync: true, channelSyncFailCount: 0 }
+    });
+  },
+  
+  booking: async (bookingId: string) => {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { needsChannelSync: true, channelSyncFailCount: 0 }
+    });
+  },
+  
+  rateDatePrice: async (rateDatePriceId: string) => {
+    await prisma.rateDatePrice.update({
+      where: { id: rateDatePriceId },
+      data: { needsChannelSync: true, channelSyncFailCount: 0 }
+    });
+  },
+  
+  bookingRestriction: async (restrictionId: string) => {
+    await prisma.bookingRestriction.update({
+      where: { id: restrictionId },
+      data: { needsChannelSync: true, channelSyncFailCount: 0 }
+    });
+  }
+};
+
+// Mark all mapped rooms for sync (used on startup)
+async function markAllMappedRoomsForSync() {
+  try {
+    console.log('[Channel Sync] Marking all mapped rooms for initial sync...');
+    
+    const result = await prisma.room.updateMany({
+      where: {
+        beds24Mapping: {
+          isActive: true
+        }
+      },
+      data: {
+        needsChannelSync: true,
+        channelSyncFailCount: 0
+      }
+    });
+    
+    console.log(`[Channel Sync] Marked ${result.count} rooms for sync`);
+  } catch (error) {
+    console.error('[Channel Sync] Failed to mark rooms for sync:', error);
+  }
+}
+
+// Manual sync trigger function
+export const triggerManualChannelSync = async () => {
+  if (isChannelSyncRunning) {
+    throw new Error('Channel sync already in progress');
+  }
+  
+  try {
+    isChannelSyncRunning = true;
+    console.log('[Channel Sync] Manual sync triggered');
+    await runChannelSync();
+    console.log('[Channel Sync] Manual sync completed');
+  } finally {
+    isChannelSyncRunning = false;
+  }
+};
+
+// Sync health check
+export const getChannelSyncHealth = async () => {
+  const [roomsNeedingSync, ratePoliciesNeedingSync, bookingsNeedingSync, failedSyncs] = await Promise.all([
+    prisma.room.count({ where: { needsChannelSync: true } }),
+    prisma.ratePolicy.count({ where: { needsChannelSync: true } }),
+    prisma.booking.count({ where: { needsChannelSync: true } }),
+    prisma.beds24RoomMapping.count({ where: { syncStatus: 'FAILED' } })
+  ]);
+
+  return {
+    isRunning: isChannelSyncRunning,
+    pendingSyncs: { rooms: roomsNeedingSync, ratePolicies: ratePoliciesNeedingSync, bookings: bookingsNeedingSync },
+    failedSyncs,
+    lastRun: new Date()
+  };
+};

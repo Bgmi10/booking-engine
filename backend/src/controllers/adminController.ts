@@ -17,6 +17,7 @@ import { findOrCreatePrice } from "../config/stripeConfig";
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { FileWatcherEventKind } from "typescript";
+import { markForChannelSync } from '../cron/cron';
 
 dotenv.config();
 
@@ -319,6 +320,14 @@ const updateRoom = async (req: express.Request, res: express.Response) => {
         }
       },
     });
+
+    // Mark room for channel sync when updated
+    try {
+      await markForChannelSync.room(id);
+    } catch (syncError) {
+      console.error(`Failed to mark room ${id} for channel sync:`, syncError);
+      // Don't fail room update if sync marking fails
+    }
 
     responseHandler(res, 200, "Room updated successfully", room);
   } catch (e) {
@@ -779,6 +788,15 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 
   try {
     const updatedRoom = await prisma.room.update({ where: { id: roomId }, data: { price } });
+    
+    // Mark room for channel sync when price is updated
+    try {
+      await markForChannelSync.room(roomId);
+    } catch (syncError) {
+      console.error(`Failed to mark room ${roomId} for channel sync:`, syncError);
+      // Don't fail price update if sync marking fails
+    }
+    
     responseHandler(res, 200, "Room price updated successfully", updatedRoom);
   } catch (e) {
     handleError(res, e as Error);
@@ -2010,6 +2028,15 @@ export const createBookingsRestriction = async (req: express.Request, res: expre
       }
     });
 
+    // Mark booking restriction for channel sync (safe/optional)
+    try {
+      if (markForChannelSync && typeof markForChannelSync.bookingRestriction === 'function') {
+        await markForChannelSync.bookingRestriction(restriction.id);
+      }
+    } catch (syncError) {
+      // Completely ignore sync errors to protect existing functionality
+    }
+
     responseHandler(res, 200, "Booking restriction created successfully", restriction);
   } catch (e) {
     console.log(e);
@@ -2084,6 +2111,15 @@ export const editBookingRestriction = async (req: express.Request, res: express.
         exceptions: true
       }
     });
+
+    // Mark booking restriction for channel sync (safe/optional)
+    try {
+      if (markForChannelSync && typeof markForChannelSync.bookingRestriction === 'function') {
+        await markForChannelSync.bookingRestriction(id);
+      }
+    } catch (syncError) {
+      // Completely ignore sync errors to protect existing functionality
+    }
 
     responseHandler(res, 200, "Booking restriction updated successfully", updated);
   } catch (e) {

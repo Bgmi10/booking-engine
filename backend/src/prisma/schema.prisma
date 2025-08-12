@@ -45,6 +45,12 @@ model Room {
   allowsExtraBed    Boolean          @default(false) // Whether room allows extra bed
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  
+  // Channel sync tracking
+  needsChannelSync      Boolean      @default(false)
+  lastChannelSyncAt     DateTime?
+  channelSyncFailCount  Int          @default(0)
+  
   images            RoomImage[]
   bookings          Booking[]
   holds             TemporaryHold[]
@@ -52,6 +58,8 @@ model Room {
   rateDatePrices    RateDatePrice[]
   notifications     Notification[]
   beds24Mapping     Beds24RoomMapping?
+  
+  @@index([needsChannelSync])
 }
 
 model RoomImage {
@@ -166,8 +174,15 @@ model Booking {
   refundAmount        Float?                // Amount refunded for this specific booking
   refundStatus        RefundStatus          @default(NOT_REFUNDED) // Track individual booking refund status
   
+  // Channel sync tracking
+  needsChannelSync      Boolean      @default(false)
+  lastChannelSyncAt     DateTime?
+  channelSyncFailCount  Int          @default(0)
+  channelBookingId      String?      // Store Beds24 or other channel booking ID
+  
   @@index([roomId, checkIn, checkOut, status])
   @@index([refundStatus])
+  @@index([needsChannelSync])
 }
 
 model Enhancement {
@@ -314,11 +329,19 @@ model RatePolicy {
   basePrice             Float?               // Base price for this rate policy
   paymentStructure      PaymentStructure     @default(FULL_PAYMENT)
   cancellationPolicy    CancellationPolicy   @default(FLEXIBLE)
+  
+  // Channel sync tracking
+  needsChannelSync      Boolean      @default(false)
+  lastChannelSyncAt     DateTime?
+  channelSyncFailCount  Int          @default(0)
+  
   bulkOverRideLogs      BulkOverRideLogs[]
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   roomRates             RoomRate[]
   rateDatePrices        RateDatePrice[]
+  
+  @@index([needsChannelSync])
 }
 
 model RoomRate {
@@ -350,6 +373,12 @@ model RateDatePrice {
   price           Float         // Price for this specific date and rate policy
   priceType       RatePriceType @default(ROOM_OVERRIDE) // Type of pricing override
   isActive        Boolean       @default(true) // Can be disabled without deletion
+  
+  // Channel sync tracking
+  needsChannelSync      Boolean      @default(false)
+  lastChannelSyncAt     DateTime?
+  channelSyncFailCount  Int          @default(0)
+  
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   
@@ -357,6 +386,7 @@ model RateDatePrice {
   @@index([ratePolicyId, date, isActive])
   @@index([roomId, date, isActive])
   @@index([date, isActive])
+  @@index([needsChannelSync])
 }
 
 model GeneralSettings {        
@@ -403,11 +433,18 @@ model BookingRestriction {
   sameDayCutoffTime                    String?          
   priority                             Int                       @default(0)
   isActive                             Boolean                   @default(true)
+  
+  // Channel sync tracking
+  needsChannelSync      Boolean      @default(false)
+  lastChannelSyncAt     DateTime?
+  channelSyncFailCount  Int          @default(0)
+  
   exceptions                           RestrictionException[]
   createdAt                            DateTime                  @default(now())
   updatedAt                            DateTime                  @updatedAt
   @@index([startDate, endDate])
   @@index([type, isActive])
+  @@index([needsChannelSync])
 }
 
 model RestrictionException {
@@ -1337,6 +1374,9 @@ model Beds24RoomMapping {
   // Sync status tracking
   lastSyncAt      DateTime?
   syncStatus      String    @default("PENDING") // PENDING, SYNCED, FAILED
+  needsSync       Boolean   @default(false)
+  syncFailCount   Int       @default(0)
+  lastSyncError   String?
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1347,4 +1387,5 @@ model Beds24RoomMapping {
   @@unique([localRoomId])
   @@unique([beds24RoomId])
   @@index([isActive, autoSync])
+  @@index([needsSync])
 }

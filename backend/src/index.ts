@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport, startChannelSync } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
@@ -16,6 +16,7 @@ import customerRouter from "./routes/customerRoute";
 import WebSocketManager from "./websocket/websocketManager";
 import OrderEventService from "./services/orderEventService";
 import paymentPlanRouter from "./routes/paymentPlanRoute";
+import beds24WebhookRouter from "./routes/beds24Webhook";
 import {
   generalLimiter,
   adminLimiter,
@@ -57,6 +58,7 @@ app.use("/api/v1/enhancements", publicLimiter, enhancementRouter);
 app.use("/api/v1/sessions", publicLimiter, sessionRouter);
 app.use("/api/v1/vouchers", publicLimiter, voucherRouter);
 app.use("/api/v1/customers", publicLimiter, customerRouter);
+app.use("/api/v1/beds24/webhook", webhookLimiter, beds24WebhookRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();
@@ -67,6 +69,7 @@ schedulePaymentReminders();
 scheduleWeddingReminders();
 updateExpiredLicensePlates();
 scheduleLicensePlateExport(); // Dynamic cron for license plate export emails
+startChannelSync(); // Start channel manager sync cron job
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

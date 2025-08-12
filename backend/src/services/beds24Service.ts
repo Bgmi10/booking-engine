@@ -201,6 +201,30 @@ export class Beds24Service {
   }
 
   /**
+   * Get property rooms from Beds24
+   */
+  async getPropertyRooms(): Promise<any[]> {
+    try {
+      const response = await this.apiClient.post('/json/getProperty', {
+        authentication: {
+          apiKey: this.apiKey,
+          propId: this.propertyId
+        }
+      });
+
+      const propertyData = response.data;
+      if (propertyData?.rooms) {
+        return Object.values(propertyData.rooms);
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch Beds24 rooms:', error);
+      throw new Error('Failed to fetch Beds24 rooms');
+    }
+  }
+
+  /**
    * Get bookings from Beds24
    */
   async getBookings(startDate?: Date, endDate?: Date): Promise<Beds24Booking[]> {
@@ -842,6 +866,312 @@ export class Beds24Service {
     }
     
     return restrictionData;
+  }
+
+  /**
+   * Sync room data to Beds24 (for automated cron)
+   */
+  async syncRoomData(room: any): Promise<void> {
+    if (!room.beds24Mapping) {
+      throw new Error('Room has no Beds24 mapping');
+    }
+
+    try {
+      // Add propKey validation  
+      if (!this.propKey || this.propKey.length < 16) {
+        throw new Error(`Beds24 propKey is required for room sync. Please set BEDS_24_PROP_KEY environment variable.`);
+      }
+      
+      // Build dates array with all overrides and rate policies for next 30 days
+      const dates = [];
+      
+      // Start from TODAY to match manual sync behavior (Beds24 API requirement)
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 30);
+      
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const currentDateStr = currentDate.toISOString().split('T')[0];
+        let datePrice = 0;
+        
+        // IMPORTANT: Use EXACT same logic as frontend calculateFinalPrice + getPriceForRoomAndDate
+        
+        // First priority: Check for RateDatePrice overrides (same logic as frontend)
+        const matchingOverrides = room.rateDatePrices?.filter((rdp: any) => 
+          rdp.isActive && rdp.date.toISOString().split('T')[0] === currentDateStr
+        ) || [];
+        
+        if (matchingOverrides.length > 0) {
+          // Get most recent override (same as frontend logic)
+          const mostRecentOverride = matchingOverrides.sort((a: any, b: any) => 
+            new Date(b.updatedAt || b.createdAt || '').getTime() - 
+            new Date(a.updatedAt || a.createdAt || '').getTime()
+          )[0];
+          
+          // Use the override price directly (already calculated final price)
+          datePrice = mostRecentOverride.price;
+        } else {
+          // Calculate using frontend logic (calculateFinalPrice function)
+          const activeRoomRates = room.RoomRate?.filter((rr: any) => 
+            rr.isActive && rr.ratePolicy && rr.ratePolicy.isActive && rr.ratePolicy.basePrice
+          ) || [];
+          
+          if (activeRoomRates.length > 0) {
+            let lowestFinalRate = Infinity;
+            
+            for (const roomRate of activeRoomRates) {
+              const basePrice = roomRate.ratePolicy.basePrice;
+              const percentageAdjustment = roomRate.percentageAdjustment || 0;
+              
+              // Frontend logic: basePrice + (basePrice * percentage / 100)
+              const adjustment = (basePrice * percentageAdjustment) / 100;
+              const finalRate = Math.round((basePrice + adjustment) * 100) / 100;
+              
+              if (finalRate < lowestFinalRate) {
+                lowestFinalRate = finalRate;
+              }
+            }
+            
+            datePrice = lowestFinalRate < Infinity ? lowestFinalRate : room.price;
+          } else {
+            datePrice = room.price;
+          }
+        }
+        
+        // Check for extremely high prices that might be rejected by Beds24
+        if (datePrice > 999999) {
+          console.warn(`[Beds24] Warning: Very high price for ${currentDateStr}: €${datePrice} - this might be rejected by Beds24 API`);
+        }
+
+        // Ensure dates are sent in a format Beds24 understands (YYYY-MM-DD)
+        // and that they align with Italian timezone expectations
+        dates.push({
+          date: currentDateStr,
+          available: room.capacity || 1,
+          price: Math.round(datePrice * 100) / 100 // Ensure 2 decimal places
+        });
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Convert to Beds24Rate format and sync using same method as manual sync
+      const beds24Rates = dates.map(d => ({
+        roomId: room.beds24Mapping.beds24RoomId,
+        date: d.date,
+        rate: d.price,
+        available: d.available
+      }));
+
+      // Use the SAME method as manual sync
+      const success = await this.pushRatesAndAvailability(beds24Rates);
+
+      if (success) {
+        console.log(`[Beds24] Successfully synced room: ${room.name} using same API method as manual sync`);
+      } else {
+        console.error(`[Beds24] Failed to sync room: ${room.name} using pushRatesAndAvailability method`);
+        throw new Error(`Failed to sync room data using pushRatesAndAvailability method`);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        throw new Error('Beds24 API endpoint not found. Check API credentials and access permissions.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Sync rate policy to Beds24
+   */
+  async syncRatePolicy(mapping: any, ratePolicy: any): Promise<void> {
+    // Calculate rate with any room-specific adjustments
+    let finalRate = ratePolicy.basePrice || mapping.room.price;
+    
+    if (mapping.markupPercent) {
+      finalRate = finalRate * (1 + mapping.markupPercent / 100);
+    }
+
+    // Apply room rate adjustments if available
+    if (mapping.room.RoomRate?.length > 0) {
+      const roomRate = mapping.room.RoomRate[0];
+      if (roomRate.percentageAdjustment) {
+        finalRate = finalRate * (1 + roomRate.percentageAdjustment / 100);
+      }
+    }
+
+    // Set rate for next 90 days
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(startDate.getDate() + 90);
+
+    const response = await this.apiClient.post('/json/setRates', {
+      authentication: {
+        apiKey: this.apiKey,
+        propId: this.propertyId
+      },
+      roomId: mapping.beds24RoomId,
+      dateFrom: startDate.toISOString().split('T')[0],
+      dateTo: endDate.toISOString().split('T')[0],
+      rate: finalRate.toFixed(2),
+      minStay: mapping.minStay,
+      maxStay: mapping.maxStay
+    });
+
+    if (!response.data?.success) {
+      throw new Error(`Failed to sync rate policy: ${response.data?.error || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Sync date-specific price overrides
+   */
+  async syncDatePrices(room: any, overrides: any[]): Promise<void> {
+    for (const override of overrides) {
+      let finalRate = override.price;
+      
+      // Apply markup if configured
+      if (room.beds24Mapping.markupPercent) {
+        finalRate = finalRate * (1 + room.beds24Mapping.markupPercent / 100);
+      }
+
+      const response = await this.apiClient.post('/json/setRates', {
+        authentication: {
+          apiKey: this.apiKey,
+          propId: this.propertyId
+        },
+        roomId: room.beds24Mapping.beds24RoomId,
+        dateFrom: override.date.toISOString().split('T')[0],
+        dateTo: override.date.toISOString().split('T')[0],
+        rate: finalRate.toFixed(2)
+      });
+
+      if (!response.data?.success) {
+        throw new Error(`Failed to sync date price: ${response.data?.error || 'Unknown error'}`);
+      }
+    }
+  }
+
+  /**
+   * Sync room availability based on bookings
+   */
+  async syncRoomAvailability(room: any, bookings: any[]): Promise<void> {
+    // Calculate availability for each date
+    const availabilityMap = new Map<string, number>();
+    const totalRoomCapacity = 1; // Assuming 1 room unit
+    
+    for (const booking of bookings) {
+      const checkIn = new Date(booking.checkIn);
+      const checkOut = new Date(booking.checkOut);
+      
+      // Block availability for each night of the booking
+      for (let date = new Date(checkIn); date < checkOut; date.setDate(date.getDate() + 1)) {
+        const dateStr = date.toISOString().split('T')[0];
+        const currentAvailable = availabilityMap.get(dateStr) || totalRoomCapacity;
+        availabilityMap.set(dateStr, Math.max(0, currentAvailable - 1));
+      }
+    }
+
+    // Sync availability to Beds24
+    for (const [dateStr, available] of availabilityMap) {
+      const response = await this.apiClient.post('/json/setInventory', {
+        authentication: {
+          apiKey: this.apiKey,
+          propId: this.propertyId
+        },
+        roomId: room.beds24Mapping.beds24RoomId,
+        date: dateStr,
+        available: available
+      });
+
+      if (!response.data?.success) {
+        throw new Error(`Failed to sync availability: ${response.data?.error || 'Unknown error'}`);
+      }
+    }
+  }
+
+  /**
+   * Fetch new bookings from Beds24
+   */
+  async fetchNewBookings(): Promise<Beds24Booking[]> {
+    try {
+      const response = await this.apiClient.post('/json/getBookings', {
+        authentication: {
+          apiKey: this.apiKey,
+          propId: this.propertyId
+        },
+        dateFrom: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 24 hours
+        dateTo: new Date().toISOString().split('T')[0]
+      });
+
+      // Ensure we always return an array
+      const bookings = response.data;
+      return Array.isArray(bookings) ? bookings : [];
+    } catch (error) {
+      console.error('Failed to fetch new bookings from Beds24:', error);
+      return []; // Return empty array on error
+    }
+  }
+
+  /**
+   * Fetch bookings for a specific room from Beds24
+   */
+  async fetchRoomBookings(beds24RoomId: string): Promise<Beds24Booking[]> {
+    try {
+      const response = await this.apiClient.post('/json/getBookings', {
+        authentication: {
+          apiKey: this.apiKey,
+          propId: this.propertyId
+        },
+        roomId: beds24RoomId,
+        dateFrom: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
+        dateTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Next year
+      });
+
+      // Ensure we always return an array
+      const bookings = response.data;
+      return Array.isArray(bookings) ? bookings : [];
+    } catch (error) {
+      console.error('Failed to fetch room bookings from Beds24:', error);
+      return []; // Return empty array on error
+    }
+  }
+
+  /**
+   * Create booking in our system from channel data
+   */
+  async createBookingFromChannel(beds24Booking: Beds24Booking, mapping: any): Promise<void> {
+    // Find or create customer
+    let customer = await prisma.customer.findUnique({
+      where: { guestEmail: beds24Booking.guestEmail }
+    });
+
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          guestFirstName: beds24Booking.guestFirstName,
+          guestLastName: beds24Booking.guestName,
+          guestEmail: beds24Booking.guestEmail,
+          guestPhone: beds24Booking.guestPhone,
+          guestNationality: beds24Booking.guestCountry
+        }
+      });
+    }
+
+    // Create booking
+    await prisma.booking.create({
+      data: {
+        roomId: mapping.localRoomId,
+        customerId: customer.id,
+        checkIn: new Date(beds24Booking.arrival),
+        checkOut: new Date(beds24Booking.departure),
+        totalGuests: beds24Booking.numAdult + beds24Booking.numChild,
+        status: beds24Booking.status === '1' ? 'CONFIRMED' : 'PENDING',
+        totalAmount: beds24Booking.price,
+        channelBookingId: beds24Booking.bookId,
+        request: beds24Booking.guestComments,
+        needsChannelSync: false // Don't sync back to channel
+      }
+    });
   }
 }
 

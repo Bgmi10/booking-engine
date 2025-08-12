@@ -6,10 +6,8 @@ import {
   pushRatesSchema,
   getBeds24BookingsSchema,
   bulkSyncSchema,
-  checkRoomAvailabilitySchema,
-  createBeds24RoomMappingSchema,
-  updateBeds24RoomMappingSchema,
 } from '../zod/beds24.schema';
+import prisma from '../prisma';
 
 export class Beds24Controller {
 
@@ -211,30 +209,6 @@ export class Beds24Controller {
     }
   }
 
-  /**
-   * Create room mapping between local room and Beds24 room
-   */
-  async createRoomMapping(req: Request, res: Response) {
-    try {
-      const validatedData = createBeds24RoomMappingSchema.parse(req.body);
-      
-      const result = await beds24Service.createRoomMapping(
-        validatedData.localRoomId,
-        validatedData.beds24RoomId,
-        validatedData.beds24RoomName || 'Unknown Room'
-      );
-      
-      if (result.success) {
-        responseHandler(res, 201, 'Room mapping created successfully', validatedData);
-      } else {
-        // Return 400 for constraint violations (rooms already mapped)
-        responseHandler(res, 400, result.error || 'Failed to create room mapping');
-      }
-    } catch (error: any) {
-      console.error('Error creating room mapping:', error);
-      handleError(res, error);
-    }
-  }
 
   /**
    * Get sync status and statistics
@@ -323,6 +297,82 @@ export class Beds24Controller {
       }
     } catch (error: any) {
       console.error('Error syncing booking restrictions:', error);
+      handleError(res, error);
+    }
+  }
+  /**
+   * Create or update room mapping
+   */
+  async createRoomMapping(req: Request, res: Response) {
+    try {
+      const { localRoomId, beds24RoomId, isActive = true, autoSync = true } = req.body;
+
+      if (!localRoomId || !beds24RoomId) {
+        return responseHandler(res, 400, 'localRoomId and beds24RoomId are required');
+      }
+
+      // Check if room exists
+      const room = await prisma.room.findUnique({
+        where: { id: localRoomId }
+      });
+
+      if (!room) {
+        return responseHandler(res, 404, 'Local room not found');
+      }
+
+      // Create or update mapping
+      const mapping = await prisma.beds24RoomMapping.upsert({
+        where: { localRoomId },
+        update: {
+          beds24RoomId,
+          isActive,
+          autoSync,
+          syncStatus: 'PENDING'
+        },
+        create: {
+          localRoomId,
+          beds24RoomId,
+          isActive,
+          autoSync,
+          syncStatus: 'PENDING'
+        }
+      });
+
+      // Mark room for sync
+      await prisma.room.update({
+        where: { id: localRoomId },
+        data: { needsChannelSync: true }
+      });
+
+      responseHandler(res, 200, 'Room mapping created/updated successfully', mapping);
+    } catch (error: any) {
+      console.error('Error creating room mapping:', error);
+      handleError(res, error);
+    }
+  }
+
+  /**
+   * Mark all mapped rooms for sync (debug endpoint)
+   */
+  async markAllRoomsForSync(req: Request, res: Response) {
+    try {
+      const result = await prisma.room.updateMany({
+        where: {
+          beds24Mapping: {
+            isActive: true
+          }
+        },
+        data: {
+          needsChannelSync: true,
+          channelSyncFailCount: 0
+        }
+      });
+
+      responseHandler(res, 200, `Marked ${result.count} rooms for sync`, {
+        roomsMarked: result.count
+      });
+    } catch (error: any) {
+      console.error('Error marking rooms for sync:', error);
       handleError(res, error);
     }
   }
