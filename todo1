@@ -89,4 +89,6 @@ non refund automatically
 
 [C] => dont link the rate policy automatically when got created to a room
 
+[C] => fix the admin order place issue 
+
 [C] => channel markup price should apply for override price also

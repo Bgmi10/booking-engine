@@ -168,13 +168,13 @@ export const getPendingHybridOrdersForWaiter = async (req: express.Request, res:
 };
 
 export const createAdminOrder = async (req: express.Request, res: express.Response) => {
-    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationName } = req.body;
+    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationNames } = req.body;
     //@ts-ignore
     const { id: adminId } = req.user;
 
 
-    if (!items || !paymentMethod || !locationName) {
-      responseHandler(res, 400, "Missing required fields: items, paymentMethod, locationName are required.");
+    if (!items || !paymentMethod || locationNames.length === 0) {
+      responseHandler(res, 400, "Missing required fields: items, paymentMethod, location ids are required.");
       return;
     }
     if (!customerId && !temporaryCustomerSurname) {
@@ -190,8 +190,8 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
       return;
     }
 
-    try {
-        let tempCustomerId: string | undefined;
+    try { 
+       let tempCustomerId: string | undefined;
 
         if (temporaryCustomerSurname) {
             const stripeCustomer = await stripe.customers.create({
@@ -213,7 +213,7 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                 items,
                 total,
                 status: 'PENDING',
-                locationName,
+                locationNames,
                 customerId: customerId,
                 temporaryCustomerId: tempCustomerId
             }
@@ -336,4 +336,3 @@ export const cancelOrder = async (req: express.Request, res: express.Response) =
     console.error("Error cancelling order:", error);
   }
 }
-

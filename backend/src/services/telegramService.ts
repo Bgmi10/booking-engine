@@ -1,5 +1,4 @@
 import axios from 'axios';
-import prisma from '../prisma';
 import { telegramConfig } from '../config/telegramConfig';
 
 type StaffRole = 'KITCHEN' | 'WAITER' | 'ADMIN' | 'MANAGER';

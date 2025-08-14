@@ -489,7 +489,7 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
                 const hasWaiterItems = items.some((item: any) => item.role === 'WAITER');
             await TelegramService.notifyNewOrder(newOrder.id, {
                 total: newOrder.total,
-                    locationName: newOrder.locationName,
+                    locationName: newOrder.locationName ?? newOrder.locationNames.join(', '),
                     hasKitchenItems,
                     hasWaiterItems
             });

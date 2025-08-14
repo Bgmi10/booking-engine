@@ -43,7 +43,11 @@ export const getAllOrderCategories = async (req: express.Request, res: express.R
 
     try {
         const orderCategories = await prisma.orderCategory.findMany({
-            include: { availabilityRule: true, orderItems: true }
+            include: { availabilityRule: true, orderItems: true, locations: {
+                select: {
+                    name: true
+                }
+            } }
         });
 
         responseHandler(res, 200, "success", orderCategories);

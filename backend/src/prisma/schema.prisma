@@ -1070,8 +1070,9 @@ model Order {
   updatedAt           DateTime       @updatedAt
   items               Json
   deliveryItems       Json?          // Items for the waiter to deliver
-  locationName        String
-  location            Location       @relation(fields: [locationName], references: [name])
+  locationName        String?        // customer purpose
+  locationNames       String[]        @default([])  // useful for admin 
+  location            Location?       @relation(fields: [locationName], references: [name]) // useful for customer
   assignedToKitchen   String?        
   assignedToWaiter    String?      
   kitchenAssignedAt   DateTime?    

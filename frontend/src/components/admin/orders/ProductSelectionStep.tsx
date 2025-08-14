@@ -81,7 +81,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
 
   const getCartItemQuantity = (itemId: string) => cart.find(i => i.id === itemId)?.quantity || 0;
 
-  const updateCartQuantity = (item: OrderItemType, categoryIsAvailable: boolean, change: 1 | -1) => {
+  const updateCartQuantity = (item: OrderItemType, categoryIsAvailable: boolean, change: 1 | -1, categoryLocationNames?: string[]) => {
     if (!item.isAvailable || !categoryIsAvailable) return;
 
     setCart(prevCart => {
@@ -98,7 +98,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
                 newCart[existingItemIndex] = { ...existingItem, quantity: newQuantity };
             }
         } else if (change === 1) {
-            newCart.push({ ...item, quantity: 1 });
+            newCart.push({ ...item, quantity: 1, locationNames: categoryLocationNames || [] });
         }
 
         return newCart;
@@ -184,7 +184,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button 
-                                        onClick={() => updateCartQuantity(item, category.isAvailable ?? false, -1)} 
+                                        onClick={() => updateCartQuantity(item, category.isAvailable ?? false, -1, category.locations?.map(l => l.name))} 
                                         disabled={!isItemFullyAvailable || quantity === 0}
                                         className="text-red-500 disabled:opacity-20"
                                     >
@@ -192,7 +192,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
                                     </button>
                                     <span className="font-bold text-lg w-6 text-center">{quantity}</span>
                                     <button 
-                                        onClick={() => updateCartQuantity(item, category.isAvailable ?? false, 1)} 
+                                        onClick={() => updateCartQuantity(item, category.isAvailable ?? false, 1, category.locations?.map(l => l.name))} 
                                         disabled={!isItemFullyAvailable}
                                         className="text-green-500 disabled:opacity-20"
                                     >

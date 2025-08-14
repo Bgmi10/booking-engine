@@ -154,7 +154,7 @@ class OrderEventService {
         
         await TelegramService.notifyNewOrder(order.id, {
             total: order.total,
-            locationName: order.locationName,
+            locationName: order.locationName ?? order.locationNames.join(', '),
             hasKitchenItems: true,
             hasWaiterItems,
             itemCount: kitchenItems.length
@@ -171,7 +171,7 @@ class OrderEventService {
         });
             await TelegramService.notifyWaiterOrder(order.id, {
                 total: order.total,
-                locationName: order.locationName,
+                locationName: order.locationName ?? order.locationNames.join(', '),
                 hasKitchenItems: true,
                 itemCount: waiterItems.length
             });
@@ -229,7 +229,7 @@ class OrderEventService {
 
         await TelegramService.notifyWaiterOrder(order.id, {
             total: order.total,
-            locationName: order.locationName,
+            locationName: order.locationName ?? order.locationNames.join(', '),
             hasKitchenItems: false,
             itemCount: waiterItems.length
         });
@@ -252,7 +252,7 @@ class OrderEventService {
         });
         await TelegramService.notifyNewOrder(order.id, {
             total: order.total,
-            locationName: order.locationName,
+            locationName: order.locationName ?? order.locationNames.join(", "),
             hasKitchenItems: true,
             hasWaiterItems: false,
             itemCount: 0

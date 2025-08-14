@@ -112,7 +112,9 @@ export const deleteLocation = async (req: express.Request, res: express.Response
 
 export const getAllLocations = async (req: express.Request, res: express.Response) => {    
     try {
-        const locations = await prisma.location.findMany({ include: { orderCategories: true }});
+        const locations = await prisma.location.findMany({ include: { orderCategories: { include: {
+          orderItems: true
+        }} }});
         responseHandler(res, 200, "success", locations);
     } catch (e) {
         console.log(e);

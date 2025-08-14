@@ -17,6 +17,7 @@ interface CartItem {
   quantity: number;
   imageUrl: string;
   role: string;
+  locationNames?: string[]; // Track location names from the order categories
 }
 
 export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
@@ -29,12 +30,17 @@ export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
 
   const handlePlaceOrder = async () => {
     setIsPlacingOrder(true);
+    
+    // Collect all unique location names from cart items
+    const allLocationNames = cart.flatMap(item => item.locationNames || []);
+    const uniqueLocationNames = [...new Set(allLocationNames)];
+    
     const orderData = {
       items: cart,
       paymentMethod,
       customerId: selectedCustomer?.id,
       temporaryCustomerSurname: selectedCustomer ? undefined : temporaryGuestName,
-      locationName: 'pool', // This should be dynamic in a real app
+      locationNames: uniqueLocationNames,
     };
 
     try {
