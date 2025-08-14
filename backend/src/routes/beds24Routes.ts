@@ -79,6 +79,11 @@ beds24Router.post('/mark-rooms-for-sync', authMiddleware, beds24Controller.markA
 // Get dashboard statistics
 beds24Router.get('/dashboard-stats', authMiddleware, beds24Controller.getDashboardStats);
 
+// Rate policy mapping endpoints
+beds24Router.get('/room-mappings/:mappingId/rate-policies', authMiddleware, beds24Controller.getRatePolicyMappings);
+beds24Router.put('/room-mappings/:mappingId/rate-policies', authMiddleware, beds24Controller.upsertRatePolicyMappings);
+beds24Router.delete('/room-mappings/:mappingId/rate-policies/:ratePolicyMappingId', authMiddleware, beds24Controller.deleteRatePolicyMapping);
+
 // Webhook endpoints (no auth middleware for webhooks)
 beds24Router.post('/webhook/booking', beds24Controller.processBookingWebhook);
 

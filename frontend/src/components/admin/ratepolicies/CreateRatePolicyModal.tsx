@@ -9,16 +9,12 @@ interface CreateRatePolicyModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void;
   setRatePolicies: React.Dispatch<React.SetStateAction<RatePolicy[]>>;
   ratePolicies: RatePolicy[];
-  setError: (error: string) => void;
-  setSuccess: (success: string) => void;
 }
 
 export default function CreateRatePolicyModal({
   setIsCreateModalOpen,
   setRatePolicies,
   ratePolicies,
-  setError,
-  setSuccess,
 }: CreateRatePolicyModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -103,14 +99,12 @@ export default function CreateRatePolicyModal({
       }
 
       toast.success("Rate policy created successfully!");
-      setSuccess("Rate policy created successfully!");
       setRatePolicies([...ratePolicies, data.data]);
       setIsCreateModalOpen(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Failed to create rate policy. Please try again.");
-      setError(error.message || "Failed to create rate policy. Please try again.");
     } finally {
       setLoadingAction(false);
     }

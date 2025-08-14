@@ -11,8 +11,6 @@ interface UpdateRatePolicyModalProps {
   setIsUpdateModalOpen: (isOpen: boolean) => void;
   setRatePolicies: React.Dispatch<React.SetStateAction<RatePolicy[]>>;
   ratePolicies: RatePolicy[];
-  setError: (error: string) => void;
-  setSuccess: (success: string) => void;
   ratePolicy: RatePolicy | null;
 }
 
@@ -20,8 +18,6 @@ export default function UpdateRatePolicyModal({
   setIsUpdateModalOpen,
   setRatePolicies,
   ratePolicies,
-  setError,
-  setSuccess,
   ratePolicy,
 }: UpdateRatePolicyModalProps) {
   const [name, setName] = useState(ratePolicy?.name || "");
@@ -98,9 +94,6 @@ export default function UpdateRatePolicyModal({
       }
 
       toast.success("Rate policy updated successfully!");
-      setSuccess("Rate policy updated successfully!");
-
-      // Update ratePolicies state with the updated policy
       setRatePolicies(
         ratePolicies.map((policy) =>
           policy.id === ratePolicy.id ? { ...policy, ...data.data } : policy
@@ -111,7 +104,6 @@ export default function UpdateRatePolicyModal({
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Failed to update rate policy. Please try again.");
-      setError(error.message || "Failed to update rate policy. Please try again.");
     } finally {
       setLoadingAction(false);
     }

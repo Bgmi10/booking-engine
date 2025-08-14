@@ -145,15 +145,21 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
               }
               const parsed = Number.parseInt(value);
               if (!isNaN(parsed)) {
-                updateBookingItem(index, "adults", parsed);
+                const max = getRoomMaxCapacity(item.roomDetails) || 99;
+                // Allow the value but cap it at max
+                const cappedValue = Math.min(parsed, max);
+                updateBookingItem(index, "adults", cappedValue);
               }
             }}
             onBlur={(e) => {
               const parsed = Number.parseInt(e.target.value);
               const min = 1;
               const max = getRoomMaxCapacity(item.roomDetails) || 99;
-              const sanitized = Math.min(Math.max(parsed || min, min), max);
-              updateBookingItem(index, "adults", sanitized);
+              // Only sanitize if the value is outside valid range or empty
+              if (isNaN(parsed) || parsed < min || parsed > max) {
+                const sanitized = Math.min(Math.max(parsed || min, min), max);
+                updateBookingItem(index, "adults", sanitized);
+              }
             }}
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             disabled={loadingAction}
@@ -163,11 +169,11 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
             <div className="mt-2">
               {item.roomDetails.allowsExtraBed ? (
                 <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-1 text-xs text-orange-600">
+                  <div className="flex items-center space-x-1 text-xs text-blue-600">
                     <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span>Capacity exceeded - Extra bed required</span>
+                    <span>Extra bed</span>
                   </div>
                   {item.roomDetails.extraBedPrice && (
                     <span className="text-xs text-gray-600">

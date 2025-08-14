@@ -100,7 +100,6 @@ export const usePaymentIntents = (type: 'active' | 'deleted' = 'active', autoFet
       });
 
       if (response.ok) {
-        toast.success("Payment intent restored");
         await fetchPaymentIntents();
         return true;
       } else {

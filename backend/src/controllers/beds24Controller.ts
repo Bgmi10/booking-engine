@@ -376,6 +376,147 @@ export class Beds24Controller {
       handleError(res, error);
     }
   }
+
+  /**
+   * Get rate policy mappings for a Beds24 room mapping
+   */
+  async getRatePolicyMappings(req: Request, res: Response) {
+    try {
+      const { mappingId } = req.params;
+
+      const mappings = await prisma.beds24RatePolicyMapping.findMany({
+        where: { beds24RoomMappingId: mappingId },
+        include: {
+          ratePolicy: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              basePrice: true,
+              isActive: true
+            }
+          }
+        },
+        orderBy: [
+          { priceSlot: 'asc' },
+          { priority: 'desc' }
+        ]
+      });
+
+      responseHandler(res, 200, 'Rate policy mappings fetched successfully', mappings);
+    } catch (error: any) {
+      console.error('Error fetching rate policy mappings:', error);
+      handleError(res, error);
+    }
+  }
+
+  /**
+   * Create or update rate policy mappings for a Beds24 room
+   */
+  async upsertRatePolicyMappings(req: Request, res: Response) {
+    try {
+      const { mappingId } = req.params;
+      const { mappings } = req.body;
+
+      if (!Array.isArray(mappings)) {
+        return responseHandler(res, 400, 'Mappings must be an array');
+      }
+
+      // Validate that mapping exists
+      const beds24Mapping = await prisma.beds24RoomMapping.findUnique({
+        where: { id: mappingId }
+      });
+
+      if (!beds24Mapping) {
+        return responseHandler(res, 404, 'Beds24 room mapping not found');
+      }
+
+      // Start transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Delete existing mappings
+        await tx.beds24RatePolicyMapping.deleteMany({
+          where: { beds24RoomMappingId: mappingId }
+        });
+
+        // Create new mappings
+        const createdMappings = [];
+        for (const mapping of mappings) {
+          if (!mapping.ratePolicyId || mapping.priceSlot === undefined) {
+            continue;
+          }
+
+          const created = await tx.beds24RatePolicyMapping.create({
+            data: {
+              beds24RoomMappingId: mappingId,
+              ratePolicyId: mapping.ratePolicyId,
+              priceSlot: mapping.priceSlot,
+              markupPercent: mapping.markupPercent || null,
+              channelRateCode: mapping.channelRateCode || null,
+              priority: mapping.priority || 0,
+              isActive: mapping.isActive !== false
+            },
+            include: {
+              ratePolicy: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  basePrice: true
+                }
+              }
+            }
+          });
+          createdMappings.push(created);
+        }
+
+        // Mark room for sync
+        await tx.beds24RoomMapping.update({
+          where: { id: mappingId },
+          data: { needsSync: true }
+        });
+
+        // Also mark the room itself for sync
+        await tx.room.update({
+          where: { id: beds24Mapping.localRoomId },
+          data: { needsChannelSync: true }
+        });
+
+        return createdMappings;
+      });
+
+      responseHandler(res, 200, 'Rate policy mappings updated successfully', result);
+    } catch (error: any) {
+      console.error('Error updating rate policy mappings:', error);
+      handleError(res, error);
+    }
+  }
+
+  /**
+   * Delete a specific rate policy mapping
+   */
+  async deleteRatePolicyMapping(req: Request, res: Response) {
+    try {
+      const { mappingId, ratePolicyMappingId } = req.params;
+
+      const deleted = await prisma.beds24RatePolicyMapping.delete({
+        where: {
+          id: ratePolicyMappingId,
+          beds24RoomMappingId: mappingId
+        }
+      });
+
+      // Mark for sync
+      await prisma.beds24RoomMapping.update({
+        where: { id: mappingId },
+        data: { needsSync: true }
+      });
+
+      responseHandler(res, 200, 'Rate policy mapping deleted successfully', deleted);
+    } catch (error: any) {
+      console.error('Error deleting rate policy mapping:', error);
+      handleError(res, error);
+    }
+  }
 }
 
 export default new Beds24Controller();

@@ -69,8 +69,6 @@ non refund automatically
 
 [] => select hte seprate rates option 
 
-
-
 [C] => change the week end date to fri, sat not sun, sat
 
 [C] => add a days in bulk logs details model &&  drop down to show room details
@@ -80,3 +78,15 @@ non refund automatically
 [C] => soft delete on bookings and restore deleted bookings 
 
 [C] => Extra beds configuration feature in admin booking creation
+
+[C] => instead of this Capacity exceeded - Extra bed required say extra bed     
+
+[C] => bug in max number selection
+
+[C] => comfirmation model on restore 
+
+[] => on booking card rate should be outstanding amount of the booking not the single booking confirmed amount. 
+
+[C] => dont link the rate policy automatically when got created to a room
+
+[C] => channel markup price should apply for override price also

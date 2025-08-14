@@ -344,6 +344,13 @@ export class Beds24Service {
           if (specificDateRate) {
             finalRate = specificDateRate.price;
             console.log(`Using specific date rate for ${dateStr}: €${finalRate} (Policy: ${specificDateRate.ratePolicy.name})`);
+            
+            // Apply Beds24-specific markup to override price if configured
+            const markupPercent = options?.markupPercent || mapping?.markupPercent || 0;
+            if (markupPercent > 0) {
+              finalRate = finalRate * (1 + markupPercent / 100);
+              console.log(`Applied Beds24 markup (${markupPercent}%) to override price: €${finalRate}`);
+            }
           } else {
             // 2. Use active rate policies (get lowest base price from all active policies)
             const activeRoomRates = room.RoomRate.filter((rr: any) => rr.isActive && rr.ratePolicy && rr.ratePolicy.isActive && rr.ratePolicy.basePrice);
@@ -355,8 +362,9 @@ export class Beds24Service {
               
               for (const roomRate of activeRoomRates) {
                 const basePrice = roomRate.ratePolicy.basePrice;
-                const adjustment = roomRate.percentageAdjustment || 0;
-                const calculatedRate = basePrice * (1 + adjustment / 100);
+                const percentageAdjustment = roomRate.percentageAdjustment || 0;
+                const adjustment = (basePrice * percentageAdjustment) / 100;
+                const calculatedRate = basePrice + adjustment;
                 
                 if (calculatedRate < lowestFinalRate) {
                   lowestFinalRate = calculatedRate;
@@ -881,122 +889,231 @@ export class Beds24Service {
       if (!this.propKey || this.propKey.length < 16) {
         throw new Error(`Beds24 propKey is required for room sync. Please set BEDS_24_PROP_KEY environment variable.`);
       }
-      
-      // Build dates array with all overrides and rate policies for next 30 days
-      const dates = [];
-      
-      // Start from TODAY to match manual sync behavior (Beds24 API requirement)
+
+      // Get rate policy mappings for this Beds24 room
+      const ratePolicyMappings = await prisma.beds24RatePolicyMapping.findMany({
+        where: {
+          beds24RoomMappingId: room.beds24Mapping.id,
+          isActive: true
+        },
+        include: {
+          ratePolicy: {
+            include: {
+              roomRates: {
+                where: { 
+                  roomId: room.id,
+                  isActive: true 
+                }
+              }
+            }
+          }
+        },
+        orderBy: { priceSlot: 'asc' }
+      });
+
+      // If no rate mappings exist, fall back to old logic (single cheapest rate)
+      if (ratePolicyMappings.length === 0) {
+        console.log(`[Beds24] No rate policy mappings found for ${room.name}, using legacy single-rate sync`);
+        await this.syncRoomDataLegacy(room);
+        return;
+      }
+
+      // Build dates object with multiple rates
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 30);
       
+      const dateRates: { [date: string]: any } = {};
+      
       let currentDate = new Date(startDate);
       while (currentDate <= endDate) {
         const currentDateStr = currentDate.toISOString().split('T')[0];
-        let datePrice = 0;
+        const dateKey = currentDateStr.replace(/-/g, ''); // Convert to YYYYMMDD
         
-        // IMPORTANT: Use EXACT same logic as frontend calculateFinalPrice + getPriceForRoomAndDate
-        
-        // First priority: Check for RateDatePrice overrides (same logic as frontend)
-        const matchingOverrides = room.rateDatePrices?.filter((rdp: any) => 
-          rdp.isActive && rdp.date.toISOString().split('T')[0] === currentDateStr
-        ) || [];
-        
-        if (matchingOverrides.length > 0) {
-          // Get most recent override (same as frontend logic)
-          const mostRecentOverride = matchingOverrides.sort((a: any, b: any) => 
-            new Date(b.updatedAt || b.createdAt || '').getTime() - 
-            new Date(a.updatedAt || a.createdAt || '').getTime()
-          )[0];
-          
-          // Use the override price directly (already calculated final price)
-          datePrice = mostRecentOverride.price;
-        } else {
-          // Calculate using frontend logic (calculateFinalPrice function)
-          const activeRoomRates = room.RoomRate?.filter((rr: any) => 
-            rr.isActive && rr.ratePolicy && rr.ratePolicy.isActive && rr.ratePolicy.basePrice
+        // Initialize date object
+        dateRates[dateKey] = {
+          i: (room.capacity || 1).toString(), // Inventory
+          mn: '1', // Min stay default
+          mx: '30' // Max stay default
+        };
+
+        // Process each mapped rate policy
+        for (const mapping of ratePolicyMappings) {
+          const priceKey = `p${mapping.priceSlot}`; // p1, p2, p3, etc.
+          let finalPrice = 0;
+
+          // Check for RateDatePrice overrides for this rate policy
+          const overrides = room.rateDatePrices?.filter((rdp: any) => 
+            rdp.isActive && 
+            rdp.date.toISOString().split('T')[0] === currentDateStr &&
+            rdp.ratePolicyId === mapping.ratePolicyId
           ) || [];
-          
-          if (activeRoomRates.length > 0) {
-            let lowestFinalRate = Infinity;
+
+          if (overrides.length > 0) {
+            // Use most recent override
+            const mostRecentOverride = overrides.sort((a: any, b: any) => 
+              new Date(b.updatedAt || b.createdAt || '').getTime() - 
+              new Date(a.updatedAt || a.createdAt || '').getTime()
+            )[0];
+            finalPrice = mostRecentOverride.price;
             
-            for (const roomRate of activeRoomRates) {
-              const basePrice = roomRate.ratePolicy.basePrice;
+            // Apply channel-specific markup to override price
+            if (mapping.markupPercent) {
+              finalPrice = finalPrice * (1 + mapping.markupPercent / 100);
+            }
+          } else {
+            // Calculate price from rate policy
+            const roomRate = mapping.ratePolicy.roomRates[0];
+            if (roomRate && mapping.ratePolicy.basePrice) {
+              const basePrice = mapping.ratePolicy.basePrice;
               const percentageAdjustment = roomRate.percentageAdjustment || 0;
               
-              // Frontend logic: basePrice + (basePrice * percentage / 100)
+              // Calculate base rate
               const adjustment = (basePrice * percentageAdjustment) / 100;
-              const finalRate = Math.round((basePrice + adjustment) * 100) / 100;
+              finalPrice = Math.round((basePrice + adjustment) * 100) / 100;
               
-              if (finalRate < lowestFinalRate) {
-                lowestFinalRate = finalRate;
+              // Apply channel-specific markup if configured
+              if (mapping.markupPercent) {
+                finalPrice = finalPrice * (1 + mapping.markupPercent / 100);
+                finalPrice = Math.round(finalPrice * 100) / 100;
               }
             }
-            
-            datePrice = lowestFinalRate < Infinity ? lowestFinalRate : room.price;
-          } else {
-            datePrice = room.price;
+          }
+
+          // Set the price for this slot
+          if (finalPrice > 0) {
+            dateRates[dateKey][priceKey] = finalPrice.toFixed(2);
           }
         }
         
-        // Check for extremely high prices that might be rejected by Beds24
-        if (datePrice > 999999) {
-          console.warn(`[Beds24] Warning: Very high price for ${currentDateStr}: €${datePrice} - this might be rejected by Beds24 API`);
-        }
-
-        // Ensure dates are sent in a format Beds24 understands (YYYY-MM-DD)
-        // and that they align with Italian timezone expectations
-        dates.push({
-          date: currentDateStr,
-          available: room.capacity || 1,
-          price: Math.round(datePrice * 100) / 100 // Ensure 2 decimal places
-        });
-        
         currentDate.setDate(currentDate.getDate() + 1);
       }
-      
-      // Convert to Beds24Rate format and sync using same method as manual sync
-      const beds24Rates = dates.map(d => ({
+
+      // Send to Beds24 using setRoomDates API
+      const requestData = {
+        authentication: {
+          apiKey: this.apiKey,
+          propKey: this.propKey
+        },
         roomId: room.beds24Mapping.beds24RoomId,
-        date: d.date,
-        rate: d.price,
-        available: d.available
-      }));
+        dates: dateRates
+      };
 
-      // Use the SAME method as manual sync
-      const success = await this.pushRatesAndAvailability(beds24Rates);
-
-      if (success) {
-        console.log(`[Beds24] Successfully synced room: ${room.name} using same API method as manual sync`);
-      } else {
-        console.error(`[Beds24] Failed to sync room: ${room.name} using pushRatesAndAvailability method`);
-        throw new Error(`Failed to sync room data using pushRatesAndAvailability method`);
+      console.log(`[Beds24] Syncing ${ratePolicyMappings.length} rate policies for room ${room.name}`);
+      console.log(`[Beds24] Sample date data being sent:`, JSON.stringify(Object.entries(dateRates).slice(0, 2), null, 2));
+      
+      const response = await this.apiClient.post('/json/setRoomDates', requestData);
+      
+      if (response.data?.error) {
+        throw new Error(`Beds24 API error: ${JSON.stringify(response.data)}`);
       }
+
+      console.log(`[Beds24] Successfully synced multi-rate data for room: ${room.name}`);
     } catch (error: any) {
-      if (error.response?.status === 404) {
-        throw new Error('Beds24 API endpoint not found. Check API credentials and access permissions.');
-      }
+      console.error(`[Beds24] Failed to sync room ${room.name}:`, error);
       throw error;
     }
   }
 
-  /**
-   * Sync rate policy to Beds24
-   */
-  async syncRatePolicy(mapping: any, ratePolicy: any): Promise<void> {
-    // Calculate rate with any room-specific adjustments
-    let finalRate = ratePolicy.basePrice || mapping.room.price;
+  // Keep legacy single-rate sync as fallback
+  async syncRoomDataLegacy(room: any): Promise<void> {
+    // Original single-rate sync logic
+    const dates = [];
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 30);
     
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const currentDateStr = currentDate.toISOString().split('T')[0];
+      let datePrice = 0;
+      
+      // First priority: Check for RateDatePrice overrides
+      const matchingOverrides = room.rateDatePrices?.filter((rdp: any) => 
+        rdp.isActive && rdp.date.toISOString().split('T')[0] === currentDateStr
+      ) || [];
+      
+      if (matchingOverrides.length > 0) {
+        const mostRecentOverride = matchingOverrides.sort((a: any, b: any) => 
+          new Date(b.updatedAt || b.createdAt || '').getTime() - 
+          new Date(a.updatedAt || a.createdAt || '').getTime()
+        )[0];
+        datePrice = mostRecentOverride.price;
+        
+        // Apply markup to override price if configured
+        if (room.beds24Mapping?.markupPercent) {
+          datePrice = datePrice * (1 + room.beds24Mapping.markupPercent / 100);
+        }
+      } else {
+        // Calculate using lowest rate policy
+        const activeRoomRates = room.RoomRate?.filter((rr: any) => 
+          rr.isActive && rr.ratePolicy && rr.ratePolicy.isActive && rr.ratePolicy.basePrice
+        ) || [];
+        
+        if (activeRoomRates.length > 0) {
+          let lowestFinalRate = Infinity;
+          
+          for (const roomRate of activeRoomRates) {
+            const basePrice = roomRate.ratePolicy.basePrice;
+            const percentageAdjustment = roomRate.percentageAdjustment || 0;
+            const adjustment = (basePrice * percentageAdjustment) / 100;
+            const finalRate = Math.round((basePrice + adjustment) * 100) / 100;
+            
+            if (finalRate < lowestFinalRate) {
+              lowestFinalRate = finalRate;
+            }
+          }
+          
+          datePrice = lowestFinalRate < Infinity ? lowestFinalRate : room.price;
+        } else {
+          datePrice = room.price;
+        }
+      }
+      
+      dates.push({
+        date: currentDateStr,
+        available: room.capacity || 1,
+        price: Math.round(datePrice * 100) / 100
+      });
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    const beds24Rates = dates.map(d => ({
+      roomId: room.beds24Mapping.beds24RoomId,
+      date: d.date,
+      rate: d.price,
+      available: d.available
+    }));
+
+    const success = await this.pushRatesAndAvailability(beds24Rates);
+
+    if (success) {
+      console.log(`[Beds24] Successfully synced room: ${room.name} using legacy single-rate method`);
+    } else {
+      throw new Error(`Failed to sync room data using legacy method`);
+    }
+  }
+
+  async syncRatePolicy(mapping: any, ratePolicy: any): Promise<void> {
+    // Start with base price
+    const basePrice = ratePolicy.basePrice || mapping.room.price;
+    let finalRate = basePrice;
+
+    // First apply room rate percentage adjustment
+    if (mapping.room.RoomRate?.length > 0) {
+      const roomRate = mapping.room.RoomRate.find((rr: any) => 
+        rr.ratePolicyId === ratePolicy.id && rr.isActive
+      );
+      if (roomRate && roomRate.percentageAdjustment) {
+        const adjustment = (basePrice * roomRate.percentageAdjustment) / 100;
+        finalRate = basePrice + adjustment;
+      }
+    }
+    
+    // Then apply channel markup
     if (mapping.markupPercent) {
       finalRate = finalRate * (1 + mapping.markupPercent / 100);
-    }
-
-    // Apply room rate adjustments if available
-    if (mapping.room.RoomRate?.length > 0) {
-      const roomRate = mapping.room.RoomRate[0];
-      if (roomRate.percentageAdjustment) {
-        finalRate = finalRate * (1 + roomRate.percentageAdjustment / 100);
-      }
     }
 
     // Set rate for next 90 days

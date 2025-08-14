@@ -10,13 +10,11 @@ import RatePricingCalendar from "./RatePricingCalendar";
 import { toast } from "react-hot-toast";
 import type { RatePolicy } from "../../../types/types";
 import { useRatePolicies } from "../../../hooks/useRatePolicies";
+import DeleteConfirmationModal from "../../ui/DeleteConfirmationModal";
 
 export default function Ratepolicy() {
   // Use the rate policies hook
   const { ratePolicies, loading, refetch } = useRatePolicies();
-  
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -25,15 +23,29 @@ export default function Ratepolicy() {
   const [selectedPolicy, setSelectedPolicy] = useState<RatePolicy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [refundableFilter, setRefundableFilter] = useState<"all" | "refundable" | "non-refundable">("all");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [policyToDelete, setPolicyToDelete] = useState<RatePolicy | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Open delete modal
+  const openDeleteModal = (policy: RatePolicy) => {
+    setPolicyToDelete(policy);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Close delete modal
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setPolicyToDelete(null);
+  };
 
   // Delete rate policy
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this rate policy?")) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!policyToDelete) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetch(`${baseUrl}/admin/rate-policies/${id}`, {
+      const response = await fetch(`${baseUrl}/admin/rate-policies/${policyToDelete.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -45,8 +57,11 @@ export default function Ratepolicy() {
 
       toast.success("Rate policy deleted successfully");
       refetch(); // Refetch the data to update the list
+      closeDeleteModal();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete rate policy");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -72,27 +87,6 @@ export default function Ratepolicy() {
         <h1 className="text-2xl font-bold text-gray-900">Rate Policies</h1>
         <p className="mt-2 text-sm text-gray-600">Manage your hotel's rate policies</p>
       </div>
-
-      {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-green-700">{success}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <input
@@ -225,7 +219,7 @@ export default function Ratepolicy() {
                           <RiEdit2Line size={20} />
                         </button>
                         <button
-                          onClick={() => handleDelete(policy.id)}
+                          onClick={() => openDeleteModal(policy)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <RiDeleteBin6Line size={20} />
@@ -246,8 +240,6 @@ export default function Ratepolicy() {
           setIsCreateModalOpen={setIsCreateModalOpen}
           setRatePolicies={refetch} // Use refetch instead of setRatePolicies
           ratePolicies={ratePolicies}
-          setError={setError}
-          setSuccess={setSuccess}
         />
       )}
 
@@ -256,8 +248,6 @@ export default function Ratepolicy() {
           setIsUpdateModalOpen={setIsUpdateModalOpen}
           setRatePolicies={refetch} // Use refetch instead of setRatePolicies
           ratePolicies={ratePolicies}
-          setError={setError}
-          setSuccess={setSuccess}
           ratePolicy={selectedPolicy}
         />
       )}
@@ -268,6 +258,18 @@ export default function Ratepolicy() {
           ratePolicy={selectedPolicy}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDelete}
+        title="Delete Rate Policy"
+        itemName={policyToDelete?.name}
+        message={`Are you sure you want to delete the rate policy "${policyToDelete?.name}"? This action cannot be undone and will remove all associated pricing data.`}
+        confirmButtonText="Delete Rate Policy"
+        isLoading={isDeleting}
+      />
 
       {isPricingCalendarOpen && selectedPolicy && (
         <RatePricingCalendar

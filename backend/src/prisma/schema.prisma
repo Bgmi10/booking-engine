@@ -16,7 +16,7 @@ model User {
   role                      Role                   
   phone                     String?                   
   basePrice                 Float?
-  numberPlate               String?                     // License plate number for ANPR system
+  numberPlate               String?                   
   updatedAt                 DateTime                    @updatedAt
   assignedNotifications     Notification[]              @relation("AssignedNotifications")
   createdNotifications      Notification[]              @relation("CreatedNotifications")
@@ -45,12 +45,9 @@ model Room {
   allowsExtraBed    Boolean          @default(false) // Whether room allows extra bed
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
-  
-  // Channel sync tracking
   needsChannelSync      Boolean      @default(false)
   lastChannelSyncAt     DateTime?
   channelSyncFailCount  Int          @default(0)
-  
   images            RoomImage[]
   bookings          Booking[]
   holds             TemporaryHold[]
@@ -88,15 +85,12 @@ model Customer {
   stripeCustomerId    String?      
   updatedAt           DateTime            @updatedAt
   createdAt           DateTime            @default(now())
-  
-  // Added authentication fields
   accountActivated     Boolean             @default(false)
   emailVerified        Boolean             @default(false)
   emailVerifyToken     String?
   lastLogin            DateTime?
   password             String?
   temporaryAccessToken String?
-
   bookings            Booking[]
   paymentIntents      PaymentIntent[]
   groupName           String?
@@ -340,6 +334,7 @@ model RatePolicy {
   updatedAt             DateTime @updatedAt
   roomRates             RoomRate[]
   rateDatePrices        RateDatePrice[]
+  beds24RatePolicyMappings Beds24RatePolicyMapping[]
   
   @@index([needsChannelSync])
 }
@@ -369,16 +364,13 @@ model RateDatePrice {
   ratePolicyId    String
   room            Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   roomId          String
-  date            DateTime      // Specific date for pricing
-  price           Float         // Price for this specific date and rate policy
-  priceType       RatePriceType @default(ROOM_OVERRIDE) // Type of pricing override
-  isActive        Boolean       @default(true) // Can be disabled without deletion
-  
-  // Channel sync tracking
+  date            DateTime    
+  price           Float        
+  priceType       RatePriceType @default(ROOM_OVERRIDE) 
+  isActive        Boolean       @default(true)
   needsChannelSync      Boolean      @default(false)
   lastChannelSyncAt     DateTime?
   channelSyncFailCount  Int          @default(0)
-  
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   
@@ -1383,9 +1375,33 @@ model Beds24RoomMapping {
   
   // Relations
   room            Room      @relation(fields: [localRoomId], references: [id], onDelete: Cascade)
+  ratePolicyMappings Beds24RatePolicyMapping[]
   
   @@unique([localRoomId])
   @@unique([beds24RoomId])
   @@index([isActive, autoSync])
   @@index([needsSync])
+}
+
+model Beds24RatePolicyMapping {
+  id                    String              @id @default(uuid())
+  beds24RoomMappingId   String              // FK to Beds24RoomMapping
+  ratePolicyId          String              // FK to RatePolicy
+  priceSlot             Int                 @default(1) // p1, p2, p3... up to p16
+  markupPercent         Float?              // Optional channel-specific markup
+  channelRateCode       String?             // Optional rate code for channel mapping
+  priority              Int                 @default(0) // Display priority
+  isActive              Boolean             @default(true)
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  // Relations
+  beds24RoomMapping     Beds24RoomMapping   @relation(fields: [beds24RoomMappingId], references: [id], onDelete: Cascade)
+  ratePolicy            RatePolicy          @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
+  
+  @@unique([beds24RoomMappingId, ratePolicyId])
+  @@unique([beds24RoomMappingId, priceSlot])
+  @@index([isActive])
+  @@index([beds24RoomMappingId])
 }

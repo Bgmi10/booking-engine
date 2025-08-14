@@ -13,7 +13,8 @@ import {
   RiSettings3Line,
   RiDashboardLine,
   RiSettingsLine,
-  RiHistoryLine
+  RiHistoryLine,
+  RiPriceTag3Line
 } from 'react-icons/ri';
 import { format } from 'date-fns';
 import { baseUrl } from '../../../utils/constants';
@@ -24,6 +25,7 @@ import RoomMappingModal from './RoomMappingModal';
 import SyncSettingsModal from './SyncSettingsModal';
 import BookingsModal from './BookingsModal';
 import SyncOnboardingModal from './SyncOnboardingModal';
+import RatePolicyMappingModal from './RatePolicyMappingModal';
 import { toast } from 'react-hot-toast';
 
 interface DashboardStats {
@@ -75,6 +77,8 @@ export default function Beds24Manager() {
   const [showRoomMappingModal, setShowRoomMappingModal] = useState(false);
   const [showSyncSettingsModal, setShowSyncSettingsModal] = useState(false);
   const [showBookingsModal, setShowBookingsModal] = useState(false);
+  const [showRatePolicyModal, setShowRatePolicyModal] = useState(false);
+  const [selectedMapping, setSelectedMapping] = useState<RoomMapping | null>(null);
   const [showSyncOnboarding, setShowSyncOnboarding] = useState(false);
   
   // Sync form state
@@ -445,6 +449,16 @@ export default function Beds24Manager() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedMapping(mapping);
+                        setShowRatePolicyModal(true);
+                      }}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <RiPriceTag3Line className="w-3 h-3 mr-1" />
+                      Rate Policies
+                    </button>
                     {mapping.syncStatus === 'SYNCED' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <RiCheckLine className="w-3 h-3 mr-1" />
@@ -637,6 +651,18 @@ export default function Beds24Manager() {
         <BookingsModal
           isOpen={showBookingsModal}
           onClose={() => setShowBookingsModal(false)}
+        />
+      )}
+
+      {showRatePolicyModal && selectedMapping && (
+        <RatePolicyMappingModal
+          isOpen={showRatePolicyModal}
+          onClose={() => {
+            setShowRatePolicyModal(false);
+            setSelectedMapping(null);
+          }}
+          roomMapping={selectedMapping}
+          onUpdate={fetchRoomMappings}
         />
       )}
 

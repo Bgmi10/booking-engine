@@ -17,6 +17,7 @@ import RefundConfirmationModal from "./RefundConfirmationModal"
 import FutureRefundModal from "./FutureRefundModal"
 import toast from 'react-hot-toast';
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import RestoreConfirmationModal from "./RestoreConfirmationModal";
 import { usePaymentIntents } from "../../../hooks/usePaymentIntents";
 
 export default function BookingManagement() {
@@ -46,6 +47,8 @@ export default function BookingManagement() {
   const [refundPaymentIntent, setRefundPaymentIntent] = useState<PaymentIntent | null>(null);
   const [showFutureRefundModal, setShowFutureRefundModal] = useState(false);
   const [futureRefundPaymentIntent, setFutureRefundPaymentIntent] = useState<PaymentIntent | null>(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [restorePaymentIntent, setRestorePaymentIntent] = useState<PaymentIntent | null>(null);
 
   // Use the custom hooks for active and deleted payment intents
   const {
@@ -160,10 +163,28 @@ export default function BookingManagement() {
     setDeletePaymentIntent(null);
   };
 
-  const handleRestore = async (id: string) => {
+  const handleRestore = (paymentIntent: PaymentIntent) => {
+    setRestorePaymentIntent(paymentIntent);
+    setShowRestoreModal(true);
+  };
+
+  const confirmRestore = async () => {
+    if (!restorePaymentIntent) return;
+    
     setLoadingAction(true);
-    await restore(id);
-    setLoadingAction(false);
+    try {
+      await restore(restorePaymentIntent.id);
+      toast.success('Booking restored successfully');
+      setShowRestoreModal(false);
+      setRestorePaymentIntent(null);
+      if (selectedPaymentIntent?.id === restorePaymentIntent.id) {
+        setSelectedPaymentIntent(null);
+      }
+    } catch (error) {
+      toast.error('Failed to restore booking');
+    } finally {
+      setLoadingAction(false);
+    }
   };
 
   const updatePaymentIntent = async (id: string, data: PaymentIntent) => {
@@ -823,7 +844,7 @@ export default function BookingManagement() {
                 <div className="p-6">
                   <PaymentIntentDetailsView
                     onDelete={() => handleDeleteClick(selectedPaymentIntent)}
-                    onRestore={activeTab === "deleted" ? () => handleRestore(selectedPaymentIntent.id) : undefined}
+                    onRestore={activeTab === "deleted" ? () => handleRestore(selectedPaymentIntent) : undefined}
                     paymentIntent={selectedPaymentIntent}
                     paymentDetails={paymentDetails}
                     loadingPayment={loadingPayment}
@@ -975,6 +996,18 @@ export default function BookingManagement() {
         paymentIntent={deletePaymentIntent}
         isLoading={loadingAction}
         isSoftDeleted={activeTab === "deleted"}
+      />
+
+      {/* Restore Confirmation Modal */}
+      <RestoreConfirmationModal
+        isOpen={showRestoreModal}
+        onClose={() => {
+          setShowRestoreModal(false);
+          setRestorePaymentIntent(null);
+        }}
+        onRestore={confirmRestore}
+        paymentIntent={restorePaymentIntent}
+        isLoading={loadingAction}
       />
     </div>
   )

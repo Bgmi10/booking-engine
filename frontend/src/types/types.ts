@@ -96,10 +96,13 @@ export interface RateDatePrice {
   priceType: 'BASE_OVERRIDE' | 'ROOM_INCREASE' | 'ROOM_OVERRIDE';
   room: Room;
   isActive: boolean;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export interface RatePolicy {
   id: string;
+  basePrice: number;
   name: string;
   description: string;
   nightlyRate?: number;

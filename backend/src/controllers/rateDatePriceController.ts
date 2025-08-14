@@ -270,8 +270,10 @@ export const updateRatePolicyBasePrice = async (req: Request, res: Response) => 
     try {
       if (markForChannelSync && typeof markForChannelSync.ratePolicy === 'function') {
         await markForChannelSync.ratePolicy(ratePolicyId);
+        console.log(`[Rate Policy Update] Marked rate policy ${ratePolicyId} for channel sync after base price update to €${basePrice}`);
       }
     } catch (syncError) {
+      console.error('[Rate Policy Update] Failed to mark for channel sync:', syncError);
       // Completely ignore sync errors to protect existing functionality
     }
 

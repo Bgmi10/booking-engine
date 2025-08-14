@@ -1,5 +1,5 @@
 import { Calendar, RefreshCw } from "lucide-react"
-import type { PaymentIntentsListProps } from "../../../types/types"
+import type { PaymentIntent, PaymentIntentsListProps } from "../../../types/types"
 import PaymentIntentCard from "./PaymentIntentCard"
 import EnhancedPaymentIntentCard from "./EnhancedPaymentIntentCard"
 
@@ -33,7 +33,7 @@ export default function PaymentIntentsList({
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
   onRefresh?: () => void;
-  onRestore?: (id: string) => void;
+  onRestore?: (paymentIntent: PaymentIntent) => void;
   isDeletedTab?: boolean;
 }) {
   if (loading) {
@@ -80,7 +80,7 @@ export default function PaymentIntentsList({
             }
             onEdit={() => onEdit(paymentIntent)}
             onDelete={() => onDelete(paymentIntent)}
-            onRestore={onRestore ? () => onRestore(paymentIntent.id) : undefined}
+            onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
             isEditing={editingPaymentIntent === paymentIntent.id}
             editFormData={editFormData}
@@ -109,7 +109,7 @@ export default function PaymentIntentsList({
             }
             onEdit={() => onEdit(paymentIntent)}
             onDelete={() => onDelete(paymentIntent)}
-            onRestore={onRestore ? () => onRestore(paymentIntent.id) : undefined}
+            onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
             isEditing={editingPaymentIntent === paymentIntent.id}
             editFormData={editFormData}

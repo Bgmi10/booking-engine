@@ -17,6 +17,7 @@ import { UpdateRoomModal } from "./UpdateRoomModal"
 import { ManageImagesModal } from "./ManageImagesModal"
 import type { RatePolicy, RoomWithRates } from "../../../types/types"
 import { toast } from "react-hot-toast"
+import DeleteConfirmationModal from "../../ui/DeleteConfirmationModal"
 
 export default function Rooms() {
   // States
@@ -114,11 +115,8 @@ export default function Rooms() {
       
       // Update rooms state
       setRooms(rooms.filter(room => room.id !== roomId))
-      
-      // Close modal after success
-      setTimeout(() => {
-        setIsDeleteModalOpen(false)
-      }, 2000)
+      setIsDeleteModalOpen(false)
+
       
     } catch (error: any) {
       console.error(error)
@@ -446,12 +444,14 @@ export default function Rooms() {
     )
   }
   
-  // Modal for confirming room deletion
+  // Modal for confirming room deletion 
+  // Old DeleteRoomModal removed - now using reusable DeleteConfirmationModal from ui folder
+  /*
   const DeleteRoomModal = () => {
     if (!selectedRoom) return null
     
     return (
-      <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
           <div className="flex justify-between items-center border-b p-4">
             <h3 className="text-xl font-semibold text-gray-900">Delete Room</h3>
@@ -509,6 +509,7 @@ export default function Rooms() {
       </div>
     )
   }
+  */
 
   const togglePolicySelection = (policy: RatePolicy) => {
     setSelectedPolicies(prev => {
@@ -1100,7 +1101,20 @@ export default function Rooms() {
       )}
 
       {isViewModalOpen && <ViewRoomModal />}
-      {isDeleteModalOpen && <DeleteRoomModal />}
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedRoom(null);
+        }}
+        onConfirm={() => selectedRoom && deleteRoom(selectedRoom.id)}
+        title="Delete Room"
+        itemName={selectedRoom?.name}
+        message={`Are you sure you want to delete the room "${selectedRoom?.name}"? This action cannot be undone and will remove all associated data including images and rate configurations.`}
+        confirmButtonText="Delete Room"
+        isLoading={loadingAction}
+      />
       {isUpdateModalOpen && (
         <UpdateRoomModal
           //@ts-ignore

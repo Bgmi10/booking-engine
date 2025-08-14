@@ -463,6 +463,12 @@ export function CreateBookingModal({
             updatedItem.extraBedCount = 0;
             updatedItem.extraBedPrice = 0;
 
+            // Adjust adults count if it exceeds new room's max capacity
+            const newRoomMaxCapacity = getRoomMaxCapacity(roomDetails);
+            if (updatedItem.adults > newRoomMaxCapacity) {
+              updatedItem.adults = newRoomMaxCapacity;
+            }
+
             // Validate guest capacity for new room
             updatedItem = validateGuestCapacityForItem(updatedItem, updatedItem.adults);
           }
@@ -470,8 +476,9 @@ export function CreateBookingModal({
           // If adults count changes, validate capacity and handle extra bed logic
           if (field === "adults") {
             const roomMaxCapacity = getRoomMaxCapacity(updatedItem.roomDetails);
-            const sanitizedValue = Math.max(1, Math.min(roomMaxCapacity || getMaxGuestCapacity(), value));
-            updatedItem = validateGuestCapacityForItem(updatedItem, sanitizedValue);
+            // Only apply max limit, don't force to max value
+            const validatedValue = Math.min(value, roomMaxCapacity || getMaxGuestCapacity());
+            updatedItem = validateGuestCapacityForItem(updatedItem, validatedValue);
           }
 
           return updatedItem
@@ -487,10 +494,11 @@ export function CreateBookingModal({
       prev.map((item: any, i: number) => {
         if (i === bookingIndex) {
           // Reset all related states when switching rooms
+          const newRoomDetails = rooms.find((r) => r.id === roomId);
           const updatedItem = {
             ...item,
             selectedRoom: roomId,
-            roomDetails: rooms.find((r) => r.id === roomId),
+            roomDetails: newRoomDetails,
             showRoomAlternatives: false,
             alternativeRooms: [],
             hasExtraBed: false,
@@ -500,8 +508,13 @@ export function CreateBookingModal({
             selectedRateOption: {} // Reset rate option when changing rooms
           };
           
+          // Adjust adults count if it exceeds new room's max capacity
+          const newRoomMaxCapacity = getRoomMaxCapacity(newRoomDetails);
+          const adjustedAdults = Math.min(item.adults, newRoomMaxCapacity);
+          updatedItem.adults = adjustedAdults;
+          
           // Validate guest capacity for new room
-          return validateGuestCapacityForItem(updatedItem, item.adults);
+          return validateGuestCapacityForItem(updatedItem, adjustedAdults);
         }
         return item;
       })
