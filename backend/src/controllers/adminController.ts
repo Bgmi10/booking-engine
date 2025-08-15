@@ -945,6 +945,7 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
         }),
         taxAmount,
         totalAmount,
+        outstandingAmount: totalAmount, // Initial outstanding amount equals total amount
         createdByAdmin: true,
         adminUserId,
         adminNotes,
@@ -1159,6 +1160,7 @@ const collectCash = async (req: express.Request, res: express.Response) => {
         }),
         taxAmount,
         totalAmount,
+        outstandingAmount: totalAmount, // Initial outstanding amount equals total amount
         createdByAdmin: true,
         adminUserId,
         adminNotes: adminNotes || customerRequest || "Cash payment - pending confirmation",
@@ -1271,6 +1273,7 @@ const createBankTransfer = async (req: express.Request, res: express.Response) =
         }),
         taxAmount,
         totalAmount,
+        outstandingAmount: totalAmount, // Initial outstanding amount equals total amount
         createdByAdmin: true,
         adminUserId,
         adminNotes: adminNotes || customerRequest || "Bank transfer - pending confirmation",
@@ -1761,17 +1764,19 @@ const refund = async (req: express.Request, res: express.Response) => {
 const getAllPaymentIntent = async (req: express.Request, res: express.Response) => {
 
   try {
-    const paymentIntent = await prisma.paymentIntent.findMany({
-      where: { isSoftDeleted: false },
-      include: {
-        bookings: {
-          select: {
-            id: true,
-            request: true
-          }
+      const paymentIntent = await prisma.paymentIntent.findMany({
+        where: { isSoftDeleted: false },
+        include: {
+          bookings: {
+            select: {
+              id: true,
+              request: true
+            }
+          },
+          orders: true,
+          charges: true
         }
-      }
-    });
+      });
     responseHandler(res, 200, "success", paymentIntent);
   } catch (e) {
     console.log(e);
@@ -1818,13 +1823,7 @@ export const hardDeletePaymentIntent = async (req: express.Request, res: express
       responseHandler(res, 404, "Payment intent not found");
       return;
     }
-
-    if (!paymentIntent.isSoftDeleted) {
-      responseHandler(res, 400, "Payment intent must be soft deleted before hard delete");
-      return;
-    }
-
-    // Perform hard delete
+    
     await prisma.paymentIntent.delete({
       where: { id }
     });

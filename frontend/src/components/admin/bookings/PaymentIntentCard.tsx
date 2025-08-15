@@ -242,11 +242,28 @@ export default function PaymentIntentCard({
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-gray-900">€{Number(displayData.totalAmount).toFixed(2)}</div>
             <div className="text-sm text-gray-600">
               {totalBookings} booking{totalBookings !== 1 ? "s" : ""} • {totalNights} night
               {totalNights !== 1 ? "s" : ""}
             </div>
+            {/* Outstanding Balance */}
+            {(() => {
+              const outstandingAmount = paymentIntent.outstandingAmount || 0;
+              
+              // Show outstanding balance if there's any unpaid amount
+              if (outstandingAmount > 0) {
+                return (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                    <div className="text-xs text-amber-700 mb-1">Outstanding Amount:</div>
+                    <div className="text-lg font-bold text-amber-900">
+                      €{outstandingAmount.toFixed(2)}
+                    </div>
+                  </div>
+                );
+              }
+              
+              return null;
+            })()}
           </div>
         </div>
 

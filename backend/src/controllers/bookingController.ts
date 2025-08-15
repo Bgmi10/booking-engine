@@ -96,6 +96,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }),
         taxAmount,
         totalAmount: paymentAmount, // Amount to be paid now
+        outstandingAmount: originalAmount, // Initial outstanding amount equals original total amount
         paymentStructure: selectedPaymentStructure,
         prepaidAmount: issSplitPayment ? paymentAmount : null,
         remainingAmount: remainingAmount,

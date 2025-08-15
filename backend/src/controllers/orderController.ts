@@ -208,6 +208,23 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
         
         const total = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
+        // Find active PaymentIntent if assigning to room
+        let paymentIntentId = null;
+        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId) {
+            const activePaymentIntent = await prisma.paymentIntent.findFirst({
+                where: {
+                    customerId: customerId,
+                    status: 'SUCCEEDED',
+                    isSoftDeleted: false
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+            
+            if (activePaymentIntent) {
+                paymentIntentId = activePaymentIntent.id;
+            }
+        }
+
         const newOrder = await prisma.order.create({
             data: {
                 items,
@@ -215,7 +232,8 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                 status: 'PENDING',
                 locationNames,
                 customerId: customerId,
-                temporaryCustomerId: tempCustomerId
+                temporaryCustomerId: tempCustomerId,
+                paymentIntentId: paymentIntentId
             }
         });
         
@@ -226,6 +244,7 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                     description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
                     status: 'PENDING',
                     customerId: customerId,
+                    paymentIntentId: paymentIntentId,
                     orderId: newOrder.id,
                     createdBy: adminId
                 }

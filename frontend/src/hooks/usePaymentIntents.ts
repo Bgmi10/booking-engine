@@ -67,10 +67,6 @@ export const usePaymentIntents = (type: 'active' | 'deleted' = 'active', autoFet
   };
 
   const hardDeletePaymentIntent = async (id: string): Promise<boolean> => {
-    if (!confirm("Are you sure you want to permanently delete this payment intent? This action cannot be undone.")) {
-      return false;
-    }
-
     try {
       const response = await fetch(`${baseUrl}/admin/payment-intent/${id}/hard-delete`, {
         method: "DELETE",

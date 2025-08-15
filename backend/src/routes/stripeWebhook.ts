@@ -166,11 +166,16 @@ async function handleRefundCreated(event: Stripe.Event) {
                     const paymentIntentStatus = remainingBookings.length === 0 ? "REFUNDED" : "SUCCEEDED";
                     const refundStatusValue = remainingBookings.length === 0 ? "FULLY_REFUNDED" : "PARTIALLY_REFUNDED";
                     
+                    // Calculate new outstanding amount for partial refund
+                    const currentOutstanding = ourPaymentIntent.outstandingAmount || 0;
+                    const newOutstanding = currentOutstanding + refundAmount;
+                    
                     await tx.paymentIntent.update({
                         where: { id: ourPaymentIntent.id },
                         data: { 
                             status: paymentIntentStatus,
                             refundStatus: refundStatusValue,
+                            outstandingAmount: newOutstanding,
                             adminNotes: `Partial refund: €${refundAmount} for booking ${specificBookingId}. ${refund.metadata?.refundReason || "Refund processed"}`
                         }
                     });
@@ -181,11 +186,13 @@ async function handleRefundCreated(event: Stripe.Event) {
                 }
             } else if (isFullRefund || refund.metadata?.isFullRefund === 'true') {
                 // FULL REFUND: Update payment intent and all bookings
+                // For full refund, outstanding amount should be the total refund amount
                 await tx.paymentIntent.update({
                     where: { id: ourPaymentIntent.id },
                     data: { 
                         status: "REFUNDED",
                         refundStatus: "FULLY_REFUNDED",
+                        outstandingAmount: refundAmount,
                         adminNotes: refund.metadata?.refundReason || "Full refund processed"
                     }
                 });
@@ -928,11 +935,15 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                 ? "SUCCEEDED" // First payment complete, but booking may require second payment
                 : "SUCCEEDED"; // Full payment or second installment complete
                 
+            // Calculate outstanding amount - if payment succeeds, outstanding is 0
+            const outstandingAmount = 0;
+                
             await tx.paymentIntent.update({
                 where: { id: ourPaymentIntent.id },
                 data: { 
                     status: paymentIntentStatus,
                     paidAt: new Date(),
+                    outstandingAmount: outstandingAmount,
                     customer: { connect: { id: customer.id } }
                 }
             });
@@ -1013,6 +1024,33 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
                 orderId
             },
         });
+
+        // Update outstanding amount for related payment intent
+        if (charge.customerId) {
+            // Find any payment intents for this customer and update outstanding amounts
+            const customerPaymentIntents = await prisma.paymentIntent.findMany({
+                where: { 
+                    customerId: charge.customerId,
+                    status: 'SUCCEEDED',
+                    outstandingAmount: { gt: 0 }
+                }
+            });
+
+            // Reduce outstanding amount by the charge amount
+            for (const paymentIntent of customerPaymentIntents) {
+                const currentOutstanding = paymentIntent.outstandingAmount || 0;
+                const chargeAmount = stripePayment.amount / 100;
+                const newOutstanding = Math.max(0, currentOutstanding - chargeAmount);
+                
+                await prisma.paymentIntent.update({
+                    where: { id: paymentIntent.id },
+                    data: { outstandingAmount: newOutstanding }
+                });
+                
+                console.log(`Updated outstanding amount for PaymentIntent ${paymentIntent.id}: ${currentOutstanding} -> ${newOutstanding}`);
+                break; // Apply to first payment intent with outstanding balance
+            }
+        }
 
         if (orderId && type === "product_charge") {
             await prisma.order.update({

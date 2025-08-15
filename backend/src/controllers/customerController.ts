@@ -442,6 +442,22 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
 
         if (userType === 'CUSTOMER') {
             orderData.customerId = userId;
+            
+            // If assigning to room, find active PaymentIntent to link order
+            if (paymentMethod === 'ASSIGN_TO_ROOM') {
+                const activePaymentIntent = await prisma.paymentIntent.findFirst({
+                    where: {
+                        customerId: userId,
+                        status: 'SUCCEEDED',
+                        isSoftDeleted: false
+                    },
+                    orderBy: { createdAt: 'desc' }
+                });
+                
+                if (activePaymentIntent) {
+                    orderData.paymentIntentId = activePaymentIntent.id;
+                }
+            }
         } else if (userType === 'TEMP_CUSTOMER') {
             if (paymentMethod !== 'PAY_AT_WAITER') {
                 responseHandler(res, 403, "Temporary customers can only use the 'Pay at Waiter' payment method.");
@@ -463,12 +479,23 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
                 return;
             }
 
+            // Use the same activePaymentIntent we found for the order
+            const activePaymentIntent = await prisma.paymentIntent.findFirst({
+                where: {
+                    customerId: userId,
+                    status: 'SUCCEEDED',
+                    isSoftDeleted: false
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
             await prisma.charge.create({
                 data: {
                     amount: total,
                     description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
                     status: 'PENDING',
                     customerId: userId,
+                    paymentIntentId: activePaymentIntent?.id || null,
                     orderId: newOrder.id,
                     createdBy: userId
                 }

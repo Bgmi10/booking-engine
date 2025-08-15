@@ -1,9 +1,10 @@
-import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings } from "lucide-react"
+import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye } from "lucide-react"
 import type { PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
 import { baseUrl } from "../../../utils/constants"
 import CustomPartialRefundModal from "./CustomPartialRefundModal"
+import BookingOverviewModal from "./BookingOverviewModal"
 import { useState } from "react"
 
   export default function PaymentIntentDetailsView({
@@ -20,6 +21,7 @@ import { useState } from "react"
     isDeletedTab = false,
   }: PaymentIntentDetailsViewProps) {
     const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
+    const [showBookingOverviewModal, setShowBookingOverviewModal] = useState(false);
 
     const handleCustomRefundSuccess = () => {
       // Refresh the payment intent data
@@ -31,13 +33,20 @@ import { useState } from "react"
       <div className="space-y-6">
         {/* Customer Information */}
         <div className="bg-white rounded-lg border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
               <Users
               //@ts-ignore
               className="h-5 w-5" />
               Customer Information
             </h3>
+            <button
+              onClick={() => setShowBookingOverviewModal(true)}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View Full Details
+            </button>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -596,6 +605,12 @@ import { useState } from "react"
         onClose={() => setShowCustomPartialRefundModal(false)}
         paymentIntent={paymentIntent}
         onRefundSuccess={handleCustomRefundSuccess}
+      />
+
+      <BookingOverviewModal
+        isOpen={showBookingOverviewModal}
+        onClose={() => setShowBookingOverviewModal(false)}
+        paymentIntent={paymentIntent}
       />
       </>
     )

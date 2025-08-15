@@ -118,6 +118,8 @@ model Charge {
   createdBy             String   
   customerId            String?      
   customer              Customer?             @relation(fields: [customerId], references: [id])
+  paymentIntentId       String?
+  paymentIntent         PaymentIntent?        @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
   adminNotes            String?   
   orderId               String?               @unique
   order                 Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -241,6 +243,7 @@ model PaymentIntent {
   customerData          String          
   taxAmount             Float
   totalAmount           Float
+  outstandingAmount     Float?              // Outstanding amount customer owes us
   isSoftDeleted         Boolean?            @default(false)
   paymentStructure      PaymentStructure    @default(FULL_PAYMENT)
   prepaidAmount         Float?              // Amount paid upfront (30%)
@@ -265,6 +268,8 @@ model PaymentIntent {
   bookings              Booking[]        
   temporaryHolds        TemporaryHold[]
   payments              Payment[] 
+  orders                Order[]
+  charges               Charge[]
   voucherCode           String?           
   voucherDiscount       Float?            
   voucherUsages         VoucherUsage[]    
@@ -1066,6 +1071,8 @@ model Order {
   customerId          String?
   total               Float          @default(0)
   customer            Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  paymentIntentId     String?
+  paymentIntent       PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   items               Json

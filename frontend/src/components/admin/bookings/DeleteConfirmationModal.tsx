@@ -1,4 +1,4 @@
-import   { useState } from 'react';
+import   { useState, useEffect } from 'react';
 import { Trash2, AlertTriangle, X } from 'lucide-react';
 import { type PaymentIntent } from '../../../types/types';
 
@@ -23,10 +23,18 @@ export default function DeleteConfirmationModal({
 }: DeleteConfirmationModalProps) {
   const [deleteType, setDeleteType] = useState<'soft' | 'hard'>(isSoftDeleted ? 'hard' : 'soft');
 
+  // Update deleteType when modal opens or isSoftDeleted changes
+  useEffect(() => {
+    if (isOpen) {
+      setDeleteType(isSoftDeleted ? 'hard' : 'soft');
+    }
+  }, [isOpen, isSoftDeleted]);
+
   if (!isOpen || !paymentIntent) return null;
+  console.log(deleteType )
 
   const handleConfirm = () => {
-    if (deleteType === 'soft') {
+    if (deleteType === 'soft') {  
       onSoftDelete();
     } else {
       onHardDelete();
