@@ -58,9 +58,7 @@ export default function EnhancedPaymentIntentCard({
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
   const [loadingResend, setLoadingResend] = useState(false);
-  const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);
-
-  // Calculate totals like original component
+  const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);    
   const totalBookings = paymentIntent.bookingData?.length || 0;
   const totalNights = paymentIntent.bookingData?.reduce((sum, booking) => {
     const checkIn = new Date(booking.checkIn);

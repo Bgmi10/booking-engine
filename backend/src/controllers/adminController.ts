@@ -16,7 +16,6 @@ import { licensePlateCleanupService } from '../services/licensePlateCleanupServi
 import { findOrCreatePrice } from "../config/stripeConfig";
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
-import { FileWatcherEventKind } from "typescript";
 import { markForChannelSync } from '../cron/cron';
 
 dotenv.config();

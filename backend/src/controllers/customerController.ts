@@ -209,7 +209,27 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             if (activeBooking) {
                 // Existing customer found with matching surname and active booking
                 const customer = activeBooking.customer;
-                payload = { id: customer.id, email: customer.guestEmail, type: 'CUSTOMER' };
+                
+                // Find the PaymentIntent for this specific booking
+                const paymentIntent = await prisma.paymentIntent.findFirst({
+                    where: {
+                        customerId: customer.id,
+                        bookings: {
+                            some: {
+                                id: activeBooking.id
+                            }
+                        },
+                        status: 'SUCCEEDED',
+                        isSoftDeleted: false
+                    }
+                });
+                
+                payload = { 
+                    id: customer.id, 
+                    email: customer.guestEmail, 
+                    type: 'CUSTOMER',
+                    ...(paymentIntent && { paymentIntentId: paymentIntent.id })
+                };
                 customerData = customer;
             } else {
                 // No active booking found for this surname and room combination
@@ -226,7 +246,7 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
                  
-        responseHandler(res, 200, "Verification successful", { user: customerData, token: tokenJwt });
+        responseHandler(res, 200, "Verification successful", { user: customerData });
 
     } catch (e) {
         console.log(e);
@@ -424,7 +444,7 @@ export const customerLogout = async(req: express.Request, res: express.Response)
 
 export const createOrder = async(req: express.Request, res: express.Response) => {
     //@ts-ignore
-    const { id: userId, type: userType } = req.user;
+    const { id: userId, type: userType, paymentIntentId } = req.user;
     const { items, total, location, paymentMethod } = req.body;
 
     if (!items || !total || !location || !paymentMethod) {
@@ -443,20 +463,13 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
         if (userType === 'CUSTOMER') {
             orderData.customerId = userId;
             
-            // If assigning to room, find active PaymentIntent to link order
+            // If assigning to room, use paymentIntentId from JWT token
             if (paymentMethod === 'ASSIGN_TO_ROOM') {
-                const activePaymentIntent = await prisma.paymentIntent.findFirst({
-                    where: {
-                        customerId: userId,
-                        status: 'SUCCEEDED',
-                        isSoftDeleted: false
-                    },
-                    orderBy: { createdAt: 'desc' }
-                });
-                
-                if (activePaymentIntent) {
-                    orderData.paymentIntentId = activePaymentIntent.id;
+                if (!paymentIntentId) {
+                    responseHandler(res, 403, "No active booking found. Please log in again with your room details.");
+                    return;
                 }
+                orderData.paymentIntentId = paymentIntentId;
             }
         } else if (userType === 'TEMP_CUSTOMER') {
             if (paymentMethod !== 'PAY_AT_WAITER') {
@@ -479,27 +492,29 @@ export const createOrder = async(req: express.Request, res: express.Response) =>
                 return;
             }
 
-            // Use the same activePaymentIntent we found for the order
-            const activePaymentIntent = await prisma.paymentIntent.findFirst({
-                where: {
-                    customerId: userId,
-                    status: 'SUCCEEDED',
-                    isSoftDeleted: false
-                },
-                orderBy: { createdAt: 'desc' }
-            });
-
+            // Create the charge
             await prisma.charge.create({
                 data: {
                     amount: total,
                     description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
                     status: 'PENDING',
                     customerId: userId,
-                    paymentIntentId: activePaymentIntent?.id || null,
+                    paymentIntentId: paymentIntentId,
                     orderId: newOrder.id,
-                    createdBy: userId
                 }
             });
+
+            // Update PaymentIntent outstanding amount when room charge is created
+            if (paymentIntentId) {
+                await prisma.paymentIntent.update({
+                    where: { id: paymentIntentId },
+                    data: {
+                        outstandingAmount: {
+                            increment: total
+                        }   
+                    }
+                });
+            }
         }
 
         // Notify all services (WebSockets, Telegram, etc) via order event service

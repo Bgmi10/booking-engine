@@ -138,8 +138,6 @@ export default function IndividualBookingCard({
   const canRefund = booking.status === 'CONFIRMED' && booking.totalAmount && booking.totalAmount > 0;
   const isRefunded = booking.status === 'REFUNDED';
 
-  console.log(booking);
-
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
       {/* Header */}

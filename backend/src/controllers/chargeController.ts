@@ -512,6 +512,32 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
                 adminNotes: `Manually recorded transaction ID: ${transactionId} (${transactionId.startsWith('pi_') ? 'Payment Intent' : 'Charge'}). Stripe metadata stored for refund processing.`
             }
         });
+
+        // Update outstanding amount for related payment intents when manual transaction is recorded
+        if (!isTemporaryCustomer && customerId) {
+          const customerPaymentIntents = await prisma.paymentIntent.findMany({
+            where: { 
+              customerId: customerId,
+              status: 'SUCCEEDED',
+              outstandingAmount: { gt: 0 }
+            }
+          });
+
+          // Reduce outstanding amount by the charge amount
+          const chargeAmountInEur = chargeAmount / 100;
+          for (const paymentIntent of customerPaymentIntents) {
+            const currentOutstanding = paymentIntent.outstandingAmount || 0;
+            const newOutstanding = Math.max(0, currentOutstanding - chargeAmountInEur);
+            
+            await prisma.paymentIntent.update({
+              where: { id: paymentIntent.id },
+              data: { outstandingAmount: newOutstanding }
+            });
+            
+            // Exit after updating the first payment intent with outstanding amount
+            if (currentOutstanding >= chargeAmountInEur) break;
+          }
+        }
       if (orderId) {
         const orderEventService = (global as any).orderEventService;
         if (orderEventService) {
@@ -552,7 +578,7 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
     return;
   }
   try {
-    await prisma.charge.create({
+    const charge = await prisma.charge.create({
       data: {
         customerId: isTemporaryCustomer ? undefined : customerId,
         tempCustomerId: isTemporaryCustomer ? customerId : undefined,
@@ -565,6 +591,31 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
         createdBy: adminId
       }
     });
+
+    // Update outstanding amount for related payment intents when cash is collected
+    if (!isTemporaryCustomer && customerId) {
+      const customerPaymentIntents = await prisma.paymentIntent.findMany({
+        where: { 
+          customerId: customerId,
+          status: 'SUCCEEDED',
+          outstandingAmount: { gt: 0 }
+        }
+      });
+
+      // Reduce outstanding amount by the charge amount
+      for (const paymentIntent of customerPaymentIntents) {
+        const currentOutstanding = paymentIntent.outstandingAmount || 0;
+        const newOutstanding = Math.max(0, currentOutstanding - amount);
+        
+        await prisma.paymentIntent.update({
+          where: { id: paymentIntent.id },
+          data: { outstandingAmount: newOutstanding }
+        });
+        
+        // Exit after updating the first payment intent with outstanding amount
+        if (currentOutstanding >= amount) break;
+      }
+    }
     // If an orderId is provided, trigger the order delivered event
     if (orderId) {
       const orderEventService = (global as any).orderEventService;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, CreditCard, ShoppingCart, Calendar, MapPin, Users, Clock, DollarSign, FileText, AlertCircle, Plus, User } from 'lucide-react';
+import { X, CreditCard, MapPin, Users, DollarSign, FileText, AlertCircle, Plus, User } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import { format, differenceInDays } from 'date-fns';
 import OrderDetailsModal from '../customers/OrderDetailsModal';
@@ -7,6 +7,7 @@ import ChargeModal from '../customers/ChargeModal';
 import CreatorInfoModal from '../customers/CreatorInfoModal';
 import { useUserInfo } from '../../../hooks/useUserInfo';
 import type { Customer } from '../../../hooks/useCustomers';
+import type { Charge } from '../../../types/types';
 
 interface BookingOverviewModalProps {
   isOpen: boolean;
@@ -14,21 +15,9 @@ interface BookingOverviewModalProps {
   paymentIntent: any;
 }
 
-interface OrderData {
-  id: string;
-  items: any[];
-  status: string;
-  total: number;
-  locationNames: string[];
-  createdAt: string;
-  deliveredAt?: string;
-  charge?: any;
-}
-
 export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }: BookingOverviewModalProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'payments'>('overview');
-  const [orders, setOrders] = useState<OrderData[]>([]);
-  const [charges, setCharges] = useState<[]>([]);
+  const [charges, setCharges] = useState<Charge[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -40,16 +29,14 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
 
   // Parse customer data and set orders/charges from the new structure
   useEffect(() => {
-    if (paymentIntent && paymentIntent.customer) {
-      setCustomer(paymentIntent.customer);
-      // Set orders and charges from the customer object
-      if (paymentIntent.orders) {
-        setOrders(paymentIntent.orders);
-      }
+    if (paymentIntent) {
       if (paymentIntent.charges) {
         setCharges(paymentIntent.charges);
       }
-    } else if (paymentIntent && paymentIntent.customerData) {
+      
+      if (paymentIntent.customer) {
+        setCustomer(paymentIntent.customer);
+      } else if (paymentIntent.customerData) {
       // Create a customer object from customerData
       setCustomer({
         id: paymentIntent.customerId || '',
@@ -70,6 +57,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
         updatedAt: paymentIntent.updatedAt,
       } as Customer);
     }
+  }
   }, [paymentIntent]);
 
   // Refresh charges after adding a new payment
@@ -88,19 +76,8 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
     }
   }, [customer?.id]);
 
-  // Calculate outstanding balance
-  const calculateOutstandingBalance = () => {
-    const totalAmount = paymentIntent?.totalAmount || 0;
-    const paidCharges = charges.filter(c => c.status === 'SUCCEEDED' || c.status === 'PAID')
-      .reduce((sum, charge) => sum + charge.amount, 0);
-    
-    // If payment intent is already succeeded, include that amount as paid
-    const paymentIntentPaid = paymentIntent?.status === 'SUCCEEDED' ? paymentIntent.totalAmount : 0;
-    
-    return totalAmount - paidCharges - paymentIntentPaid;
-  };
-
-  const outstandingBalance = calculateOutstandingBalance();
+  // Get outstanding balance directly from PaymentIntent
+  const outstandingBalance = paymentIntent?.outstandingAmount || 0;
 
   const handleAddPayment = () => {
     setShowChargeModal(true);
@@ -137,14 +114,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-2xl font-bold text-amber-900">€{outstandingBalance.toFixed(2)}</span>
-                <button
-                  onClick={handleAddPayment}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 transition-colors"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Payment
-                </button>
+                <span className="text-2xl font-bold text-amber-900">€{outstandingBalance.toFixed(2)}</span> 
               </div>
             </div>
           </div>
@@ -347,7 +317,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
                   )}
 
                   {/* Show charges */}
-                  {charges.map((charge) => (
+                  {charges?.map((charge: Charge) => (
                     <div key={charge.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                       <div className="flex justify-between items-start mb-4">
                         <div>
@@ -390,7 +360,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
                             View Associated Order
                           </button>
                         )}
-                        {charge.createdBy && (
+                        {charge.createdBy ? (
                           <button
                             onClick={() => setCreatorIdForModal(charge.createdBy)}
                             className="text-gray-600 hover:text-gray-700 text-sm font-medium inline-flex items-center gap-2"
@@ -398,7 +368,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent }:
                             <User className="h-4 w-4" />
                             Created By
                           </button>
-                        )}
+                        ) : <span className='text-gray-600 hover:text-gray-700 text-sm font-medium inline-flex items-center gap-2'>Created By Customer</span>}
                       </div>
                     </div>
                   ))}

@@ -115,7 +115,7 @@ model Charge {
   stripePaymentIntentId String?   
   paymentMethod         String?   
   paymentUrl            String?            
-  createdBy             String   
+  createdBy             String? 
   customerId            String?      
   customer              Customer?             @relation(fields: [customerId], references: [id])
   paymentIntentId       String?

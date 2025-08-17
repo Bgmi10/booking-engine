@@ -168,6 +168,7 @@ export interface PaymentIntent {
   createdAt: string
   updatedAt: string
   paidAt?: string
+  outstandingAmount: number;
   expiresAt: string
   createdByAdmin: boolean
   adminNotes?: string
@@ -807,6 +808,7 @@ export interface PaymentIntentData {
   stripeSessionId?: string;
   stripePaymentIntentId?: string;
   totalAmount: number;
+  outstandingAmount: number;
   bookingData: any[];
   customerData: any;
   createdAt: string;
@@ -817,6 +819,18 @@ export interface PaymentIntentData {
   adminNotes?: string;
   actualPaymentMethod?: PaymentMethod;
   refundStatus?: RefundStatus;
+}
+
+export interface Charge {
+  id: string;
+  description: string;
+  status: "REFUNDED" | "SUCCEEDED" | "PAID",  
+  createdAt: string | Date;
+  currency: string;
+  amount: number;
+  paymentMethod: string;
+  orderId: string;
+  createdBy: string | null;
 }
 
 export interface EnhancedPaymentIntentCardProps {

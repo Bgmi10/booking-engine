@@ -184,6 +184,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button 
+                                    //@ts-ignore
                                         onClick={() => updateCartQuantity(item, category.isAvailable ?? false, -1, category.locations?.map(l => l.name))} 
                                         disabled={!isItemFullyAvailable || quantity === 0}
                                         className="text-red-500 disabled:opacity-20"
@@ -192,6 +193,7 @@ export default function ProductSelectionStep({ cart, setCart }: ProductSelection
                                     </button>
                                     <span className="font-bold text-lg w-6 text-center">{quantity}</span>
                                     <button 
+                                    //@ts-ignore
                                         onClick={() => updateCartQuantity(item, category.isAvailable ?? false, 1, category.locations?.map(l => l.name))} 
                                         disabled={!isItemFullyAvailable}
                                         className="text-green-500 disabled:opacity-20"

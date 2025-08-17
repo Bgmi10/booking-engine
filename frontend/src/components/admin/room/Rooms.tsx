@@ -7,8 +7,7 @@ import {
   RiEyeLine,
   RiCloseLine,
   RiEdit2Line,
-  RiImageAddLine,
-  RiErrorWarningLine
+  RiImageAddLine
 } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"

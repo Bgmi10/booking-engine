@@ -1,4 +1,4 @@
-import { X, ShoppingCart, Hash, Clock, Tag, DollarSign, Calendar, MapPin, User } from 'lucide-react';
+import { X, ShoppingCart, Hash, Clock, Tag, DollarSign, Calendar, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { baseUrl } from '../../../utils/constants';
 

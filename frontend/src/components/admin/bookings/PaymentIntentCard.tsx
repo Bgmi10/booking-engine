@@ -51,6 +51,8 @@ export default function PaymentIntentCard({
   onConfirmBooking,
   isDeletedTab = false,
 }: PaymentIntentCardProps) {
+
+
   const totalBookings = paymentIntent.bookingData.length
   const totalNights = paymentIntent.bookingData.reduce((sum, booking) => {
     const checkIn = new Date(booking.checkIn)

@@ -249,6 +249,18 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                     createdBy: adminId
                 }
             });
+
+            // Update PaymentIntent outstanding amount when room charge is created
+            if (paymentIntentId) {
+                await prisma.paymentIntent.update({
+                    where: { id: paymentIntentId },
+                    data: {
+                        outstandingAmount: {
+                            increment: total
+                        }
+                    }
+                });
+            }
         }
         
         const orderEventService = (global as any).orderEventService;
