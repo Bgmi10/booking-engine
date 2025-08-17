@@ -13,7 +13,7 @@ import { stripe } from "../config/stripeConfig";
 import { baseUrl } from "../utils/constants";
 import { dahuaService } from '../services/dahuaService';
 import { licensePlateCleanupService } from '../services/licensePlateCleanupService';
-import { findOrCreatePrice } from "../config/stripeConfig";
+import { findOrCreatePrice } from "../config/stripeConfig"; 
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from '../cron/cron';

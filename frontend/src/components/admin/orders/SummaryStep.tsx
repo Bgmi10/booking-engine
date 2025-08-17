@@ -13,9 +13,10 @@ interface SummaryStepProps {
   customer: Customer | null;
   guestName: string;
   paymentMethod: 'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | null;
+  selectedPaymentIntent?: any;
 }
 
-export default function SummaryStep({ cart, customer, guestName, paymentMethod }: SummaryStepProps) {
+export default function SummaryStep({ cart, customer, guestName, paymentMethod, selectedPaymentIntent }: SummaryStepProps) {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
@@ -41,6 +42,13 @@ export default function SummaryStep({ cart, customer, guestName, paymentMethod }
           <p className="text-gray-900 font-medium">
             {paymentMethod === 'ASSIGN_TO_ROOM' ? 'Charge to Room' : 'Pay at Waiter'}
           </p>
+          {paymentMethod === 'ASSIGN_TO_ROOM' && selectedPaymentIntent && (
+            <div className="mt-2 text-sm text-gray-600">
+              {selectedPaymentIntent.bookings?.map((booking: any) => (
+                <p key={booking.id}>Room: {booking.room?.name || 'Unknown'} (Booking: {selectedPaymentIntent.id.slice(-8)})</p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Items */}

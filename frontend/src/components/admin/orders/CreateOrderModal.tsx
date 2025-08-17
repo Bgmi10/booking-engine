@@ -5,8 +5,8 @@ import PaymentStep from './PaymentStep';
 import SummaryStep from './SummaryStep';
 import { BsArrowLeft, BsArrowRight } from 'react-icons/bs';
 import toast from 'react-hot-toast';
-import type { Customer } from '../../../hooks/useCustomers';
 import { baseUrl } from '../../../utils/constants';
+import type { Customer } from '../../../hooks/useCustomers';
 
 type Step = 'products' | 'customer' | 'payment' | 'summary';
 
@@ -27,6 +27,7 @@ export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
   const [temporaryGuestName, setTemporaryGuestName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'ASSIGN_TO_ROOM' | 'PAY_AT_WAITER' | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [selectedPaymentIntent, setSelectedPaymentIntent] = useState<any>(null);
 
   const handlePlaceOrder = async () => {
     setIsPlacingOrder(true);
@@ -41,6 +42,7 @@ export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
       customerId: selectedCustomer?.id,
       temporaryCustomerSurname: selectedCustomer ? undefined : temporaryGuestName,
       locationNames: uniqueLocationNames,
+      paymentIntentId: selectedPaymentIntent?.id,
     };
 
     try {
@@ -110,6 +112,8 @@ export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
           setSelectedCustomer={setSelectedCustomer}
           temporaryGuestName={temporaryGuestName}
           setTemporaryGuestName={setTemporaryGuestName}
+          selectedPaymentIntent={selectedPaymentIntent}
+          setSelectedPaymentIntent={setSelectedPaymentIntent}
           onNext={handleNext}
         />;
       case 'payment':
@@ -124,6 +128,7 @@ export default function CreateOrderModal({ onClose }: { onClose: () => void }) {
           customer={selectedCustomer}
           guestName={temporaryGuestName}
           paymentMethod={paymentMethod}
+          selectedPaymentIntent={selectedPaymentIntent}
         />;
       default:
         return null;

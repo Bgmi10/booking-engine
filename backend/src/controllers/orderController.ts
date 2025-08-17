@@ -168,7 +168,7 @@ export const getPendingHybridOrdersForWaiter = async (req: express.Request, res:
 };
 
 export const createAdminOrder = async (req: express.Request, res: express.Response) => {
-    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationNames } = req.body;
+    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationNames, paymentIntentId } = req.body;
     //@ts-ignore
     const { id: adminId } = req.user;
 
@@ -208,9 +208,9 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
         
         const total = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
-        // Find active PaymentIntent if assigning to room
-        let paymentIntentId = null;
-        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId) {
+        // Use provided paymentIntentId or find active PaymentIntent if assigning to room
+        let finalPaymentIntentId = paymentIntentId;
+        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId && !finalPaymentIntentId) {
             const activePaymentIntent = await prisma.paymentIntent.findFirst({
                 where: {
                     customerId: customerId,
@@ -221,7 +221,7 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
             });
             
             if (activePaymentIntent) {
-                paymentIntentId = activePaymentIntent.id;
+                finalPaymentIntentId = activePaymentIntent.id;
             }
         }
 
@@ -233,7 +233,7 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                 locationNames,
                 customerId: customerId,
                 temporaryCustomerId: tempCustomerId,
-                paymentIntentId: paymentIntentId
+                paymentIntentId: finalPaymentIntentId
             }
         });
         
@@ -244,16 +244,16 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                     description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
                     status: 'PENDING',
                     customerId: customerId,
-                    paymentIntentId: paymentIntentId,
+                    paymentIntentId: finalPaymentIntentId,
                     orderId: newOrder.id,
                     createdBy: adminId
                 }
             });
 
             // Update PaymentIntent outstanding amount when room charge is created
-            if (paymentIntentId) {
+            if (finalPaymentIntentId) {
                 await prisma.paymentIntent.update({
-                    where: { id: paymentIntentId },
+                    where: { id: finalPaymentIntentId },
                     data: {
                         outstandingAmount: {
                             increment: total

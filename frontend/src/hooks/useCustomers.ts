@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { baseUrl } from "../utils/constants";
+import type { PaymentIntentData } from "../types/types";
 
 export interface Customer {
   id: string;
@@ -12,6 +13,7 @@ export interface Customer {
   vipStatus?: boolean;
   totalNightStayed?: number;
   totalMoneySpent?: number;
+  paymentIntents?: PaymentIntentData[];
 }
 
 export function useCustomers() {

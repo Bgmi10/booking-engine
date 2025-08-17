@@ -3,7 +3,7 @@ import { handleError, responseHandler } from "../utils/helper";
 import prisma from "../prisma";
 
 export const createOrderCategory = async (req: express.Request, res: express.Response) => {
-    const { description, name, imageUrl, isAvailable, orderItemIds, availabilityRule } = req.body;
+    const { description, name, imageUrl, isAvailable, onlyForAdmin, orderItemIds, availabilityRule } = req.body;
 
     if (!name || !imageUrl) {
         responseHandler(res, 400, "Name and image are required");
@@ -17,6 +17,7 @@ export const createOrderCategory = async (req: express.Request, res: express.Res
                 description,
                 imageUrl,
                 isAvailable,
+                onlyForAdmin,
                 orderItems: {
                     connect: orderItemIds ? orderItemIds.map((id: string) => ({ id })) : []
                 },
@@ -45,7 +46,7 @@ export const getAllOrderCategories = async (req: express.Request, res: express.R
         const orderCategories = await prisma.orderCategory.findMany({
             include: { availabilityRule: true, orderItems: true, locations: {
                 select: {
-                    name: true
+                    name: true  
                 }
             } }
         });
@@ -59,7 +60,7 @@ export const getAllOrderCategories = async (req: express.Request, res: express.R
 
 export const updateOrderCategory = async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
-    const { name, description, imageUrl, isAvailable, orderItemIds, availabilityRule } = req.body;
+    const { name, description, imageUrl, isAvailable, orderItemIds, availabilityRule, onlyForAdmin } = req.body;
 
     if (!id) {
         responseHandler(res, 400, "Missing category ID");
@@ -71,7 +72,8 @@ export const updateOrderCategory = async (req: express.Request, res: express.Res
         if (name !== undefined) updateData.name = name;
         if (description !== undefined) updateData.description = description;
         if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
-        if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
+        if (isAvailable !== undefined) updateData.isAvailable = isAvailable;    
+        if (onlyForAdmin !== undefined) updateData.onlyForAdmin = onlyForAdmin;
 
         if (availabilityRule !== undefined) {
             const existingRule = await prisma.availabilityRule.findFirst({

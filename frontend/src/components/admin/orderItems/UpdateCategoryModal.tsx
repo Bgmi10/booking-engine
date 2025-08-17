@@ -35,6 +35,7 @@ export default function UpdateCategoryModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
+  const [onlyForAdmin, setOnlyForAdmin] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [allProducts, setAllProducts] = useState<OrderItem[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<OrderItem[]>([]);
@@ -61,6 +62,7 @@ export default function UpdateCategoryModal({
       setName(category.name);
       setDescription(category.description);
       setIsAvailable(category.isAvailable);
+      setOnlyForAdmin(category.onlyForAdmin || false);
       setSelectedProducts(category.orderItems.map((p) => p.id));
 
       if (category.availabilityRule) {
@@ -159,6 +161,7 @@ export default function UpdateCategoryModal({
       description,
       imageUrl: images[0],
       isAvailable,
+      onlyForAdmin,
       orderItemIds: selectedProducts,
       availabilityRule: hasAvailabilityRule ? {
         ...availabilityRule,
@@ -399,6 +402,22 @@ export default function UpdateCategoryModal({
                   className="ml-2 block text-sm text-gray-900"
                 >
                   Is Available
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="onlyForAdmin"
+                  checked={onlyForAdmin}
+                  onChange={(e) => setOnlyForAdmin(e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label
+                  htmlFor="onlyForAdmin"
+                  className="ml-2 block text-sm text-gray-900"
+                >
+                  Admin Only (Hide from customers)
                 </label>
               </div>
             </div>

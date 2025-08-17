@@ -101,7 +101,31 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
 
 export const getAllCustomers = async (req: express.Request, res: express.Response) => {
     try {
-        const customers = await prisma.customer.findMany({});
+        const customers = await prisma.customer.findMany({
+            include: {
+                paymentIntents: {
+                    where: {
+                        status: 'SUCCEEDED',
+                        isSoftDeleted: false
+                    },
+                    include: {
+                        bookings: {
+                            include: {
+                                room: {
+                                    select: {
+                                        id: true,
+                                        name: true
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
+                }
+            }
+        });
         responseHandler(res, 200, "success", customers);
     } catch (e) {
         console.log(e);
@@ -367,7 +391,9 @@ export const getCustomerChargePayments = async (req: express.Request, res: expre
 }
 
 export const getOrderItemsByLocation =  async (req: express.Request, res: express.Response) => {
-    const { location } = req.query;
+    const { location, isAdmin } = req.query;
+
+    console.log(typeof isAdmin)
 
     if (!location) {
         responseHandler(res, 400, "location is required.");
@@ -379,6 +405,9 @@ export const getOrderItemsByLocation =  async (req: express.Request, res: expres
             where: { name: location as string },
             include: {
                 orderCategories: {
+                    where: {
+                        onlyForAdmin: false
+                    },
                     include: {
                         orderItems: true,
                         availabilityRule: true

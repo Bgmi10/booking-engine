@@ -262,10 +262,13 @@ export interface PaymentIntentCardProps {
   isDeletedTab?: boolean;
 }
 
-
 export interface CustomerData {
+  id?: string;
   surname?: string;
   email: string
+  guestFirstName?: string;
+  guestLastName?: string;
+  guestEmail?: string | undefined | any;
   firstName: string
   lastName: string
   middleName?: string
@@ -279,6 +282,7 @@ export interface CustomerData {
   anniversaryDate: string,
   vipStatus: boolean,
   totalNigthsStayed: number;
+  paymentIntents?: PaymentIntentData[]
   totalMoneySpent: number
   orders: any
 }
@@ -434,6 +438,7 @@ export interface Category {
   description: string;
   imageUrl: string;
   isAvailable: boolean;
+  onlyForAdmin: boolean;
   orderItems: OrderItem[];
   createdAt: string;
   availabilityRule: any | null;

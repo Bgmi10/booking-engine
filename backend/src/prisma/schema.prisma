@@ -779,6 +779,7 @@ model OrderCategory {
   imageUrl          String
   orderItems        OrderItem[]
   isAvailable       Boolean?     @default(true)
+  onlyForAdmin      Boolean      @default(false)
   availabilityRule  AvailabilityRule?
   locations         Location[]
 }

@@ -64,7 +64,7 @@ export default function Order() {
 
     const fetchOrderCategories = async () => {
         try {
-            const response = await fetch(`${baseUrl}/customers/order-items?location=${location}`);
+            const response = await fetch(`${baseUrl}/customers/order-items?location=${location}&isAdmin=false`);
             const data = await response.json();
             if (response.ok) {
                 setCategories(data.data.orderCategories || []);
