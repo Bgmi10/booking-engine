@@ -16,7 +16,7 @@ import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCusto
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { createBookingsGroup } from "../controllers/groupController";
-import { chargeNewCard, chargeSaveCard, collectCashFromCustomer, createQrSession, getChargeById, refundCharge } from "../controllers/chargeController";
+import { chargeNewCard, chargeSaveCard, collectCashFromCustomer, createQrSession, getChargeById, getPaymentIntentCharges, refundCharge } from "../controllers/chargeController";
 import { createManualTransactionCharge } from "../controllers/chargeController";
 import { getNotifications, getNotificationById, createNotification, updateNotification, completeNotification, deleteNotification, getDailyActionList, deleteNotificationAttachment } from '../controllers/notificationController';
 import { getAutomatedTaskRules, createAutomatedTaskRule, updateAutomatedTaskRule, deleteAutomatedTaskRule } from '../controllers/automatedTaskRuleController';
@@ -256,6 +256,8 @@ adminRouter.post('/charges/create-qr-session', authMiddleware, createQrSession);
 adminRouter.post('/charges/manual-transaction', authMiddleware, createManualTransactionCharge);
 
 adminRouter.get('/charges/:id', authMiddleware, getChargeById);
+
+adminRouter.get('/payment-intents/:id/charges', authMiddleware, getPaymentIntentCharges);
 
 adminRouter.post('/charges/:id/refund', authMiddleware, refundCharge);
 

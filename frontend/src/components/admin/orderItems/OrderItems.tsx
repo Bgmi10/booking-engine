@@ -184,7 +184,7 @@ export default function OrderItems() {
     name: string
     description: string
     price: number
-    imageUrl: string
+    imageUrl?: string
     role: string
   }) => {
     setLoadingAction(true)
@@ -232,7 +232,7 @@ export default function OrderItems() {
     name: string
     description: string
     price: number
-    imageUrl: string
+    imageUrl?: string
     role: string
   }) => {
     if (!selectedOrderItem) return

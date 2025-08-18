@@ -3,7 +3,7 @@ import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Calendar,
   CreditCard,
-  DollarSign,
+  DollarSign, 
   Eye,
   Mail,
   Users,
@@ -55,7 +55,6 @@ export default function EnhancedPaymentIntentCard({
   const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
-  const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
   const [loadingResend, setLoadingResend] = useState(false);
   const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);    
@@ -472,8 +471,6 @@ export default function EnhancedPaymentIntentCard({
 
               {/* Cancel & Refund with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
-                <>
-                  {showConfirmRefund ? (
                     <>
                       <button
                         onClick={() => onRefund?.(paymentIntent)}
@@ -481,27 +478,8 @@ export default function EnhancedPaymentIntentCard({
                         className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
                       >
                         {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
-                        {loadingAction ? 'Processing...' : 'Confirm Refund'}
+                        {loadingAction ? 'Processing...' : 'Refund'}
                       </button>
-                      <button
-                        onClick={() => setShowConfirmRefund(false)}
-                        className="text-sm text-gray-600 underline"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setShowConfirmRefund(true)}
-                      disabled={loadingAction}
-                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700 transition-colors"
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      {paymentIntent.actualPaymentMethod === "CASH" || paymentIntent.actualPaymentMethod === "BANK_TRANSFER" || 
-                       paymentIntent.paymentMethod === "CASH" || paymentIntent.paymentMethod === "BANK_TRANSFER" 
-                       ? "Manual Refund" : "Cancel & Refund"}
-                    </button>
-                  )}
                 </>
               )}
 

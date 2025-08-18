@@ -6,7 +6,7 @@ import { findOrCreatePrice } from "../config/stripeConfig";
 import { sendChargeConfirmationEmail } from "../services/emailTemplate";
 
 export const chargeSaveCard = async (req: express.Request, res: express.Response) => {
-   const { customerId, paymentMethodId, amount, description, currency, orderId } = req.body;
+   const { customerId, paymentMethodId, amount, description, currency, orderId, paymentIntentId, adminNotes } = req.body;
    //@ts-ignore
    const { id: userId } = req.user;;
 
@@ -29,14 +29,28 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
             amount,
             description,
             customerId,
+            paymentIntentId,
             currency,
             status: "PENDING",
             createdBy: userId,
             expiredAt: new Date(Date.now() + 10 * 60 * 1000),
             paymentMethod: "CARD",
             orderId,
+            adminNotes,
         }
       })
+      
+      // Increase outstanding amount when charge is created
+      if (paymentIntentId) {
+        await prisma.paymentIntent.update({
+          where: { id: paymentIntentId },
+          data: {
+            outstandingAmount: {
+              increment: parseFloat(amount)
+            }
+          }
+        });
+      }
       const stripePaymentIntents = await stripe.paymentIntents.create({
         amount: Math.round(parseFloat(amount) * 100), // Amount in cents
         currency: "eur",
@@ -68,7 +82,7 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
 }
 
 export const chargeNewCard = async (req: express.Request, res: express.Response) => {
-  const { customerId, paymentMethodId, amount, description, currency } = req.body;
+  const { customerId, paymentMethodId, amount, description, currency, paymentIntentId, adminNotes } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;;
 
@@ -100,13 +114,27 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
         amount: parseFloat(amount),
         description: description || "Ad-hoc charge (new card)",
         customerId: existingCustomer.id,
+        paymentIntentId,
         currency: currency || "eur",
         status: "PENDING",
         createdBy: userId,
         expiredAt: new Date(Date.now() + 10 * 60 * 1000),
         paymentMethod: "CARD",
+        adminNotes,
       },
     });
+    
+    // Increase outstanding amount when charge is created
+    if (paymentIntentId) {
+      await prisma.paymentIntent.update({
+        where: { id: paymentIntentId },
+        data: {
+          outstandingAmount: {
+            increment: parseFloat(amount)
+          }
+        }
+      });
+    }
 
     // 5. Create and confirm the Payment Intent using the newly attached card
     const stripePaymentIntent = await stripe.paymentIntents.create({
@@ -149,7 +177,7 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
 };
 
 export const createQrSession = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt, type, orderId, isTemporaryCustomer = false } = req.body;
+  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt, type, orderId, isTemporaryCustomer = false, paymentIntentId, adminNotes } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;
 
@@ -198,13 +226,27 @@ export const createQrSession = async (req: express.Request, res: express.Respons
         description: description || (isHostedInvoice ? "Hosted Invoice Payment" : "QR Code Payment"),
         customerId: isTemporaryCustomer ? undefined : customerId,
         tempCustomerId: isTemporaryCustomer ? customerId : undefined,
+        paymentIntentId: paymentIntentId,
         currency: currency || "eur",
         status: "PENDING",
         createdBy: userId,
         expiredAt: expirationDate,
         paymentMethod: isHostedInvoice ? "HOSTED_INVOICE" : "QR_CODE",
+        adminNotes,
       },
     });
+    
+    // Increase outstanding amount when charge is created
+    if (paymentIntentId) {
+      await prisma.paymentIntent.update({
+        where: { id: paymentIntentId },
+        data: {
+          outstandingAmount: {
+            increment: parseFloat(amount)
+          }
+        }
+      });
+    }
     
     const priceId = await findOrCreatePrice({
         name: description || "QR Code Payment",
@@ -354,9 +396,33 @@ export const checkChargeStatus = async (req: express.Request, res: express.Respo
     }
 }
 
+export const getPaymentIntentCharges = async (req: express.Request, res: express.Response) => {
+    const { id } = req.params;
+
+    if (!id) {
+        responseHandler(res, 400, "PaymentIntent ID is required");
+        return;
+    }
+
+    try {
+        const charges = await prisma.charge.findMany({
+            where: { paymentIntentId: id },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        responseHandler(res, 200, "Charges fetched successfully", { charges });
+    } catch (error) {
+        console.error("Error fetching charges:", error);
+        handleError(res, error as Error);
+    }
+};
+
 export const refundCharge = async (req: express.Request, res: express.Response) => {
     const { id } = req.params; 
     const { paymentMethod } = req.query;
+    const { refundReason } = req.body; // Get refund reason from request body
+    //@ts-ignore
+    const { id: userId } = req.user; // Get admin user ID
 
     try {
         const charge = await prisma.charge.findUnique({ where: { id } });
@@ -377,9 +443,14 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
                 where: { id },
                 data: {
                     status: "REFUNDED",
-                    adminNotes: (charge.adminNotes ? charge.adminNotes + "\n" : "") + `Cash refund processed on ${new Date().toISOString()}.`
+                    refundInitiatedBy: userId,
+                    refundReason: refundReason || "Cash refund processed",
+                    refundedAt: new Date()
                 }
             });
+            
+            // Note: Refunds don't affect outstanding amount - they only return already paid money
+            
             responseHandler(res, 200, "Cash charge refunded successfully.", { chargeId: refundedCharge.id, status: refundedCharge.status });
             return;
         }
@@ -403,7 +474,7 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
 }
 
 export const createManualTransactionCharge = async (req: express.Request, res: express.Response) => {
-  const { customerId, transactionId, description, orderId, isTemporaryCustomer } = req.body;
+  const { customerId, transactionId, description, orderId, isTemporaryCustomer, paymentIntentId } = req.body;
     // @ts-ignore
     const { id: userId } = req.user;
     if (!customerId || !transactionId) {
@@ -501,6 +572,7 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
                 description: description || chargeDescription || `Manual transaction: ${transactionId}`,
           customerId: isTemporaryCustomer ? undefined : customerId,
           tempCustomerId: isTemporaryCustomer ? customerId : undefined,
+          paymentIntentId: paymentIntentId,
                 currency: chargeCurrency,
                 status: "SUCCEEDED", // Already paid
                 createdBy: userId,
@@ -513,31 +585,8 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
             }
         });
 
-        // Update outstanding amount for related payment intents when manual transaction is recorded
-        if (!isTemporaryCustomer && customerId) {
-          const customerPaymentIntents = await prisma.paymentIntent.findMany({
-            where: { 
-              customerId: customerId,
-              status: 'SUCCEEDED',
-              outstandingAmount: { gt: 0 }
-            }
-          });
-
-          // Reduce outstanding amount by the charge amount
-          const chargeAmountInEur = chargeAmount / 100;
-          for (const paymentIntent of customerPaymentIntents) {
-            const currentOutstanding = paymentIntent.outstandingAmount || 0;
-            const newOutstanding = Math.max(0, currentOutstanding - chargeAmountInEur);
-            
-            await prisma.paymentIntent.update({
-              where: { id: paymentIntent.id },
-              data: { outstandingAmount: newOutstanding }
-            });
-            
-            // Exit after updating the first payment intent with outstanding amount
-            if (currentOutstanding >= chargeAmountInEur) break;
-          }
-        }
+        // Note: Outstanding amount is not modified here - it was already increased when charge was created
+        // The webhook or separate payment confirmation will handle reducing outstanding when payment succeeds
       if (orderId) {
         const orderEventService = (global as any).orderEventService;
         if (orderEventService) {
@@ -570,7 +619,7 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
 };
 
 export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, orderId, isTemporaryCustomer } = req.body;
+  const { customerId, amount, description, orderId, isTemporaryCustomer, paymentIntentId, adminNotes } = req.body;
 //@ts-ignore
   const { id: adminId } = req.user;
   if (!customerId || !amount) {
@@ -582,40 +631,20 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
       data: {
         customerId: isTemporaryCustomer ? undefined : customerId,
         tempCustomerId: isTemporaryCustomer ? customerId : undefined,
+        paymentIntentId: paymentIntentId,
         amount,
         description,
         orderId: orderId,
         status: 'SUCCEEDED',
         paymentMethod: 'cash',
         paidAt: new Date(),
-        createdBy: adminId
+        createdBy: adminId,
+        adminNotes
       }
     });
 
-    // Update outstanding amount for related payment intents when cash is collected
-    if (!isTemporaryCustomer && customerId) {
-      const customerPaymentIntents = await prisma.paymentIntent.findMany({
-        where: { 
-          customerId: customerId,
-          status: 'SUCCEEDED',
-          outstandingAmount: { gt: 0 }
-        }
-      });
-
-      // Reduce outstanding amount by the charge amount
-      for (const paymentIntent of customerPaymentIntents) {
-        const currentOutstanding = paymentIntent.outstandingAmount || 0;
-        const newOutstanding = Math.max(0, currentOutstanding - amount);
-        
-        await prisma.paymentIntent.update({
-          where: { id: paymentIntent.id },
-          data: { outstandingAmount: newOutstanding }
-        });
-        
-        // Exit after updating the first payment intent with outstanding amount
-        if (currentOutstanding >= amount) break;
-      }
-    }
+    // Note: Cash charges are created with SUCCEEDED status, meaning they're already paid
+    // We should NOT increase outstanding amount for already-paid charges
     // If an orderId is provided, trigger the order delivered event
     if (orderId) {
       const orderEventService = (global as any).orderEventService;

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { baseUrl, paymentMethods } from '../../../utils/constants';
+import { useState } from 'react';
+import { paymentMethods } from '../../../utils/constants';
+import { useGeneralSettings } from '../../../hooks/useGeneralSettings';
 
 interface PaymentMethodSelectionProps {
     amount: string;
@@ -11,6 +12,7 @@ interface PaymentMethodSelectionProps {
     isProcessing: boolean;
     customerId: string;
     description?: string;
+    hideAmountDisplay?: boolean;
 }
 
 interface PaymentConfig {
@@ -22,58 +24,16 @@ interface PaymentConfig {
 }
 
 
-export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing }: PaymentMethodSelectionProps) {
+export default function PaymentMethodSelection({ amount, currency, onNext, isProcessing, hideAmountDisplay }: PaymentMethodSelectionProps) {
     const [selectedMethod, setSelectedMethod] = useState<string>('');
-    const [config, setConfig] = useState<PaymentConfig>({
-        qr_code: true,
-        hosted_invoice: true,
-        manual_charge: true,
-        manual_transaction_id: true,
-        cash: true,
-    });
-    const [isLoading, setIsLoading] = useState(true);
-    
-    const fetchConfigSettings = async () => {
-        try {
-            const response = await fetch(baseUrl + "/admin/settings", {
-                method: "GET",
-                credentials: "include"
-            });
-
-            const data = await response.json();
-            const paymentConfig = JSON.parse(data.data?.[0]?.chargePaymentConfig || '{}');
-            setConfig(prev => ({...prev, ...paymentConfig}));
-            
-            // Set the first active method as default selection
-            const activeMethods = paymentMethods.filter(method => paymentConfig[method.id as keyof PaymentConfig] !== false);
-            if (activeMethods.length > 0) {
-                setSelectedMethod(activeMethods[0].id);
-            }
-        } catch (e) {
-            console.log(e);
-            // Fallback to all methods enabled if config fails to load
-            setConfig({
-                qr_code: true,
-                hosted_invoice: true,
-                manual_charge: true,
-                manual_transaction_id: true,
-                cash: true,
-            });
-            setSelectedMethod(paymentMethods[0].id);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchConfigSettings();
-    }, []);
+    const { settings, loader } = useGeneralSettings();
+    const config = JSON.parse(settings?.chargePaymentConfig || '{}')
 
     const handleNextClick = async () => {
         onNext(selectedMethod);
     }
 
-    if (isLoading) {
+    if (loader) {
         return (
             <div className="flex flex-col h-full p-6 bg-white overflow-y-auto">
                 <div className="flex items-center justify-center h-full">
@@ -139,13 +99,15 @@ export default function PaymentMethodSelection({ amount, currency, onNext, isPro
             </div>
 
             <div className="mt-auto flex-shrink-0">
-                <p className="text-center text-sm text-gray-600 mb-4">
-                    {currency.symbol}{amount} will be charged to the payment method.
-                </p>
+                {!hideAmountDisplay && (
+                    <p className="text-center text-sm text-gray-600 mb-4">
+                        {currency.symbol}{amount} will be charged to the payment method.
+                    </p>
+                )}
                 <button
                     onClick={handleNextClick}
                     disabled={isProcessing || !selectedMethod || !hasActiveMethods}
-                    className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors text-lg cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full mt-3 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors text-lg cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                     {isProcessing ? 'Processing...' : 'Next'}
                 </button>

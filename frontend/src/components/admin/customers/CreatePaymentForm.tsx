@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import { ArrowLeft, X } from 'lucide-react';
 import CurrencySelectionModal, { currencies } from './CurrencySelectionModal';
@@ -11,12 +11,15 @@ interface CreatePaymentFormProps {
     customer: CustomerType;
     onBack: () => void;
     onClose: () => void;
+    paymentIntentId?: string;
 }
 
 const NumpadButton = ({ value, letters, onClick }: { value: string; letters?: string; onClick: (value: string) => void }) => (
     <button
         onClick={() => onClick(value)}
-        className="bg-gray-200/60 hover:bg-gray-300/60 text-gray-800 font-bold py-4 rounded-lg text-2xl transition-colors aspect-video"
+        className="bg-gray-200/60 hover:bg-gray-300/60 text-gray-800 font-bold py-4 rounded-lg text-2xl transition-colors aspect-video focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        tabIndex={0}
+        aria-label={`Number ${value}${letters ? ` with letters ${letters}` : ''}`}
     >
         {value}
         {letters && <div className="text-xs font-normal tracking-widest">{letters}</div>}
@@ -35,14 +38,16 @@ const BackspaceIcon = () => (
 const BackspaceButton = ({ onClick }: { onClick: () => void }) => (
     <button
         onClick={onClick}
-        className="bg-gray-200/60 hover:bg-gray-300/60 text-gray-800 font-bold py-4 rounded-lg flex justify-center items-center aspect-video"
+        className="bg-gray-200/60 hover:bg-gray-300/60 text-gray-800 font-bold py-4 rounded-lg flex justify-center items-center aspect-video focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        tabIndex={0}
+        aria-label="Backspace"
     >
         <BackspaceIcon />
     </button>
 );
 
-export default function CreatePaymentForm({ customer, onBack, onClose }: CreatePaymentFormProps) {
-    const [view, setView] = useState('amount_entry'); // amount_entry, payment_method, manual_transaction, hosted_invoice, qr_code, card_entry
+export default function CreatePaymentForm({ customer, onBack, onClose, paymentIntentId }: CreatePaymentFormProps) {
+    const [view, setView] = useState('payment_method'); // Start with payment method selection
     const [amount, setAmount] = useState('0');
     const [description, setDescription] = useState('');
     const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
@@ -70,22 +75,56 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
 
     const handleSelectCurrency = (currency: typeof currencies[0]) => {
         setCurrency(currency);
-        setIsCurrencyModalOpen(false);
+        setIsCurrencyModalOpen(false);  
     };
 
     const handleNextFromAmount = () => {
-        setView('payment_method');
+        handleAmountConfirmed();
     };
 
-    const handlePaymentMethodSelected = async (methodId: string, data?: any) => {
+    const handlePaymentMethodSelected = async (methodId: string) => {
         setSelectedPaymentMethod(methodId);
-
+        
+        // For all payment methods, move to amount entry first
+        setView('amount_entry');
+    };
+    
+    const handleAmountConfirmed = async () => {
+        // Process the payment based on the selected method
+        const methodId = selectedPaymentMethod;
+        
         if (methodId === 'cash') {
-            if (data?.success) {
-                onClose(); // Close the modal since payment is done
+            // Handle cash payment directly here
+            setIsProcessing(true);
+            try {
+                const response = await fetch(baseUrl + `/admin/charges/cash`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        customerId: customer.id,
+                        paymentIntentId: paymentIntentId,
+                        amount: parseFloat(amount),
+                        description: description || 'Cash payment',
+                        currency: currency.code,
+                    }),
+                });
+
+                const responseData = await response.json();
+
+                if (response.ok && responseData.success) {
+                    onClose(); // Close the modal since payment is done
+                } else {
+                    alert(responseData.message || 'Failed to process cash payment.');
+                }
+            } catch (error) {
+                console.error('Error processing cash payment:', error);
+                alert('An unexpected error occurred while processing the cash payment.');
+            } finally {
+                setIsProcessing(false);
             }
-            // If not successful, the user stays on the payment selection screen
-            // and the toast message is already shown by the child component.
             return;
         }
         
@@ -104,6 +143,7 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     credentials: 'include',
                     body: JSON.stringify({
                         customerId: customer.id,
+                        paymentIntentId: paymentIntentId,
                         amount: amount,
                         description: description,
                         currency: currency.code,
@@ -139,16 +179,18 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
     };
 
     const handleBack = () => {
-        if (view === 'payment_method') {
-            setView('amount_entry');
+        if (view === 'amount_entry') {
+            setView('payment_method');
         } else if (view === 'manual_transaction') {
-            setView('payment_method');
+            setView('amount_entry');
         } else if (view === 'hosted_invoice') {
-            setView('payment_method');
+            setView('amount_entry');
         } else if (view === 'qr_code') {
-            setView('payment_method');
+            setView('amount_entry');
         } else if (view === 'card_entry') {
-            setView('payment_method');
+            setView('amount_entry');
+        } else if (view === 'payment_method') {
+            onBack();
         } else {
             onBack();
         }
@@ -156,12 +198,65 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
 
     const displayAmount = amount === '0' ? '0' : amount;
 
+    // Handle keyboard input for amount entry
+    useEffect(() => {
+        const handleKeyPress = (event: KeyboardEvent) => {
+            // Only handle keyboard input when on amount entry view
+            if (view !== 'amount_entry') return;
+            
+            // Prevent keyboard input when description field is focused
+            const activeElement = document.activeElement;
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+
+            const key = event.key;
+            
+            // Handle number keys (0-9)
+            if (key >= '0' && key <= '9') {
+                event.preventDefault();
+                handleNumpadClick(key);
+            }
+            // Handle decimal point
+            else if (key === '.' || key === ',') {
+                event.preventDefault();
+                handleNumpadClick('.');
+            }
+            // Handle backspace/delete
+            else if (key === 'Backspace' || key === 'Delete') {
+                event.preventDefault();
+                handleBackspace();
+            }
+            // Handle Enter key to proceed to next
+            else if (key === 'Enter') {
+                event.preventDefault();
+                if (parseFloat(amount) > 0) {
+                    handleNextFromAmount();
+                }
+            }
+            // Handle Escape key to close
+            else if (key === 'Escape') {
+                event.preventDefault();
+                onClose();
+            }
+        };
+
+        // Add event listener
+        window.addEventListener('keydown', handleKeyPress);
+
+        // Cleanup
+        return () => {
+            window.removeEventListener('keydown', handleKeyPress);
+        };
+    }, [view, amount]); // Re-add listener when view or amount changes
+
     const renderView = () => {
         switch (view) {
             case 'manual_transaction':
                 return (
                     <ManualTransactionForm
                         customer={customer}
+                        paymentIntentId={paymentIntentId}
                         onBack={handleBack}
                         onClose={onClose}
                         isProcessing={isProcessing}
@@ -171,6 +266,7 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                 return (
                     <HostedInvoiceForm
                         customer={customer}
+                        paymentIntentId={paymentIntentId}
                         amount={amount}
                         currency={currency}
                         onBack={handleBack}
@@ -188,6 +284,7 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                         isProcessing={isProcessing}
                         customerId={customer.id}
                         description={description}
+                        hideAmountDisplay={true}
                     />
                 );
             case 'qr_code':
@@ -221,12 +318,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                     <>
                         <div className="flex-grow p-6 flex flex-col justify-between overflow-y-auto">
                             <div className="flex-shrink-0">
-                                {/* <div className="text-center mb-4">
-                                    <span className="text-gray-500 text-sm">Currency: </span>
-                                    <button onClick={() => setIsCurrencyModalOpen(true)} className="text-blue-600 font-semibold text-sm cursor-pointer">
-                                        {currency.code} &gt;
-                                    </button>
-                                </div> */}
                                 <div className="text-center mb-6">
                                     <span className="text-6xl font-light text-gray-800 flex items-center justify-center">
                                          <span className="text-4xl mr-1">{currency.symbol}</span>
@@ -246,11 +337,25 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="text-sm text-gray-600">Customer</label>
-                                    <div className="mt-1 font-semibold text-gray-800 text-lg">
-                                        {customer.guestFirstName} {customer.guestLastName}
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-sm text-gray-600">Customer</label>
+                                        <div className="mt-1 font-semibold text-gray-800 text-lg">
+                                            {customer.guestFirstName} {customer.guestLastName}
+                                        </div>
                                     </div>
+                                    {selectedPaymentMethod && (
+                                        <div>
+                                            <label className="text-sm text-gray-600">Payment Method</label>
+                                            <div className="mt-1 font-semibold text-gray-800">
+                                                {selectedPaymentMethod === 'cash' && 'Cash'}
+                                                {selectedPaymentMethod === 'qr_code' && 'QR Code'}
+                                                {selectedPaymentMethod === 'hosted_invoice' && 'Hosted Invoice'}
+                                                {selectedPaymentMethod === 'manual_transaction_id' && 'Manual Transaction'}
+                                                {selectedPaymentMethod === 'manual_charge' && 'Manual Card Charge'}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -258,8 +363,8 @@ export default function CreatePaymentForm({ customer, onBack, onClose }: CreateP
                                 <button
                                     onClick={handleNextFromAmount}
                                     className="cursor-pointer w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 text-lg"
-                                    disabled={parseFloat(amount) <= 0}>
-                                    Next
+                                    disabled={parseFloat(amount) <= 0 || isProcessing}>
+                                    {isProcessing ? 'Processing...' : selectedPaymentMethod === 'cash' ? 'Collect Cash' : 'Continue'}
                                 </button>
                             </div>
                         </div>

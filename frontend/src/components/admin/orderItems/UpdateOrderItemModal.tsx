@@ -21,7 +21,7 @@ interface UpdateOrderItemModalProps {
     name: string
     description: string
     price: number
-    imageUrl: string
+    imageUrl?: string
     role: string
   }) => Promise<void>
   orderItem: OrderItem | null
@@ -125,21 +125,20 @@ export default function UpdateOrderItemModal({
   }, [images.length, uploadImages])
 
   const handleSubmit = async () => {
-    // Use uploaded image if available, otherwise use the existing image
-    const imageUrl = images.length > 0 ? images[0] : orderItem?.imageUrl || ''
-    
-    if (!imageUrl) {
-      alert("Please upload at least one image")
-      return
-    }
-    
-    await onSubmit({
+    const submitData: any = {
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      imageUrl: imageUrl,
       role: formData.role
-    })
+    }
+    
+    // Use uploaded image if available, otherwise use the existing image
+    const imageUrl = images.length > 0 ? images[0] : orderItem?.imageUrl
+    if (imageUrl) {
+      submitData.imageUrl = imageUrl
+    }
+    
+    await onSubmit(submitData)
   }
 
   const handleClose = () => {
@@ -231,7 +230,7 @@ export default function UpdateOrderItemModal({
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image *
+                Image (Optional)
                 <span className="text-xs text-gray-500 ml-2">(Upload one new image or keep the current one)</span>
               </label>
               

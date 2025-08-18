@@ -64,7 +64,6 @@ export default function PaymentIntentCard({
   const displayData = isEditing && editFormData ? editFormData : paymentIntent
 
   const [showConfirmEmail, setShowConfirmEmail] = useState(false)
-  const [showConfirmRefund, setShowConfirmRefund] = useState(false)
   const [showConfirmBooking, setShowConfirmBooking] = useState(false)
   const [loadingResend, setLoadingResend] = useState(false);
   // Add handler for confirming as bank transfer
@@ -417,35 +416,14 @@ export default function PaymentIntentCard({
               {/* Cancel & Refund with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
                 <>
-                  {showConfirmRefund ? (
-                    <>
-                      <button
-                        onClick={onRefund}
-                        disabled={loadingAction}
-                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
-                      >
-                        {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
-                        {loadingAction ? 'Processing...' : 'Confirm Refund'}
-                      </button>
-                      <button
-                        onClick={() => setShowConfirmRefund(false)}
-                        className="text-sm text-gray-600 underline"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setShowConfirmRefund(true)}
-                      disabled={loadingAction}
-                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700 transition-colors"
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      {paymentIntent.actualPaymentMethod === "CASH" || paymentIntent.actualPaymentMethod === "BANK_TRANSFER" || 
-                       paymentIntent.paymentMethod === "CASH" || paymentIntent.paymentMethod === "BANK_TRANSFER" 
-                       ? "Manual Refund" : "Cancel & Refund"}
-                    </button>
-                  )}
+                  <button
+                    onClick={onRefund}
+                    disabled={loadingAction}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
+                  >
+                    {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
+                    {loadingAction ? 'Processing...' : 'Confirm Refund'}
+                  </button>
                 </>
               )}
 

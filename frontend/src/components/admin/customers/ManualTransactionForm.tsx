@@ -11,9 +11,10 @@ interface ManualTransactionFormProps {
     amount?: string;
     description?: string;
     orderId?: string;
+    paymentIntentId?: string;
 }
 
-export default function ManualTransactionForm({ customer, onBack, onClose, isProcessing, amount, description, orderId }: ManualTransactionFormProps) {
+export default function ManualTransactionForm({ customer, onBack, onClose, isProcessing, amount, description, orderId, paymentIntentId }: ManualTransactionFormProps) {
     const [transactionId, setTransactionId] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -36,6 +37,7 @@ export default function ManualTransactionForm({ customer, onBack, onClose, isPro
                 credentials: 'include',
                 body: JSON.stringify({
                     customerId: customer.id,
+                    paymentIntentId: paymentIntentId,
                     transactionId: transactionId.trim(),
                     amount: amount ? parseFloat(amount) : undefined,
                     description: description,

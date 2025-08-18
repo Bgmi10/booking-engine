@@ -5,7 +5,7 @@ import prisma from "../prisma";
 export const createOrderItem = async (req: express.Request, res: express.Response) => {
     const { name, description, price, imageUrl, role } = req.body;
 
-    if (!name || !description || !price || !imageUrl || !role) {
+    if (!name || !description || !price || !role) {
         responseHandler(res, 400, "Missing required fields");
         return;
     }

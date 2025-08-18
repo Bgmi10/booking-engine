@@ -166,16 +166,13 @@ async function handleRefundCreated(event: Stripe.Event) {
                     const paymentIntentStatus = remainingBookings.length === 0 ? "REFUNDED" : "SUCCEEDED";
                     const refundStatusValue = remainingBookings.length === 0 ? "FULLY_REFUNDED" : "PARTIALLY_REFUNDED";
                     
-                    // Calculate new outstanding amount for partial refund
-                    const currentOutstanding = ourPaymentIntent.outstandingAmount || 0;
-                    const newOutstanding = currentOutstanding + refundAmount;
+                    // Note: Outstanding amount remains unchanged - refunds don't affect what's still owed
                     
                     await tx.paymentIntent.update({
                         where: { id: ourPaymentIntent.id },
                         data: { 
                             status: paymentIntentStatus,
                             refundStatus: refundStatusValue,
-                            outstandingAmount: newOutstanding,
                             adminNotes: `Partial refund: €${refundAmount} for booking ${specificBookingId}. ${refund.metadata?.refundReason || "Refund processed"}`
                         }
                     });
@@ -186,13 +183,12 @@ async function handleRefundCreated(event: Stripe.Event) {
                 }
             } else if (isFullRefund || refund.metadata?.isFullRefund === 'true') {
                 // FULL REFUND: Update payment intent and all bookings
-                // For full refund, outstanding amount should be the total refund amount
+                // Note: Outstanding amount remains unchanged - refunds don't affect what's still owed
                 await tx.paymentIntent.update({
                     where: { id: ourPaymentIntent.id },
                     data: { 
                         status: "REFUNDED",
                         refundStatus: "FULLY_REFUNDED",
-                        outstandingAmount: refundAmount,
                         adminNotes: refund.metadata?.refundReason || "Full refund processed"
                     }
                 });
@@ -1026,8 +1022,27 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
         });
 
         // Update outstanding amount for related payment intent
-        if (charge.customerId) {
-            // Find any payment intents for this customer and update outstanding amounts
+        if (charge.paymentIntentId) {
+            // Update the specific payment intent linked to this charge
+            const paymentIntent = await prisma.paymentIntent.findUnique({
+                where: { id: charge.paymentIntentId },
+                select: { outstandingAmount: true }
+            });
+
+            if (paymentIntent && paymentIntent.outstandingAmount && paymentIntent.outstandingAmount > 0) {
+                const chargeAmount = stripePayment.amount / 100;
+                const currentOutstanding = paymentIntent.outstandingAmount;
+                const newOutstanding = Math.max(0, currentOutstanding - chargeAmount);
+                
+                await prisma.paymentIntent.update({
+                    where: { id: charge.paymentIntentId },
+                    data: { outstandingAmount: newOutstanding }
+                });
+                
+                console.log(`Updated outstanding amount for PaymentIntent ${charge.paymentIntentId}: ${currentOutstanding} -> ${newOutstanding}`);
+            }
+        } else if (charge.customerId) {
+            // Fallback to customer-based logic for charges without paymentIntentId
             const customerPaymentIntents = await prisma.paymentIntent.findMany({
                 where: { 
                     customerId: charge.customerId,

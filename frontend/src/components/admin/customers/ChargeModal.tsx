@@ -6,10 +6,12 @@ import CreatePaymentForm from "./CreatePaymentForm";
 interface ChargeModalProps {
     customer: CustomerType;
     onClose: () => void;
+    step?: string;
+    paymentIntentId?: string;
 }
 
-export default function ChargeModal({ customer, onClose }: ChargeModalProps) {
-    const [view, setView] = useState('options'); // 'options' or 'create_payment'
+export default function ChargeModal({ customer, onClose, step = "Charge a card or send an invoice", paymentIntentId }: ChargeModalProps) {
+    const [view, setView] = useState(step); // 'options' or 'create_payment'
 
     const handleOptionClick = (optionTitle: string) => {
         if (optionTitle === 'Charge a card or send an invoice') {
@@ -41,6 +43,7 @@ export default function ChargeModal({ customer, onClose }: ChargeModalProps) {
             <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4 transition-opacity">
                 <CreatePaymentForm
                     customer={customer}
+                    paymentIntentId={paymentIntentId}
                     onBack={() => setView('options')}
                     onClose={onClose}
                 />

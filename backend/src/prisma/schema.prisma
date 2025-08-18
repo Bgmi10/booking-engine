@@ -115,12 +115,15 @@ model Charge {
   stripePaymentIntentId String?   
   paymentMethod         String?   
   paymentUrl            String?            
-  createdBy             String? 
+  createdBy             String?   
   customerId            String?      
   customer              Customer?             @relation(fields: [customerId], references: [id])
   paymentIntentId       String?
   paymentIntent         PaymentIntent?        @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
   adminNotes            String?   
+  refundInitiatedBy     String?               // Admin who initiated the refund
+  refundReason          String?               // Notes/reason for the refund
+  refundedAt            DateTime?             // When the refund was processed
   orderId               String?               @unique
   order                 Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tempCustomerId        String?  
@@ -782,13 +785,13 @@ model OrderCategory {
   onlyForAdmin      Boolean      @default(false)
   availabilityRule  AvailabilityRule?
   locations         Location[]
-}
+}   
 
 model OrderItem {
   id               String         @id         @default(uuid())
   name             String
   description      String
-  imageUrl         String
+  imageUrl         String?
   price            Float
   isAvailable      Boolean?       @default(true)
   categories       OrderCategory[]

@@ -131,6 +131,7 @@ export interface PaymentIntentDetailsViewProps {
   onViewPayment: () => void
   onDelete: () => any
   onRestore?: () => void
+  onRefresh?: () => void
   loadingAction: boolean
   generateConfirmationNumber: (pi: PaymentIntent) => string
   isDeletedTab?: boolean
@@ -826,16 +827,39 @@ export interface PaymentIntentData {
   refundStatus?: RefundStatus;
 }
 
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string | null;
+  description: string | null;
+  status: string;
+  expiredAt: string | null;
+  createdAt: string;
+  paymentMethod: string | null;
+  paymentUrl: string | null;
+  createdBy: string;
+  adminNotes?: string;
+  orderId?: string;
+  refundInitiatedBy?: string;
+  refundReason?: string;
+  refundedAt?: string;
+}
+
 export interface Charge {
   id: string;
+  paidAt?: string;
   description: string;
-  status: "REFUNDED" | "SUCCEEDED" | "PAID",  
+  status: "PENDING" | "SUCCEEDED" | "FAILED" | "EXPIRED" | "REFUNDED";  
   createdAt: string | Date;
   currency: string;
   amount: number;
   paymentMethod: string;
   orderId: string;
   createdBy: string | null;
+  adminNotes?: string;
+  refundInitiatedBy?: string | any;
+  refundReason?: string;
+  refundedAt?: string;
 }
 
 export interface EnhancedPaymentIntentCardProps {

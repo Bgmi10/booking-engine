@@ -5,6 +5,7 @@ import type { BookingItem, Enhancement, Room } from "../../../types/types";
 import DateSelector from '../../DateSelector';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useGeneralSettings } from "../../../hooks/useGeneralSettings";
 
 
 interface BookingItemCardProps {
@@ -50,6 +51,7 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
 }) => {
   // Local state for calendar open/close
   const [calenderOpen, setCalenderOpen] = useState(false);
+  const { settings } = useGeneralSettings();
   // Local state for price breakdown expansion
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<{[key: string]: boolean}>({});
 
@@ -208,6 +210,7 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
           </button>
           <DateSelector
             minStayDays={availabilityData.minStayDays || 2}
+            dailyBookingStartTime={settings?.dailyBookingStartTime}
             calenderOpen={calenderOpen}
             setCalenderOpen={setCalenderOpen}
             onSelect={handleDateSelect}

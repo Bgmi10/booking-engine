@@ -1,9 +1,11 @@
-import { X, CreditCard, Calendar, Clock, RefreshCw, User, FileText } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { X, CreditCard, Calendar, Clock, RefreshCw, User, FileText, Filter } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import { baseUrl } from "../../../utils/constants";
 import CreatorInfoModal from "./CreatorInfoModal";
 import OrderDetailsModal from "./OrderDetailsModal";
+import ChargeRefundModal from "../shared/ChargeRefundModal";
+import type { PaymentRecord } from "../../../types/types";
 
 interface TempCustomer {
     id: string;
@@ -17,27 +19,28 @@ interface PaymentHistoryModalProps {
     onClose: () => void;
 }
 
-interface PaymentRecord {
-    id: string;
-    amount: number;
-    currency: string | null;
-    description: string | null;
-    status: string;
-    expiredAt: string | null;
-    createdAt: string;
-    paymentMethod: string | null;
-    paymentUrl: string | null;
-    createdBy: string;
-    adminNotes?: string;
-    orderId?: string;
-}
-
 export default function PaymentHistoryModal({ customer, customerType, onClose }: PaymentHistoryModalProps) {
-    const [payments, setPayments] = useState<PaymentRecord[]>([]);
+    const [allPayments, setAllPayments] = useState<PaymentRecord[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refundingId, setRefundingId] = useState<string | null>(null);
+    const [showRefundModal, setShowRefundModal] = useState(false);
+    const [selectedChargeForRefund, setSelectedChargeForRefund] = useState<PaymentRecord | null>(null);
     const [creatorIdForModal, setCreatorIdForModal] = useState<string | null>(null);
     const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
+    const [statusFilter, setStatusFilter] = useState<string>('ALL');
+    const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
+
+    // Filter payments based on selected filters
+    const payments = useMemo(() => {
+        return allPayments.filter((payment) => {
+            const matchesStatus = statusFilter === 'ALL' || payment.status === statusFilter;
+            const matchesPaymentMethod = paymentMethodFilter === 'ALL' || 
+                (payment.paymentMethod ? 
+                  payment.paymentMethod.replace('_', ' ').toUpperCase() === paymentMethodFilter ||
+                  payment.paymentMethod.toUpperCase() === paymentMethodFilter
+                : paymentMethodFilter === 'ROOM CHARGE');
+            return matchesStatus && matchesPaymentMethod;
+        });
+    }, [allPayments, statusFilter, paymentMethodFilter]);
 
     const renderCustomerInfo = () => {
         if (customerType === 'regular') {
@@ -61,14 +64,14 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
             });
             if (response.ok) {
                 const data = await response.json();
-                setPayments(data.data.charges || []);
+                setAllPayments(data.data.charges || []);
             } else {
                 console.error("Failed to fetch payment history");
-                setPayments([]);
+                setAllPayments([]);
             }
         } catch (error) {
             console.error("Error fetching payment history:", error);
-            setPayments([]);
+            setAllPayments([]);
         } finally {
             setLoading(false);
         }
@@ -78,34 +81,13 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
         fetchPaymentHistory();
     }, [fetchPaymentHistory]);
 
-    const handleRefund = async (payment: PaymentRecord) => {
-        if (!window.confirm("Are you sure you want to refund this payment? This action cannot be undone.")) {
-            return;
-        }
-        setRefundingId(payment.id);
-        try {
-            let refundUrl = `${baseUrl}/admin/charges/${payment.id}/refund`;
-            if (payment.paymentMethod?.toLowerCase() === 'cash') {
-                refundUrl += '?paymentMethod=cash';
-            }
+    const handleRefund = (payment: PaymentRecord) => {
+        setSelectedChargeForRefund(payment);
+        setShowRefundModal(true);
+    };
 
-            const response = await fetch(refundUrl, {
-                method: "POST",
-                credentials: "include",
-            });
-            if (response.ok) {
-                alert("Payment refunded successfully.");
-                fetchPaymentHistory();
-            } else {
-                const errorData = await response.json().catch(() => ({ message: "Failed to refund payment." }));
-                alert(`Error: ${errorData.message}`);
-            }
-        } catch (error) {
-            console.error("Error refunding payment:", error);
-            alert("An error occurred while refunding the payment.");
-        } finally {
-            setRefundingId(null);
-        }
+    const onRefundSuccess = () => {
+        fetchPaymentHistory();
     };
 
     const formatDate = (dateString: string | null | undefined) => {
@@ -118,13 +100,13 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
     const getStatusColor = (status: string) => {
         switch (status) {
             case "SUCCEEDED":
-            case "PAID":
                 return "bg-green-100 text-green-800";
             case "PENDING":
                 return "bg-yellow-100 text-yellow-800";
             case "FAILED":
                 return "bg-red-100 text-red-800";
-            case "CANCELLED":
+            case "REFUNDED":
+                return "bg-red-100 text-red-800";
             case "EXPIRED":
                 return "bg-gray-100 text-gray-800";
             default:
@@ -154,16 +136,85 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
                 </div>
 
                 <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                    {/* Filter Controls */}
+                    {!loading && allPayments.length > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm font-medium text-gray-700">Filters:</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                        className="text-sm border border-gray-300 rounded px-3 py-1 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="ALL">All Status</option>
+                                        <option value="PENDING">Pending</option>
+                                        <option value="SUCCEEDED">Succeeded</option>
+                                        <option value="FAILED">Failed</option>
+                                        <option value="EXPIRED">Expired</option>
+                                        <option value="REFUNDED">Refunded</option>
+                                    </select>
+                                    <select
+                                        value={paymentMethodFilter}
+                                        onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                                        className="text-sm border border-gray-300 rounded px-3 py-1 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="ALL">All Methods</option>
+                                        <option value="CARD">Card</option>
+                                        <option value="CASH">Cash</option>
+                                        <option value="QR CODE">QR Code</option>
+                                        <option value="HOSTED INVOICE">Hosted Invoice</option>
+                                        <option value="MANUAL TRANSACTION">Manual Transaction</option>
+                                        <option value="ROOM CHARGE">Room Charge</option>
+                                        <option value="STRIPE">Stripe</option>
+                                    </select>
+                                    {(statusFilter !== 'ALL' || paymentMethodFilter !== 'ALL') && (
+                                        <button
+                                            onClick={() => {
+                                                setStatusFilter('ALL');
+                                                setPaymentMethodFilter('ALL');
+                                            }}
+                                            className="text-sm text-blue-600 hover:text-blue-700 underline"
+                                        >
+                                            Clear filters
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="ml-auto text-sm text-gray-500">
+                                    {payments.length} of {allPayments.length} charges
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {loading ? (
                         <div className="flex justify-center items-center py-12">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                             <span className="ml-3 text-gray-600">Loading charge history...</span>
                         </div>
-                    ) : payments.length === 0 ? (
+                    ) : payments.length === 0 && allPayments.length === 0 ? (
                         <div className="text-center py-12">
                             <CreditCard className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                             <h3 className="text-lg font-medium text-gray-900 mb-2">No charge history found</h3>
                             <p className="text-gray-600">This customer hasn't had any charges created for them yet.</p>
+                        </div>
+                    ) : payments.length === 0 && allPayments.length > 0 ? (
+                        <div className="text-center py-12">
+                            <Filter className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">No charges match your filters</h3>
+                            <p className="text-gray-600 mb-4">Try adjusting or clearing the filters above.</p>
+                            <button
+                                onClick={() => {
+                                    setStatusFilter('ALL');
+                                    setPaymentMethodFilter('ALL');
+                                }}
+                                className="text-blue-600 hover:text-blue-700 underline"
+                            >
+                                Clear all filters
+                            </button>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -208,27 +259,37 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
                                         </div>
                                     </div>
 
-                                    {payment.status === 'REFUNDED' && payment.adminNotes && (
+                                    {payment.status === 'REFUNDED' && (payment.refundReason || payment.refundInitiatedBy) && (
                                         <div className="mt-3 pt-3 border-t border-gray-200">
-                                            <div className="flex items-start gap-2">
-                                                <span className="text-gray-600 text-sm">Refund Reason:</span>
-                                                <span className="text-sm text-gray-900 bg-red-50 px-2 py-1 rounded border border-red-200">
-                                                    {payment.adminNotes}
-                                                </span>
-                                            </div>
+                                            {payment.refundReason && (
+                                                <div className="flex items-start gap-2 mb-2">
+                                                    <span className="text-gray-600 text-sm">Refund Reason:</span>
+                                                    <span className="text-sm text-gray-900 bg-red-50 px-2 py-1 rounded border border-red-200">
+                                                        {payment.refundReason}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {payment?.refundInitiatedBy && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-gray-600 text-sm">Refunded by:</span>
+                                                    <button 
+                                                        onClick={() => setCreatorIdForModal(payment?.refundInitiatedBy || "")}
+                                                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                                    >
+                                                        View Admin
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
                                     <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-4">
-                                        {(payment.status === 'SUCCEEDED' || payment.status === 'PAID') && (
+                                        {payment.status === 'SUCCEEDED' && (
                                             <button 
                                                 onClick={() => handleRefund(payment)}
-                                                disabled={refundingId === payment.id}
-                                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
+                                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700"
                                             >
-                                                {refundingId === payment.id ? (
-                                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                                ) : null}
+                                                <RefreshCw className="h-4 w-4 mr-2" />
                                                 Refund
                                             </button>
                                         )}
@@ -269,6 +330,24 @@ export default function PaymentHistoryModal({ customer, customerType, onClose }:
                     onClose={() => setViewingOrderId(null)}
                 />
             )}
+            
+            <ChargeRefundModal
+                isOpen={showRefundModal}
+                onClose={() => {
+                    setShowRefundModal(false);
+                    setSelectedChargeForRefund(null);
+                }}
+                charge={selectedChargeForRefund ? {
+                    id: selectedChargeForRefund.id,
+                    amount: selectedChargeForRefund.amount,
+                    currency: selectedChargeForRefund.currency || 'eur',
+                    status: selectedChargeForRefund.status,
+                    paymentMethod: selectedChargeForRefund.paymentMethod || '',
+                    description: selectedChargeForRefund.description,
+                    createdAt: selectedChargeForRefund.createdAt
+                } : null}
+                onRefundSuccess={onRefundSuccess}
+            />
         </div>
     );
 } 

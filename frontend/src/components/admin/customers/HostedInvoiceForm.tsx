@@ -16,9 +16,10 @@ interface HostedInvoiceFormProps {
     description: string;
     chargeType?: string;
     orderId?: string;
+    paymentIntentId?: string;
 }
 
-export default function HostedInvoiceForm({ customer, amount, currency, onBack, onClose, isProcessing, description, chargeType, orderId }: HostedInvoiceFormProps) {
+export default function HostedInvoiceForm({ customer, amount, currency, onBack, onClose, isProcessing, description, chargeType, orderId, paymentIntentId }: HostedInvoiceFormProps) {
     const [expiresAt, setExpiresAt] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -128,6 +129,7 @@ export default function HostedInvoiceForm({ customer, amount, currency, onBack, 
                 credentials: 'include',
                 body: JSON.stringify({
                     customerId: customer.id,
+                    paymentIntentId: paymentIntentId,
                     amount: parseFloat(amount),
                     description: description.trim() || `Hosted Invoice - ${currency.symbol}${amount}`,
                     currency: currency.code.toLowerCase(),

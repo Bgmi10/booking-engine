@@ -855,6 +855,7 @@ export default function BookingManagement() {
                       selectedPaymentIntent.stripePaymentIntentId &&
                       fetchPaymentDetails(selectedPaymentIntent.stripePaymentIntentId)
                     }
+                    onRefresh={fetchPaymentIntents}
                     loadingAction={loadingAction}
                     generateConfirmationNumber={generateConfirmationNumber}
                     isDeletedTab={activeTab === "deleted"}

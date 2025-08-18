@@ -16,6 +16,7 @@ import { useState } from "react"
     onRestore,
     onRefund,
     onViewPayment,
+    onRefresh,
     loadingAction,
     generateConfirmationNumber,
     isDeletedTab = false,
@@ -45,7 +46,7 @@ import { useState } from "react"
               className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
             >
               <Eye className="h-4 w-4 mr-2" />
-              View Full Details
+              View payments
             </button>
           </div>
           <div className="p-6">
@@ -611,6 +612,7 @@ import { useState } from "react"
         isOpen={showBookingOverviewModal}
         onClose={() => setShowBookingOverviewModal(false)}
         paymentIntent={paymentIntent}
+        onRefresh={onRefresh}
       />
       </>
     )

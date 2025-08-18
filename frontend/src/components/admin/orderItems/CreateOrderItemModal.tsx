@@ -10,7 +10,7 @@ interface CreateOrderItemModalProps {
     name: string
     description: string
     price: number
-    imageUrl: string
+    imageUrl?: string
     role: string
   }) => Promise<void>
   loading: boolean
@@ -97,18 +97,19 @@ export default function CreateOrderItemModal({
   }, [images.length, uploadImages])
 
   const handleSubmit = async () => {
-    if (images.length === 0) {
-      alert("Please upload at least one image")
-      return
-    }
-    
-    await onSubmit({
+    const submitData: any = {
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      imageUrl: images[0], // Use the first uploaded image
       role: formData.role
-    })
+    }
+    
+    // Only include imageUrl if an image was uploaded
+    if (images.length > 0) {
+      submitData.imageUrl = images[0]
+    }
+    
+    await onSubmit(submitData)
     setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
     resetImages()
   }
@@ -201,7 +202,7 @@ export default function CreateOrderItemModal({
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image *
+                Image (Optional)
                 <span className="text-xs text-gray-500 ml-2">(Upload one image for the item)</span>
               </label>
               
@@ -310,7 +311,7 @@ export default function CreateOrderItemModal({
             type="button"
             className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
             onClick={handleSubmit}
-            disabled={loading || !formData.name || !formData.description || !formData.price || images.length === 0}
+            disabled={loading || !formData.name || !formData.description || !formData.price}
           >
             {loading ? (
               <span className="flex items-center">
