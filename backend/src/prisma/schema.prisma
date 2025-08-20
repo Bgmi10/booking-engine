@@ -31,6 +31,7 @@ model User {
   managerDailySummaries     ManagerDailySummary[]       @relation("ManagerDailySummaries")
   licensePlateEntries       LicensePlateEntry[]         @relation("UserLicensePlates")
   bulkOverRideLogs          BulkOverRideLogs[]
+  auditLogs                 BookingAuditLog[]
 }            
 
 model Room {
@@ -179,6 +180,8 @@ model Booking {
   channelSyncFailCount  Int          @default(0)
   channelBookingId      String?      // Store Beds24 or other channel booking ID
   
+  auditLogs           BookingAuditLog[]
+  
   @@index([roomId, checkIn, checkOut, status])
   @@index([refundStatus])
   @@index([needsChannelSync])
@@ -259,7 +262,15 @@ model PaymentIntent {
   createdByAdmin        Boolean             @default(false)
   adminUserId           String?   
   adminNotes            String?   
-  refundStatus          RefundStatus        @default(NOT_REFUNDED) // Track refund lifecycle
+  refundStatus          RefundStatus        @default(NOT_REFUNDED) // Tra refund lifecycle
+  
+  // Comprehensive tracking fields
+  cancelledBy           String?             // Admin who cancelled
+  cancelledAt           DateTime?           // When cancelled
+  cancellationReason    String?             // Why cancelled
+  refundInitiatedBy     String?             // Admin who initiated refund  
+  refundReason          String?             // Refund reason
+  refundedAt            DateTime?           // When refunded
   expiresAt             DateTime?   
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -275,7 +286,8 @@ model PaymentIntent {
   charges               Charge[]
   voucherCode           String?           
   voucherDiscount       Float?            
-  voucherUsages         VoucherUsage[]    
+  voucherUsages         VoucherUsage[]
+  auditLogs             BookingAuditLog[]    
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
   @@index([stripeSessionId])
@@ -301,20 +313,15 @@ model Payment {
 }
 
 model BookingGroup {
-  id               String          @id @default(uuid())
-  groupName        String?         // Optional descriptive name for the group
-  isAutoGrouped    Boolean         @default(false) // True if auto-grouped (3+ rooms)
-  totalAmount      Float           // Combined total of all PaymentIntents in group
-  currency         String          @default("eur")
-  status           BookingGroupStatus @default(ACTIVE)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  
-  // Relations
-  paymentIntents   PaymentIntent[]
-  charges          Charge[]        // Charges assigned to the booking group
-  
-  @@index([status])
+  id                    String             @id @default(uuid())
+  groupName             String?           
+  isAutoGrouped         Boolean            @default(false) 
+  outstandingAmount     Float?    
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  paymentIntents        PaymentIntent[]
+  charges               Charge[]    
+  orders                Order[]
 }
 
 model RatePolicy {
@@ -390,20 +397,21 @@ model RateDatePrice {
 }
 
 model GeneralSettings {        
-  id                           String        @id            @default(uuid())
-  minStayDays                  Int           @default(2)
-  updatedAt                    DateTime      @updatedAt
-  taxPercentage                Float?
-  chargePaymentConfig          String?
-  dahuaApiUrl                  String?       
-  dahuaUsername                String?       
-  dahuaPassword                String?       
-  dahuaIsEnabled               Boolean       @default(false) 
-  dahuaGateId                  String?       
-  dahuaLicensePlateExpiryHours Int           @default(24)
-  licensePlateExpiryDays       Int           @default(30)
-  licensePlateDailyTriggerTime String        @default("00:00")
-  dailyBookingStartTime        String?       @default("00:00")
+  id                                String        @id            @default(uuid())
+  autoGroupingRoomCount             Int                          @default(2)
+  minStayDays                       Int                          @default(2)
+  updatedAt                         DateTime                     @updatedAt
+  taxPercentage                     Float?               
+  chargePaymentConfig               String?               
+  dahuaApiUrl                       String?                      // may be usful in future
+  dahuaUsername                     String?                      // may be usful in future
+  dahuaPassword                     String?                      // may be usful in future
+  dahuaIsEnabled                    Boolean                      @default(false) // may be usful in future
+  dahuaGateId                       String?                      // may be usful in future
+  dahuaLicensePlateExpiryHours      Int                          @default(24) // may be usful in future
+  licensePlateExpiryDays            Int                          @default(30)
+  licensePlateDailyTriggerTime      String                       @default("00:00")
+  dailyBookingStartTime             String?                      @default("00:00")
 }
 
 model Otp {
@@ -1070,31 +1078,33 @@ model AvailabilityRule {
 }
 
 model Order {
-  id                  String         @id           @default(uuid())
-  status              OrderStatus
-  customerId          String?
-  total               Float          @default(0)
-  customer            Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  paymentIntentId     String?
-  paymentIntent       PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  items               Json
-  deliveryItems       Json?          // Items for the waiter to deliver
-  locationName        String?        // customer purpose
-  locationNames       String[]        @default([])  // useful for admin 
-  location            Location?       @relation(fields: [locationName], references: [name]) // useful for customer
-  assignedToKitchen   String?        
-  assignedToWaiter    String?      
-  kitchenAssignedAt   DateTime?    
-  readyAt             DateTime?    
-  waiterAssignedAt    DateTime?     
-  deliveredAt         DateTime?        
-  kitchenStaff        User?          @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
-  waiter              User?          @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
+  id                  String             @id           @default(uuid())
+  status              OrderStatus    
+  customerId          String?    
+  total               Float              @default(0)
+  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  paymentIntentId     String?    
+  paymentIntent       PaymentIntent?     @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  items               Json    
+  deliveryItems       Json?              // Items for the waiter to deliver
+  locationName        String?            // customer purpose
+  locationNames       String[]            @default([])  // useful for admin 
+  location            Location?           @relation(fields: [locationName], references: [name]) // useful for customer
+  assignedToKitchen   String?            
+  assignedToWaiter    String?          
+  kitchenAssignedAt   DateTime?        
+  readyAt             DateTime?        
+  waiterAssignedAt    DateTime?         
+  deliveredAt         DateTime?            
+  kitchenStaff        User?              @relation("KitchenOrders", fields: [assignedToKitchen], references: [id])
+  waiter              User?              @relation("WaiterOrders", fields: [assignedToWaiter], references: [id])
   temporaryCustomerId String?
   temporaryCustomer   TemporaryCustomer? @relation(fields: [temporaryCustomerId], references: [id], onDelete: Cascade)
-  charge              Charge?        
+  charge              Charge?
+  bookingGroupId      String?
+  bookingGroup        BookingGroup?        @relation(fields: [bookingGroupId], references: [id], onDelete: Cascade)        
 }
 
 model BulkOverRideLogs {
@@ -1198,14 +1208,6 @@ enum RatePriceType {
   BASE_OVERRIDE       // Override base price for all rooms under this rate policy
   ROOM_INCREASE       // Add amount to base room price
   ROOM_OVERRIDE       // Complete override of room price for this rate policy
-}
-
-enum BookingGroupStatus {
-  ACTIVE              // Group is active with outstanding payments
-  COMPLETED           // All payments in group completed
-  PARTIALLY_REFUNDED  // Some payments refunded
-  FULLY_REFUNDED      // All payments refunded
-  CANCELLED           // Group cancelled
 }
 
 model BankDetails {
@@ -1416,4 +1418,58 @@ model Beds24RatePolicyMapping {
   @@unique([beds24RoomMappingId, priceSlot])
   @@index([isActive])
   @@index([beds24RoomMappingId])
+}
+
+// Comprehensive Audit Logging System
+model BookingAuditLog {
+  id                String         @id @default(uuid())
+  entityType        AuditEntityType // PAYMENT_INTENT, BOOKING, ROOM_CHANGE, etc.
+  entityId          String         // ID of the changed entity
+  actionType        AuditActionType // CREATED, CANCELLED, REFUNDED, ROOM_CHANGED, etc.
+  userId            String         // Admin who made the change
+  user              User           @relation(fields: [userId], references: [id])
+  reason            String?        // User-provided reason
+  notes             String?        // Additional notes
+  
+  // Before/After tracking
+  previousValues    Json?          // Previous state
+  newValues         Json?          // New state
+  changedFields     String[]       // Which fields changed
+  
+  // Context
+  paymentIntentId   String?        // Related PaymentIntent
+  paymentIntent     PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  bookingId         String?        // Related Booking
+  booking           Booking?       @relation(fields: [bookingId], references: [id])
+  
+  createdAt         DateTime       @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([paymentIntentId])
+  @@index([bookingId])
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+enum AuditEntityType {
+  PAYMENT_INTENT
+  BOOKING
+  CHARGE
+  ROOM_CHANGE
+  PRICING_CHANGE
+  GUEST_INFO_CHANGE
+}
+
+enum AuditActionType {
+  CREATED
+  CANCELLED
+  REFUNDED
+  ROOM_CHANGED
+  DATES_CHANGED
+  GUEST_INFO_CHANGED
+  PRICING_CHANGED
+  STATUS_CHANGED
+  NOTES_ADDED
+  EDITED
 }

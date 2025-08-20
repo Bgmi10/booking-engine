@@ -237,30 +237,17 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
             }
         });
         
-        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId) {
-            await prisma.charge.create({
+        // For ASSIGN_TO_ROOM orders, just update the outstanding balance directly
+        // No charge creation needed - orders are just line items on the booking tab
+        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId && finalPaymentIntentId) {
+            await prisma.paymentIntent.update({
+                where: { id: finalPaymentIntentId },
                 data: {
-                    amount: total,
-                    description: `Room charge for order #${newOrder.id.substring(0, 8)}`,
-                    status: 'PENDING',
-                    customerId: customerId,
-                    paymentIntentId: finalPaymentIntentId,
-                    orderId: newOrder.id,
-                    createdBy: adminId
+                    outstandingAmount: {
+                        increment: total
+                    }
                 }
             });
-
-            // Update PaymentIntent outstanding amount when room charge is created
-            if (finalPaymentIntentId) {
-                await prisma.paymentIntent.update({
-                    where: { id: finalPaymentIntentId },
-                    data: {
-                        outstandingAmount: {
-                            increment: total
-                        }
-                    }
-                });
-            }
         }
         
         const orderEventService = (global as any).orderEventService;
@@ -316,7 +303,25 @@ export const editOrder = async (req: express.Request, res: express.Response) => 
           }
         });
   
-        // 2. If there's a charge associated with this order, update it
+        // 2. Update outstanding balance if this was a room assignment and amount changed
+        //@ts-ignore
+        if (existingOrder.paymentMethod === 'ASSIGN_TO_ROOM' && 
+            existingOrder.paymentIntentId && 
+            existingOrder.total !== newTotal) {
+          
+          const difference = newTotal - existingOrder.total;
+          await tx.paymentIntent.update({
+            where: { id: existingOrder.paymentIntentId },
+            data: {
+              outstandingAmount: {
+                increment: difference
+              }
+            }
+          });
+        }
+
+        // 3. If there's still a legacy charge associated with this order, update it
+        // This handles existing orders that have charges
         if (existingOrder.charge) {
           await tx.charge.update({
             where: { id: existingOrder.charge.id },
@@ -326,6 +331,7 @@ export const editOrder = async (req: express.Request, res: express.Response) => 
             }
           });
         }
+        
         return updatedOrder;
       });
       
@@ -351,15 +357,35 @@ export const cancelOrder = async (req: express.Request, res: express.Response) =
       responseHandler(res, 400, `Order is already ${existingOrder.status} and cannot be cancelled.`);
       return;
     }
+    await prisma.$transaction(async (tx) => {
+      // Update order status
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' }
+      });
+      
+      // If this was a room assignment, reduce the outstanding balance
+      //@ts-ignore
+      if (existingOrder.paymentMethod === 'ASSIGN_TO_ROOM' && 
+          existingOrder.paymentIntentId && 
+          existingOrder.total > 0) {
+        
+        await tx.paymentIntent.update({
+          where: { id: existingOrder.paymentIntentId },
+          data: {
+            outstandingAmount: {
+              decrement: existingOrder.total
+            }
+          }
+        });
+      }
+    });
+
     const orderEventService = (global as any).orderEventService;
     if (orderEventService) {
       await orderEventService.orderCancelled(orderId);
     } else {
       console.error("orderEventService not found, could not send real-time order cancellation.");
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { status: 'CANCELLED' }
-      });
     }
     responseHandler(res, 200, "Order cancelled successfully.");
   } catch (error) {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -194,6 +194,10 @@ adminRouter.delete('/payment-intent/:id/hard-delete', authMiddleware, hardDelete
 adminRouter.put('/payment-intent/:id/restore', authMiddleware, restorePaymentIntent);
 
 adminRouter.get('/payment-intent/soft-delete/all', authMiddleware, getAllSoftDeletedPaymentIntent);
+
+// PaymentIntent Edit and Audit
+adminRouter.put('/payment-intent/:id', authMiddleware, updatePaymentIntent);
+adminRouter.get('/payment-intent/:id/audit-logs', authMiddleware, getPaymentIntentAuditLogs);
 
 adminRouter.get('/bookings/restrictions/all', authMiddleware, getAllBookingsRestriction);
 

@@ -48,6 +48,10 @@ stripeWebhookRouter.post("/webhook", express.raw({ type: 'application/json' }), 
           case "refund.updated":
             await handleRefundUpdated(event);
             break;
+          case "charge.refund.updated":
+            // Handle charge refund updates - usually can use same logic as refund.updated
+            await handleRefundUpdated(event);
+            break;
           default:
            console.log(`Unhandled event type: ${event.type}`);
         }
@@ -133,7 +137,9 @@ async function handleRefundCreated(event: Stripe.Event) {
         
         // Check if this is a partial refund for a specific booking
         const specificBookingId = refund.metadata?.bookingId;
+        let bookingsToSync: any[] = [];
         
+        // Use longer timeout for refund transactions due to channel sync operations
         await prisma.$transaction(async (tx) => {
             if (specificBookingId) {
                 // PARTIAL REFUND: Update only the specific booking
@@ -203,20 +209,14 @@ async function handleRefundCreated(event: Stripe.Event) {
                     }
                 });
                 
-                // Mark all affected bookings and rooms for channel sync
+                // Get affected bookings for channel sync (will sync outside transaction)
                 const affectedBookings = await tx.booking.findMany({
                     where: { paymentIntentId: ourPaymentIntent.id },
                     select: { id: true, roomId: true }
                 });
                 
-                for (const booking of affectedBookings) {
-                    try {
-                        await markForChannelSync.booking(booking.id);
-                        await markForChannelSync.room(booking.roomId);
-                    } catch (syncError) {
-                        console.error(`Failed to mark refunded booking for sync:`, syncError);
-                    }
-                }
+                // Store booking IDs for sync after transaction
+                bookingsToSync = affectedBookings;
 
                 // Update payment record
                 await tx.payment.updateMany({
@@ -239,7 +239,21 @@ async function handleRefundCreated(event: Stripe.Event) {
                     }
                 });
             }
+        }, {
+            timeout: 15000 // 15 seconds timeout for refund operations
         });
+
+        // Perform channel sync after transaction completes
+        if (bookingsToSync.length > 0) {
+            for (const booking of bookingsToSync) {
+                try {
+                    await markForChannelSync.booking(booking.id);
+                    await markForChannelSync.room(booking.roomId);
+                } catch (syncError) {
+                    console.error(`Failed to mark refunded booking for sync:`, syncError);
+                }
+            }
+        }
 
         if (ourPaymentIntent.bookings.length > 0) {
             const customerDetails = JSON.parse(ourPaymentIntent.customerData);
@@ -1022,6 +1036,7 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
         });
 
         // Update outstanding amount for related payment intent
+        // All successful charges should reduce outstanding balance in the hotel tab system
         if (charge.paymentIntentId) {
             // Update the specific payment intent linked to this charge
             const paymentIntent = await prisma.paymentIntent.findUnique({
@@ -1043,6 +1058,7 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
             }
         } else if (charge.customerId) {
             // Fallback to customer-based logic for charges without paymentIntentId
+            // All charges should reduce outstanding balance
             const customerPaymentIntents = await prisma.paymentIntent.findMany({
                 where: { 
                     customerId: charge.customerId,

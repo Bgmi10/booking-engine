@@ -13,6 +13,7 @@ import Occupancy from "./Occupancy"
 import type { PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
+import ComprehensivePaymentIntentEditForm from "./ComprehensivePaymentIntentEditForm"
 import RefundConfirmationModal from "./RefundConfirmationModal"
 import FutureRefundModal from "./FutureRefundModal"
 import toast from 'react-hot-toast';
@@ -33,8 +34,7 @@ export default function BookingManagement() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deletePaymentIntent, setDeletePaymentIntent] = useState<PaymentIntent | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [editingPaymentIntent, setEditingPaymentIntent] = useState<string | null>(null)
-  const [editFormData, setEditFormData] = useState<PaymentIntent | null>(null)
+  const [editingPaymentIntent, setEditingPaymentIntent] = useState<PaymentIntent | null>(null)
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([])
   const [showGroupModal, setShowGroupModal] = useState(false)
   const [groupName, setGroupName] = useState("")
@@ -187,35 +187,6 @@ export default function BookingManagement() {
     }
   };
 
-  const updatePaymentIntent = async (id: string, data: PaymentIntent) => {
-    setLoadingAction(true)
-    try {
-      const response = await fetch(`${baseUrl}/admin/payment-intent/${id}/edit`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          customerData: JSON.stringify(data.customerData),
-          bookingData: JSON.stringify(data.bookingData),
-        }),
-      })
-
-      if (response.ok) {
-        toast.success("Payment intent updated successfully")
-        setEditingPaymentIntent(null)
-        setEditFormData(null)
-        fetchPaymentIntents()
-      } else {
-        throw new Error("Failed to update payment intent")
-      }
-    } catch (error) {
-      toast.error("Failed to update payment intent")
-    } finally {
-      setLoadingAction(false)
-    }
-  }
-
   const sendConfirmationEmail = async (paymentIntentId: string) => {
     setLoadingAction(true)
     try {
@@ -357,52 +328,13 @@ export default function BookingManagement() {
   }
 
   const startEditing = (paymentIntent: PaymentIntent) => {
-    setEditingPaymentIntent(paymentIntent.id)
-    setEditFormData({ ...paymentIntent })
+    setEditingPaymentIntent(paymentIntent)
   }
 
   const cancelEditing = () => {
     setEditingPaymentIntent(null)
-    setEditFormData(null)
   }
 
-  const saveEditing = () => {
-    if (editFormData) {
-      updatePaymentIntent(editFormData.id, editFormData)
-    }
-  }
-
-  const updateEditFormData = (field: string, value: any) => {
-    if (!editFormData) return
-
-    if (field.startsWith("customerData.")) {
-      const customerField = field.replace("customerData.", "")
-      setEditFormData({
-        ...editFormData,
-        customerData: {
-          ...editFormData.customerData,
-          [customerField]: value,
-        },
-      })
-    } else if (field.startsWith("bookingData.")) {
-      const [, index, bookingField] = field.split(".")
-      const bookingIndex = Number.parseInt(index)
-      const newBookingData = [...editFormData.bookingData]
-      newBookingData[bookingIndex] = {
-        ...newBookingData[bookingIndex],
-        [bookingField]: value,
-      }
-      setEditFormData({
-        ...editFormData,
-        bookingData: newBookingData,
-      })
-    } else {
-      setEditFormData({
-        ...editFormData,
-        [field]: value,
-      })
-    }
-  }
 
   useEffect(() => {
     // Data is automatically fetched by the hooks
@@ -809,11 +741,6 @@ export default function BookingManagement() {
             onDelete={handleDeleteClick}
             onRestore={activeTab === "deleted" ? handleRestore : undefined}
             loadingAction={loadingAction}
-            editingPaymentIntent={editingPaymentIntent}
-            editFormData={editFormData}
-            onUpdateEditFormData={updateEditFormData}
-            onSaveEdit={saveEditing}
-            onCancelEdit={cancelEditing}
             generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
@@ -1010,6 +937,22 @@ export default function BookingManagement() {
         paymentIntent={restorePaymentIntent}
         isLoading={loadingAction}
       />
+
+      {/* Edit Modal */}
+      {editingPaymentIntent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-4">
+            <ComprehensivePaymentIntentEditForm
+              paymentIntent={editingPaymentIntent}
+              onClose={cancelEditing}
+              onUpdate={() => {
+                fetchPaymentIntents();
+                cancelEditing();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

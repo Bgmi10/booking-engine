@@ -7,6 +7,7 @@ import CreatorInfoModal from '../customers/CreatorInfoModal';
 import ChargeRefundModal from '../shared/ChargeRefundModal';
 import type { Customer } from '../../../hooks/useCustomers';
 import type { Charge } from '../../../types/types';
+import { baseUrl } from '../../../utils/constants';
 
 interface BookingOverviewModalProps {
   isOpen: boolean;
@@ -16,7 +17,7 @@ interface BookingOverviewModalProps {
 }
 
 export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, onRefresh }: BookingOverviewModalProps) {
-  const [activeTab, setActiveTab] = useState<'payments'>('payments');
+  const [activeTab, setActiveTab] = useState<'payments' | 'orders'>('payments');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -25,6 +26,9 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
   const [selectedChargeForRefund, setSelectedChargeForRefund] = useState<Charge | null>(null);
   const [showRefundDetailsModal, setShowRefundDetailsModal] = useState(false);
   const [selectedChargeForRefundDetails, setSelectedChargeForRefundDetails] = useState<Charge | null>(null);
+  // Get orders directly from paymentIntent data
+  const allOrders = paymentIntent?.orders || [];
+  const roomOrders = allOrders.filter((order: any) => order.paymentIntentId === paymentIntent?.id);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
@@ -92,12 +96,14 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
     if (onRefresh) {
       setIsRefreshing(true);
       try {
-        await onRefresh(); // Refresh parent data
+        await onRefresh(); // Refresh parent data (includes orders)
       } finally {
         setIsRefreshing(false);
       }
     }
   };
+
+
   
   // Handle charge refund
   const handleChargeRefund = (charge: Charge) => {
@@ -115,14 +121,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
     await refreshPaymentIntentData();
   };
 
-  // Use outstanding balance directly from database
   const outstandingBalance = paymentIntent?.outstandingAmount || 0;
-  
-  // Calculate paid amount: Total - Outstanding
-  // This is the correct formula because:
-  // - Total = full booking amount
-  // - Outstanding = unpaid amount
-  // - Paid = Total - Outstanding
   const paidAmount = (paymentIntent?.totalAmount || 0) - outstandingBalance;
 
   const handleAddPayment = () => {
@@ -188,6 +187,16 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
           >
             Payments & Charges
           </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`px-4 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'orders'
+                ? 'text-green-600 border-b-2 border-green-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Room Orders
+          </button>
         </div>
 
         {/* Content - Reduced Padding */}
@@ -215,14 +224,16 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={handleAddPayment}
-                    disabled={isRefreshing}
-                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Payment
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddPayment}
+                      disabled={isRefreshing}
+                      className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Payment
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -415,6 +426,111 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
               )}
             </div>
           )}
+
+          {activeTab === 'orders' && (
+            <div className="space-y-2">
+              {/* Room Orders Tab Content */}
+              {roomOrders.length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="h-12 w-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-gray-900">No room orders found</p>
+                  <p className="text-xs text-gray-600 mt-0.5">No items have been added to this booking's tab yet.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Orders Summary */}
+                  <div className="bg-green-50 rounded-md p-2.5 mb-3 border border-green-200">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-xs font-medium text-green-900">Room Orders Summary</h4>
+                        <p className="text-xs text-green-700 mt-0.5">{roomOrders.length} orders • Added to booking tab</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-green-900">
+                          €{roomOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-green-600">Total value</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual Orders */}
+                  <div className="space-y-2">
+                    {roomOrders.map((order: any) => (
+                      <div key={order.id} className="bg-white rounded-md p-3 border border-gray-200 hover:border-green-300 transition-colors cursor-pointer"
+                           onClick={() => setSelectedOrderId(order.id)}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="text-xs font-semibold text-gray-900 hover:text-green-600 transition-colors">
+                                Order #{order.id.slice(-6)} 
+                                <span className="text-xs text-gray-500 ml-1">• Click for details</span>
+                              </h5>
+                              <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                                order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {format(new Date(order.createdAt), 'MMM dd, yyyy • HH:mm')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-gray-900">€{order.total}</p>
+                            <p className="text-xs text-green-600">Added to tab</p>
+                          </div>
+                        </div>
+
+                        {/* Order Items */}
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Items ({order.items.length}):</p>
+                            <div className="space-y-1">
+                              {order.items.map((item: any, index: number) => (
+                                <div key={index} className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-600">
+                                    {item.quantity || 1}x {item.name}
+                                  </span>
+                                  <span className="font-medium text-gray-900">
+                                    €{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Information Note */}
+                  <div className="bg-blue-50 rounded-md p-2.5 border border-blue-200">
+                    <div className="flex items-start gap-2">
+                      <svg className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-xs font-medium text-blue-900">How Room Orders Work</p>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          These orders are added to the guest's booking tab. The total value (€{roomOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0).toFixed(2)}) 
+                          is included in the outstanding balance and will be paid at checkout.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -530,6 +646,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
           </div>
         </div>
       )}
+
     </div>
   );
 }

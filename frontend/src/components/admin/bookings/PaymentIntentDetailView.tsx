@@ -529,7 +529,9 @@ import { useState } from "react"
                 <Mail className="h-4 w-4 mr-2" />
                 Send Confirmation Email
               </button>}
-              {(paymentIntent.status === "SUCCEEDED") && (
+              {(paymentIntent.status === "SUCCEEDED" && 
+                (!paymentIntent.refundStatus || 
+                 paymentIntent.refundStatus === "NOT_REFUNDED")) && (
                 <>
                   <button
                     onClick={() => setShowCustomPartialRefundModal(true)}

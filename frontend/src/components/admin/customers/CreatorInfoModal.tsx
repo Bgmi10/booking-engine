@@ -1,52 +1,20 @@
 import { X, User, Mail, Phone, Info } from "lucide-react";
-import { useState, useEffect } from "react";
-import { baseUrl } from "../../../utils/constants";
-
-interface UserInfo {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    phone?: string;
-}
+import { useUserInfo } from "../../../hooks/useUserInfo";
 
 interface CreatorInfoModalProps {
     userId: string;
     onClose: () => void;
+    title?: string;
+    context?: string;
 }
 
-export default function CreatorInfoModal({ userId, onClose }: CreatorInfoModalProps) {
-    const [user, setUser] = useState<UserInfo | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchUserInfo = async () => {
-            if (!userId) {
-                setError("No user ID provided.");
-                setLoading(false);
-                return;
-            }
-            try {
-                const response = await fetch(`${baseUrl}/admin/users/${userId}`, {
-                    credentials: "include",
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setUser(data.data);
-                } else {
-                    const errorData = await response.json();
-                    setError(errorData.message || "Failed to fetch user information.");
-                }
-            } catch (err) {
-                setError("An error occurred while fetching user information.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchUserInfo();
-    }, [userId]);
+export default function CreatorInfoModal({ 
+    userId, 
+    onClose, 
+    title = "Creator Information",
+    context = "creator"
+}: CreatorInfoModalProps) {
+    const { userInfo: user, loading, error } = useUserInfo(userId);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[60] p-4">
@@ -54,7 +22,7 @@ export default function CreatorInfoModal({ userId, onClose }: CreatorInfoModalPr
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
                         <User className="h-5 w-5" />
-                        Creator Information
+                        {title}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                         <X className="h-6 w-6" />

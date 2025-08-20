@@ -14,7 +14,8 @@ import ExpirySelector from "./ExpirySelector"
 import SelectCustomerModal from "./SelectCustomerModal"
 import toast from 'react-hot-toast';
 import { calculatePriceBreakdown } from "../../../utils/ratePricing";
-import { useActiveRatePolicies, fetchRatePoliciesWithPricing } from "../../../hooks/useRatePolicies";
+import { useActiveRatePolicies } from "../../../hooks/useRatePolicies";
+import { useRooms } from "../../../hooks/useRooms";
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
@@ -64,8 +65,6 @@ export function CreateBookingModal({
   ])
 
   const [loadingAction, setLoadingAction] = useState(false)
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [loadingRooms, setLoadingRooms] = useState(false)
   const [enhancements, setEnhancements] = useState<Enhancement[]>([])
   const [totalAmount, setTotalAmount] = useState(0)
   const [taxAmount, setTaxAmount] = useState(0)
@@ -90,20 +89,26 @@ export function CreateBookingModal({
   // Use rate policies hook for admin access to all rate policies
   const { ratePolicies } = useActiveRatePolicies();
   
-  // State for rate policies with pricing data
-  const [ratePoliciesWithPricing, setRatePoliciesWithPricing] = useState<any[]>([]);
-  
-  // Handler to refresh rate policies with pricing when dates change
-  const refreshRatePolicingForDates = async (startDate: string, endDate: string) => {
-    if (startDate && endDate) {
-      try {
-        const policiesWithPricing = await fetchRatePoliciesWithPricing(startDate, endDate, true);
-        setRatePoliciesWithPricing(policiesWithPricing);
-      } catch (error) {
-        console.error('Error in refreshRatePolicingForDates:', error);
+  // Use rooms hook with callback to set first room as default
+  const { 
+    rooms, 
+    loadingRooms, 
+    ratePoliciesWithPricing, 
+    fetchRoomsAndPricing, 
+    refreshRatePricingForDates: refreshRatePolicingForDates 
+  } = useRooms({
+    onRoomsLoad: (roomsData) => {
+      if (roomsData.length > 0) {
+        setBookingItems((prev) =>
+          prev.map((item, index) =>
+            index === 0
+              ? { ...item, selectedRoom: roomsData[0].id, roomDetails: roomsData[0], totalPrice: 0 }
+              : item,
+          ),
+        );
       }
     }
-  };
+  });
 
   // Fetch availability data for calendar - wrapper to maintain interface
   const fetchCalendarAvailability = async (startDate: string, endDate: string) => {
@@ -147,71 +152,6 @@ export function CreateBookingModal({
         ...prev,
         phone: country.dial_code,
       }))
-    }
-  }
-
-  // Fetch rooms from calendar API data and load rate policies with pricing
-  const fetchRoomsAndPricing = async (startDate?: string, endDate?: string) => {
-    setLoadingRooms(true)
-    try {
-      // Use calendar API to get room data instead of separate rooms/all call
-      let calendarData;
-      if (startDate && endDate) {
-        calendarData = await fetchCalendarAvailabilityHook({
-          startDate,
-          endDate,
-          showError: true,
-          cacheEnabled: false
-        });
-      }
-
-      // Extract rooms from calendar data or use fallback
-      let roomsData = [];
-      if (calendarData?.rooms) {
-        roomsData = calendarData.rooms;
-      } else {
-        // Fallback to direct rooms API if calendar doesn't provide room data
-        const res = await fetch(`${baseUrl}/admin/rooms/all`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        })
-        
-        if (!res.ok) {
-          throw new Error("Failed to fetch rooms")
-        }
-        const data = await res.json()
-        roomsData = data.data;
-      }
-      
-      setRooms(roomsData);
-      
-      // Fetch rate policies with date-specific pricing if dates are provided
-      if (startDate && endDate) {
-        try {
-          const policiesWithPricing = await fetchRatePoliciesWithPricing(startDate, endDate, true);
-          setRatePoliciesWithPricing(policiesWithPricing);
-        } catch (error) {
-          console.error('Error fetching rate policies with pricing:', error);
-          setRatePoliciesWithPricing([]);
-        } 
-      }
-
-      if (roomsData.length > 0) {
-        setBookingItems((prev) =>
-          prev.map((item, index) =>
-            index === 0
-              ? { ...item, selectedRoom: roomsData[0].id, roomDetails: roomsData[0], totalPrice: 0 }
-              : item,
-          ),
-        )
-      }
-    } catch (error) {
-      console.error("Error fetching rooms and pricing:", error)
-      toast.error("Failed to load rooms. Please try again.")
-    } finally {
-      setLoadingRooms(false)
     }
   }
 

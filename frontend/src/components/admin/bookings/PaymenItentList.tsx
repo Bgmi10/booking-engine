@@ -15,11 +15,6 @@ export default function PaymentIntentsList({
   onEdit,
   onDelete,
   loadingAction,
-  editingPaymentIntent,
-  editFormData,
-  onUpdateEditFormData,
-  onSaveEdit,
-  onCancelEdit,
   generateConfirmationNumber,
   selectionMode = false,
   selectedBookingIds = [],
@@ -82,11 +77,6 @@ export default function PaymentIntentsList({
             onDelete={() => onDelete(paymentIntent)}
             onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
-            isEditing={editingPaymentIntent === paymentIntent.id}
-            editFormData={editFormData}
-            onUpdateEditFormData={onUpdateEditFormData}
-            onSaveEdit={onSaveEdit}
-            onCancelEdit={onCancelEdit}
             generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
@@ -111,11 +101,6 @@ export default function PaymentIntentsList({
             onDelete={() => onDelete(paymentIntent)}
             onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
-            isEditing={editingPaymentIntent === paymentIntent.id}
-            editFormData={editFormData}
-            onUpdateEditFormData={onUpdateEditFormData}
-            onSaveEdit={onSaveEdit}
-            onCancelEdit={onCancelEdit}
             generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}

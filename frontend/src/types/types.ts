@@ -229,11 +229,6 @@ export interface PaymentIntentsListProps {
   onEdit: (pi: PaymentIntent) => void
   onDelete: (piId: PaymentIntent) => void
   loadingAction: boolean
-  editingPaymentIntent: string | null
-  editFormData: PaymentIntent | null
-  onUpdateEditFormData: (field: string, value: any) => void
-  onSaveEdit: () => void
-  onCancelEdit: () => void
   generateConfirmationNumber: (pi: PaymentIntent) => string
   onConfirmBooking?: (paymentIntentId: string) => void
 }
@@ -874,11 +869,6 @@ export interface EnhancedPaymentIntentCardProps {
   onDelete?: (id: string) => void;
   onRestore?: () => void;
   loadingAction?: boolean;
-  isEditing?: boolean;
-  editFormData?: any;
-  onUpdateEditFormData?: (field: string, value: any) => void;
-  onSaveEdit?: () => void;
-  onCancelEdit?: () => void;
   generateConfirmationNumber?: (paymentIntent: any) => string;
   selectionMode?: boolean;
   selectedBookingIds?: string[];

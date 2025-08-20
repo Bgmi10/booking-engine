@@ -31,8 +31,7 @@ export default function DeleteConfirmationModal({
   }, [isOpen, isSoftDeleted]);
 
   if (!isOpen || !paymentIntent) return null;
-  console.log(deleteType )
-
+  
   const handleConfirm = () => {
     if (deleteType === 'soft') {  
       onSoftDelete();

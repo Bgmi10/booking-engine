@@ -17,6 +17,7 @@ import { findOrCreatePrice } from "../config/stripeConfig";
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from '../cron/cron';
+import AuditService from "../services/auditService";
 
 dotenv.config();
 
@@ -491,26 +492,93 @@ const updateBooking = async (req: express.Request, res: express.Response) => {
     guestName,
     guestNationality,
     guestPhone,
-    status
+    status,
+    reason // Add reason field for audit
   } = req.body;
 
+  // @ts-ignore
+  const { id: userId } = req.user;
+
   try {
+    // Get current booking for audit comparison
+    const currentBooking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        room: true,
+        paymentIntent: true,
+      },
+    });
+
+    if (!currentBooking) {
+      responseHandler(res, 404, "Booking not found");
+      return;
+    }
+
+    // Store previous values for audit
+    const previousValues = {
+      roomId: currentBooking.roomId,
+      checkIn: currentBooking.checkIn,
+      checkOut: currentBooking.checkOut,
+      status: currentBooking.status,
+    };
+
     // Build dynamic update object by filtering out undefined values
     const updateData: any = {
       ...(roomId && { roomId }),
       ...(checkIn && { checkIn: new Date(checkIn) }),
       ...(checkOut && { checkOut: new Date(checkOut) }),
-      ...(guestEmail && { guestEmail }),
-      ...(guestName && { guestName }),
-      ...(guestNationality && { guestNationality }),
-      ...(guestPhone && { guestPhone }),
-      ...(status && { status })
+      ...(status && { status }),
+      updatedAt: new Date(),
     };
 
     const booking = await prisma.booking.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        room: true,
+        paymentIntent: true,
+      },
     });
+
+    // Audit logging
+    const { AuditService } = await import("../services/auditService");
+    
+    // Detect changed fields
+    const newValues = {
+      roomId: booking.roomId,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      status: booking.status,
+    };
+    
+    const changedFields = AuditService.detectChangedFields(previousValues, newValues);
+
+    if (changedFields.length > 0) {
+      // Log room change specifically if room changed
+      if (changedFields.includes("roomId") && previousValues.roomId !== newValues.roomId) {
+        await AuditService.logRoomChange(
+          id,
+          booking.paymentIntentId || "",
+          userId,
+          previousValues.roomId,
+          newValues.roomId,
+          reason
+        );
+      }
+
+      // Log general booking edit for other changes
+      if (changedFields.some(field => field !== "roomId")) {
+        await AuditService.logBookingEdit(
+          id,
+          booking.paymentIntentId || "",
+          userId,
+          previousValues,
+          newValues,
+          changedFields.filter(field => field !== "roomId"), // Exclude roomId as it's logged separately
+          reason
+        );
+      }
+    }
 
     responseHandler(res, 200, "Booking updated successfully", booking);
   } catch (e) {
@@ -1436,8 +1504,9 @@ const processFutureRefund = async (req: express.Request, res: express.Response) 
 
 const refund = async (req: express.Request, res: express.Response) => {
     const { paymentIntentId, reason, bookingData, customerDetails, paymentMethod, sendEmailToCustomer = true, processRefund = true } = req.body;
-  
-    if (!paymentIntentId) {
+    //@ts-ignore
+    const { id: userId } = req.user;  
+    if (!paymentIntentId) { 
       responseHandler(res, 400, "Payment Intent ID is required");
       return;
     }
@@ -1515,6 +1584,22 @@ const refund = async (req: express.Request, res: express.Response) => {
                 where: { paymentIntentId: paymentIntentId }
               });
             });
+            
+            if (processRefund) {
+              await AuditService.logPaymentIntentRefund(
+                paymentIntentId,
+                userId,
+                reason,
+                refundAmount
+              );
+            } else {
+              await AuditService.logPaymentIntentCancellation(
+                paymentIntentId,
+                userId,
+                reason,
+                false // willRefund = false
+              );
+            }
 
             // Generate confirmation ID for the refund email - handle case where no bookings exist yet
             let refundConfirmationId: string;
@@ -1740,6 +1825,14 @@ const refund = async (req: express.Request, res: express.Response) => {
                       processRefund: processRefund.toString()
                     }
                 });
+
+                
+                await AuditService.logPaymentIntentRefund(
+                  paymentIntentId,
+                  userId,
+                  reason,
+                  refundAmount
+                );
       
                 responseHandler(res, 200, "Refund initiated successfully", {
                     type: "refund",
@@ -2784,6 +2877,324 @@ const processCustomPartialRefund = async (req: express.Request, res: express.Res
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund };
+
+// Comprehensive PaymentIntent Update - handles booking changes with audit logging
+const updatePaymentIntent = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { 
+    bookings,
+    adminNotes,
+    reason,
+    totalAmount
+  } = req.body;
+  
+  // @ts-ignore
+  const { id: userId } = req.user;
+
+  if (!id) {
+    responseHandler(res, 400, "PaymentIntent ID is required");
+    return;
+  }
+
+  if (!reason?.trim()) {
+    responseHandler(res, 400, "Reason for changes is required");
+    return;
+  }
+
+  if (!Array.isArray(bookings) || bookings.length === 0) {
+    responseHandler(res, 400, "At least one booking is required");
+    return;
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Get current PaymentIntent with all related data
+      const currentPI = await tx.paymentIntent.findUnique({
+        where: { id },
+        include: {
+          bookings: {
+            include: {
+              room: true,
+            },
+          },
+          customer: true,
+        },
+      });
+
+      if (!currentPI) {
+        throw new Error("PaymentIntent not found");
+      }
+
+      // Parse current booking data for comparison
+      const currentBookingData = JSON.parse(currentPI.bookingData);
+      const previousValues = {
+        bookingData: currentBookingData,
+        totalAmount: currentPI.totalAmount,
+        adminNotes: currentPI.adminNotes,
+        bookingCount: currentPI.bookings.length,
+      };
+
+      // Validate and process each booking
+      const updatedBookingData = [];
+      const bookingUpdates = [];
+      const newBookings = [];
+      
+      for (let i = 0; i < bookings.length; i++) {
+        const booking = bookings[i];
+        
+        // Validate required fields
+        if (!booking.roomId || !booking.checkIn || !booking.checkOut) {
+          throw new Error(`Booking ${i + 1}: Missing required fields`);
+        }
+
+        if (new Date(booking.checkIn) >= new Date(booking.checkOut)) {
+          throw new Error(`Booking ${i + 1}: Check-out must be after check-in`);
+        }
+
+        // Find room details
+        const room = await tx.room.findUnique({
+          where: { id: booking.roomId }
+        });
+
+        if (!room) {
+          throw new Error(`Room not found: ${booking.roomId}`);
+        }
+
+        // Check capacity
+        const maxCapacity = booking.hasExtraBed && room.allowsExtraBed && room.maxCapacityWithExtraBed 
+          ? room.maxCapacityWithExtraBed 
+          : room.capacity;
+
+        if (booking.totalGuests > maxCapacity) {
+          throw new Error(`Booking ${i + 1}: Exceeds room capacity (${maxCapacity})`);
+        }
+
+        // Prepare booking data for PaymentIntent.bookingData JSON
+        const bookingDataEntry = {
+          id: booking.id.startsWith('new-') ? undefined : booking.id,
+          roomId: room.id,
+          roomDetails: {
+            id: room.id,
+            name: room.name,
+            description: room.description,
+            price: room.price,
+            capacity: room.capacity,
+            maxCapacityWithExtraBed: room.maxCapacityWithExtraBed,
+            extraBedPrice: room.extraBedPrice,
+            allowsExtraBed: room.allowsExtraBed,
+          },
+          checkIn: new Date(booking.checkIn).toISOString(),
+          checkOut: new Date(booking.checkOut).toISOString(),
+          adults: booking.totalGuests,
+          totalGuests: booking.totalGuests,
+          hasExtraBed: booking.hasExtraBed || false,
+          extraBedCount: booking.extraBedCount || 0,
+          totalPrice: booking.totalAmount || 0,
+        };
+        updatedBookingData.push(bookingDataEntry);
+
+        // Handle existing vs new bookings for database updates
+        if (booking.id.startsWith('new-')) {
+          // New booking to create
+          newBookings.push({
+            roomId: room.id,
+            checkIn: new Date(booking.checkIn),
+            checkOut: new Date(booking.checkOut),
+            totalGuests: booking.totalGuests,
+            hasExtraBed: booking.hasExtraBed || false,
+            extraBedCount: booking.extraBedCount || 0,
+            totalAmount: booking.totalAmount || 0,
+            customerId: currentPI.customerId!,
+            paymentIntentId: id,
+            status: 'CONFIRMED',
+          });
+        } else {
+          // Existing booking to update
+          const existingBooking = currentPI.bookings.find(b => b.id === booking.id);
+          if (existingBooking) {
+            bookingUpdates.push({
+              id: booking.id,
+              roomId: room.id,
+              checkIn: new Date(booking.checkIn),
+              checkOut: new Date(booking.checkOut),
+              totalGuests: booking.totalGuests,
+              hasExtraBed: booking.hasExtraBed || false,
+              extraBedCount: booking.extraBedCount || 0,
+              totalAmount: booking.totalAmount || 0,
+              // Track if room changed for audit
+              roomChanged: existingBooking.roomId !== room.id,
+              previousRoomId: existingBooking.roomId,
+            });
+          }
+        }
+      }
+
+      // Delete bookings that are no longer in the list
+      const bookingIdsToKeep = bookings
+        .filter(b => !b.id.startsWith('new-'))
+        .map(b => b.id);
+      
+      const bookingsToDelete = currentPI.bookings.filter(
+        existingBooking => !bookingIdsToKeep.includes(existingBooking.id)
+      );
+
+      // Perform database updates
+      
+      // Delete removed bookings
+      for (const bookingToDelete of bookingsToDelete) {
+        await tx.booking.delete({
+          where: { id: bookingToDelete.id }
+        });
+      }
+
+      // Update existing bookings
+      for (const bookingUpdate of bookingUpdates) {
+        const { id: bookingId, roomChanged, previousRoomId, ...updateData } = bookingUpdate;
+        
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: updateData,
+        });
+
+        // Log room change if applicable
+        if (roomChanged) {
+          const { AuditService } = await import("../services/auditService");
+          await AuditService.logRoomChange(
+            bookingId,
+            id,
+            userId,
+            previousRoomId!,
+            updateData.roomId,
+            `${reason} - Room changed during comprehensive edit`
+          );
+        }
+      }
+
+      // Create new bookings
+      const createdBookings = [];
+      for (const newBookingData of newBookings) {
+        const createdBooking = await tx.booking.create({
+          //@ts-ignore
+          data: newBookingData,
+          include: { room: true }
+        });
+        createdBookings.push(createdBooking);
+      }
+
+      // Update PaymentIntent
+      const updatedPI = await tx.paymentIntent.update({
+        where: { id },
+        data: {
+          bookingData: JSON.stringify(updatedBookingData),
+          totalAmount: totalAmount || 0,
+          adminNotes: adminNotes || currentPI.adminNotes,
+          updatedAt: new Date(),
+        },
+        include: {
+          bookings: {
+            include: {
+              room: true,
+            },
+          },
+          customer: true,
+        },
+      });
+
+      // Prepare audit data
+      const newValues = {
+        bookingData: updatedBookingData,
+        totalAmount: updatedPI.totalAmount,
+        adminNotes: updatedPI.adminNotes,
+        bookingCount: updatedPI.bookings.length,
+      };
+
+      return {
+        updatedPI,
+        previousValues,
+        newValues,
+        bookingsDeleted: bookingsToDelete.length,
+        bookingsCreated: newBookings.length,
+        bookingsUpdated: bookingUpdates.length,
+      };
+    }, {
+      timeout: 15000 // 15 second timeout for complex operations
+    });
+
+    // Log comprehensive audit entry
+    const { AuditService } = await import("../services/auditService");
+    const changedFields = AuditService.detectChangedFields(result.previousValues, result.newValues);
+    
+    if (changedFields.length > 0) {
+      await AuditService.logPaymentIntentEdit(
+        id,
+        userId,
+        result.previousValues,
+        result.newValues,
+        changedFields,
+        `${reason} - Comprehensive booking edit: ${result.bookingsCreated} created, ${result.bookingsUpdated} updated, ${result.bookingsDeleted} deleted`
+      );
+    }
+
+    // Log booking-specific changes
+    for (let i = 0; i < bookings.length; i++) {
+      const booking = bookings[i];
+      if (!booking.id.startsWith('new-')) {
+        const existingBooking = result.updatedPI.bookings.find(b => b.id === booking.id);
+        if (existingBooking) {
+          const bookingPrevious = {
+            checkIn: result.previousValues.bookingData[i]?.checkIn,
+            checkOut: result.previousValues.bookingData[i]?.checkOut,
+            totalGuests: result.previousValues.bookingData[i]?.totalGuests || result.previousValues.bookingData[i]?.adults,
+            totalAmount: result.previousValues.bookingData[i]?.totalPrice,
+          };
+          
+          const bookingNew = {
+            checkIn: booking.checkIn,
+            checkOut: booking.checkOut,
+            totalGuests: booking.totalGuests,
+            totalAmount: booking.totalAmount,
+          };
+
+          const bookingChangedFields = AuditService.detectChangedFields(bookingPrevious, bookingNew);
+          
+          if (bookingChangedFields.length > 0) {
+            await AuditService.logBookingEdit(
+              booking.id,
+              id,
+              userId,
+              bookingPrevious,
+              bookingNew,
+              bookingChangedFields,
+              `${reason} - Updated via comprehensive edit`
+            );
+          }
+        }
+      }
+    }
+
+    responseHandler(res, 200, "PaymentIntent and bookings updated successfully", result.updatedPI);
+  } catch (error) {
+    console.error("Error in comprehensive PaymentIntent update:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    responseHandler(res, 400, errorMessage);
+  }
+};
+
+// Get PaymentIntent audit logs
+const getPaymentIntentAuditLogs = async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+
+  try {
+    const { AuditService } = await import("../services/auditService");
+    const auditLogs = await AuditService.getPaymentIntentAuditLogs(id);
+    
+    responseHandler(res, 200, "Audit logs retrieved successfully", auditLogs);
+  } catch (e) {
+    console.error("Error retrieving audit logs:", e);
+    handleError(res, e as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs };
 
 

@@ -414,7 +414,9 @@ export default function PaymentIntentCard({
               )}
 
               {/* Cancel & Refund with Confirmation */}
-              {paymentIntent.status === "SUCCEEDED" && (
+              {paymentIntent.status === "SUCCEEDED" && 
+               (!paymentIntent.refundStatus || 
+                paymentIntent.refundStatus === "NOT_REFUNDED") && (
                 <>
                   <button
                     onClick={onRefund}

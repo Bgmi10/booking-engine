@@ -17,11 +17,14 @@ import {
   Save,
   Trash2,
   X,
+  Edit,
+  History,
 } from "lucide-react";
 import { getStatusColor } from "../../../utils/helper";
 import IndividualBookingCard from "./IndividualBookingCard";
 import { baseUrl } from "../../../utils/constants";
 import toast from 'react-hot-toast';
+import AuditLogModal from './AuditLogModal';
 import type { 
   EnhancedPaymentIntentCardProps, 
   PaymentMethodInfo,
@@ -35,6 +38,7 @@ export default function EnhancedPaymentIntentCard({
   onSendEmail,
   onRefund,
   onViewPayment,
+  onEdit,
   onDelete,
   onRestore,
   loadingAction,
@@ -57,7 +61,10 @@ export default function EnhancedPaymentIntentCard({
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
   const [loadingResend, setLoadingResend] = useState(false);
-  const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);    
+  const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);    
   const totalBookings = paymentIntent.bookingData?.length || 0;
   const totalNights = paymentIntent.bookingData?.reduce((sum, booking) => {
     const checkIn = new Date(booking.checkIn);
@@ -132,6 +139,38 @@ export default function EnhancedPaymentIntentCard({
       fetchIndividualBookings();
     }
     setExpanded(!expanded);
+  };
+
+  // Function to fetch audit logs
+  const fetchAuditLogs = async () => {
+    if (!paymentIntent?.id) return;
+    
+    setAuditLogsLoading(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/payment-intent/${paymentIntent.id}/audit-logs`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const logs = await response.json();
+        setAuditLogs(logs.data);
+      } else {
+        console.error('Failed to fetch audit logs');
+        setAuditLogs([]);
+      }
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      setAuditLogs([]);
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
+  const handleShowAuditLogs = () => {
+    if (auditLogs.length === 0) {
+      fetchAuditLogs();
+    }
+    setShowAuditLogs(true);
   };
 
   const handleBookingRefund = () => {
@@ -391,6 +430,28 @@ export default function EnhancedPaymentIntentCard({
                 View Details
               </button>
 
+              {/* Edit Button */}
+              {onEdit ? (
+                <button
+                  onClick={() => onEdit(paymentIntent)}
+                  disabled={loadingAction}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </button>
+              ) : null}
+
+              {/* Audit Log Button */}
+              <button
+                onClick={handleShowAuditLogs}
+                disabled={auditLogsLoading}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <History className="h-4 w-4 mr-1" />
+                Audit Logs
+              </button>
+
               {/* Send Email with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
                 <>
@@ -626,6 +687,15 @@ export default function EnhancedPaymentIntentCard({
           </div>
         </div>
       )}
+
+      {/* Audit Log Modal */}
+      <AuditLogModal
+        isOpen={showAuditLogs}
+        onClose={() => setShowAuditLogs(false)}
+        paymentIntent={paymentIntent}
+        auditLogs={auditLogs}
+        auditLogsLoading={auditLogsLoading}
+      />
     </div>
   );
 }

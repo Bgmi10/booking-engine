@@ -40,17 +40,9 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
         }
       })
       
-      // Increase outstanding amount when charge is created
-      if (paymentIntentId) {
-        await prisma.paymentIntent.update({
-          where: { id: paymentIntentId },
-          data: {
-            outstandingAmount: {
-              increment: parseFloat(amount)
-            }
-          }
-        });
-      }
+      // Note: Outstanding amount will be reduced by webhook when payment succeeds
+      // Do not modify outstanding balance here - charges are just payment attempts
+      
       const stripePaymentIntents = await stripe.paymentIntents.create({
         amount: Math.round(parseFloat(amount) * 100), // Amount in cents
         currency: "eur",
@@ -124,17 +116,8 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
       },
     });
     
-    // Increase outstanding amount when charge is created
-    if (paymentIntentId) {
-      await prisma.paymentIntent.update({
-        where: { id: paymentIntentId },
-        data: {
-          outstandingAmount: {
-            increment: parseFloat(amount)
-          }
-        }
-      });
-    }
+    // Note: Outstanding amount will be reduced by webhook when payment succeeds
+    // Do not modify outstanding balance here - charges are just payment attempts
 
     // 5. Create and confirm the Payment Intent using the newly attached card
     const stripePaymentIntent = await stripe.paymentIntents.create({
@@ -236,17 +219,8 @@ export const createQrSession = async (req: express.Request, res: express.Respons
       },
     });
     
-    // Increase outstanding amount when charge is created
-    if (paymentIntentId) {
-      await prisma.paymentIntent.update({
-        where: { id: paymentIntentId },
-        data: {
-          outstandingAmount: {
-            increment: parseFloat(amount)
-          }
-        }
-      });
-    }
+    // Note: Outstanding amount will be reduced by webhook when payment succeeds
+    // Do not modify outstanding balance here - charges are just payment attempts
     
     const priceId = await findOrCreatePrice({
         name: description || "QR Code Payment",
@@ -585,8 +559,18 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
             }
         });
 
-        // Note: Outstanding amount is not modified here - it was already increased when charge was created
-        // The webhook or separate payment confirmation will handle reducing outstanding when payment succeeds
+        // Reduce outstanding amount for successful manual transactions
+        if (paymentIntentId) {
+          await prisma.paymentIntent.update({
+            where: { id: paymentIntentId },
+            data: {
+              outstandingAmount: {
+                decrement: chargeAmount / 100 // Convert from cents
+              }
+            }
+          });
+        }
+        
       if (orderId) {
         const orderEventService = (global as any).orderEventService;
         if (orderEventService) {
@@ -643,8 +627,19 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
       }
     });
 
+    // Reduce outstanding amount for successful cash payments
+    if (paymentIntentId) {
+      await prisma.paymentIntent.update({
+        where: { id: paymentIntentId },
+        data: {
+          outstandingAmount: {
+            decrement: parseFloat(amount)
+          }
+        }
+      });
+    }
+    
     // Note: Cash charges are created with SUCCEEDED status, meaning they're already paid
-    // We should NOT increase outstanding amount for already-paid charges
     // If an orderId is provided, trigger the order delivered event
     if (orderId) {
       const orderEventService = (global as any).orderEventService;

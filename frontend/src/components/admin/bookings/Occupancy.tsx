@@ -1,32 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Calendar, Users, Euro, Lock, ChevronLeft, ChevronRight, Home } from "lucide-react";
-import { baseUrl } from "../../../utils/constants";
+import { useRooms } from "../../../hooks/useRooms";
 
 export default function Occupancy({ bookings }: { bookings: any }) {
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchAllRooms = async () => {
-    try {
-      const res = await fetch(baseUrl + "/admin/rooms/all", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include"
-      });
-      const data = await res.json();
-      setRooms(data.data);
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAllRooms();
-  }, []);
+  const { rooms, loadingRooms: loading } = useRooms();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewDays, setViewDays] = useState(14); // Default to 2 weeks view
 
