@@ -10,6 +10,7 @@ import { baseUrl } from "../../../utils/constants"
 import { generateMergedBookingId } from "../../../utils/helper"
 import { CreateBookingModal } from "./CreateBookingModal"
 import Occupancy from "./Occupancy" 
+import BookingGroups from "./BookingGroups"
 import type { PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
@@ -403,38 +404,7 @@ export default function BookingManagement() {
     }))
   );
   const selectedBookings = allBookings.filter(b => selectedBookingIds.includes(b.id));
-
-  // Grouped Bookings logic for Groups tab (always defined)
-  const bookingsForGrouping = filteredPaymentIntents.flatMap(pi =>
-    pi.bookingData.map(b => ({
-      ...b,
-      paymentIntentId: pi.id,
-      customer: pi.customerData,
-      // @ts-ignore
-      groupId: b.groupId,
-      // @ts-ignore
-      groupName: pi.customerData.groupName,
-    }))
-  );
-  const groupedBookings: Record<string, { name: string, bookings: any[] }> & { individual?: any[] } = bookingsForGrouping.reduce((acc, booking) => {
-    if (booking.groupId) {
-      if (!acc[booking.groupId]) {
-        // @ts-ignore
-        acc[booking.groupId] = {
-          // @ts-ignore
-          name: booking.customer.groupName,
-          bookings: []
-        };
-      }
-      acc[booking.groupId].bookings.push(booking);
-    } else {
-      acc.individual = acc.individual || [];
-      acc.individual.push(booking);
-    }
-    return acc;
-  }, {} as Record<string, { name: string, bookings: any[] }> & { individual?: any[] });
-
-  // Delete temp hold handler
+  
   const deleteTempHold = async (id: string) => {
     if (!confirm("Are you sure you want to delete this temp hold? This action cannot be undone.")) {
       return;
@@ -612,38 +582,7 @@ export default function BookingManagement() {
       ) : activeTab === "occupancy" ? (
         <Occupancy bookings={activePaymentIntents} />
       ) : activeTab === "groups" ? (
-        <div className="space-y-8">
-          {/* Render Groups */}
-          {Object.entries(groupedBookings)
-            .filter(([groupId]) => groupId !== "individual")
-            .map(([groupId, group]) => (
-              <div key={groupId} className="bg-white rounded-lg shadow p-6 border border-gray-200">
-                <h3 className="text-lg font-bold mb-2 text-blue-700">Group: {(group as any).name || groupId}</h3>
-                <ul className="divide-y divide-gray-100">
-                  {(group as any).bookings.map((b: any) => (
-                    <li key={b.id} className="py-2 flex items-center justify-between">
-                      <span>{b.customer?.firstName} {b.customer?.lastName} - {b.roomDetails?.name || b.selectedRoom || (b.roomId ?? "")}</span>
-                      <span className="text-xs text-gray-500">{b.checkIn} to {b.checkOut}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          {/* Render Individuals */}
-          {Array.isArray(groupedBookings['individual']) && (
-            <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-              <h3 className="text-lg font-bold mb-2 text-gray-700">Individual Bookings</h3>
-              <ul className="divide-y divide-gray-100">
-                {(groupedBookings['individual'] as any[]).map((b: any) => (
-                  <li key={b.id} className="py-2 flex items-center justify-between">
-                    <span>{b.customer?.firstName} {b.customer?.lastName} - {b.roomDetails?.name || b.selectedRoom || (b.roomId ?? "")}</span>
-                    <span className="text-xs text-gray-500">{b.checkIn} to {b.checkOut}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <BookingGroups />
       ) : (
         <>
           {/* Filters */}
@@ -687,22 +626,7 @@ export default function BookingManagement() {
             </div>
           </div>
 
-          {/* Create Group Button (toggle selection mode) */}
-          {!selectionMode && (
-            <div className="mb-2">
-              <button
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                onClick={() => {
-                  setSelectionMode(true);
-                  setSelectedBookingIds([]);
-                }}
-              >
-                Create Group
-              </button>
-            </div>
-          )}
-          {/* Confirm Selection Button */}
-          {selectionMode && (
+        {selectionMode && (
             <div className="mb-2 flex gap-2">
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

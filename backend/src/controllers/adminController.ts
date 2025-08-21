@@ -540,8 +540,6 @@ const updateBooking = async (req: express.Request, res: express.Response) => {
       },
     });
 
-    // Audit logging
-    const { AuditService } = await import("../services/auditService");
     
     // Detect changed fields
     const newValues = {
@@ -871,9 +869,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime } = req.body;
+  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount } = req.body;
 
-  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string } = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -920,6 +918,10 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   
   if (typeof dailyBookingStartTime !== 'undefined') {
     updateData.dailyBookingStartTime = dailyBookingStartTime;
+  }
+  
+  if (typeof autoGroupingRoomCount !== 'undefined') {
+    updateData.autoGroupingRoomCount = autoGroupingRoomCount;
   }
   
   try {
@@ -1590,14 +1592,16 @@ const refund = async (req: express.Request, res: express.Response) => {
                 paymentIntentId,
                 userId,
                 reason,
-                refundAmount
+                refundAmount,
+                ourPaymentIntent.bookingGroupId ?? undefined
               );
             } else {
               await AuditService.logPaymentIntentCancellation(
                 paymentIntentId,
                 userId,
                 reason,
-                false // willRefund = false
+                false, // willRefund = false
+                ourPaymentIntent.bookingGroupId ?? undefined
               );
             }
 
@@ -1831,7 +1835,8 @@ const refund = async (req: express.Request, res: express.Response) => {
                   paymentIntentId,
                   userId,
                   reason,
-                  refundAmount
+                  refundAmount,
+                  ourPaymentIntent.bookingGroupId ?? undefined
                 );
       
                 responseHandler(res, 200, "Refund initiated successfully", {
@@ -3058,7 +3063,6 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
 
         // Log room change if applicable
         if (roomChanged) {
-          const { AuditService } = await import("../services/auditService");
           await AuditService.logRoomChange(
             bookingId,
             id,
@@ -3120,8 +3124,6 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
       timeout: 15000 // 15 second timeout for complex operations
     });
 
-    // Log comprehensive audit entry
-    const { AuditService } = await import("../services/auditService");
     const changedFields = AuditService.detectChangedFields(result.previousValues, result.newValues);
     
     if (changedFields.length > 0) {
@@ -3131,7 +3133,8 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
         result.previousValues,
         result.newValues,
         changedFields,
-        `${reason} - Comprehensive booking edit: ${result.bookingsCreated} created, ${result.bookingsUpdated} updated, ${result.bookingsDeleted} deleted`
+        `${reason} - Comprehensive booking edit: ${result.bookingsCreated} created, ${result.bookingsUpdated} updated, ${result.bookingsDeleted} deleted`,
+        result.updatedPI.bookingGroupId ?? undefined
       );
     }
 
@@ -3185,7 +3188,6 @@ const getPaymentIntentAuditLogs = async (req: express.Request, res: express.Resp
   const { id } = req.params;
 
   try {
-    const { AuditService } = await import("../services/auditService");
     const auditLogs = await AuditService.getPaymentIntentAuditLogs(id);
     
     responseHandler(res, 200, "Audit logs retrieved successfully", auditLogs);

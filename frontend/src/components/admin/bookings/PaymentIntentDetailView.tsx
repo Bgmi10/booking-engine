@@ -1,5 +1,5 @@
 import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye } from "lucide-react"
-import type { PaymentIntentDetailsViewProps } from "../../../types/types"
+import type { BookingData, PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
 import { baseUrl } from "../../../utils/constants"
@@ -20,6 +20,7 @@ import { useState } from "react"
     loadingAction,
     generateConfirmationNumber,
     isDeletedTab = false,
+    hideViewPayments = false,
   }: PaymentIntentDetailsViewProps) {
     const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
     const [showBookingOverviewModal, setShowBookingOverviewModal] = useState(false);
@@ -29,6 +30,22 @@ import { useState } from "react"
       window.location.reload(); // Simple approach, could be improved with proper state management
     };
 
+    // Parse JSON strings safely
+    const parseJsonSafely = (jsonString: string | any, fallback: any = []) => {
+      if (typeof jsonString === 'string') {
+        try {
+          return JSON.parse(jsonString);
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          return fallback;
+        }
+      }
+      return jsonString || fallback;
+    };
+
+    const bookingData = parseJsonSafely(paymentIntent.bookingData, []);
+    const customerData = parseJsonSafely(paymentIntent.customerData, {});
+
     return (
       <>
       <div className="space-y-6">
@@ -36,45 +53,47 @@ import { useState } from "react"
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-              <Users
-              //@ts-ignore
-              className="h-5 w-5" />
+              <Users className="h-5 w-5" />
               Customer Information
             </h3>
-            <button
-              onClick={() => setShowBookingOverviewModal(true)}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              View payments
-            </button>
+            {!hideViewPayments && (
+              <button
+                onClick={() => setShowBookingOverviewModal(true)}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                View Payments
+              </button>
+            )}
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-500">Full Name</label>
                 <div className="font-medium text-gray-900">
-                  {paymentIntent.customerData.firstName} {paymentIntent.customerData.middleName}{" "}
-                  {paymentIntent.customerData.lastName}
+                  {customerData.firstName} {customerData.middleName}{" "}
+                  {customerData.lastName}
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Email</label>
-                <div className="font-medium text-gray-900">{paymentIntent.customerData.email}</div>
+                <div className="font-medium text-gray-900">{customerData.email}</div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone</label>
-                <div className="font-medium text-gray-900">{paymentIntent.customerData.phone}</div>
+                <div className="font-medium text-gray-900">{customerData.phone}</div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Nationality</label>
                 <div className="font-medium text-gray-900">
-                  {paymentIntent.customerData.nationality || "Not specified"}
+                  {customerData.nationality || "Not specified"}
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Confirmation Number</label>
-                <div className="font-medium text-gray-900 font-mono">{generateConfirmationNumber(paymentIntent)}</div>
+                <label className="text-sm font-medium text-gray-500">Booking Confirmation Number</label>
+                <div className="font-medium text-gray-900 font-mono">
+                  {generateConfirmationNumber ? generateConfirmationNumber(paymentIntent) : 'PROCESSING'}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Created By</label>
@@ -90,10 +109,10 @@ import { useState } from "react"
               </div>
             )}
   
-            {!paymentIntent.createdByAdmin && paymentIntent.customerData.specialRequests && (
+            {!paymentIntent.createdByAdmin && customerData.specialRequests && (
               <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                 <label className="text-sm font-medium text-green-700">Special Requests</label>
-                <div className="text-green-900 mt-1">{paymentIntent.customerData.specialRequests}</div>
+                <div className="text-green-900 mt-1">{customerData.specialRequests}</div>
               </div>
             )}
           </div>
@@ -104,12 +123,12 @@ import { useState } from "react"
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              Bookings Details ({paymentIntent.bookingData.length})
+              Bookings Details ({bookingData.length})
             </h3>
           </div>
           <div className="p-6">
             <div className="space-y-6">
-              {paymentIntent.bookingData.map((booking, index) => {
+              {bookingData.map((booking: BookingData, index: number) => {
                 const nights = differenceInDays(new Date(booking.checkOut), new Date(booking.checkIn))
                 return (
                   <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
@@ -242,7 +261,7 @@ import { useState } from "react"
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Payment Information
+              Booking Payment Information
               <span
                 className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(paymentIntent.status)}`}
               >

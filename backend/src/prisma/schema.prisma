@@ -322,6 +322,7 @@ model BookingGroup {
   paymentIntents        PaymentIntent[]
   charges               Charge[]    
   orders                Order[]
+  auditLogs             BookingAuditLog[]
 }
 
 model RatePolicy {
@@ -1441,12 +1442,15 @@ model BookingAuditLog {
   paymentIntent     PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
   bookingId         String?        // Related Booking
   booking           Booking?       @relation(fields: [bookingId], references: [id])
+  bookingGroupId    String?        // Related BookingGroup
+  bookingGroup      BookingGroup?  @relation(fields: [bookingGroupId], references: [id])
   
   createdAt         DateTime       @default(now())
   
   @@index([entityType, entityId])
   @@index([paymentIntentId])
   @@index([bookingId])
+  @@index([bookingGroupId])
   @@index([userId])
   @@index([actionType])
   @@index([createdAt])
@@ -1459,6 +1463,7 @@ enum AuditEntityType {
   ROOM_CHANGE
   PRICING_CHANGE
   GUEST_INFO_CHANGE
+  BOOKING_GROUP
 }
 
 enum AuditActionType {
@@ -1472,4 +1477,9 @@ enum AuditActionType {
   STATUS_CHANGED
   NOTES_ADDED
   EDITED
+  GROUP_CREATED
+  GROUP_UPDATED
+  GROUP_DELETED
+  BOOKING_ADDED_TO_GROUP
+  BOOKING_REMOVED_FROM_GROUP
 }

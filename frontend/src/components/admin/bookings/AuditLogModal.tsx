@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, History, Eye, User, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X, History, User, ArrowLeft, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import ComprehensivePaymentIntentEditForm from './ComprehensivePaymentIntentEditForm';
 import CreatorInfoModal from '../customers/CreatorInfoModal';

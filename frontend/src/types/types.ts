@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import type { Customer } from "../hooks/useCustomers";
 
 export interface User {
   id: string;
@@ -133,8 +134,9 @@ export interface PaymentIntentDetailsViewProps {
   onRestore?: () => void
   onRefresh?: () => void
   loadingAction: boolean
-  generateConfirmationNumber: (pi: PaymentIntent) => string
+  generateConfirmationNumber?: (pi: PaymentIntent) => string
   isDeletedTab?: boolean
+  hideViewPayments?: boolean
 }
 
 interface Image {
@@ -172,8 +174,10 @@ export interface PaymentIntent {
   outstandingAmount: number;
   expiresAt: string
   createdByAdmin: boolean
+  customer?: CustomerData;
   adminNotes?: string
   refundStatus?: RefundStatus
+  bookingGroupId?: string;
   stripePaymentIntentId?: string
   stripeSessionId?: string
   stripePaymentLinkId?: string
@@ -181,10 +185,7 @@ export interface PaymentIntent {
   totalAmount: number
   customerData: CustomerData
   bookingData: BookingData[]
-  bookings: Array<{
-    id: string
-    request?: string // Add request field for customer notes
-  }>
+  bookings: Booking[]
   paymentMethod?: PaymentMethod
   actualPaymentMethod?: PaymentMethod // STRIPE | BANK_TRANSFER | CASH
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
@@ -214,6 +215,7 @@ export interface Booking {
   room: Room
   paymentIntent?: PaymentIntent
   specialrequest?: string;
+  request?: string;
 
 }
 
@@ -245,11 +247,11 @@ export interface PaymentIntentCardProps {
   onDelete: () => void
   onRestore?: () => void
   loadingAction: boolean
-  isEditing: boolean
-  editFormData: PaymentIntent | null
-  onUpdateEditFormData: (field: string, value: any) => void
-  onSaveEdit: () => void
-  onCancelEdit: () => void
+  isEditing?: boolean
+  editFormData?: PaymentIntent | null
+  onUpdateEditFormData?: any
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
   generateConfirmationNumber: (pi: PaymentIntent) => string
   selectionMode?: boolean;
   selectedBookingIds?: string[];
@@ -547,7 +549,8 @@ export interface GeneralSettings { // Represents the actual data structure from/
   minStayDays: number;
   taxPercentage: number;
   chargePaymentConfig?: string;
-  dailyBookingStartTime: string
+  dailyBookingStartTime: string;
+  autoGroupingRoomCount?: number;
   dahuaApiUrl?: string;
   dahuaUsername?: string;
   dahuaPassword?: string;
@@ -564,6 +567,7 @@ export interface SettingsFormValues {
   minStayDays?: string;
   taxPercentage?: string;
   dailyBookingStartTime: string;
+  autoGroupingRoomCount?: string;
   dahuaApiUrl?: string;
   dahuaUsername?: string;
   dahuaPassword?: string;
@@ -820,6 +824,7 @@ export interface PaymentIntentData {
   adminNotes?: string;
   actualPaymentMethod?: PaymentMethod;
   refundStatus?: RefundStatus;
+  customer?: Customer | CustomerData
 }
 
 export interface PaymentRecord {
@@ -857,6 +862,62 @@ export interface Charge {
   refundedAt?: string;
 }
 
+export interface BookingGroup {
+  id: string;
+  groupName?: string;
+  isAutoGrouped: boolean;
+  outstandingAmount?: number;
+  createdAt: string;
+  updatedAt: string;
+  paymentIntents: Array<{
+    id: string;
+    totalAmount: number;
+    outstandingAmount?: number;
+    status: string;
+    bookings: Array<{
+      id: string;
+      room: {
+        id: string;
+        name: string;
+      };
+      checkIn: string;
+      checkOut: string;
+      totalGuests: number;
+    }>;
+    customer?: Customer
+  }>;
+  _count: {
+    paymentIntents: number;
+    charges: number;
+    orders: number;
+  };
+  charges: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    description?: string;
+  }>;
+  orders: Array<{
+    id: string;
+    total: number;
+    status: string;
+    locationNames: string[];
+  }>;
+}
+
+export interface BookingGroupAuditLog {
+  id: string;
+  entityType: string;
+  actionType: string;
+  reason?: string;
+  notes?: string;
+  previousValues?: any;
+  newValues?: any;
+  changedFields: string[];
+  createdAt: string;
+  userId: string;
+}
+
 export interface EnhancedPaymentIntentCardProps {
   paymentIntent: PaymentIntentData;
   onViewDetails?: (paymentIntent: any) => void;
@@ -876,6 +937,11 @@ export interface EnhancedPaymentIntentCardProps {
   onConfirmBooking?: () => void;
   onRefresh?: () => void;
   isDeletedTab?: boolean;
+  isEditing?: boolean,
+  editFormData?: any,
+  onUpdateEditFormData?: any,
+  onSaveEdit?: () => void,
+  onCancelEdit?: () => void,
 }
 
 export interface PaymentMethodInfo {

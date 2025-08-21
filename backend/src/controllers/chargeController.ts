@@ -6,7 +6,7 @@ import { findOrCreatePrice } from "../config/stripeConfig";
 import { sendChargeConfirmationEmail } from "../services/emailTemplate";
 
 export const chargeSaveCard = async (req: express.Request, res: express.Response) => {
-   const { customerId, paymentMethodId, amount, description, currency, orderId, paymentIntentId, adminNotes } = req.body;
+   const { customerId, paymentMethodId, amount, description, currency, orderId, paymentIntentId, bookingGroupId, adminNotes } = req.body;
    //@ts-ignore
    const { id: userId } = req.user;;
 
@@ -22,6 +22,34 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
      return;
    }
 
+   // Check if payment intent belongs to a booking group
+   let finalPaymentIntentId = null;
+   let finalBookingGroupId = bookingGroupId;
+
+   if (paymentIntentId && !bookingGroupId) {
+     // Check if this payment intent belongs to a booking group
+     const paymentIntent = await prisma.paymentIntent.findUnique({
+       where: { id: paymentIntentId },
+       select: { bookingGroupId: true }
+     });
+     
+     if (paymentIntent?.bookingGroupId) {
+       // Payment intent belongs to a group - link charge to group instead
+       finalBookingGroupId = paymentIntent.bookingGroupId;
+       finalPaymentIntentId = null;
+     } else {
+       // Payment intent is standalone - link charge to payment intent
+       finalPaymentIntentId = paymentIntentId;
+     }
+   } else if (bookingGroupId) {
+     // Explicitly linking to booking group
+     finalBookingGroupId = bookingGroupId;
+     finalPaymentIntentId = null;
+   } else {
+     // No group context - link to payment intent
+     finalPaymentIntentId = paymentIntentId;
+   }
+
    let charge;
    try {
       charge = await prisma.charge.create({
@@ -29,7 +57,8 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
             amount,
             description,
             customerId,
-            paymentIntentId,
+            paymentIntentId: finalPaymentIntentId,
+            bookingGroupId: finalBookingGroupId,
             currency,
             status: "PENDING",
             createdBy: userId,
@@ -74,7 +103,7 @@ export const chargeSaveCard = async (req: express.Request, res: express.Response
 }
 
 export const chargeNewCard = async (req: express.Request, res: express.Response) => {
-  const { customerId, paymentMethodId, amount, description, currency, paymentIntentId, adminNotes } = req.body;
+  const { customerId, paymentMethodId, amount, description, currency, paymentIntentId, bookingGroupId, adminNotes } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;;
 
@@ -92,6 +121,34 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
     return;
   }
 
+  // Check if payment intent belongs to a booking group
+  let finalPaymentIntentId = null;
+  let finalBookingGroupId = bookingGroupId;
+
+  if (paymentIntentId && !bookingGroupId) {
+    // Check if this payment intent belongs to a booking group
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      select: { bookingGroupId: true }
+    });
+    
+    if (paymentIntent?.bookingGroupId) {
+      // Payment intent belongs to a group - link charge to group instead
+      finalBookingGroupId = paymentIntent.bookingGroupId;
+      finalPaymentIntentId = null;
+    } else {
+      // Payment intent is standalone - link charge to payment intent
+      finalPaymentIntentId = paymentIntentId;
+    }
+  } else if (bookingGroupId) {
+    // Explicitly linking to booking group
+    finalBookingGroupId = bookingGroupId;
+    finalPaymentIntentId = null;
+  } else {
+    // No group context - link to payment intent
+    finalPaymentIntentId = paymentIntentId;
+  }
+
   let charge;
   try {
     // 3. Attach the new payment method to the Stripe customer to save it for future use.
@@ -106,7 +163,8 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
         amount: parseFloat(amount),
         description: description || "Ad-hoc charge (new card)",
         customerId: existingCustomer.id,
-        paymentIntentId,
+        paymentIntentId: finalPaymentIntentId,
+        bookingGroupId: finalBookingGroupId,
         currency: currency || "eur",
         status: "PENDING",
         createdBy: userId,
@@ -160,7 +218,7 @@ export const chargeNewCard = async (req: express.Request, res: express.Response)
 };
 
 export const createQrSession = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt, type, orderId, isTemporaryCustomer = false, paymentIntentId, adminNotes } = req.body;
+  const { customerId, amount, description, currency, isHostedInvoice = false, expiresAt, type, orderId, isTemporaryCustomer = false, paymentIntentId, bookingGroupId, adminNotes } = req.body;
   // @ts-ignore
   const { id: userId } = req.user;
 
@@ -195,6 +253,34 @@ export const createQrSession = async (req: express.Request, res: express.Respons
     return;
   }
 
+  // Check if payment intent belongs to a booking group
+  let finalPaymentIntentId = null;
+  let finalBookingGroupId = bookingGroupId;
+
+  if (paymentIntentId && !bookingGroupId) {
+    // Check if this payment intent belongs to a booking group
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      select: { bookingGroupId: true }
+    });
+    
+    if (paymentIntent?.bookingGroupId) {
+      // Payment intent belongs to a group - link charge to group instead
+      finalBookingGroupId = paymentIntent.bookingGroupId;
+      finalPaymentIntentId = null;
+    } else {
+      // Payment intent is standalone - link charge to payment intent
+      finalPaymentIntentId = paymentIntentId;
+    }
+  } else if (bookingGroupId) {
+    // Explicitly linking to booking group
+    finalBookingGroupId = bookingGroupId;
+    finalPaymentIntentId = null;
+  } else {
+    // No group context - link to payment intent
+    finalPaymentIntentId = paymentIntentId;
+  }
+
   let charge;
   try {
     // 3. Create a local charge record to track this transaction
@@ -209,7 +295,8 @@ export const createQrSession = async (req: express.Request, res: express.Respons
         description: description || (isHostedInvoice ? "Hosted Invoice Payment" : "QR Code Payment"),
         customerId: isTemporaryCustomer ? undefined : customerId,
         tempCustomerId: isTemporaryCustomer ? customerId : undefined,
-        paymentIntentId: paymentIntentId,
+        paymentIntentId: finalPaymentIntentId,
+        bookingGroupId: finalBookingGroupId,
         currency: currency || "eur",
         status: "PENDING",
         createdBy: userId,
@@ -448,7 +535,7 @@ export const refundCharge = async (req: express.Request, res: express.Response) 
 }
 
 export const createManualTransactionCharge = async (req: express.Request, res: express.Response) => {
-  const { customerId, transactionId, description, orderId, isTemporaryCustomer, paymentIntentId } = req.body;
+  const { customerId, transactionId, description, orderId, isTemporaryCustomer, paymentIntentId, bookingGroupId } = req.body;
     // @ts-ignore
     const { id: userId } = req.user;
     if (!customerId || !transactionId) {
@@ -539,6 +626,34 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
             responseHandler(res, 400, "This transaction is already recorded in our system.");
             return;
         }
+        // Check if payment intent belongs to a booking group
+        let finalPaymentIntentId = null;
+        let finalBookingGroupId = bookingGroupId;
+
+        if (paymentIntentId && !bookingGroupId) {
+          // Check if this payment intent belongs to a booking group
+          const paymentIntent = await prisma.paymentIntent.findUnique({
+            where: { id: paymentIntentId },
+            select: { bookingGroupId: true }
+          });
+          
+          if (paymentIntent?.bookingGroupId) {
+            // Payment intent belongs to a group - link charge to group instead
+            finalBookingGroupId = paymentIntent.bookingGroupId;
+            finalPaymentIntentId = null;
+          } else {
+            // Payment intent is standalone - link charge to payment intent
+            finalPaymentIntentId = paymentIntentId;
+          }
+        } else if (bookingGroupId) {
+          // Explicitly linking to booking group
+          finalBookingGroupId = bookingGroupId;
+          finalPaymentIntentId = null;
+        } else {
+          // No group context - link to payment intent
+          finalPaymentIntentId = paymentIntentId;
+        }
+
         // Create charge record
         const charge = await prisma.charge.create({
             data: {
@@ -546,7 +661,8 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
                 description: description || chargeDescription || `Manual transaction: ${transactionId}`,
           customerId: isTemporaryCustomer ? undefined : customerId,
           tempCustomerId: isTemporaryCustomer ? customerId : undefined,
-          paymentIntentId: paymentIntentId,
+          paymentIntentId: finalPaymentIntentId,
+          bookingGroupId: finalBookingGroupId,
                 currency: chargeCurrency,
                 status: "SUCCEEDED", // Already paid
                 createdBy: userId,
@@ -559,10 +675,21 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
             }
         });
 
-        // Reduce outstanding amount for successful manual transactions
-        if (paymentIntentId) {
+        // Update outstanding amount based on context
+        if (finalBookingGroupId) {
+          // Update booking group outstanding amount only
+          await prisma.bookingGroup.update({
+            where: { id: finalBookingGroupId },
+            data: {
+              outstandingAmount: {
+                decrement: chargeAmount / 100 // Convert from cents
+              }
+            }
+          });
+        } else if (finalPaymentIntentId) {
+          // Update payment intent outstanding amount only
           await prisma.paymentIntent.update({
-            where: { id: paymentIntentId },
+            where: { id: finalPaymentIntentId },
             data: {
               outstandingAmount: {
                 decrement: chargeAmount / 100 // Convert from cents
@@ -603,7 +730,7 @@ export const createManualTransactionCharge = async (req: express.Request, res: e
 };
 
 export const collectCashFromCustomer = async (req: express.Request, res: express.Response) => {
-  const { customerId, amount, description, orderId, isTemporaryCustomer, paymentIntentId, adminNotes } = req.body;
+  const { customerId, amount, description, orderId, isTemporaryCustomer, paymentIntentId, bookingGroupId, adminNotes } = req.body;
 //@ts-ignore
   const { id: adminId } = req.user;
   if (!customerId || !amount) {
@@ -611,11 +738,40 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
     return;
   }
   try {
+    // Check if payment intent belongs to a booking group
+    let finalPaymentIntentId = null;
+    let finalBookingGroupId = bookingGroupId;
+
+    if (paymentIntentId && !bookingGroupId) {
+      // Check if this payment intent belongs to a booking group
+      const paymentIntent = await prisma.paymentIntent.findUnique({
+        where: { id: paymentIntentId },
+        select: { bookingGroupId: true }
+      });
+      
+      if (paymentIntent?.bookingGroupId) {
+        // Payment intent belongs to a group - link charge to group instead
+        finalBookingGroupId = paymentIntent.bookingGroupId;
+        finalPaymentIntentId = null;
+      } else {
+        // Payment intent is standalone - link charge to payment intent
+        finalPaymentIntentId = paymentIntentId;
+      }
+    } else if (bookingGroupId) {
+      // Explicitly linking to booking group
+      finalBookingGroupId = bookingGroupId;
+      finalPaymentIntentId = null;
+    } else {
+      // No group context - link to payment intent
+      finalPaymentIntentId = paymentIntentId;
+    }
+
     const charge = await prisma.charge.create({
       data: {
         customerId: isTemporaryCustomer ? undefined : customerId,
         tempCustomerId: isTemporaryCustomer ? customerId : undefined,
-        paymentIntentId: paymentIntentId,
+        paymentIntentId: finalPaymentIntentId,
+        bookingGroupId: finalBookingGroupId,
         amount,
         description,
         orderId: orderId,
@@ -627,16 +783,58 @@ export const collectCashFromCustomer = async (req: express.Request, res: express
       }
     });
 
-    // Reduce outstanding amount for successful cash payments
-    if (paymentIntentId) {
-      await prisma.paymentIntent.update({
-        where: { id: paymentIntentId },
+    // Update outstanding amount based on context
+    if (finalBookingGroupId) {
+      // Update booking group outstanding amount only
+      await prisma.bookingGroup.update({
+        where: { id: finalBookingGroupId },
         data: {
           outstandingAmount: {
             decrement: parseFloat(amount)
           }
         }
       });
+    } else if (finalPaymentIntentId) {
+      // Update payment intent outstanding amount only
+      await prisma.paymentIntent.update({
+        where: { id: finalPaymentIntentId },
+        data: {
+          outstandingAmount: {
+            decrement: parseFloat(amount)
+          }
+        }
+      });
+    } else if (orderId) {
+      // If only orderId is provided, check if the order is linked to a booking group or payment intent
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { 
+          bookingGroupId: true,
+          paymentIntentId: true 
+        }
+      });
+      
+      if (order?.bookingGroupId) {
+        // Order is linked to a booking group
+        await prisma.bookingGroup.update({
+          where: { id: order.bookingGroupId },
+          data: {
+            outstandingAmount: {
+              decrement: parseFloat(amount)
+            }
+          }
+        });
+      } else if (order?.paymentIntentId) {
+        // Order is linked to a payment intent
+        await prisma.paymentIntent.update({
+          where: { id: order.paymentIntentId },
+          data: {
+            outstandingAmount: {
+              decrement: parseFloat(amount)
+            }
+          }
+        });
+      }
     }
     
     // Note: Cash charges are created with SUCCEEDED status, meaning they're already paid

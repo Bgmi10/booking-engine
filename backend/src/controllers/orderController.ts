@@ -168,7 +168,7 @@ export const getPendingHybridOrdersForWaiter = async (req: express.Request, res:
 };
 
 export const createAdminOrder = async (req: express.Request, res: express.Response) => {
-    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationNames, paymentIntentId } = req.body;
+    const { items, paymentMethod, customerId, temporaryCustomerSurname, locationNames, paymentIntentId, bookingGroupId } = req.body;
     //@ts-ignore
     const { id: adminId } = req.user;
 
@@ -225,6 +225,18 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
             }
         }
 
+        // If no bookingGroupId provided but we have a paymentIntentId, check if it belongs to a group
+        let finalBookingGroupId = bookingGroupId;
+        if (!finalBookingGroupId && finalPaymentIntentId) {
+            const paymentIntent = await prisma.paymentIntent.findUnique({
+                where: { id: finalPaymentIntentId },
+                select: { bookingGroupId: true }
+            });
+            if (paymentIntent?.bookingGroupId) {
+                finalBookingGroupId = paymentIntent.bookingGroupId;
+            }
+        }
+        
         const newOrder = await prisma.order.create({
             data: {
                 items,
@@ -233,21 +245,37 @@ export const createAdminOrder = async (req: express.Request, res: express.Respon
                 locationNames,
                 customerId: customerId,
                 temporaryCustomerId: tempCustomerId,
-                paymentIntentId: finalPaymentIntentId
+                paymentIntentId: finalPaymentIntentId,
+                bookingGroupId: finalBookingGroupId
             }
         });
         
-        // For ASSIGN_TO_ROOM orders, just update the outstanding balance directly
-        // No charge creation needed - orders are just line items on the booking tab
-        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId && finalPaymentIntentId) {
-            await prisma.paymentIntent.update({
-                where: { id: finalPaymentIntentId },
-                data: {
-                    outstandingAmount: {
-                        increment: total
+        // For ASSIGN_TO_ROOM orders, update the outstanding balance
+        // Update both payment intent and booking group if applicable
+        if (paymentMethod === 'ASSIGN_TO_ROOM' && customerId) {
+            // Update payment intent outstanding amount if linked
+            if (finalPaymentIntentId) {
+                await prisma.paymentIntent.update({
+                    where: { id: finalPaymentIntentId },
+                    data: {
+                        outstandingAmount: {
+                            increment: total
+                        }
                     }
-                }
-            });
+                });
+            }
+            
+            // Update booking group outstanding amount if linked
+            if (finalBookingGroupId) {
+                await prisma.bookingGroup.update({
+                    where: { id: finalBookingGroupId },
+                    data: {
+                        outstandingAmount: {
+                            increment: total
+                        }
+                    }
+                });
+            }
         }
         
         const orderEventService = (global as any).orderEventService;

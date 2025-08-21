@@ -15,7 +15,18 @@ import { updateVoucherProductSchema, updateVoucherSchema, voucherProductSchema, 
 import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer } from "../controllers/customerController";
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
-import { createBookingsGroup } from "../controllers/groupController";
+import { 
+    createBookingsGroup, 
+    createBookingGroup, 
+    updateBookingGroup, 
+    addPaymentIntentsToGroup, 
+    removePaymentIntentsFromGroup, 
+    deleteBookingGroup, 
+    getBookingGroup, 
+    getAllBookingGroups,
+    getBookingGroupAuditLogs,
+    getAllDeletionAuditLogs
+} from "../controllers/groupController";
 import { chargeNewCard, chargeSaveCard, collectCashFromCustomer, createQrSession, getChargeById, getPaymentIntentCharges, refundCharge } from "../controllers/chargeController";
 import { createManualTransactionCharge } from "../controllers/chargeController";
 import { getNotifications, getNotificationById, createNotification, updateNotification, completeNotification, deleteNotification, getDailyActionList, deleteNotificationAttachment } from '../controllers/notificationController';
@@ -245,7 +256,19 @@ adminRouter.get('/temp-customers/:id/charge-payments', authMiddleware, getTempCu
 
 adminRouter.get('/temp-customers/:id/orders', authMiddleware, getTempCustomerOrders);
 
+// Legacy booking group endpoint
 adminRouter.post('/bookings/group', authMiddleware, createBookingsGroup);
+
+// New comprehensive booking group endpoints
+adminRouter.get('/booking-groups', authMiddleware, getAllBookingGroups);
+adminRouter.get('/booking-groups/:id', authMiddleware, getBookingGroup);
+adminRouter.post('/booking-groups', authMiddleware, createBookingGroup);
+adminRouter.put('/booking-groups/:id', authMiddleware, updateBookingGroup);
+adminRouter.delete('/booking-groups/:id', authMiddleware, deleteBookingGroup);
+adminRouter.post('/booking-groups/:id/payment-intents', authMiddleware, addPaymentIntentsToGroup);
+adminRouter.post('/booking-groups/remove-payment-intents', authMiddleware, removePaymentIntentsFromGroup);
+adminRouter.get('/booking-groups/:id/audit-logs', authMiddleware, getBookingGroupAuditLogs);
+adminRouter.get('/audit-logs/deletions', authMiddleware, getAllDeletionAuditLogs);
 
 adminRouter.post('/customers/:id/payment-methods', authMiddleware, getPaymentMethodsForCustomer);
 

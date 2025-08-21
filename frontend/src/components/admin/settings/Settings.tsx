@@ -82,7 +82,8 @@ export default function Settings() {
           dahuaLicensePlateExpiryHours: String(currentSettings.dahuaLicensePlateExpiryHours || 24),
           licensePlateExpiryDays: String(currentSettings.licensePlateExpiryDays || 30),
           licensePlateDailyTriggerTime: currentSettings.licensePlateDailyTriggerTime || '00:00',
-          dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00'
+          dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00',
+          autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2)
         });
         setSettingsId(currentSettings.id);
 
@@ -106,7 +107,8 @@ export default function Settings() {
         setFormValues({ 
           minStayDays: '1',
           taxPercentage: '0',
-          dailyBookingStartTime: '00:00'
+          dailyBookingStartTime: '00:00',
+          autoGroupingRoomCount: '2'
         }); // Default values if no settings found
         setSettingsId(null);
       }
@@ -360,7 +362,8 @@ export default function Settings() {
           dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24,
           licensePlateExpiryDays: Number(formValues.licensePlateExpiryDays) || 30,
           licensePlateDailyTriggerTime: formValues.licensePlateDailyTriggerTime || '00:00',
-          dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00'
+          dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00',
+          autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2
         }),
       });
       
@@ -403,7 +406,7 @@ export default function Settings() {
                 {/* Booking Settings Section */}
                 <div className="p-6">
                   <h4 className="text-base font-medium text-gray-900 mb-4">Booking Settings</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div>
                       <label htmlFor="minStayDaysInput" className="block text-sm font-medium text-gray-700 mb-2">
                         Minimum Stay Days
@@ -442,6 +445,28 @@ export default function Settings() {
                       </div>
                       <p className="mt-2 text-sm text-gray-500">
                          (Italian time)
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="autoGroupingRoomCountInput" className="block text-sm font-medium text-gray-700 mb-2">
+                        Auto-Grouping Room Count
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          id="autoGroupingRoomCountInput"
+                          name="autoGroupingRoomCount"
+                          type="number"
+                          value={formValues.autoGroupingRoomCount ?? '2'}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          min="2"
+                          max="20"
+                          disabled={isLoading}
+                          placeholder="e.g., 2"
+                        />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Minimum number of rooms required to automatically create a booking group
                       </p>
                     </div>
                   </div>

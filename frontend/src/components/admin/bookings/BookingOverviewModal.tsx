@@ -7,7 +7,6 @@ import CreatorInfoModal from '../customers/CreatorInfoModal';
 import ChargeRefundModal from '../shared/ChargeRefundModal';
 import type { Customer } from '../../../hooks/useCustomers';
 import type { Charge } from '../../../types/types';
-import { baseUrl } from '../../../utils/constants';
 
 interface BookingOverviewModalProps {
   isOpen: boolean;
@@ -509,22 +508,6 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
                         )}
                       </div>
                     ))}
-                  </div>
-
-                  {/* Information Note */}
-                  <div className="bg-blue-50 rounded-md p-2.5 border border-blue-200">
-                    <div className="flex items-start gap-2">
-                      <svg className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div>
-                        <p className="text-xs font-medium text-blue-900">How Room Orders Work</p>
-                        <p className="text-xs text-blue-700 mt-0.5">
-                          These orders are added to the guest's booking tab. The total value (€{roomOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0).toFixed(2)}) 
-                          is included in the outstanding balance and will be paid at checkout.
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 </>
               )}

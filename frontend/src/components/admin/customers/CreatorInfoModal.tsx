@@ -12,7 +12,6 @@ export default function CreatorInfoModal({
     userId, 
     onClose, 
     title = "Creator Information",
-    context = "creator"
 }: CreatorInfoModalProps) {
     const { userInfo: user, loading, error } = useUserInfo(userId);
 

@@ -13,16 +13,20 @@ export interface AuditLogData {
   changedFields?: string[];
   paymentIntentId?: string;
   bookingId?: string;
+  bookingGroupId?: string;
 }
 
 export class AuditService {
   /**
    * Create an audit log entry
    */
-  static async createAuditLog(data: AuditLogData) {
+  static async createAuditLog(tx: any, data: AuditLogData) {
     try {
+      // Use transaction context if provided, otherwise use prisma directly
+      const db = tx || prisma;
+      
       // First validate that the user exists
-      const userExists = await prisma.user.findUnique({
+      const userExists = await db.user.findUnique({
         where: { id: data.userId },
         select: { id: true, name: true, email: true }
       });
@@ -32,19 +36,34 @@ export class AuditService {
         throw new Error(`Invalid user ID for audit log: ${data.userId}`);
       }
 
-      const auditLog = await prisma.bookingAuditLog.create({
+      // Check if bookingGroupId exists before creating audit log
+      let validBookingGroupId = data.bookingGroupId;
+      if (data.bookingGroupId) {
+        const groupExists = await db.bookingGroup.findUnique({
+          where: { id: data.bookingGroupId },
+          select: { id: true }
+        });
+        
+        if (!groupExists) {
+          console.warn(`BookingGroup ${data.bookingGroupId} not found. Creating audit log without bookingGroupId reference.`);
+          validBookingGroupId = undefined;
+        }
+      }
+
+      const auditLog = await db.bookingAuditLog.create({
         data: {
           entityType: data.entityType,
           entityId: data.entityId,
           actionType: data.actionType,
           userId: data.userId,
           reason: data.reason,
-          notes: data.notes,
+          notes: data.notes || (data.bookingGroupId && !validBookingGroupId ? `[Note: Original booking group ${data.bookingGroupId} was deleted]` : undefined),
           previousValues: data.previousValues,
           newValues: data.newValues,
           changedFields: data.changedFields || [],
           paymentIntentId: data.paymentIntentId,
           bookingId: data.bookingId,
+          bookingGroupId: validBookingGroupId,
         },
         include: {
           user: {
@@ -72,9 +91,11 @@ export class AuditService {
     paymentIntentId: string,
     userId: string,
     reason?: string,
-    willRefund?: boolean
+    willRefund?: boolean,
+    bookingGroupId?: string
   ) {
-    return this.createAuditLog({
+    // Create the primary payment intent cancellation log
+    const auditLog = await this.createAuditLog(null, {
       entityType: "PAYMENT_INTENT",
       entityId: paymentIntentId,
       actionType: "CANCELLED",
@@ -82,7 +103,21 @@ export class AuditService {
       reason,
       notes: willRefund ? "Cancellation with refund" : "Cancellation without refund",
       paymentIntentId,
+      bookingGroupId,
     });
+
+    // If this payment intent belongs to a booking group, also create a booking group audit log
+    if (bookingGroupId) {
+      await this.logBookingGroupCancellation(
+        bookingGroupId,
+        paymentIntentId,
+        userId,
+        reason,
+        willRefund
+      );
+    }
+
+    return auditLog;
   }
 
   /**
@@ -92,9 +127,11 @@ export class AuditService {
     paymentIntentId: string,
     userId: string,
     reason?: string,
-    refundAmount?: number
+    refundAmount?: number,
+    bookingGroupId?: string
   ) {
-    return this.createAuditLog({
+    // Create the primary payment intent refund log
+    const auditLog = await this.createAuditLog(null, {
       entityType: "PAYMENT_INTENT",
       entityId: paymentIntentId,
       actionType: "REFUNDED",
@@ -102,7 +139,21 @@ export class AuditService {
       reason,
       notes: refundAmount ? `Refund amount: €${refundAmount}` : undefined,
       paymentIntentId,
+      bookingGroupId,
     });
+
+    // If this payment intent belongs to a booking group, also create a booking group audit log
+    if (bookingGroupId) {
+      await this.logBookingGroupRefund(
+        bookingGroupId,
+        paymentIntentId,
+        userId,
+        reason,
+        refundAmount
+      );
+    }
+
+    return auditLog;
   }
 
   /**
@@ -114,9 +165,11 @@ export class AuditService {
     previousValues: any,
     newValues: any,
     changedFields: string[],
-    reason?: string
+    reason?: string,
+    bookingGroupId?: string
   ) {
-    return this.createAuditLog({
+    // Create the primary payment intent edit log
+    const auditLog = await this.createAuditLog(null, {
       entityType: "PAYMENT_INTENT",
       entityId: paymentIntentId,
       actionType: "EDITED",
@@ -126,7 +179,24 @@ export class AuditService {
       newValues,
       changedFields,
       paymentIntentId,
+      bookingGroupId,
     });
+
+    // If this payment intent belongs to a booking group, also create a booking group audit log
+    if (bookingGroupId) {
+      await this.logBookingGroupPaymentIntentChange(
+        bookingGroupId,
+        paymentIntentId,
+        userId,
+        "PAYMENT_INTENT_EDITED",
+        previousValues,
+        newValues,
+        changedFields,
+        reason
+      );
+    }
+
+    return auditLog;
   }
 
   /**
@@ -141,7 +211,7 @@ export class AuditService {
     reason?: string,
     priceDifference?: number
   ) {
-    return this.createAuditLog({
+    return this.createAuditLog(null, {
       entityType: "ROOM_CHANGE",
       entityId: bookingId,
       actionType: "ROOM_CHANGED",
@@ -172,7 +242,7 @@ export class AuditService {
       ? "DATES_CHANGED" 
       : "EDITED";
 
-    return this.createAuditLog({
+    return this.createAuditLog(null, {
       entityType: "BOOKING",
       entityId: bookingId,
       actionType,
@@ -197,7 +267,7 @@ export class AuditService {
     changedFields: string[],
     reason?: string
   ) {
-    return this.createAuditLog({
+    return this.createAuditLog(null, {
       entityType: "GUEST_INFO_CHANGE",
       entityId: paymentIntentId,
       actionType: "GUEST_INFO_CHANGED",
@@ -220,7 +290,7 @@ export class AuditService {
     newAmount: number,
     reason?: string
   ) {
-    return this.createAuditLog({
+    return this.createAuditLog(null, {
       entityType: "PRICING_CHANGE",
       entityId: paymentIntentId,
       actionType: "PRICING_CHANGED",
@@ -326,6 +396,105 @@ export class AuditService {
         pages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Log booking group related payment intent changes
+   */
+  static async logBookingGroupPaymentIntentChange(
+    bookingGroupId: string,
+    paymentIntentId: string,
+    userId: string,
+    actionType: string,
+    previousValues: any,
+    newValues: any,
+    changedFields: string[],
+    reason?: string
+  ) {
+    return this.createAuditLog(null, {
+      entityType: "BOOKING_GROUP",
+      entityId: bookingGroupId,
+      actionType: actionType as any,
+      userId,
+      reason: reason || `Payment intent ${paymentIntentId.slice(-8)} modified in booking group`,
+      previousValues,
+      newValues,
+      changedFields,
+      paymentIntentId,
+      bookingGroupId,
+    });
+  }
+
+  /**
+   * Log booking group refund
+   */
+  static async logBookingGroupRefund(
+    bookingGroupId: string,
+    paymentIntentId: string,
+    userId: string,
+    reason?: string,
+    refundAmount?: number
+  ) {
+    return this.createAuditLog(null, {
+      entityType: "BOOKING_GROUP",
+      entityId: bookingGroupId,
+      actionType: "REFUNDED",
+      userId,
+      reason: reason || `Payment intent ${paymentIntentId.slice(-8)} refunded`,
+      notes: refundAmount ? `Refund amount: €${refundAmount}` : undefined,
+      paymentIntentId,
+      bookingGroupId,
+    });
+  }
+
+  /**
+   * Log booking group cancellation
+   */
+  static async logBookingGroupCancellation(
+    bookingGroupId: string,
+    paymentIntentId: string,
+    userId: string,
+    reason?: string,
+    willRefund?: boolean
+  ) {
+    return this.createAuditLog(null, {
+      entityType: "BOOKING_GROUP",
+      entityId: bookingGroupId,
+      actionType: "CANCELLED",
+      userId,
+      reason: reason || `Payment intent ${paymentIntentId.slice(-8)} cancelled`,
+      notes: willRefund ? "Cancellation with refund" : "Cancellation without refund",
+      paymentIntentId,
+      bookingGroupId,
+    });
+  }
+
+  /**
+   * Get audit logs for a Booking Group
+   */
+  static async getBookingGroupAuditLogs(bookingGroupId: string) {
+    return prisma.bookingAuditLog.findMany({
+      where: { 
+        OR: [
+          { bookingGroupId },
+          { 
+            paymentIntent: {
+              bookingGroupId
+            }
+          }
+        ]
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   /**

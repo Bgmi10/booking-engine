@@ -997,6 +997,31 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
             return { createdBookings, customer };
         });
 
+        // Check for auto-grouping after successful payment
+        try {
+            const { BookingGroupService } = await import("../services/bookingGroupService");
+            const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([ourPaymentIntent.id]);
+            
+            if (shouldAutoGroup && !ourPaymentIntent.bookingGroupId) {
+                // Auto-create booking group
+                const bookingData = JSON.parse(ourPaymentIntent.bookingData);
+                const groupName = `${customerDetails.firstName} ${customerDetails.lastName} - ${bookingData.length} rooms`;
+                
+                await BookingGroupService.createBookingGroup({
+                    groupName,
+                    isAutoGrouped: true,
+                    paymentIntentIds: [ourPaymentIntent.id],
+                    userId: 'SYSTEM', // System-generated for webhook
+                    reason: `Auto-grouped: ${bookingData.length} rooms booked together`,
+                });
+                
+                console.log(`Auto-created booking group for payment intent ${ourPaymentIntent.id}`);
+            }
+        } catch (groupError) {
+            // Log but don't fail the payment processing
+            console.error('Error in auto-grouping:', groupError);
+        }
+
         // After transaction, send confirmation emails
         if (result.createdBookings.length > 0 && sendConfirmationEmail === "true") {
             await sendConfirmationEmails(result.createdBookings, customerDetails);
@@ -1035,13 +1060,13 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
             },
         });
 
-        // Update outstanding amount for related payment intent
+        // Update outstanding amount for related payment intent and booking group
         // All successful charges should reduce outstanding balance in the hotel tab system
         if (charge.paymentIntentId) {
             // Update the specific payment intent linked to this charge
             const paymentIntent = await prisma.paymentIntent.findUnique({
                 where: { id: charge.paymentIntentId },
-                select: { outstandingAmount: true }
+                select: { outstandingAmount: true, bookingGroupId: true }
             });
 
             if (paymentIntent && paymentIntent.outstandingAmount && paymentIntent.outstandingAmount > 0) {
@@ -1055,6 +1080,43 @@ async function processChargeSuccess(chargeId: string, stripePayment: Stripe.Paym
                 });
                 
                 console.log(`Updated outstanding amount for PaymentIntent ${charge.paymentIntentId}: ${currentOutstanding} -> ${newOutstanding}`);
+                
+                // If payment intent belongs to a booking group, update group outstanding amount
+                if (paymentIntent.bookingGroupId) {
+                    const bookingGroup = await prisma.bookingGroup.findUnique({
+                        where: { id: paymentIntent.bookingGroupId },
+                        select: { outstandingAmount: true }
+                    });
+                    
+                    if (bookingGroup && bookingGroup.outstandingAmount) {
+                        const groupNewOutstanding = Math.max(0, bookingGroup.outstandingAmount - chargeAmount);
+                        
+                        await prisma.bookingGroup.update({
+                            where: { id: paymentIntent.bookingGroupId },
+                            data: { outstandingAmount: groupNewOutstanding }
+                        });
+                        
+                        console.log(`Updated outstanding amount for BookingGroup ${paymentIntent.bookingGroupId}: ${bookingGroup.outstandingAmount} -> ${groupNewOutstanding}`);
+                    }
+                }
+            }
+        } else if (charge.bookingGroupId) {
+            // Handle charges that are directly linked to a booking group (e.g., from orders)
+            const bookingGroup = await prisma.bookingGroup.findUnique({
+                where: { id: charge.bookingGroupId },
+                select: { outstandingAmount: true }
+            });
+            
+            if (bookingGroup && bookingGroup.outstandingAmount) {
+                const chargeAmount = stripePayment.amount / 100;
+                const groupNewOutstanding = Math.max(0, bookingGroup.outstandingAmount - chargeAmount);
+                
+                await prisma.bookingGroup.update({
+                    where: { id: charge.bookingGroupId },
+                    data: { outstandingAmount: groupNewOutstanding }
+                });
+                
+                console.log(`Updated outstanding amount for BookingGroup ${charge.bookingGroupId}: ${bookingGroup.outstandingAmount} -> ${groupNewOutstanding}`);
             }
         } else if (charge.customerId) {
             // Fallback to customer-based logic for charges without paymentIntentId
