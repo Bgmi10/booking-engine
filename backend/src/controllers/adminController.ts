@@ -18,6 +18,7 @@ import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from '../cron/cron';
 import AuditService from "../services/auditService";
+import { Customer } from "@prisma/client";
 
 dotenv.config();
 
@@ -2425,60 +2426,63 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
       return;
     }
 
-    // Update payment intent status to SUCCEEDED
-    await prisma.paymentIntent.update({
-      where: { id: paymentIntentId },
-      data: { status: "SUCCEEDED" }
-    });
-
-    // Parse booking data and customer data
     const bookingData = JSON.parse(paymentIntent.bookingData);
     const customerData = JSON.parse(paymentIntent.customerData);
+    const createdBookings: any = [];
+    let customer: any; 
 
-    // Create or find customer
-    let customer = await prisma.customer.findUnique({
-      where: { guestEmail: customerData.email }
-    });
-
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
-          guestFirstName: customerData.firstName,
-          guestMiddleName: customerData.middleName,
-          guestLastName: customerData.lastName,
-          guestEmail: customerData.email,
-          guestPhone: customerData.phone,
-          guestNationality: customerData.nationality,
-          accountActivated: true,
-          emailVerified: true
+    await prisma.$transaction(async (tx) => {
+      await tx.paymentIntent.update({
+        where: { id: paymentIntentId },
+        data: { 
+          status: "SUCCEEDED",
+          outstandingAmount: { decrement: paymentIntent.outstandingAmount ?? 0 }  
         }
       });
-    }
 
-    // Create bookings
-    const createdBookings = [];
-    for (const bookingItem of bookingData) {
-      const booking = await prisma.booking.create({
-        data: {
-          roomId: bookingItem.selectedRoom,
-          checkIn: new Date(bookingItem.checkIn),
-          checkOut: new Date(bookingItem.checkOut),
-          totalGuests: bookingItem.adults,
-          status: "CONFIRMED",
-          customerId: customer.id,
-          paymentIntentId: paymentIntent.id,
-          request: customerRequest || customerData.specialRequests || null, // <-- use customerRequest if provided
-          carNumberPlate: customerData.carNumberPlate,
-          groupId: customerData.groupId
-        }
+      customer = await prisma.customer.findUnique({
+        where: { guestEmail: customerData.email }
       });
-      createdBookings.push(booking);
-    }
+     
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            guestFirstName: customerData.firstName,
+            guestMiddleName: customerData.middleName,
+            guestLastName: customerData.lastName,
+            guestEmail: customerData.email,
+            guestPhone: customerData.phone,
+            guestNationality: customerData.nationality,
+            accountActivated: true,
+            emailVerified: true
+          }
+        });
+      };
 
-    // Remove temporary holds
-    await prisma.temporaryHold.deleteMany({
-      where: { paymentIntentId }
-    });
+      for (const bookingItem of bookingData) {
+        const booking = await prisma.booking.create({
+          data: {
+            roomId: bookingItem.selectedRoom,
+            checkIn: new Date(bookingItem.checkIn),
+            checkOut: new Date(bookingItem.checkOut),
+            totalGuests: bookingItem.adults,
+            status: "CONFIRMED",
+            customerId: customer.id,
+            paymentIntentId: paymentIntent.id,
+            request: customerRequest || customerData.specialRequests || null, // <-- use customerRequest if provided
+            carNumberPlate: customerData.carNumberPlate,
+            groupId: customerData.groupId,
+          }
+        });
+        createdBookings.push(booking);
+      }
+  
+      // Remove temporary holds
+      await prisma.temporaryHold.deleteMany({
+        where: { paymentIntentId }
+      });
+
+    })
 
     responseHandler(res, 200, "Booking confirmed successfully", {
       paymentIntentId,

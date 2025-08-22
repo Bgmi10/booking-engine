@@ -1,14 +1,18 @@
 import { useState, useMemo } from 'react';
-import { X, Users, CreditCard, RefreshCw, Filter, AlertCircle, Plus, Eye, FileText, User, Info, Trash2, Edit, DollarSign } from 'lucide-react';
+import { X, Users, CreditCard, RefreshCw, Filter, AlertCircle, Plus, Eye, FileText, User, Info, Trash2, Edit, DollarSign, History } from 'lucide-react';
 import { format } from 'date-fns';
-import type { BookingGroup, Charge, PaymentIntentData } from '../../../types/types';
+import type { BookingGroup, Charge } from '../../../types/types';
 import { formatCurrency, generateMergedBookingId } from '../../../utils/helper';
 import PaymentIntentDetailView from './PaymentIntentDetailView';
+import ComprehensivePaymentIntentEditForm from './ComprehensivePaymentIntentEditForm';
+import CustomPartialRefundModal from './CustomPartialRefundModal';
 import ChargeModal from '../customers/ChargeModal';
 import CreatorInfoModal from '../customers/CreatorInfoModal';
 import ChargeRefundModal from '../shared/ChargeRefundModal';
 import OrderDetailsModal from '../customers/OrderDetailsModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
+import RefundConfirmationModal from './RefundConfirmationModal';
+import AuditLogModal from './AuditLogModal';
 import { baseUrl } from '../../../utils/constants';
 import toast from 'react-hot-toast';
 
@@ -29,7 +33,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   // Additional state for payments functionality
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [creatorIdForModal, setCreatorIdForModal] = useState<string | null>(null);  
-  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showChargeRefundModal, setShowChargeRefundModal] = useState(false);
   const [selectedChargeForRefund, setSelectedChargeForRefund] = useState<Charge | null>(null);
   const [showRefundDetailsModal, setShowRefundDetailsModal] = useState(false);
   const [selectedChargeForRefundDetails, setSelectedChargeForRefundDetails] = useState<Charge | null>(null);
@@ -39,9 +43,19 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   const [isDeleting, setIsDeleting] = useState(false);
   
   // Edit payment intent state
-  const [editingPaymentIntentId, setEditingPaymentIntentId] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState<PaymentIntentData | null>(null);
-  const [isEditSaving, setIsEditSaving] = useState(false);
+  const [editingPaymentIntent, setEditingPaymentIntent] = useState<any>(null);
+  
+  // Refund state for payment intents
+  const [refundingPaymentIntent, setRefundingPaymentIntent] = useState<any>(null);
+  const [showPaymentIntentRefundModal, setShowPaymentIntentRefundModal] = useState(false);
+  const [showPartialRefundModal, setShowPartialRefundModal] = useState(false);
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  
+  // Audit log states
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
+  const [selectedPaymentIntentForAudit, setSelectedPaymentIntentForAudit] = useState<any>(null);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
 
   // Generate confirmation number function similar to the one in Bookings.tsx
   const generateConfirmationNumber = (paymentIntent: any) => {
@@ -95,7 +109,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
 
   const handleChargeRefund = (charge: Charge) => {
     setSelectedChargeForRefund(charge);
-    setShowRefundModal(true);
+    setShowChargeRefundModal(true);
   };
 
   const handleViewRefundDetails = (charge: Charge) => {
@@ -132,97 +146,45 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
     setSelectedPaymentIntent(paymentIntent);
   };
 
-  // Edit payment intent handlers
   const handleEditPaymentIntent = (paymentIntent: any) => {
-    setEditingPaymentIntentId(paymentIntent.id);
-    // Convert customer to customerData for consistency with PaymentIntentData type
-    const formData = {
-      ...paymentIntent,
-      customerData: paymentIntent.customer || paymentIntent.customerData
-    };
-    setEditFormData(formData);
+    setEditingPaymentIntent(paymentIntent);
   };
 
-  const handleCancelEdit = () => {
-    setEditingPaymentIntentId(null);
-    setEditFormData(null);
+  const handleRefundPaymentIntent = (paymentIntent: any) => {
+    setRefundingPaymentIntent(paymentIntent);
+    setShowPaymentIntentRefundModal(true);
   };
 
-  const handleUpdateEditFormData = (field: string, value: any) => {
-    if (!editFormData) return;
+  const handlePartialRefund = (paymentIntent: any) => {
+    setRefundingPaymentIntent(paymentIntent);
+    setShowPartialRefundModal(true);
+  };
+
+  const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
+    if (!refundingPaymentIntent) return;
     
-    // Handle nested field updates (e.g., "customer.firstName")
-    if (field.includes('.')) {
-      const [parentField, childField] = field.split('.');
-      setEditFormData({
-        ...editFormData,
-        [parentField]: {
-          ...(editFormData[parentField as keyof PaymentIntentData] as any),
-          [childField]: value
-        }
-      });
-    } else {
-      setEditFormData({
-        ...editFormData,
-        [field]: value
-      });
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editFormData || !editingPaymentIntentId) return;
-
-    setIsEditSaving(true);
+    setIsProcessingRefund(true);
     try {
-      const response = await fetch(`${baseUrl}/admin/payment-intent/${editingPaymentIntentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+      const response = await fetch(`${baseUrl}/admin/bookings/refund`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerData: editFormData.customer || editFormData.customerData,
-          adminNotes: editFormData.adminNotes,
-          reason: 'Updated via booking group modal'
-        })
-      });
-
-      if (response.ok) {
-        toast.success('Payment intent updated successfully');
-        handleCancelEdit();
-        await handleRefresh();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to update payment intent');
-      }
-    } catch (error) {
-      console.error('Error updating payment intent:', error);
-      toast.error('Failed to update payment intent');
-    } finally {
-      setIsEditSaving(false);
-    }
-  };
-
-  const handleRefundPaymentIntent = async (paymentIntent: any) => {
-    if (!confirm('Are you sure you want to refund this payment intent? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${baseUrl}/admin/payment-intent/${paymentIntent.id}/refund`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          reason: 'Refunded via booking group modal'
-        })
+          paymentIntentId: refundingPaymentIntent.id,
+          bookingData: refundingPaymentIntent.bookingData,
+          customerDetails: refundingPaymentIntent.customerData || refundingPaymentIntent.customer,
+          paymentMethod: refundingPaymentIntent.paymentMethod || 'STRIPE',
+          reason: data.reason,
+          sendEmailToCustomer: data.sendEmailToCustomer,
+          processRefund: data.processRefund
+        }),
       });
 
       if (response.ok) {
         toast.success('Payment intent refunded successfully');
-        await handleRefresh();
+        setShowPaymentIntentRefundModal(false);
+        setRefundingPaymentIntent(null);
+        handleRefresh();
       } else {
         const error = await response.json();
         toast.error(error.message || 'Failed to refund payment intent');
@@ -230,6 +192,30 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
     } catch (error) {
       console.error('Error refunding payment intent:', error);
       toast.error('Failed to refund payment intent');
+    } finally {
+      setIsProcessingRefund(false);
+    }
+  };
+
+  const handleViewAuditLogs = async (paymentIntent: any) => {
+    setSelectedPaymentIntentForAudit(paymentIntent);
+    setShowAuditLogs(true);
+    await fetchPaymentIntentAuditLogs(paymentIntent.id);
+  };
+
+  const fetchPaymentIntentAuditLogs = async (paymentIntentId: string) => {
+    setAuditLogsLoading(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/payment-intent/${paymentIntentId}/audit-logs`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      setAuditLogs(data.data || []);
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      setAuditLogs([]);
+    } finally {
+      setAuditLogsLoading(false);
     }
   };
 
@@ -449,166 +435,105 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {filteredPaymentIntents.map((pi) => {
-                      const isCurrentlyEditing = editingPaymentIntentId === pi.id;
-                      const displayData: PaymentIntentData | any = isCurrentlyEditing && editFormData ? editFormData : pi;
-                      
-                      return (
-                        <div key={pi.id} className="bg-white rounded-md p-3 border border-gray-200 hover:border-blue-300 transition-colors">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                {isCurrentlyEditing ? (
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="text"
-                                      value={displayData.customerData?.guestFirstName || ''}
-                                      onChange={(e) => handleUpdateEditFormData('customerData.guestFirstName', e.target.value)}
-                                      className="text-sm font-semibold bg-white border border-gray-300 rounded px-2 py-0.5"
-                                      placeholder="First Name"
-                                    />
-                                    <input
-                                      type="text"
-                                      value={displayData.customerData?.guestLastName || ''}
-                                      onChange={(e) => handleUpdateEditFormData('customerData.guestLastName', e.target.value)}
-                                      className="text-sm font-semibold bg-white border border-gray-300 rounded px-2 py-0.5"
-                                      placeholder="Last Name"
-                                    />
-                                  </div>
-                                ) : (
-                                  <h4 className="text-sm font-semibold text-gray-900">
-                                    {pi.customer 
-                                      ? `${pi.customer.guestFirstName} ${pi.customer.guestLastName}` 
-                                      : 'Unknown Customer'
-                                    }
-                                  </h4>
-                                )}
-                                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                  pi.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
-                                  pi.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                                  pi.status === 'EXPIRED' ? 'bg-gray-100 text-gray-800' :
-                                  'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {pi.status}
-                                </span>
-                              </div>
-                              {isCurrentlyEditing ? (
-                                <input
-                                  type="email"
-                                  value={displayData.customerData?.guestEmail || ''}
-                                  onChange={(e) => handleUpdateEditFormData('customerData.guestEmail', e.target.value)}
-                                  className="text-xs bg-white border border-gray-300 rounded px-2 py-0.5 w-full"
-                                  placeholder="Email"
-                                />
-                              ) : (
-                                <p className="text-xs text-gray-600">
-                                  Payment Intent #{pi.id.slice(-8)} • {pi.customer?.guestEmail}
-                                </p>
-                              )}
+                    {filteredPaymentIntents.map((pi) => (
+                      <div key={pi.id} className="bg-white rounded-md p-3 border border-gray-200 hover:border-blue-300 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="text-sm font-semibold text-gray-900">
+                                {pi.customer 
+                                  ? `${pi.customer.guestFirstName} ${pi.customer.guestLastName}` 
+                                  : 'Unknown Customer'
+                                }
+                              </h4>
+                              <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                pi.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
+                                pi.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                                pi.status === 'EXPIRED' ? 'bg-gray-100 text-gray-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {pi.status}
+                              </span>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
-                              {pi.outstandingAmount !== undefined && pi.outstandingAmount > 0 && (
-                                <p className="text-xs text-amber-600">
-                                  Outstanding: {formatCurrency(pi.outstandingAmount)}
-                                </p>
-                              )}
-                            </div>
+                            <p className="text-xs text-gray-600">
+                              Payment Intent #{pi.id.slice(-8)} • {pi.customer?.guestEmail}
+                            </p>
                           </div>
-
-                          {/* Admin Notes Edit Field */}
-                          {isCurrentlyEditing && (
-                            <div className="mb-2">
-                              <label className="text-xs font-medium text-gray-700 mb-1 block">Admin Notes:</label>
-                              <textarea
-                                value={displayData.adminNotes || ''}
-                                onChange={(e) => handleUpdateEditFormData('adminNotes', e.target.value)}
-                                className="text-xs bg-white border border-gray-300 rounded px-2 py-1 w-full"
-                                rows={2}
-                                placeholder="Add admin notes..."
-                              />
-                            </div>
-                          )}
-
-                          {/* Bookings */}
-                          {pi.bookings.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-xs font-medium text-gray-700 mb-1">Bookings:</p>
-                              <div className="space-y-1">
-                                {pi.bookings.map((booking) => (
-                                  <div key={booking.id} className="flex items-center justify-between text-xs text-gray-600">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium">{booking.room.name}</span>
-                                      <span>•</span>
-                                      <span>{booking.totalGuests} guests</span>
-                                    </div>
-                                    <span>
-                                      {format(new Date(booking.checkIn), 'MMM dd')} - {format(new Date(booking.checkOut), 'MMM dd')}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Action Buttons */}
-                          <div className="flex justify-end gap-2">
-                            {isCurrentlyEditing ? (
-                              <>
-                                <button
-                                  onClick={handleSaveEdit}
-                                  disabled={isEditSaving}
-                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
-                                >
-                                  {isEditSaving ? (
-                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Eye className="h-3 w-3 mr-1" />
-                                  )}
-                                  {isEditSaving ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={handleCancelEdit}
-                                  disabled={isEditSaving}
-                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                                >
-                                  <X className="h-3 w-3 mr-1" />
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleViewPaymentIntent(pi)}
-                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  View Details
-                                </button>
-                                <button
-                                  onClick={() => handleEditPaymentIntent(pi)}
-                                  disabled={editingPaymentIntentId !== null}
-                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                                >
-                                  <Edit className="h-3 w-3 mr-1" />
-                                  Edit
-                                </button>
-                                {pi.status === 'SUCCEEDED' && (
-                                  <button
-                                    onClick={() => handleRefundPaymentIntent(pi)}
-                                    disabled={editingPaymentIntentId !== null}
-                                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-                                  >
-                                    <DollarSign className="h-3 w-3 mr-1" />
-                                    Refund
-                                  </button>
-                                )}
-                              </>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
+                            {pi.outstandingAmount !== undefined && pi.outstandingAmount > 0 && (
+                              <p className="text-xs text-amber-600">
+                                Outstanding: {formatCurrency(pi.outstandingAmount)}
+                              </p>
                             )}
                           </div>
                         </div>
-                      );
-                    })}
+
+                        {/* Bookings */}
+                        {pi.bookings.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Bookings:</p>
+                            <div className="space-y-1">
+                              {pi.bookings.map((booking) => (
+                                <div key={booking.id} className="flex items-center justify-between text-xs text-gray-600">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{booking.room.name}</span>
+                                    <span>•</span>
+                                    <span>{booking.totalGuests} guests</span>
+                                  </div>
+                                  <span>
+                                    {format(new Date(booking.checkIn), 'MMM dd')} - {format(new Date(booking.checkOut), 'MMM dd')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleViewPaymentIntent(pi)}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Details
+                          </button>
+                          <button
+                            onClick={() => handleViewAuditLogs(pi)}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition-colors"
+                          >
+                            <History className="h-3 w-3 mr-1" />
+                            History
+                          </button>
+                          <button
+                            onClick={() => handleEditPaymentIntent(pi)}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                          </button>
+                          {pi.status === 'SUCCEEDED' && (
+                            <>
+                              <button
+                                onClick={() => handlePartialRefund(pi)}
+                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Partial Refund
+                              </button>
+                              <button
+                                onClick={() => handleRefundPaymentIntent(pi)}
+                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 transition-colors"
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Full Refund
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -990,9 +915,9 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
       )}
       
       <ChargeRefundModal
-        isOpen={showRefundModal}
+        isOpen={showChargeRefundModal}
         onClose={() => {
-          setShowRefundModal(false);
+          setShowChargeRefundModal(false);
           setSelectedChargeForRefund(null);
         }}
         charge={selectedChargeForRefund}
@@ -1073,6 +998,68 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Payment Intent Modal */}
+      {editingPaymentIntent && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <ComprehensivePaymentIntentEditForm
+              paymentIntent={editingPaymentIntent}
+              onClose={() => setEditingPaymentIntent(null)}
+              onUpdate={() => {
+                setEditingPaymentIntent(null);
+                handleRefresh();
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Payment Intent Refund Modal */}
+      {showPaymentIntentRefundModal && refundingPaymentIntent && (
+        <RefundConfirmationModal
+          isOpen={showPaymentIntentRefundModal}
+          onClose={() => {
+            setShowPaymentIntentRefundModal(false);
+            setRefundingPaymentIntent(null);
+          }}
+          onConfirm={processRefund}
+          paymentIntent={refundingPaymentIntent}
+          loading={isProcessingRefund}
+        />
+      )}
+
+      {/* Partial Refund Modal */}
+      {showPartialRefundModal && refundingPaymentIntent && (
+        <CustomPartialRefundModal
+          isOpen={showPartialRefundModal}
+          paymentIntent={refundingPaymentIntent}
+          onClose={() => {
+            setShowPartialRefundModal(false);
+            setRefundingPaymentIntent(null);
+          }}
+          onRefundSuccess={() => {
+            setShowPartialRefundModal(false);
+            setRefundingPaymentIntent(null);
+            handleRefresh();
+          }}
+        />
+      )}
+
+      {/* Audit Log Modal */}
+      {showAuditLogs && selectedPaymentIntentForAudit && (
+        <AuditLogModal
+          isOpen={showAuditLogs}
+          onClose={() => {
+            setShowAuditLogs(false);
+            setSelectedPaymentIntentForAudit(null);
+            setAuditLogs([]);
+          }}
+          paymentIntent={selectedPaymentIntentForAudit}
+          auditLogs={auditLogs}
+          auditLogsLoading={auditLogsLoading}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { calculatePriceBreakdown } from "../../../utils/ratePricing";
 import { useActiveRatePolicies } from "../../../hooks/useRatePolicies";
 import { useRooms } from "../../../hooks/useRooms";
+import { useFetchBankDetails } from "../../../hooks/useFetchBankDetails"
 
 interface CreateBookingModalProps {
   setIsCreateModalOpen: (isOpen: boolean) => void
@@ -43,13 +44,9 @@ export function CreateBookingModal({
   const [expiryMode, setExpiryMode] = useState<"hours" | "date">("hours")
   const [expiresInHours, setExpiresInHours] = useState(72)
   const [expiryDate, setExpiryDate] = useState<Date>(addDays(new Date(), 3))
-
-  // Payment Method State
+  const { bankDetails, loader } = useFetchBankDetails();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('STRIPE')
-  const [bankDetails, setBankDetails] = useState<BankDetails[]>([])
   const [selectedBankId, setSelectedBankId] = useState<string>('')
-  const [loadingBankDetails, setLoadingBankDetails] = useState(false)
-
   // Booking Items State
   const [bookingItems, setBookingItems] = useState<BookingItem[]>([
     {
@@ -177,35 +174,14 @@ export function CreateBookingModal({
     }
   }
 
-  // Fetch bank details for bank transfer option
-  const fetchBankDetails = async () => {
-    setLoadingBankDetails(true)
-    try {
-      const response = await fetch(`${baseUrl}/admin/bank-details/all`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const activeBanks = (data.data || []).filter((bank: BankDetails) => bank.isActive);
-        setBankDetails(activeBanks);
-        if (activeBanks.length > 0) {
-          setSelectedBankId(activeBanks[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch bank details:', error);
-    } finally {
-      setLoadingBankDetails(false);
-    }
-  };
 
   useEffect(() => {
     (async () => {
-      await Promise.all([fetchRooms(), fetchAllEnhancements(), fetchBankDetails()])
+      await Promise.all([fetchRooms(), fetchAllEnhancements()])
+      const activeBanks = (bankDetails || []).filter((bank: BankDetails) => bank.isActive);
+      if (activeBanks.length > 0) {
+        setSelectedBankId(activeBanks[0].id);
+      }
     })();
   }, [])
 
@@ -1054,11 +1030,11 @@ const createBooking = async () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Bank Account
                 </label>
-                {loadingBankDetails ? (
+                {loader ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                   </div>
-                ) : bankDetails.length === 0 ? (
+                ) : bankDetails?.length === 0 ? (
                   <div className="text-center py-4 text-gray-500">
                     No active bank accounts found. Please add bank accounts in Settings.
                   </div>
@@ -1068,7 +1044,7 @@ const createBooking = async () => {
                     onChange={(e) => setSelectedBankId(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   >
-                    {bankDetails.map((bank) => (
+                    {bankDetails?.map((bank: BankDetails) => (
                       <option key={bank.id} value={bank.id}>
                         {bank.name} - {bank.bankName}
                       </option>

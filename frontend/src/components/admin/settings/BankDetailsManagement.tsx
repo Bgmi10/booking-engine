@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Eye, EyeOff, CreditCard, Building2 } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import type { BankDetails } from '../../../types/types';
+import { useFetchBankDetails } from '../../../hooks/useFetchBankDetails';
+import Loader from '../../Loader';
 
 interface BankDetailsForm {
   name: string;
@@ -14,7 +16,7 @@ interface BankDetailsForm {
 }
 
 export default function BankDetailsManagement() {
-  const [bankDetails, setBankDetails] = useState<BankDetails[]>([]);
+  const { bankDetails, loader, fetchBankDetails } = useFetchBankDetails();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,27 +29,6 @@ export default function BankDetailsManagement() {
     swiftCode: '',
     routingNumber: ''
   });
-
-  const fetchBankDetails = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${baseUrl}/admin/bank-details/all`, {
-        credentials: 'include',
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setBankDetails(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching bank details:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBankDetails();
-  }, []);
 
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -134,7 +115,7 @@ export default function BankDetailsManagement() {
   const toggleActiveStatus = async (id: string, currentStatus: boolean) => {
     setLoading(true);
     try {
-      const bank = bankDetails.find(b => b.id === id);
+      const bank = bankDetails?.find(b => b.id === id);
       if (!bank) return;
 
       const response = await fetch(`${baseUrl}/admin/bank-details/${id}`, {
@@ -206,11 +187,11 @@ export default function BankDetailsManagement() {
         </div>
 
         {/* Bank Accounts List */}
-        {loading && bankDetails.length === 0 ? (
+        {loader && bankDetails?.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <Loader />
           </div>
-        ) : bankDetails.length === 0 ? (
+        ) : bankDetails?.length === 0 ? (
           <div className="text-center py-12 px-4">
             <Building2 className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">No bank accounts</h3>
@@ -227,7 +208,7 @@ export default function BankDetailsManagement() {
           </div>
         ) : (
           <div className="space-y-4">
-            {bankDetails.map((bank) => (
+            {bankDetails?.map((bank) => (
               <div
                 key={bank.id}
                 className={`bg-white rounded-xl border-2 p-4 sm:p-6 transition-all overflow-hidden ${
