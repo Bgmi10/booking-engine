@@ -4,6 +4,7 @@ import { useBookingGroups } from '../../../hooks/useBookingGroups';
 import type { BookingGroup } from '../../../types/types';
 import { usePaymentIntents } from '../../../hooks/usePaymentIntents';
 import toast from 'react-hot-toast';
+import { generateMergedBookingId } from '../../../utils/helper';
 
 interface BookingGroupEditModalProps {
   group: BookingGroup;
@@ -22,6 +23,8 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
   const [availablePaymentIntents, setAvailablePaymentIntents] = useState<any[]>([]);
   const [selectedPaymentIntents, setSelectedPaymentIntents] = useState<string[]>([]);
   const [removingPaymentIntents, setRemovingPaymentIntents] = useState<string[]>([]);
+  const [showKeepChargesDialog, setShowKeepChargesDialog] = useState(false);
+  const [keepCharges, setKeepCharges] = useState(false);
 
   const { updateBookingGroup, addPaymentIntentsToGroup, removePaymentIntentsFromGroup } = useBookingGroups();
   const { paymentIntents: allPaymentIntents, loading: loadingPaymentIntents } = usePaymentIntents();
@@ -94,21 +97,27 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
     }
   };
 
-  const handleRemovePaymentIntents = async () => {
+  const handleShowRemoveDialog = () => {
     if (removingPaymentIntents.length === 0) {
       toast.error('Please select payment intents to remove');
       return;
     }
+    setShowKeepChargesDialog(true);
+  };
 
+  const handleRemovePaymentIntents = async () => {
     setIsLoading(true);
     try {
       await removePaymentIntentsFromGroup(
         removingPaymentIntents,
-        reason.trim() || 'Removed payment intents via admin interface'
+        reason.trim() || 'Removed payment intents via admin interface',
+        keepCharges
       );
       
       setRemovingPaymentIntents([]);
       setReason('');
+      setKeepCharges(false);
+      setShowKeepChargesDialog(false);
       onSave(); // This will refresh the parent data
     } catch (error) {
       console.error('Error removing payment intents:', error);
@@ -144,7 +153,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
               Edit Booking Group
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {group.groupName || `Group ${group.id.slice(0, 8)}`} • {group._count.paymentIntents} payment intents
+              {group.groupName || `Group ${group.id.slice(0, 8)}`} • {group._count.paymentIntents} Bookings
             </p>
           </div>
           <button 
@@ -176,7 +185,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Manage Members
+            Manage Bookings
           </button>
         </div>
 
@@ -223,7 +232,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Payment Intents:</span>
+                    <span className="text-gray-600">Bookings:</span>
                     <span className="ml-2 font-medium">{group._count.paymentIntents}</span>
                   </div>
                   <div>
@@ -231,8 +240,8 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                     <span className="ml-2 font-medium">€{(group.outstandingAmount || 0).toFixed(2)}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Total Charges:</span>
-                    <span className="ml-2 font-medium">{group._count.charges}</span>
+                    <span className="text-gray-600">Total Orders:</span>
+                    <span className="ml-2 font-medium">{group._count.orders}</span>
                   </div>
                 </div>
               </div>
@@ -270,7 +279,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
             <div className="space-y-4">
               {/* Current Members */}
               <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Current Group Members</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Current Group Bookings</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {group.paymentIntents.map((pi) => (
                     <div key={pi.id} className="flex items-center justify-between p-2 border border-gray-200 rounded">
@@ -290,7 +299,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                             }
                           </p>
                           <p className="text-xs text-gray-600">
-                            #{pi.id.slice(-8)} • €{pi.totalAmount} • {pi.bookings.length} bookings
+                            {pi.bookings.length > 0 ? generateMergedBookingId(pi.bookings.map(b => b.id)) : `#${pi.id.slice(-8)}`} • €{pi.totalAmount} • {pi.bookings.length} room{pi.bookings.length !== 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
@@ -306,7 +315,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                 {removingPaymentIntents.length > 0 && (
                   <div className="mt-2">
                     <button
-                      onClick={handleRemovePaymentIntents}
+                      onClick={handleShowRemoveDialog}
                       disabled={isLoading}
                       className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
                     >
@@ -319,14 +328,14 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
 
               {/* Add New Members */}
               <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Add Payment Intents to Group</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Add Bookings to Group</h4>
                 
                 {/* Search */}
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search available payment intents..."
+                    placeholder="Search available bookings..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -337,15 +346,15 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                 {loadingPaymentIntents ? (
                   <div className="text-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-xs text-gray-600 mt-2">Loading payment intents...</p>
+                    <p className="text-xs text-gray-600 mt-2">Loading bookings...</p>
                   </div>
                 ) : filteredAvailablePaymentIntents.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-sm text-gray-600">No available payment intents found</p>
+                    <p className="text-sm text-gray-600">No available bookings found</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {searchTerm 
                         ? 'Try adjusting your search terms' 
-                        : 'All payment intents are already in groups or none are available'
+                        : 'All bookings are already in groups or none are available'
                       }
                     </p>
                   </div>
@@ -372,7 +381,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                                   }
                                 </p>
                                 <p className="text-xs text-gray-600">
-                                  #{pi.id.slice(-8)} • €{pi.totalAmount}
+                                  {pi.bookings?.length > 0 ? generateMergedBookingId(pi.bookings.map(b => b.id)) : `#${pi.id.slice(-8)}`} • €{pi.totalAmount} • {pi.bookings?.length || 0} room{(pi.bookings?.length || 0) !== 1 ? 's' : ''}
                                 </p>
                               </div>
                             </div>
@@ -405,14 +414,14 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
               {/* Reason field for member changes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reason for Member Changes
+                  Reason for Booking Changes
                 </label>
                 <textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={2}
-                  placeholder="Optional reason for adding/removing members"
+                  placeholder="Optional reason for adding/removing booking"
                   disabled={isLoading}
                 />
               </div>
@@ -420,6 +429,63 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
           )}
         </div>
       </div>
+
+      {/* Keep Charges Dialog */}
+      {showKeepChargesDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Remove Booking{removingPaymentIntents.length > 1 ? 's' : ''} from Group
+            </h3>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              You are about to remove {removingPaymentIntents.length} Booking{removingPaymentIntents.length > 1 ? 's' : ''} from this group.
+            </p>
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="keep-charges"
+                checked={keepCharges}
+                onChange={(e) => setKeepCharges(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="keep-charges" className="ml-2 text-sm text-gray-700">
+                Keep orders with group
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowKeepChargesDialog(false);
+                  setKeepCharges(false);
+                }}
+                disabled={isLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemovePaymentIntents}
+                disabled={isLoading}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

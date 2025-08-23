@@ -54,9 +54,11 @@ export const createBookingGroup = async (req: express.Request, res: express.Resp
             paymentIntentIds,
             userId,
             reason,
-        });
+        }, res);
 
-        responseHandler(res, 201, "Booking group created successfully", bookingGroup);
+        if (bookingGroup) {
+            responseHandler(res, 201, "Booking group created successfully", bookingGroup);
+        }
     } catch (error) {
         handleError(res, error as Error);
     }
@@ -97,10 +99,11 @@ export const addPaymentIntentsToGroup = async (req: express.Request, res: expres
             id,
             paymentIntentIds,
             userId,
-            reason
+            reason,
+            res
         );
 
-        responseHandler(res, 200, "Payment intents added to group", result);
+        responseHandler(res, 200, "Payment intents added to group", result);    
     } catch (error) {
         handleError(res, error as Error);
     }
@@ -108,7 +111,7 @@ export const addPaymentIntentsToGroup = async (req: express.Request, res: expres
 
 export const removePaymentIntentsFromGroup = async (req: express.Request, res: express.Response) => {
     try {
-        const { paymentIntentIds, reason } = req.body;
+        const { paymentIntentIds, reason, keepCharges = false } = req.body;
         //@ts-ignore
         const userId = req.user!.id;
 
@@ -120,7 +123,8 @@ export const removePaymentIntentsFromGroup = async (req: express.Request, res: e
         const result = await BookingGroupService.removePaymentIntentsFromGroup(
             paymentIntentIds,
             userId,
-            reason
+            reason,
+            keepCharges
         );
 
         responseHandler(res, 200, "Payment intents removed from group", result);
@@ -136,7 +140,7 @@ export const deleteBookingGroup = async (req: express.Request, res: express.Resp
         //@ts-ignore
         const userId = req.user!.id;
 
-        const result = await BookingGroupService.deleteBookingGroup(id, userId, reason);
+        const result = await BookingGroupService.deleteBookingGroup(id, userId, reason, res);
 
         responseHandler(res, 200, "Booking group deleted successfully", result);
     } catch (error) {

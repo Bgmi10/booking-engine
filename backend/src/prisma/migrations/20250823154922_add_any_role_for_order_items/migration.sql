@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "OrderItemRole" ADD VALUE 'ANY';
+
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

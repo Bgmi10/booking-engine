@@ -37,6 +37,9 @@ export default function ComprehensivePaymentIntentEditForm({
   const [isLoading, setIsLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [adminNotes, setAdminNotes] = useState(paymentIntent.adminNotes || '');
+  const [showCancellationFeeDialog, setShowCancellationFeeDialog] = useState(false);
+  const [pendingRemovalIndex, setPendingRemovalIndex] = useState<number | null>(null);
+  const [keepCancellationFee, setKeepCancellationFee] = useState(false);
   
   // Use rooms hook
   const { rooms: availableRooms, loadingRooms, fetchRoomsAndPricing } = useRooms();
@@ -113,13 +116,47 @@ export default function ComprehensivePaymentIntentEditForm({
     setBookings([...bookings, newBooking]);
   };
 
-  const removeBooking = (index: number) => {
+  const handleRemoveBookingClick = (index: number) => {
     if (bookings.length > 1) {
-      const updatedBookings = bookings.filter((_, i) => i !== index);
-      setBookings(updatedBookings);
+      setPendingRemovalIndex(index);
+      setShowCancellationFeeDialog(true);
     } else {
       toast.error('At least one booking is required');
     }
+  };
+
+  const removeBooking = (index: number) => {
+    const bookingToRemove = bookings[index];
+    const updatedBookings = bookings.filter((_, i) => i !== index);
+    
+    // If keeping cancellation fee, add the charge amount to remaining bookings or payment intent
+    if (keepCancellationFee && bookingToRemove.totalAmount) {
+      // Store the cancellation fee info in the booking data
+      const bookingDataToUpdate = updatedBookings.map((b, idx) => {
+        if (idx === 0) {
+          // Add cancellation fee info to the first remaining booking
+          return {
+            ...b,
+            cancellationFees: [
+              ...(b.cancellationFees || []),
+              {
+                roomName: bookingToRemove.roomName,
+                amount: bookingToRemove.totalAmount,
+                date: new Date().toISOString()
+              }
+            ]
+          };
+        }
+        return b;
+      });
+      setBookings(bookingDataToUpdate);
+    } else {
+      setBookings(updatedBookings);
+    }
+    
+    setShowCancellationFeeDialog(false);
+    setPendingRemovalIndex(null);
+    setKeepCancellationFee(false);
   };
 
   const calculateTotalAmount = () => {
@@ -157,10 +194,20 @@ export default function ComprehensivePaymentIntentEditForm({
         },
         credentials: 'include',
         body: JSON.stringify({
-          bookings,
+          bookings: bookings.map(b => {
+            // Remove the cancellationFees from the booking data as it's handled separately
+            const { cancellationFees, ...bookingData } = b as any;
+            return bookingData;
+          }),
           adminNotes,
           reason: reason.trim(),
           totalAmount: calculateTotalAmount(),
+          cancellationFees: bookings.reduce((fees: any[], b: any) => {
+            if (b.cancellationFees) {
+              return [...fees, ...b.cancellationFees];
+            }
+            return fees;
+          }, [])
         }),
       });
 
@@ -259,10 +306,10 @@ export default function ComprehensivePaymentIntentEditForm({
               <div key={booking.id} className="bg-gray-50 rounded-md p-3 border border-gray-200">
                 <div className="flex justify-between items-center mb-2.5">
                   <h4 className="text-xs font-medium text-gray-900">Room {index + 1}</h4>
-                  {bookings.length > 1 && (
+                  {bookings.length > 1 && !isReadOnly && (
                     <button
                       type="button"
-                      onClick={() => removeBooking(index)}
+                      onClick={() => handleRemoveBookingClick(index)}
                       className="text-red-600 hover:text-red-800 transition-colors"
                     >
                       <Minus className="h-3 w-3" />
@@ -450,6 +497,78 @@ export default function ComprehensivePaymentIntentEditForm({
           )}
         </div>
       </form>
+
+      {/* Cancellation Fee Dialog */}
+      {showCancellationFeeDialog && pendingRemovalIndex !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Remove Room Booking
+            </h3>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                You are about to remove:
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="font-medium text-sm text-gray-900">
+                  {bookings[pendingRemovalIndex].roomName}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Amount: €{bookings[pendingRemovalIndex].totalAmount?.toFixed(2) || '0.00'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-sm font-medium text-amber-900 mb-2">
+                Apply 100% cancellation fee?
+              </p>
+              <p className="text-xs text-amber-700">
+                If yes, the room charge will be kept as a cancellation fee even though the room is removed.
+              </p>
+            </div>
+
+            <div className="flex items-center mb-6">
+              <input
+                type="checkbox"
+                id="keep-cancellation-fee"
+                checked={keepCancellationFee}
+                onChange={(e) => setKeepCancellationFee(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="keep-cancellation-fee" className="ml-2 text-sm text-gray-700">
+                Apply 100% cancellation fee (€{bookings[pendingRemovalIndex].totalAmount?.toFixed(2) || '0.00'})
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancellationFeeDialog(false);
+                  setPendingRemovalIndex(null);
+                  setKeepCancellationFee(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingRemovalIndex !== null) {
+                    removeBooking(pendingRemovalIndex);
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+              >
+                Remove Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -797,15 +797,17 @@ model OrderCategory {
 }   
 
 model OrderItem {
-  id               String         @id         @default(uuid())
-  name             String
-  description      String
-  imageUrl         String?
-  price            Float
-  isAvailable      Boolean?       @default(true)
-  categories       OrderCategory[]
-  role             OrderItemRole
-}
+  id               String          @id         @default(uuid())
+  name             String 
+  description      String 
+  imageUrl         String? 
+  price            Float 
+  tax              Float?
+  isAvailable      Boolean?        @default(true)
+  categories       OrderCategory[] 
+  role             OrderItemRole 
+  createdAt        DateTime        @default(now())
+} 
 
 model Product {
   id           String               @id @default(uuid())
@@ -1180,13 +1182,11 @@ enum AutomatedTaskTriggerType {
 }
 
 enum OrderItemRole {
+  ANY
   KITCHEN
   WAITER
 }
 
-
-
-// Enums for Flexible Rate Management
 enum PaymentStructure {
   FULL_PAYMENT        // 100% upfront payment
   SPLIT_PAYMENT       // 30% now, 70% on check-in

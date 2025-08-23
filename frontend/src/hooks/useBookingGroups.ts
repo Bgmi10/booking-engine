@@ -140,7 +140,7 @@ export function useBookingGroups() {
     }
   };
 
-  const removePaymentIntentsFromGroup = async (paymentIntentIds: string[], reason?: string) => {
+  const removePaymentIntentsFromGroup = async (paymentIntentIds: string[], reason?: string, keepCharges: boolean = false) => {
     try {
       const response = await fetch(`${baseUrl}/admin/booking-groups/remove-payment-intents`, {
         method: 'POST',
@@ -148,7 +148,7 @@ export function useBookingGroups() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ paymentIntentIds, reason }),
+        body: JSON.stringify({ paymentIntentIds, reason, keepCharges }),
       });
 
       if (!response.ok) {
@@ -157,7 +157,13 @@ export function useBookingGroups() {
       }
 
       const result = await response.json();
-      toast.success(`Removed ${result.data.removedCount} payment intents from group`);
+      let message = `Removed ${result.data.removedCount} booking${result.data.removedCount !== 1 ? 's' : ''} from group`;
+      if (keepCharges) {
+        message += ' (orders kept)';
+      } else if (result.data.deletedOrdersCount > 0) {
+        message += ` (${result.data.deletedOrdersCount} order${result.data.deletedOrdersCount !== 1 ? 's' : ''} deleted)`;
+      }
+      toast.success(message);
       await fetchBookingGroups();
       return result.data;
     } catch (err: any) {

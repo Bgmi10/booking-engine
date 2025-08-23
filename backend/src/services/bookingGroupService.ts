@@ -1,5 +1,7 @@
 import prisma from "../prisma";
+import { responseHandler } from "../utils/helper";
 import { AuditService } from "./auditService";
+import express from "express"
 
 export class BookingGroupService {
   /**
@@ -11,11 +13,41 @@ export class BookingGroupService {
     paymentIntentIds?: string[];
     userId: string;
     reason?: string;
-  }) {
+  }, res?: express.Response) {
     const { groupName, isAutoGrouped, paymentIntentIds = [], userId, reason } = data;
 
     // Start transaction
     return await prisma.$transaction(async (tx) => {
+      // If payment intents provided, check for existing payments first
+      if (paymentIntentIds.length > 0) {
+        // Get payment intents with payments and orders
+        const paymentIntentsWithPaymentsOrOrders = await tx.paymentIntent.findMany({
+          where: { 
+            id: { in: paymentIntentIds },
+            OR: [
+              { payments: { some: {} } },
+              { charges: { some: {} } },
+              { orders: { some: {} } }
+            ]
+          },
+          select: { 
+            id: true,
+            payments: { select: { id: true } },
+            charges: { select: { id: true } },
+            orders: { select: { id: true } }
+          },
+        });
+
+        if (paymentIntentsWithPaymentsOrOrders.length > 0) {
+          if (res) {
+            responseHandler(res, 400, "Cannot create group: One or more bookings have existing payments or orders. Please remove them first.");
+            return null;
+          } else {
+            throw new Error("Cannot create group: One or more bookings have existing payments or orders.");
+          }
+        }
+      }
+
       // Create the booking group
       const bookingGroup = await tx.bookingGroup.create({
         data: {
@@ -56,36 +88,42 @@ export class BookingGroupService {
           data: { outstandingAmount: totalOutstanding },
         });
 
-        // Create audit log for group creation
-        await AuditService.createAuditLog(tx, {
-          entityType: "BOOKING_GROUP",
-          entityId: bookingGroup.id,
-          actionType: "GROUP_CREATED",
-          userId,
-          reason: reason || `${isAutoGrouped ? 'Auto' : 'Manual'} group creation`,
-          newValues: {
-            groupName,
-            isAutoGrouped,
-            paymentIntentCount: paymentIntentIds.length,
-            outstandingAmount: totalOutstanding,
-          },
-          bookingGroupId: bookingGroup.id,
-        });
-
-        // Create audit logs for each payment intent added to group
-        for (const paymentIntent of paymentIntents) {
+        // Create audit log for group creation (skip for system-generated groups)
+        if (userId !== 'SYSTEM') {
           await AuditService.createAuditLog(tx, {
-            entityType: "PAYMENT_INTENT",
-            entityId: paymentIntent.id,
-            actionType: "BOOKING_ADDED_TO_GROUP",
+            entityType: "BOOKING_GROUP",
+            entityId: bookingGroup.id,
+            actionType: "GROUP_CREATED",
             userId,
-            reason: `Added to ${isAutoGrouped ? 'auto-created' : 'manual'} group`,
-            previousValues: { bookingGroupId: null },
-            newValues: { bookingGroupId: bookingGroup.id },
-            changedFields: ["bookingGroupId"],
-            paymentIntentId: paymentIntent.id,
+            reason: reason || `${isAutoGrouped ? 'Auto' : 'Manual'} group creation`,
+            newValues: {
+              groupName,
+              isAutoGrouped,
+              paymentIntentCount: paymentIntentIds.length,
+              outstandingAmount: totalOutstanding,
+            },
             bookingGroupId: bookingGroup.id,
           });
+        } else {
+          console.log(`[BookingGroupService] Auto-created group ${bookingGroup.id} without audit log (system-generated)`);
+        }
+
+        // Create audit logs for each payment intent added to group (skip for system-generated groups)
+        if (userId !== 'SYSTEM') {
+          for (const paymentIntent of paymentIntents) {
+            await AuditService.createAuditLog(tx, {
+              entityType: "PAYMENT_INTENT",
+              entityId: paymentIntent.id,
+              actionType: "BOOKING_ADDED_TO_GROUP",
+              userId,
+              reason: `Added to ${isAutoGrouped ? 'auto-created' : 'manual'} group`,
+              previousValues: { bookingGroupId: null },
+              newValues: { bookingGroupId: bookingGroup.id },
+              changedFields: ["bookingGroupId"],
+              paymentIntentId: paymentIntent.id,
+              bookingGroupId: bookingGroup.id,
+            });
+          }
         }
       }
 
@@ -146,7 +184,8 @@ export class BookingGroupService {
     groupId: string,
     paymentIntentIds: string[],
     userId: string,
-    reason?: string
+    reason?: string,
+    res?: any
   ) {
     return await prisma.$transaction(async (tx) => {
       // Verify group exists
@@ -159,17 +198,40 @@ export class BookingGroupService {
         throw new Error("Booking group not found");
       }
 
-      // Get payment intents to add
+      // Get payment intents to add with their payments
       const paymentIntents = await tx.paymentIntent.findMany({
         where: { 
           id: { in: paymentIntentIds },
           bookingGroupId: null, // Only unassigned payment intents
         },
-        select: { id: true, outstandingAmount: true },
+        select: { 
+          id: true, 
+          outstandingAmount: true,
+          payments: {
+            where: {
+              status: { in: ['COMPLETED', 'REFUNDED'] }
+            }
+          },
+          charges: {
+            where: {
+              status: { in: ['SUCCEEDED', 'REFUNDED'] }
+            }
+          }
+        },
       });
 
       if (paymentIntents.length === 0) {
         throw new Error("No valid payment intents to add");
+      }
+
+      // Check if any payment intents have received payments
+      const paymentIntentsWithPayments = paymentIntents.filter(
+        pi => pi.payments.length > 0 || pi.charges.length > 0
+      );
+
+      if (paymentIntentsWithPayments.length > 0) {
+        responseHandler(res, 400, "Cannot merge due to payments already received. Please manually remove payments and re-add to group if needed.");
+        return;
       }
 
       // Calculate additional outstanding amount
@@ -217,10 +279,11 @@ export class BookingGroupService {
   static async removePaymentIntentsFromGroup(
     paymentIntentIds: string[],
     userId: string,
-    reason?: string
+    reason?: string,
+    keepCharges: boolean = false
   ) {
     return await prisma.$transaction(async (tx) => {
-      // Get payment intents with their groups
+      // Get payment intents with their groups, orders, and bookings
       const paymentIntents = await tx.paymentIntent.findMany({
         where: { 
           id: { in: paymentIntentIds },
@@ -229,7 +292,18 @@ export class BookingGroupService {
         select: { 
           id: true, 
           bookingGroupId: true, 
-          outstandingAmount: true 
+          outstandingAmount: true,
+          bookings: {
+            select: {
+              id: true
+            }
+          },
+          orders: {
+            select: {
+              id: true,
+              total: true
+            }
+          }
         },
       });
 
@@ -246,52 +320,95 @@ export class BookingGroupService {
         }
       }
 
-      // Update payment intents
-      await tx.paymentIntent.updateMany({
-        where: { id: { in: paymentIntentIds } },
-        data: { bookingGroupId: null },
-      });
+      // Handle orders based on keepCharges flag
+      if (keepCharges) {
+        // If keeping orders, move them to be directly linked to the group
+        for (const pi of paymentIntents) {
+          // Update orders to be linked directly to the booking group
+          if (pi.orders.length > 0) {
+            await tx.order.updateMany({
+              where: {
+                paymentIntentId: pi.id
+              },
+              data: {
+                paymentIntentId: null,
+                bookingGroupId: pi.bookingGroupId
+              }
+            });
+          }
+        }
+      }
 
-      // Update group outstanding amounts
-      for (const [groupId, amountToRemove] of groupUpdates) {
-        const group = await tx.bookingGroup.findUnique({
-          where: { id: groupId },
-          select: { outstandingAmount: true },
+      // Create audit logs BEFORE deleting payment intents
+      for (const paymentIntent of paymentIntents) {
+        const orderInfo = keepCharges 
+          ? `Orders kept with group (${paymentIntent.orders.length} orders)`
+          : `Orders deleted (${paymentIntent.orders.length} orders removed)`;
+          
+        await AuditService.createAuditLog(tx, {
+          entityType: "BOOKING_GROUP",
+          entityId: paymentIntent.bookingGroupId || "",
+          actionType: "BOOKING_REMOVED_FROM_GROUP",
+          userId,
+          reason: `${reason || "Removed from booking group"} - ${orderInfo}`,
+          previousValues: { 
+            paymentIntentId: paymentIntent.id,
+            keepOrders: keepCharges,
+            orderCount: paymentIntent.orders.length,
+            outstandingAmount: paymentIntent.outstandingAmount,
+            bookingCount: paymentIntent.bookings.length
+          },
+          newValues: { 
+            paymentIntentDeleted: true
+          },
+          changedFields: ["paymentIntents"],
+          bookingGroupId: paymentIntent.bookingGroupId ?? "",
+          notes: `Booking ${paymentIntent.id} deleted. ${keepCharges ? "Orders kept with group" : "All orders deleted"}. ${paymentIntent.bookings.length} rooms released.`
         });
+      }
 
-        if (group) {
-          const newAmount = Math.max(0, (group.outstandingAmount || 0) - amountToRemove);
-          await tx.bookingGroup.update({
-            where: { id: groupId },
-            data: { outstandingAmount: newAmount },
+      // Delete all bookings first (rooms go back for sale)
+      for (const pi of paymentIntents) {
+        if (pi.bookings.length > 0) {
+          await tx.booking.deleteMany({
+            where: { paymentIntentId: pi.id }
           });
         }
       }
 
-      // Create audit logs
-      for (const paymentIntent of paymentIntents) {
-        await AuditService.createAuditLog(tx, {
-          entityType: "PAYMENT_INTENT",
-          entityId: paymentIntent.id,
-          actionType: "BOOKING_REMOVED_FROM_GROUP",
-          userId,
-          reason: reason || "Removed from booking group",
-          previousValues: { bookingGroupId: paymentIntent.bookingGroupId },
-          newValues: { bookingGroupId: null },
-          changedFields: ["bookingGroupId"],
-          paymentIntentId: paymentIntent.id,
-          bookingGroupId: paymentIntent.bookingGroupId ?? "",
-        });
+      // Delete the payment intents entirely
+      await tx.paymentIntent.deleteMany({
+        where: { id: { in: paymentIntentIds } }
+      });
+
+      // Update group outstanding amounts only if NOT keeping charges
+      // If keeping charges, the financial obligations remain with the group
+      if (!keepCharges) {
+        for (const [groupId, amountToRemove] of groupUpdates) {
+          const group = await tx.bookingGroup.findUnique({
+            where: { id: groupId },
+            select: { outstandingAmount: true },
+          });
+
+          if (group) {
+            const newAmount = Math.max(0, (group.outstandingAmount || 0) - amountToRemove);
+            await tx.bookingGroup.update({
+              where: { id: groupId },
+              data: { outstandingAmount: newAmount },
+            });
+          }
+        }
       }
 
-      return { removedCount: paymentIntents.length };
+      return { 
+        removedCount: paymentIntents.length,
+        keepOrders: keepCharges,
+        deletedOrdersCount: keepCharges ? 0 : paymentIntents.reduce((sum, pi) => sum + pi.orders.length, 0)
+      };
     });
   }
 
-  /**
-   * Delete a booking group (only if empty)
-   */
-  static async deleteBookingGroup(groupId: string, userId: string, reason?: string) {
+  static async deleteBookingGroup(groupId: string, userId: string, reason?: string, res?: any) {
     return await prisma.$transaction(async (tx) => {
       // Check if group has any payment intents
       const paymentIntentCount = await tx.paymentIntent.count({
@@ -299,29 +416,19 @@ export class BookingGroupService {
       });
 
       if (paymentIntentCount > 0) {
-        throw new Error("Cannot delete group with payment intents. Remove all payment intents first.");
+        responseHandler(res, 400, "Cannot delete group with payment intents. Remove all payment intents first.");
+        return;
       }
-
-      // Check if group has any orders
-      const orderCount = await tx.order.count({
-        where: { bookingGroupId: groupId },
-      });
-
-      if (orderCount > 0) {
-        throw new Error("Cannot delete group with orders. Remove all orders first.");
-      }
-
-      // Get group data before deletion
+      
       const group = await tx.bookingGroup.findUnique({
         where: { id: groupId },
       });
 
       if (!group) {
-        throw new Error("Booking group not found");
+        responseHandler(res, 400, "Booking group not found");
+        return;
       }
 
-      // Create audit log before deletion - don't reference bookingGroupId to avoid cascade deletion
-      console.log(userId)
       await AuditService.createAuditLog(tx, {
         entityType: "BOOKING_GROUP",
         entityId: groupId,
@@ -341,11 +448,6 @@ export class BookingGroupService {
       return { deleted: true };
     });
   }
-
- 
-  /**
-   * Get booking group with full details
-   */
   static async getBookingGroupDetails(groupId: string) {
     return await prisma.bookingGroup.findUnique({
       where: { id: groupId },

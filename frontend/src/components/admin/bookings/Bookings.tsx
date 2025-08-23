@@ -7,7 +7,6 @@ import {
   Plus,
  } from "lucide-react"
 import { baseUrl } from "../../../utils/constants"
-import { generateMergedBookingId } from "../../../utils/helper"
 import { CreateBookingModal } from "./CreateBookingModal"
 import Occupancy from "./Occupancy" 
 import BookingGroups from "./BookingGroups"
@@ -336,11 +335,6 @@ export default function BookingManagement() {
     setEditingPaymentIntent(null)
   }
 
-
-  useEffect(() => {
-    // Data is automatically fetched by the hooks
-  }, [])
-
   useEffect(() => {
     let filtered = currentPaymentIntents;
 
@@ -375,12 +369,6 @@ export default function BookingManagement() {
     setFilteredPaymentIntents(filtered)
   }, [currentPaymentIntents, activeTab, statusFilter, searchTerm, paymentMethodFilter])
 
-  const generateConfirmationNumber = (paymentIntent: PaymentIntent) => {
-    if (paymentIntent.bookings.length === 0) {
-      return "PROCESSING"
-    }
-    return generateMergedBookingId(paymentIntent.bookings.map((b) => b.id))
-  }
 
   // Handler for booking selection
   const handleBookingSelect = (bookingId: string, checked: boolean) => {
@@ -404,7 +392,7 @@ export default function BookingManagement() {
     }))
   );
   const selectedBookings = allBookings.filter(b => selectedBookingIds.includes(b.id));
-  
+
   const deleteTempHold = async (id: string) => {
     if (!confirm("Are you sure you want to delete this temp hold? This action cannot be undone.")) {
       return;
@@ -651,7 +639,7 @@ export default function BookingManagement() {
             </div>
           )}
 
-          {/* Payment Intents List */}
+          {/* Bookings List */}
           <PaymentIntentsList
             paymentIntents={filteredPaymentIntents}
             loading={currentLoading}
@@ -665,7 +653,6 @@ export default function BookingManagement() {
             onDelete={handleDeleteClick}
             onRestore={activeTab === "deleted" ? handleRestore : undefined}
             loadingAction={loadingAction}
-            generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={handleBookingSelect}
@@ -673,20 +660,17 @@ export default function BookingManagement() {
             isDeletedTab={activeTab === "deleted"}
           />
 
-          {/* Payment Intent Details Modal */}
+          {/* Booking Details Modal */}
           {selectedPaymentIntent && (
-            <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Payment Intent Details</h2>
-                    <p className="text-sm text-gray-600">
-                      Confirmation: {generateConfirmationNumber(selectedPaymentIntent)}
-                    </p>
+                    <h2 className="text-xl font-semibold text-gray-900">Booking Details</h2>
                   </div>
                   <button
                     onClick={() => setSelectedPaymentIntent(null)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                   >
                     <X className="h-6 w-6" />
                   </button>
@@ -708,8 +692,7 @@ export default function BookingManagement() {
                     }
                     onRefresh={fetchPaymentIntents}
                     loadingAction={loadingAction}
-                    generateConfirmationNumber={generateConfirmationNumber}
-                    isDeletedTab={activeTab === "deleted"}
+                            isDeletedTab={activeTab === "deleted"}
                   />
                 </div>
               </div>

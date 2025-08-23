@@ -257,9 +257,36 @@ async function createBookingFromBeds24(bookingData: any, roomMapping: any, isDou
     },
     include: {
       room: true,
-      customer: true
+      customer: true,
+      paymentIntent: true
     }
   });
+
+  // Check for auto-grouping after booking creation
+  if (newBooking.paymentIntent && !isDoubleBooking) {
+    try {
+      const { BookingGroupService } = await import("../services/bookingGroupService");
+      const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([newBooking.paymentIntent.id]);
+      
+      if (shouldAutoGroup && !newBooking.paymentIntent.bookingGroupId) {
+        const bookingCount = await prisma.booking.count({
+          where: { paymentIntentId: newBooking.paymentIntent.id }
+        });
+        
+        await BookingGroupService.createBookingGroup({
+          groupName: `${customer.guestFirstName} ${customer.guestLastName} - ${bookingCount} rooms`,
+          isAutoGrouped: true,
+          paymentIntentIds: [newBooking.paymentIntent.id],
+          userId: 'SYSTEM',
+          reason: `Auto-grouped from Beds24: ${bookingCount} rooms booked together`,
+        });
+        
+        console.log(`[Beds24 Webhook] Auto-grouped booking ${newBooking.id} with payment intent ${newBooking.paymentIntent.id}`);
+      }
+    } catch (groupError) {
+      console.error('[Beds24 Webhook] Error in auto-grouping:', groupError);
+    }
+  }
 
   return newBooking;
 }

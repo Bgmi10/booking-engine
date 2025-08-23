@@ -18,7 +18,7 @@ import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from '../cron/cron';
 import AuditService from "../services/auditService";
-import { Customer } from "@prisma/client";
+import { BookingGroupService } from "../services/bookingGroupService";
 
 dotenv.config();
 
@@ -1228,7 +1228,7 @@ const collectCash = async (req: express.Request, res: express.Response) => {
           ...customerDetails,
           receiveMarketing: customerDetails.receiveMarketing || false,
         }),
-        taxAmount,
+        taxAmount: parseFloat(taxAmount.toFixed(2)),
         totalAmount,
         outstandingAmount: totalAmount, // Initial outstanding amount equals total amount
         createdByAdmin: true,
@@ -1513,6 +1513,7 @@ const refund = async (req: express.Request, res: express.Response) => {
       responseHandler(res, 400, "Payment Intent ID is required");
       return;
     }
+    const customer = typeof customerDetails === "string" ? JSON.parse(customerDetails) : customerDetails
 
     try {
         // Find the payment intent in our database
@@ -1525,8 +1526,6 @@ const refund = async (req: express.Request, res: express.Response) => {
                 }
               },
               payments: true,
-              // Add actualPaymentMethod to the include so TS recognizes it
-              // (Prisma always returns all scalar fields, but this helps TS)
             }
         });
 
@@ -1552,7 +1551,7 @@ const refund = async (req: express.Request, res: express.Response) => {
         if (methodToRefund === "CASH" || methodToRefund === "BANK_TRANSFER") {
             const finalStatus = processRefund ? "REFUNDED" : "CANCELLED";
             const finalBookingStatus = processRefund ? "REFUNDED" : "CANCELLED";
-            const finalPaymentStatus = processRefund ? "REFUNDED" : "CANCELLED";
+            const finalPaymentStatus = processRefund ? "REFUNDED" : "FAILED"; // Use FAILED instead of CANCELLED for payment status
             const finalNote = processRefund ? refundNote : `Cancelled by admin - ${reason || 'No refund processed'}`;
             const refundStatus = processRefund ? "FULLY_REFUNDED" : "CANCELLED_NO_REFUND";
 
@@ -1622,15 +1621,20 @@ const refund = async (req: express.Request, res: express.Response) => {
             }
 
             // Update bookingData with the confirmation ID and paymentMethod
-            const updatedBookingData = bookingData ? bookingData.map((booking: any) => ({
+            const parsedBookingData = JSON.parse(bookingData);
+            const updatedBookingData = typeof bookingData === "string" ? parsedBookingData.map((booking: any) => ({
               ...booking,
               confirmationId: refundConfirmationId,
               paymentMethod: methodToRefund
-            })) : [];
+            })) : bookingData.map((booking: any) => ({
+              ...booking,
+              confirmationId: refundConfirmationId,
+              paymentMethod: methodToRefund
+            }));
 
             if (sendEmailToCustomer) {
               if (processRefund) {
-                await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
+                await sendRefundConfirmationEmail(updatedBookingData, customer, {
                   refundId: `manual-${paymentIntentId}`,
                   refundAmount: refundAmount,
                   refundCurrency: ourPaymentIntent.currency || 'EUR',
@@ -1638,7 +1642,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                 });
               } else {
                 // Send cancellation email without refund info
-                await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
+                await sendRefundConfirmationEmail(updatedBookingData, customer, {
                   refundId: `cancel-${paymentIntentId}`,
                   refundAmount: 0,
                   refundCurrency: ourPaymentIntent.currency || 'EUR',
@@ -1713,7 +1717,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                 })) : [];
 
                 if (sendEmailToCustomer) {
-                  await sendRefundConfirmationEmail(updatedBookingData, customerDetails);
+                  await sendRefundConfirmationEmail(updatedBookingData, customer);
                 }
       
               responseHandler(res, 200, "Payment intent cancelled successfully", {
@@ -1777,7 +1781,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                   })) : [];
 
                   if (sendEmailToCustomer) {
-                    await sendRefundConfirmationEmail(updatedBookingData, customerDetails, {
+                    await sendRefundConfirmationEmail(updatedBookingData, customer, {
                       refundId: `cancel-${paymentIntentId}`,
                       refundAmount: 0,
                       refundCurrency: ourPaymentIntent.currency || 'EUR',
@@ -1863,7 +1867,7 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
 
   try {
       const paymentIntent = await prisma.paymentIntent.findMany({
-        where: { isSoftDeleted: false },
+        where: { isSoftDeleted: false, bookingGroupId: null },
         include: {
           bookings: {
             select: {
@@ -2432,20 +2436,12 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
     let customer: any; 
 
     await prisma.$transaction(async (tx) => {
-      await tx.paymentIntent.update({
-        where: { id: paymentIntentId },
-        data: { 
-          status: "SUCCEEDED",
-          outstandingAmount: { decrement: paymentIntent.outstandingAmount ?? 0 }  
-        }
-      });
-
-      customer = await prisma.customer.findUnique({
+      customer = await tx.customer.findUnique({
         where: { guestEmail: customerData.email }
       });
-     
+
       if (!customer) {
-        customer = await prisma.customer.create({
+        customer = await tx.customer.create({
           data: {
             guestFirstName: customerData.firstName,
             guestMiddleName: customerData.middleName,
@@ -2459,14 +2455,27 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
         });
       };
 
+      console.log(customer);
+
+      await tx.paymentIntent.update({
+        where: { id: paymentIntentId },
+        data: { 
+          status: "SUCCEEDED",
+          outstandingAmount: { decrement: paymentIntent.outstandingAmount ?? 0 },
+          paidAt: new Date(),
+          customerId: customer.id
+        }
+      });
+      
       for (const bookingItem of bookingData) {
-        const booking = await prisma.booking.create({
+        const booking = await tx.booking.create({
           data: {
             roomId: bookingItem.selectedRoom,
             checkIn: new Date(bookingItem.checkIn),
             checkOut: new Date(bookingItem.checkOut),
             totalGuests: bookingItem.adults,
             status: "CONFIRMED",
+            totalAmount: bookingItem.totalPrice,
             customerId: customer.id,
             paymentIntentId: paymentIntent.id,
             request: customerRequest || customerData.specialRequests || null, // <-- use customerRequest if provided
@@ -2478,11 +2487,32 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
       }
   
       // Remove temporary holds
-      await prisma.temporaryHold.deleteMany({
+      await tx.temporaryHold.deleteMany({
         where: { paymentIntentId }
       });
 
     })
+
+    // Check for auto-grouping after booking confirmation
+    try {
+      const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([paymentIntentId]);
+      
+      if (shouldAutoGroup && !paymentIntent.bookingGroupId) {
+        const groupName = `${customerData.firstName} ${customerData.lastName} - ${bookingData.length} rooms`;
+        
+        await BookingGroupService.createBookingGroup({
+          groupName,
+          isAutoGrouped: true,
+          paymentIntentIds: [paymentIntentId],
+          userId: 'SYSTEM', // System-generated for cash booking confirmation
+          reason: `Auto-grouped on ${paymentIntent.paymentMethod || 'CASH'} booking confirmation: ${bookingData.length} rooms booked together`,
+        });
+        
+        console.log(`[Booking Confirmation] Auto-grouped payment intent ${paymentIntentId} with ${bookingData.length} bookings`);
+      }
+    } catch (groupError) {
+      console.error('[Booking Confirmation] Error in auto-grouping:', groupError);
+    }
 
     responseHandler(res, 200, "Booking confirmed successfully", {
       paymentIntentId,
@@ -2654,6 +2684,31 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
 
       return { updatedPaymentIntent, bookings };
     });
+
+    // Check for auto-grouping after manual payment confirmation
+    if (result.updatedPaymentIntent && (actualPaymentMethod === 'CASH' || actualPaymentMethod === 'BANK_TRANSFER')) {
+      try {
+        const { BookingGroupService } = await import("../services/bookingGroupService");
+        const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([result.updatedPaymentIntent.id]);
+        
+        if (shouldAutoGroup && !result.updatedPaymentIntent.bookingGroupId) {
+          const bookingCount = result.bookings.length;
+          const customerData = JSON.parse(result.updatedPaymentIntent.customerData);
+          
+          await BookingGroupService.createBookingGroup({
+            groupName: `${customerData.firstName} ${customerData.lastName} - ${bookingCount} rooms`,
+            isAutoGrouped: true,
+            paymentIntentIds: [result.updatedPaymentIntent.id],
+            userId: 'SYSTEM',
+            reason: `Auto-grouped on ${actualPaymentMethod} payment confirmation: ${bookingCount} rooms booked together`,
+          });
+          
+          console.log(`[Manual Payment] Auto-grouped payment intent ${result.updatedPaymentIntent.id} with ${bookingCount} bookings`);
+        }
+      } catch (groupError) {
+        console.error('[Manual Payment] Error in auto-grouping:', groupError);
+      }
+    }
 
     responseHandler(res, 200, "Payment method confirmed, bookings created and marked as succeeded", result);
   } catch (e) {
@@ -2894,7 +2949,8 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
     bookings,
     adminNotes,
     reason,
-    totalAmount
+    totalAmount,
+    cancellationFees = []
   } = req.body;
   
   // @ts-ignore
@@ -3049,8 +3105,45 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
 
       // Perform database updates
       
-      // Delete removed bookings
+      // Delete removed bookings and handle cancellation fees
       for (const bookingToDelete of bookingsToDelete) {
+        // Check if there's a cancellation fee for this booking
+        const cancellationFee = cancellationFees.find((fee: any) => 
+          fee.roomName === bookingToDelete.room.name
+        );
+        
+        if (cancellationFee && currentPI.bookingGroupId) {
+          // Create a charge for the cancellation fee linked to the booking group
+          const charge = await tx.charge.create({
+            data: {
+              amount: cancellationFee.amount,
+              currency: currentPI.currency || 'eur',
+              description: `Cancellation fee for ${cancellationFee.roomName}`,
+              status: 'SUCCEEDED',
+              paidAt: new Date(),
+              bookingGroupId: currentPI.bookingGroupId,
+              adminNotes: `100% cancellation fee applied when room was removed from booking`,
+              createdBy: userId,
+            }
+          });
+          
+          // Create audit log for cancellation fee
+          await AuditService.createAuditLog(tx, {
+            entityType: "CHARGE",
+            entityId: charge.id,
+            actionType: "CREATED",
+            userId,
+            reason: `Cancellation fee applied for removed room: ${cancellationFee.roomName}`,
+            newValues: {
+              amount: cancellationFee.amount,
+              roomName: cancellationFee.roomName,
+              bookingId: bookingToDelete.id,
+            },
+            paymentIntentId: id,
+            bookingGroupId: currentPI.bookingGroupId,
+          });
+        }
+        
         await tx.booking.delete({
           where: { id: bookingToDelete.id }
         });

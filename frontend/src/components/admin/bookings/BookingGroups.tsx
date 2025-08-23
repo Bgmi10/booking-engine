@@ -95,7 +95,8 @@ export default function BookingGroups() {
           </div>
   
           {/* Tab Navigation */}
-          <div className="flex space-x-8">
+          <div className="flex justify-between space-x-2">
+            <div className='flex space-x-2'>
             <button
               onClick={() => setActiveTab('groups')}
               className={`pb-4 px-1 border-b-2 font-medium text-sm ${
@@ -117,15 +118,8 @@ export default function BookingGroups() {
               <Trash2 className="h-4 w-4" />
               Deletion History
             </button>
-          </div>
-        </div>
-  
-        {/* Tab Content */}
-        {activeTab === 'groups' && (
-          <div className="space-y-4">
-            {/* Header Actions */}
-            <div className="flex items-center justify-between">
-              <div></div>
+            </div>
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <button
                   onClick={refetch}
@@ -143,8 +137,12 @@ export default function BookingGroups() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
   
-            {/* Filters */}
+        {/* Tab Content */}
+        {activeTab === 'groups' && (
+          <div className="space-y-4">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <div className="flex flex-wrap items-center gap-4">
                 {/* Search */}

@@ -16,7 +16,7 @@ import {
   Coins,
   RefreshCw,
 } from "lucide-react"
-import { getStatusColor } from "../../../utils/helper"
+import { getStatusColor, generateMergedBookingId } from "../../../utils/helper"
 import type { PaymentIntentCardProps } from "../../../types/types"
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants"
@@ -44,7 +44,6 @@ export default function PaymentIntentCard({
   onUpdateEditFormData,
   onSaveEdit,
   onCancelEdit,
-  generateConfirmationNumber,
   selectionMode = false,
   selectedBookingIds = [],
   onBookingSelect = () => {},
@@ -218,7 +217,6 @@ export default function PaymentIntentCard({
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-gray-600">Confirmation: {generateConfirmationNumber(displayData)}</p>
               {isEditing ? (
                 <input
                   type="email"
@@ -231,13 +229,13 @@ export default function PaymentIntentCard({
                 <p className="text-sm text-gray-600">{displayData.customerData.email}</p>
               )}
               {displayData.createdByAdmin && displayData.adminNotes && (
-                <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                  <strong>Admin Notes:</strong> {displayData.adminNotes}
+                <p className="text-sm text-gray-500 mt-2">
+                  <strong className="text-gray-800">Admin Notes: </strong> {displayData.adminNotes}
                 </p>
               )}
               {paymentIntent.bookings[0]?.request && (
-                <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
-                  <strong>Customer Request:</strong> {paymentIntent.bookings[0]?.request}
+                <p className="text-sm text-gray-600">
+                  <strong className="text-gray-800">Customer Request:</strong> {paymentIntent.bookings[0]?.request}
                 </p>
               )}
             </div>
@@ -251,25 +249,20 @@ export default function PaymentIntentCard({
             {(() => {
               const outstandingAmount = paymentIntent.outstandingAmount || 0;
               
-              // Show outstanding balance if there's any unpaid amount
-              if (outstandingAmount > 0) {
-                return (
-                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                    <div className="text-xs text-amber-700 mb-1">Outstanding Amount:</div>
-                    <div className="text-lg font-bold text-amber-900">
-                      €{outstandingAmount.toFixed(2)}
-                    </div>
+              return (
+                <div className={`mt-2 p-2 rounded-md ${outstandingAmount > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'}`}>
+                  <div className={`text-xs mb-1 ${outstandingAmount > 0 ? 'text-amber-700' : 'text-gray-600'}`}>Outstanding Amount:</div>
+                  <div className={`text-lg font-bold ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>
+                    €{outstandingAmount.toFixed(2)}
                   </div>
-                );
-              }
-              
-              return null;
+                </div>
+              );
             })()}
           </div>
         </div>
 
         {/* Bookings Summary */}
-        <div className="mb-4">
+        {/* <div className="mb-4">
           <h4 className="font-medium text-gray-900 mb-2">Bookings ({totalBookings})</h4>
           <div className="grid gap-2">
             {displayData.bookingData.map((booking, index) => (
@@ -303,7 +296,7 @@ export default function PaymentIntentCard({
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* Actions */}
         <div className="flex gap-2 flex-wrap">

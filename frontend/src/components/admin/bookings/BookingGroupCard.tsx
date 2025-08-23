@@ -7,9 +7,7 @@ import {
   CreditCard,
   ShoppingBag,
   DollarSign,
-  Badge,
-  ChevronDown,
-  ChevronUp,
+  Badge
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BookingGroup } from '../../../types/types';
@@ -33,7 +31,6 @@ export default function BookingGroupCard({
   onRefresh,
 }: BookingGroupCardProps) {
   const [showAuditLogs, setShowAuditLogs] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -138,26 +135,21 @@ export default function BookingGroupCard({
               {(() => {
                 const outstandingAmount = group.outstandingAmount || 0;
                 
-                // Show outstanding balance if there's any unpaid amount
-                if (outstandingAmount > 0) {
-                  return (
-                    <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                      <div className="text-xs text-amber-700 mb-1">Outstanding Amount:</div>
-                      <div className="text-lg font-bold text-amber-900">
-                        {formatCurrency(outstandingAmount)}
-                      </div>
+                return (
+                  <div className={`mt-2 p-2 rounded-md ${outstandingAmount > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div className={`text-xs mb-1 ${outstandingAmount > 0 ? 'text-amber-700' : 'text-gray-600'}`}>Outstanding Amount:</div>
+                    <div className={`text-lg font-bold ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>
+                      {formatCurrency(outstandingAmount)}
                     </div>
-                  );
-                }
-                
-                return null;
+                  </div>
+                );
               })()}
             </div>
           </div>
 
           {/* Group Members Summary */}
-          <div className="mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">Group Members ({group._count.paymentIntents})</h4>
+          {/* <div className="mb-4">
+            <h4 className="font-medium text-gray-900 mb-2">Group Bookings ({group._count.paymentIntents})</h4>
             <div className="grid gap-2">
               {group.paymentIntents.slice(0, expanded ? undefined : 3).map((pi) => (
                 <div key={pi.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
@@ -178,7 +170,7 @@ export default function BookingGroupCard({
                       </span>
                     </div>
                     <div className="text-xs text-gray-600">
-                      #{pi.id.slice(-8)} • {pi.bookings.length} booking{pi.bookings.length !== 1 ? 's' : ''}
+                      #{generateMergedBookingId(pi.bookings.map(booking => booking.id))} • {pi.bookings.length} booking{pi.bookings.length !== 1 ? 's' : ''}
                       {pi.bookings.length > 0 && (
                         <span className="text-gray-500">
                           {' '}({pi.bookings.map(b => b.room.name).join(', ')})
@@ -188,11 +180,9 @@ export default function BookingGroupCard({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</div>
-                    {pi.outstandingAmount !== undefined && pi.outstandingAmount > 0 && (
-                      <div className="text-xs text-amber-600">
-                        Outstanding: {formatCurrency(pi.outstandingAmount)}
-                      </div>
-                    )}
+                    <div className={`text-xs ${(pi.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                      Outstanding: {formatCurrency(pi.outstandingAmount || 0)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -213,7 +203,7 @@ export default function BookingGroupCard({
                 </button>
               )}
             </div>
-          </div>
+          </div> */}
 
           {/* Actions */}
           <div className="flex gap-2 flex-wrap">
@@ -241,16 +231,14 @@ export default function BookingGroupCard({
               Edit
             </button>
 
-            {!group.isAutoGrouped && (
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                disabled={isDeleting}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
-              </button>
-            )}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={isDeleting}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete
+            </button>
           </div>
         </div>
       </div>

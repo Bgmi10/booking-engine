@@ -12,6 +12,7 @@ interface CreateOrderItemModalProps {
     price: number
     imageUrl?: string
     role: string
+    tax: number
   }) => Promise<void>
   loading: boolean
 }
@@ -26,8 +27,10 @@ export default function CreateOrderItemModal({
     name: '',
     description: '',
     price: '',
-    role: 'KITCHEN' // Default to KITCHEN role
+    role: 'KITCHEN',
+    tax: 0
   })
+  const [showCustomTax, setShowCustomTax] = useState(false)
 
 
   const {
@@ -101,7 +104,8 @@ export default function CreateOrderItemModal({
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      role: formData.role
+      role: formData.role,
+      tax: formData.tax
     }
     
     // Only include imageUrl if an image was uploaded
@@ -110,12 +114,13 @@ export default function CreateOrderItemModal({
     }
     
     await onSubmit(submitData)
-    setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
+    setFormData({ name: '', description: '', price: '', role: 'KITCHEN', tax: 0 })
+    setShowCustomTax(false)
     resetImages()
   }
 
   const handleClose = () => {
-    setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
+    setFormData({ name: '', description: '', price: '', role: 'KITCHEN', tax: 0 })
     resetImages()
     onClose()
   }
@@ -123,9 +128,9 @@ export default function CreateOrderItemModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 mt-20">
-        <div className="flex justify-between items-center border-b p-4">
+        <div className="flex justify-between items-center border-b border-gray-200 p-4">
           <h3 className="text-xl font-semibold text-gray-900">Create New Order Item</h3>
           <button
             onClick={handleClose}
@@ -168,6 +173,45 @@ export default function CreateOrderItemModal({
                 required
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                VAT Tax (%)
+              </label>
+              <div className="flex gap-2">
+                <select 
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" 
+                  value={showCustomTax ? 'custom' : formData.tax} 
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === 'custom') {
+                      setShowCustomTax(true);
+                    } else {
+                      setShowCustomTax(false);
+                      setFormData(p => ({...p, tax: parseInt(value) || 0}));
+                    }
+                  }}
+                >
+                  <option value="0">No Tax (0%)</option>
+                  <option value="3">3%</option>
+                  <option value="5">5%</option>
+                  <option value="10">10%</option>
+                  <option value="22">22%</option>
+                  <option value="custom">Custom %</option>
+                </select>
+                {showCustomTax && (
+                  <input 
+                    type="number" 
+                    placeholder="%" 
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" 
+                    value={formData.tax} 
+                    onChange={(e) => setFormData(p => ({...p, tax: parseInt(e.target.value) || 0}))}
+                    min="0"
+                    max="100"
+                  />
+                )}
+              </div>
+            </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -203,7 +247,6 @@ export default function CreateOrderItemModal({
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Image (Optional)
-                <span className="text-xs text-gray-500 ml-2">(Upload one image for the item)</span>
               </label>
               
               <div 

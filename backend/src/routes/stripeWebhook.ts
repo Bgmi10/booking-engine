@@ -1015,11 +1015,11 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                     reason: `Auto-grouped: ${bookingData.length} rooms booked together`,
                 });
                 
-                console.log(`Auto-created booking group for payment intent ${ourPaymentIntent.id}`);
+                console.log(`[Auto-grouping] Successfully created booking group for payment intent ${ourPaymentIntent.id}`);
             }
         } catch (groupError) {
             // Log but don't fail the payment processing
-            console.error('Error in auto-grouping:', groupError);
+            console.error('[Auto-grouping] Error in auto-grouping:', groupError);
         }
 
         // After transaction, send confirmation emails

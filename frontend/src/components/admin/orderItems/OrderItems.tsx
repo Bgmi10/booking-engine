@@ -186,11 +186,12 @@ export default function OrderItems() {
     price: number
     imageUrl?: string
     role: string
+    tax: number;
   }) => {
     setLoadingAction(true)
     setError("")
     setSuccess("")
-    
+
     try {
       const res = await fetch(`${baseUrl}/admin/order-items`, {
         method: "POST",
@@ -203,7 +204,8 @@ export default function OrderItems() {
           description: formData.description,
           price: formData.price,
           imageUrl: formData.imageUrl,
-          role: formData.role
+          role: formData.role,
+          tax: formData.tax
         }),
       })
       
@@ -234,6 +236,7 @@ export default function OrderItems() {
     price: number
     imageUrl?: string
     role: string
+    tax: number;
   }) => {
     if (!selectedOrderItem) return
     
@@ -248,13 +251,7 @@ export default function OrderItems() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          price: formData.price,
-          imageUrl: formData.imageUrl,
-          role: formData.role
-        }),
+        body: JSON.stringify(formData),
       })
       
       if (!res.ok) {
@@ -875,6 +872,12 @@ export default function OrderItems() {
                         scope="col"
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
+                        VAT
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
                         Description
                       </th>
                       <th
@@ -929,10 +932,13 @@ export default function OrderItems() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{formatPrice(item.price)}</div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{item.tax ? item.tax : 0} %</div>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-500 truncate max-w-xs">
                             {item.description.length > 50 
-                              ? `${item.description.substring(0, 50)}...` 
+                              ? `${item.description.substring(0, 15)}...` 
                               : item.description}
                           </div>
                         </td>

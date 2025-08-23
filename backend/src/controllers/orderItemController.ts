@@ -3,7 +3,7 @@ import { handleError, responseHandler } from "../utils/helper";
 import prisma from "../prisma";
 
 export const createOrderItem = async (req: express.Request, res: express.Response) => {
-    const { name, description, price, imageUrl, role } = req.body;
+    const { name, description, price, imageUrl, role, tax } = req.body;
 
     if (!name || !description || !price || !role) {
         responseHandler(res, 400, "Missing required fields");
@@ -18,6 +18,7 @@ export const createOrderItem = async (req: express.Request, res: express.Respons
                 description,
                 price,
                 role,
+                tax
             } as any
         });
         responseHandler(res, 201, "OrderItem created successfully");
@@ -28,7 +29,7 @@ export const createOrderItem = async (req: express.Request, res: express.Respons
 }
 
 export const updateOrderItem = async (req: express.Request, res: express.Response) => {
-    const { name, description, price, imageUrl, isAvailable, role } = req.body;
+    const { name, description, price, imageUrl, isAvailable, role, tax } = req.body;
     const { id } = req.params;
 
     if (!id) {
@@ -44,6 +45,8 @@ export const updateOrderItem = async (req: express.Request, res: express.Respons
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
     if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
     if (role !== undefined) updateData.role = role;
+    if (tax !== undefined) updateData.tax = tax;
+    
 
     if (Object.keys(updateData).length === 0) {
         responseHandler(res, 400, "No valid fields to update");

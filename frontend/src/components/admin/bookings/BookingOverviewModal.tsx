@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, CreditCard, FileText, AlertCircle, Plus, User, RefreshCw, Filter, Info } from 'lucide-react';
+import { X, CreditCard, FileText, AlertCircle, Plus, User, RefreshCw, Filter, Info, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import { format } from 'date-fns';
 import OrderDetailsModal from '../customers/OrderDetailsModal';
 import ChargeModal from '../customers/ChargeModal';
@@ -25,6 +25,7 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
   const [selectedChargeForRefund, setSelectedChargeForRefund] = useState<Charge | null>(null);
   const [showRefundDetailsModal, setShowRefundDetailsModal] = useState(false);
   const [selectedChargeForRefundDetails, setSelectedChargeForRefundDetails] = useState<Charge | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   // Get orders directly from paymentIntent data
   const allOrders = paymentIntent?.orders || [];
   const roomOrders = allOrders.filter((order: any) => order.paymentIntentId === paymentIntent?.id);
@@ -125,6 +126,18 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
 
   const handleAddPayment = () => {
     setShowChargeModal(true);
+  };
+
+  const toggleOrderExpansion = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
   };
 
   if (!isOpen) return null;
@@ -460,12 +473,18 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
                   {/* Individual Orders */}
                   <div className="space-y-2">
                     {roomOrders.map((order: any) => (
-                      <div key={order.id} className="bg-white rounded-md p-3 border border-gray-200 hover:border-green-300 transition-colors cursor-pointer"
-                           onClick={() => setSelectedOrderId(order.id)}>
+                      <div key={order.id} 
+                           className="bg-white rounded-md p-3 border border-gray-200 hover:border-green-300 hover:shadow-sm transition-all duration-200 cursor-pointer group"
+                           onClick={(e) => {
+                             // Only open order details if not clicking on the dropdown
+                             if (!(e.target as HTMLElement).closest('button')) {
+                               setSelectedOrderId(order.id);
+                             }
+                           }}>
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <h5 className="text-xs font-semibold text-gray-900 hover:text-green-600 transition-colors">
+                              <h5 className="text-xs font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
                                 Order #{order.id.slice(-6)} 
                                 <span className="text-xs text-gray-500 ml-1">• Click for details</span>
                               </h5>
@@ -484,25 +503,69 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
                           </div>
                           <div className="text-right">
                             <p className="text-xs font-semibold text-gray-900">€{order.total}</p>
-                            <p className="text-xs text-green-600">Added to tab</p>
                           </div>
                         </div>
 
-                        {/* Order Items */}
+                        {/* Order Items Dropdown */}
                         {order.items && order.items.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-gray-100">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Items ({order.items.length}):</p>
-                            <div className="space-y-1">
-                              {order.items.map((item: any, index: number) => (
-                                <div key={index} className="flex justify-between items-center text-xs">
-                                  <span className="text-gray-600">
-                                    {item.quantity || 1}x {item.name}
-                                  </span>
-                                  <span className="font-medium text-gray-900">
-                                    €{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
-                                  </span>
-                                </div>
-                              ))}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleOrderExpansion(order.id);
+                              }}
+                              className="w-full flex items-center justify-between text-xs group hover:bg-gray-50 rounded p-1 -m-1 transition-all duration-200"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <ShoppingBag className="h-3.5 w-3.5 text-gray-500 group-hover:text-gray-700 transition-colors" />
+                                <span className="font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                                  {order.items.length} Item{order.items.length > 1 ? 's' : ''}
+                                </span>
+                                <span className="text-gray-500">
+                                  • €{order.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className={`transform transition-transform duration-200 ${expandedOrders.has(order.id) ? 'rotate-180' : ''}`}>
+                                <ChevronDown className="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600" />
+                              </div>
+                            </button>
+                            
+                            {/* Expanded Items List */}
+                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                              expandedOrders.has(order.id) ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0'
+                            }`}>
+                              <div className="space-y-1.5 bg-gray-50 rounded-md p-2">
+                                {order.items.map((item: any, index: number) => {
+                                  const totalPrice = (item.price || 0) * (item.quantity || 1);
+                                  const taxAmount = item.tax ? (totalPrice * item.tax / (100 + item.tax)) : 0;
+                                  const priceBeforeTax = totalPrice - taxAmount;
+                                  
+                                  return (
+                                    <div key={index} className="bg-white rounded p-2 shadow-sm">
+                                      <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs text-gray-500">{item.quantity || 1}x</span>
+                                            <span className="text-xs font-medium text-gray-800">{item.name}</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-xs font-medium text-gray-900">
+                                          €{totalPrice.toFixed(2)}
+                                        </div>
+                                      </div>
+                                      {item.tax > 0 && (
+                                        <div className="ml-4 pt-1 border-t border-gray-100">
+                                          <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span className='text-xs'>VAT {item.tax}%</span>
+                                            <span>€{taxAmount.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         )}

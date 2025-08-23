@@ -18,7 +18,6 @@ import { useState } from "react"
     onViewPayment,
     onRefresh,
     loadingAction,
-    generateConfirmationNumber,
     isDeletedTab = false,
     hideViewPayments = false,
   }: PaymentIntentDetailsViewProps) {
@@ -87,12 +86,6 @@ import { useState } from "react"
                 <label className="text-sm font-medium text-gray-500">Nationality</label>
                 <div className="font-medium text-gray-900">
                   {customerData.nationality || "Not specified"}
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Booking Confirmation Number</label>
-                <div className="font-medium text-gray-900 font-mono">
-                  {generateConfirmationNumber ? generateConfirmationNumber(paymentIntent) : 'PROCESSING'}
                 </div>
               </div>
               <div>

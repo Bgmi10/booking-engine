@@ -60,6 +60,7 @@ import {
   updateLicensePlateSchema, 
 } from '../zod/licensePlate.schema';
 import { getBulkOverRideLogs } from "../controllers/bulkOverRideLogsController";
+import { createOrderItemScheme, updateOrderItemsScheme } from "../zod/orderItem.scheme";
 
 const adminRouter = Router();
 
@@ -330,9 +331,9 @@ adminRouter.put('/order-categories/:id', authMiddleware, updateOrderCategory);
 
 adminRouter.delete('/order-categories/:id', authMiddleware, deleteOrderCategory);
 
-adminRouter.post('/order-items', authMiddleware, createOrderItem);
+adminRouter.post('/order-items', authMiddleware, validateMiddleware(createOrderItemScheme), createOrderItem);
 
-adminRouter.put('/order-items/:id', authMiddleware, updateOrderItem);
+adminRouter.put('/order-items/:id', authMiddleware, validateMiddleware(updateOrderItemsScheme), updateOrderItem);
 
 adminRouter.delete('/order-items/:id', authMiddleware, deleteOrderItem);
 

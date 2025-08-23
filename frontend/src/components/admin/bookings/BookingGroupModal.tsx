@@ -57,13 +57,6 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
 
-  // Generate confirmation number function similar to the one in Bookings.tsx
-  const generateConfirmationNumber = (paymentIntent: any) => {
-    if (!paymentIntent.bookings || paymentIntent.bookings.length === 0) {
-      return "PROCESSING";
-    }
-    return generateMergedBookingId(paymentIntent.bookings.map((b: any) => b.id));
-  };
 
   // Calculate totals with safety checks
   const totalBookings = group.paymentIntents?.reduce((sum, pi) => sum + (pi.bookings?.length || 0), 0) || 0;
@@ -302,20 +295,18 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
           </div>
 
           {/* Outstanding Balance Alert */}
-          {outstandingAmount > 0 && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-amber-900">Group Outstanding Balance</p>
-                    <p className="text-xs text-amber-700">Total amount due across all bookings</p>
-                  </div>
+          <div className={`border-b px-4 py-2.5 ${outstandingAmount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className={`h-4 w-4 flex-shrink-0 ${outstandingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
+                <div>
+                  <p className={`text-xs font-medium ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>Group Outstanding Balance</p>
+                  <p className={`text-xs ${outstandingAmount > 0 ? 'text-amber-700' : 'text-gray-500'}`}>Total amount due across all bookings</p>
                 </div>
-                <span className="text-lg font-bold text-amber-900">{formatCurrency(outstandingAmount)}</span>
               </div>
+              <span className={`text-lg font-bold ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>{formatCurrency(outstandingAmount)}</span>
             </div>
-          )}
+          </div>
 
           {/* Summary Stats */}
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
@@ -425,11 +416,11 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                 {filteredPaymentIntents.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                    <p className="text-xs font-medium text-gray-900">No payment intents found</p>
+                    <p className="text-xs font-medium text-gray-900">No bookings found</p>
                     <p className="text-xs text-gray-600 mt-0.5">
                       {searchTerm || statusFilter !== 'ALL' 
                         ? 'Try adjusting your filters' 
-                        : 'This group has no payment intents yet'
+                        : 'This group has no bookings yet'
                       }
                     </p>
                   </div>
@@ -456,16 +447,16 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                               </span>
                             </div>
                             <p className="text-xs text-gray-600">
-                              Payment Intent #{pi.id.slice(-8)} • {pi.customer?.guestEmail}
+                              #{generateMergedBookingId(pi.bookings.map((booking) =>  booking.id))} • {pi.customer?.guestEmail}
                             </p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
-                            {pi.outstandingAmount !== undefined && pi.outstandingAmount > 0 && (
+                            {
                               <p className="text-xs text-amber-600">
-                                Outstanding: {formatCurrency(pi.outstandingAmount)}
+                                Outstanding: {formatCurrency(pi?.outstandingAmount === 0 ? 0 : pi.outstandingAmount)}
                               </p>
-                            )}
+                            }
                           </div>
                         </div>
 
@@ -855,9 +846,6 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Booking Details</h2>
-                <p className="text-sm text-gray-600">
-                  Confirmation: {generateConfirmationNumber ? generateConfirmationNumber(selectedPaymentIntent) : 'PROCESSING'}
-                </p>
               </div>
               <button
                 onClick={() => setSelectedPaymentIntent(null)}
@@ -879,7 +867,6 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                 onDelete={() => {}}
                 onRefresh={handleRefresh}
                 loadingAction={false}
-                generateConfirmationNumber={generateConfirmationNumber}
                 hideViewPayments={true}
               />
             </div>

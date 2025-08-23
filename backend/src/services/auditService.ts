@@ -188,7 +188,7 @@ export class AuditService {
         bookingGroupId,
         paymentIntentId,
         userId,
-        "PAYMENT_INTENT_EDITED",
+        "EDITED",
         previousValues,
         newValues,
         changedFields,

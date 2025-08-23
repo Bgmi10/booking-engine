@@ -213,16 +213,16 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
             {loadingPaymentIntents ? (
               <div className="text-center py-6">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-xs text-gray-600 mt-2">Loading payment intents...</p>
+                <p className="text-xs text-gray-600 mt-2">Loading bookings...</p>
               </div>
             ) : filteredPaymentIntents.length === 0 ? (
               <div className="text-center py-6">
                 <Users className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-sm font-medium text-gray-900">No payment intents found</p>
+                <p className="text-sm font-medium text-gray-900">No bookings found</p>
                 <p className="text-xs text-gray-600 mt-0.5">
                   {searchTerm 
                     ? 'Try adjusting your search terms' 
-                    : 'No available payment intents (all may be in groups already)'
+                    : 'No available bookings (all may be in groups already)'
                   }
                 </p>
               </div>
@@ -279,11 +279,9 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
-                        {pi.outstandingAmount !== undefined && pi.outstandingAmount > 0 && (
-                          <p className="text-xs text-amber-600">
-                            Outstanding: {formatCurrency(pi.outstandingAmount)}
-                          </p>
-                        )}
+                        <p className={`text-xs ${(pi.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                          Outstanding: {formatCurrency(pi.outstandingAmount || 0)}
+                        </p>
                       </div>
                     </div>
                   );

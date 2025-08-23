@@ -2,17 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { useImageUpload } from "../../../hooks/useImageUpload"
-
-interface OrderItem {
-  id: string
-  name: string
-  description: string
-  price: number
-  imageUrl: string
-  createdAt: string
-  updatedAt: string
-  role?: string
-}
+import type { OrderItem } from "../../../types/types"
 
 interface UpdateOrderItemModalProps {
   isOpen: boolean
@@ -21,7 +11,8 @@ interface UpdateOrderItemModalProps {
     name: string
     description: string
     price: number
-    imageUrl?: string
+    imageUrl?: string;
+    tax: number;
     role: string
   }) => Promise<void>
   orderItem: OrderItem | null
@@ -39,7 +30,8 @@ export default function UpdateOrderItemModal({
     name: '',
     description: '',
     price: '',
-    role: 'KITCHEN'
+    role: 'KITCHEN',
+    tax: 0
   })
 
   const {
@@ -61,13 +53,14 @@ export default function UpdateOrderItemModal({
         name: orderItem.name,
         description: orderItem.description,
         price: orderItem.price.toString(),
-        role: orderItem.role || 'KITCHEN' // Default to KITCHEN if not set
+        role: orderItem.role || 'KITCHEN',
+        tax: orderItem.tax || 0
       })
       if (orderItem.imageUrl) {
         setInitialImages([orderItem.imageUrl])
       }
     } else if (!isOpen) {
-      setFormData({ name: '', description: '', price: '', role: 'KITCHEN' })
+      setFormData({ name: '', description: '', price: '', role: 'KITCHEN', tax: 0 })
       resetImages()
     }
   }, [isOpen, orderItem, setInitialImages, resetImages])
@@ -129,7 +122,8 @@ export default function UpdateOrderItemModal({
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      role: formData.role
+      role: formData.role,
+      tax: formData.tax
     }
     
     // Use uploaded image if available, otherwise use the existing image
@@ -196,6 +190,38 @@ export default function UpdateOrderItemModal({
                 required
               />
             </div>
+
+            <div className="">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role *
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                required
+              >
+                <option value="KITCHEN">KITCHEN</option>
+                <option value="WAITER">WAITER</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                VAT (€) *
+              </label>
+              <input
+                type="number"
+                value={formData.tax}
+                onChange={(e) => setFormData(p => ({...p, tax: parseInt(e.target.value)}))}
+                step="0.01"
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="0.00"
+                required
+              />
+            </div>
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -212,21 +238,7 @@ export default function UpdateOrderItemModal({
               />
             </div>
             
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role *
-              </label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              >
-                <option value="KITCHEN">KITCHEN</option>
-                <option value="WAITER">WAITER</option>
-              </select>
-            </div>
+            
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

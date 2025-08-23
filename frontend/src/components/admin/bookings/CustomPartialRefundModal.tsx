@@ -31,7 +31,6 @@ const CustomPartialRefundModal: React.FC<CustomPartialRefundModalProps> = ({
   const [refundReason, setRefundReason] = useState('');
   const [totalRefundAmount, setTotalRefundAmount] = useState(0);
   const [fetchingBookings, setFetchingBookings] = useState(false);
-  const [sendEmailToCustomer, setSendEmailToCustomer] = useState(true);
 
   useEffect(() => {
     const fetchBookingData = async () => {
@@ -141,8 +140,7 @@ const CustomPartialRefundModal: React.FC<CustomPartialRefundModalProps> = ({
             body: JSON.stringify({
               bookingId: booking.bookingId,
               refundAmount: booking.refundAmount,
-              reason: refundReason,
-              sendEmailToCustomer: sendEmailToCustomer
+              reason: refundReason
             })
           });
 
@@ -276,25 +274,6 @@ const CustomPartialRefundModal: React.FC<CustomPartialRefundModalProps> = ({
               placeholder="Enter the reason for this partial refund..."
               required
             />
-          </div>
-
-          {/* Email Notification Checkbox */}
-          <div className="mb-6 border-t pt-4">
-            <label className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                checked={sendEmailToCustomer}
-                onChange={(e) => setSendEmailToCustomer(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                disabled={loading}
-              />
-              <span className="text-sm text-gray-700">
-                <strong>Send email notification to customer</strong>
-              </span>
-            </label>
-            <p className="text-xs text-gray-500 ml-7 mt-1">
-              The customer will receive an email confirmation about the partial refund
-            </p>
           </div>
 
           {/* Total Refund Summary */}

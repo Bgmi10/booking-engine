@@ -50,6 +50,7 @@ export default function IndividualBookingCard({
   onViewDetails,
   showRefundButton = true
 }: IndividualBookingCardProps) {
+  console.log(booking)
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [loadingRefund, setLoadingRefund] = useState(false);
   const [refundReason, setRefundReason] = useState('');
@@ -177,8 +178,7 @@ export default function IndividualBookingCard({
       {/* Amount */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
-          <DollarSign className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-900">
+          <span className="text-md font-medium text-green-700 ml-1">
             €{Number(booking.totalAmount || 0).toFixed(2)}
           </span>
         </div>

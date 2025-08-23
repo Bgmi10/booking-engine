@@ -134,7 +134,6 @@ export interface PaymentIntentDetailsViewProps {
   onRestore?: () => void
   onRefresh?: () => void
   loadingAction: boolean
-  generateConfirmationNumber?: (pi: PaymentIntent) => string
   isDeletedTab?: boolean
   hideViewPayments?: boolean
 }
@@ -186,7 +185,7 @@ export interface PaymentIntent {
   customerData: CustomerData
   bookingData: BookingData[]
   bookings: Booking[]
-  paymentMethod?: PaymentMethod
+paymentMethod?: PaymentMethod
   actualPaymentMethod?: PaymentMethod // STRIPE | BANK_TRANSFER | CASH
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
   prepaidAmount?: number
@@ -231,7 +230,6 @@ export interface PaymentIntentsListProps {
   onEdit: (pi: PaymentIntent) => void
   onDelete: (piId: PaymentIntent) => void
   loadingAction: boolean
-  generateConfirmationNumber: (pi: PaymentIntent) => string
   onConfirmBooking?: (paymentIntentId: string) => void
 }
   
@@ -252,7 +250,6 @@ export interface PaymentIntentCardProps {
   onUpdateEditFormData?: any
   onSaveEdit?: () => void
   onCancelEdit?: () => void
-  generateConfirmationNumber: (pi: PaymentIntent) => string
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
@@ -453,6 +450,7 @@ export interface OrderItem {
   imageUrl: string
   createdAt: string
   updatedAt: string
+  tax: number;
   isAvailable: boolean
 }
 
@@ -930,7 +928,6 @@ export interface EnhancedPaymentIntentCardProps {
   onDelete?: (id: string) => void;
   onRestore?: () => void;
   loadingAction?: boolean;
-  generateConfirmationNumber?: (paymentIntent: any) => string;
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;

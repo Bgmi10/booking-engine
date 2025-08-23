@@ -2,6 +2,7 @@ import { Calendar, RefreshCw } from "lucide-react"
 import type { PaymentIntent, PaymentIntentsListProps } from "../../../types/types"
 import PaymentIntentCard from "./PaymentIntentCard"
 import EnhancedPaymentIntentCard from "./EnhancedPaymentIntentCard"
+import Loader from "../../Loader";
 
 export default function PaymentIntentsList({
   paymentIntents,
@@ -15,7 +16,6 @@ export default function PaymentIntentsList({
   onEdit,
   onDelete,
   loadingAction,
-  generateConfirmationNumber,
   selectionMode = false,
   selectedBookingIds = [],
   onBookingSelect = () => {},
@@ -33,9 +33,8 @@ export default function PaymentIntentsList({
 }) {
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Loading payment intents...</span>
+      <div className="flex justify-center">
+        <span className="ml-2 text-gray-600">Loading bookings...</span>
       </div>
     )
   }
@@ -45,8 +44,8 @@ export default function PaymentIntentsList({
       <div className="bg-white rounded-lg shadow border border-gray-200">
         <div className="text-center py-12">
           <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No payment intents found</h3>
-          <p className="text-gray-600">No payment intents match your current filters.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings found</h3>
+          <p className="text-gray-600">No bookings match your current filters.</p>
         </div>
       </div>
     )
@@ -77,7 +76,6 @@ export default function PaymentIntentsList({
             onDelete={() => onDelete(paymentIntent)}
             onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
-            generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={onBookingSelect}
@@ -101,7 +99,6 @@ export default function PaymentIntentsList({
             onDelete={() => onDelete(paymentIntent)}
             onRestore={onRestore ? () => onRestore(paymentIntent) : undefined}
             loadingAction={loadingAction}
-            generateConfirmationNumber={generateConfirmationNumber}
             selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={onBookingSelect}
