@@ -226,7 +226,7 @@ export class BookingGroupService {
 
       // Check if any payment intents have received payments
       const paymentIntentsWithPayments = paymentIntents.filter(
-        pi => pi.payments.length > 0 || pi.charges.length > 0
+        pi => pi.charges.length > 0
       );
 
       if (paymentIntentsWithPayments.length > 0) {

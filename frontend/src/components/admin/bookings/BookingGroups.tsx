@@ -8,7 +8,7 @@ import BookingGroupEditModal from './BookingGroupEditModal';
 import BookingGroupCreateModal from './BookingGroupCreateModal';
 import DeletionAuditLogs from './DeletionAuditLogs';
 
-export default function BookingGroups() {
+export default function BookingGroups({ handleViewBookings, handleEditGroup, filteredGroups, filterType, filterStatus, setFilterType, setFilterStatus, selectedGroup, setSelectedGroup, showEditModal, setShowEditModal, showGroupModal, setShowGroupModal }: { selectedGroup: BookingGroup | null, setSelectedGroup: any, showEditModal: boolean, setShowEditModal: (b: boolean) => void, handleViewBookings: (group: BookingGroup) => void, setFilterType: (e: string) => void, setFilterStatus  : (e: string) => void, filteredGroups: BookingGroup[], filterType: string, filterStatus: string, handleEditGroup: (group: BookingGroup) => void, showGroupModal: boolean, setShowGroupModal: (b: boolean) => void }) {
   const {
     bookingGroups,
     loading,
@@ -19,44 +19,8 @@ export default function BookingGroups() {
 
   const [activeTab, setActiveTab] = useState<'groups' | 'deletions'>('groups');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('ALL'); // ALL, AUTO, MANUAL
-  const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, OUTSTANDING, PAID
   
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<BookingGroup | null>(null);
-  const [showGroupModal, setShowGroupModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-
-  // Filter booking groups based on search term and filters
-  const filteredGroups = bookingGroups.filter(group => {
-    const matchesSearch = !searchTerm || 
-      (group.groupName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      group.paymentIntents.some(pi => 
-        pi.customer?.guestFirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pi.customer?.guestLastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pi.customer?.guestEmail?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-    const matchesType = filterType === 'ALL' || 
-      (filterType === 'AUTO' && group.isAutoGrouped) ||
-      (filterType === 'MANUAL' && !group.isAutoGrouped);
-
-    const matchesStatus = filterStatus === 'ALL' ||
-      (filterStatus === 'OUTSTANDING' && (group.outstandingAmount || 0) > 0) ||
-      (filterStatus === 'PAID' && (group.outstandingAmount || 0) <= 0);
-
-    return matchesSearch && matchesType && matchesStatus;
-  });
-
-  const handleViewBookings = (group: BookingGroup) => {
-    setSelectedGroup(group);
-    setShowGroupModal(true);
-  };
-
-  const handleEditGroup = (group: BookingGroup) => {
-    setSelectedGroup(group);
-    setShowEditModal(true);
-  };
 
   if (loading) {
     return (
@@ -240,6 +204,7 @@ export default function BookingGroups() {
                     onViewBookings={handleViewBookings}
                     onEdit={handleEditGroup}
                     onRefresh={refetch}
+                    isMergedView={false}
                   />
                 ))}
               </div>

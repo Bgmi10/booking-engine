@@ -568,13 +568,13 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                 );
               })}
               
-              <div className="flex justify-between items-center pt-3 border-t">
+              {/* <div className="flex justify-between items-center pt-3 border-t">
                 <span className="text-gray-700 text-sm sm:text-base">IVA {(taxPercentage * 100).toFixed(0)}%</span>
                 <div className="text-right">
                   <div className="font-medium text-sm sm:text-base">€{displayTax.toFixed(2)}</div>
                   <div className="text-xs text-gray-500">Taxes included in price</div>
                 </div>
-              </div>
+              </div> */}
 
               <div className="flex justify-between items-center pt-3 border-t border-gray-300">
                 <span className="text-lg sm:text-xl font-semibold">Total</span>

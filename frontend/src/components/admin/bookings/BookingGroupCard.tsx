@@ -18,18 +18,66 @@ import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import toast from 'react-hot-toast';
 
 interface BookingGroupCardProps {
-  group: BookingGroup;
+  group: BookingGroup | BookingGroup[];
   onViewBookings: (group: BookingGroup) => void;
   onEdit: (group: BookingGroup) => void;
   onRefresh: () => void;
+  isMergedView?: boolean;
+  onViewPaymentIntent?: (paymentIntent: any) => void;
 }
 
+/**
+ * Main component that handles both single BookingGroup and arrays
+ */
 export default function BookingGroupCard({
   group,
   onViewBookings,
   onEdit,
   onRefresh,
+  isMergedView = false,
+  onViewPaymentIntent,
 }: BookingGroupCardProps) {
+  // Normalize to array to handle both cases
+  const groups = Array.isArray(group) ? group : [group];
+  
+  // Render a card for each group
+  return (
+    <>
+      {groups.map((singleGroup) => (
+        <SingleBookingGroupCard
+          key={singleGroup.id}
+          group={singleGroup}
+          onViewBookings={onViewBookings}
+          onEdit={onEdit}
+          onRefresh={onRefresh}
+          isMergedView={isMergedView}
+          onViewPaymentIntent={onViewPaymentIntent}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Component that renders a single BookingGroup card
+ */
+interface SingleBookingGroupCardProps {
+  group: BookingGroup; // Always a single object
+  onViewBookings: (group: BookingGroup) => void;
+  onEdit: (group: BookingGroup) => void;
+  onRefresh: () => void;
+  isMergedView?: boolean;
+  onViewPaymentIntent?: (paymentIntent: any) => void;
+}
+
+function SingleBookingGroupCard({
+  group,
+  onViewBookings,
+  onEdit,
+  onRefresh,
+  isMergedView = false,
+  onViewPaymentIntent,
+}: SingleBookingGroupCardProps) {
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -147,68 +195,18 @@ export default function BookingGroupCard({
             </div>
           </div>
 
-          {/* Group Members Summary */}
-          {/* <div className="mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">Group Bookings ({group._count.paymentIntents})</h4>
-            <div className="grid gap-2">
-              {group.paymentIntents.slice(0, expanded ? undefined : 3).map((pi) => (
-                <div key={pi.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">
-                        {pi.customer 
-                          ? `${pi.customer.guestFirstName} ${pi.customer.guestLastName}` 
-                          : 'Unknown Customer'
-                        }
-                      </span>
-                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                        pi.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' : 
-                        pi.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {pi.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      #{generateMergedBookingId(pi.bookings.map(booking => booking.id))} • {pi.bookings.length} booking{pi.bookings.length !== 1 ? 's' : ''}
-                      {pi.bookings.length > 0 && (
-                        <span className="text-gray-500">
-                          {' '}({pi.bookings.map(b => b.room.name).join(', ')})
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</div>
-                    <div className={`text-xs ${(pi.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
-                      Outstanding: {formatCurrency(pi.outstandingAmount || 0)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {group.paymentIntents.length > 3 && (
-                <button
-                  onClick={() => setExpanded(!expanded)}
-                  className="flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 transition-colors py-2"
-                >
-                  <span>
-                    {expanded ? 'Show Less' : `Show ${group.paymentIntents.length - 3} More`}
-                  </span>
-                  {expanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-              )}
-            </div>
-          </div> */}
-
           {/* Actions */}
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => onViewBookings(group)}
+              onClick={() => {
+                if (isMergedView && group.paymentIntents.length === 1 && onViewPaymentIntent) {
+                  // In merged view with single payment intent, show payment intent details
+                  onViewPaymentIntent(group.paymentIntents[0]);
+                } else {
+                  // Otherwise show group modal
+                  onViewBookings(group);
+                }
+              }}
               className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
               <Eye className="h-4 w-4 mr-1" />

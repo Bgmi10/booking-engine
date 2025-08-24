@@ -10,7 +10,7 @@ export default function Details({
     bookingItems, 
     availabilityData,
     taxPercentage = 0.1 // Default to 10% if not provided
-}: { 
+}: {    
     bookingData: any, 
     bookingItems: any, 
     availabilityData: any,
@@ -124,7 +124,6 @@ export default function Details({
         const totalWithTax = calculateSubtotal(); // This is the tax-inclusive amount
         const subtotalExcludingTax = totalWithTax / (1 + taxPercentage); // Remove tax to get base amount
         const tax = totalWithTax - subtotalExcludingTax; // Calculate actual tax amount
-
         if (voucherData) {
             if (voucherData.type === "DISCOUNT" && voucherData.discountPercent) {
                 const discount = (totalWithTax * voucherData.discountPercent) / 100;
@@ -249,11 +248,6 @@ export default function Details({
         return allItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
     };
    
-    const calculateDisplayTax = (subtotal: number) => {
-        // taxPercentage is already in decimal form (e.g., 0.10 for 10%)
-        return Math.round(subtotal * taxPercentage * 100) / 100;
-    };
-
     const priceDetails = calculateFinalPrice();
 
     // Validation functions
@@ -405,7 +399,6 @@ const validateForm = () => {
         );
     };
     
-    console.log(voucherData)
     // Handle form submission and Stripe checkout
     const handleConfirmAndPay = async () => {
         if (!validateForm()) {
@@ -435,7 +428,7 @@ const validateForm = () => {
                 bookingItems: allItems,
                 totalAmount: priceDetails.finalTotal,
                 currentChargeAmount: currentChargeAmount, // Current charge amount for split payments
-                taxAmount: calculateDisplayTax(priceDetails.originalTotal),
+                taxAmount: parseFloat(priceDetails.tax.toFixed(2)),
                 voucherCode: voucherData ? voucherCode : null,
                 voucherDiscount: priceDetails.discount,
                 voucherProducts: voucherData ? voucherData.products : null,
@@ -902,7 +895,7 @@ const validateForm = () => {
                             )}
 
                             <div className="flex justify-between items-center pt-4 border-t border-gray-300">
-                                <span className="text-lg sm:text-xl font-semibold">Total Booking Value</span>
+                                <span className="text-lg sm:text-xl font-semibold">Total</span>
                                 <div className="text-right">
                                     {priceDetails.discount > 0 && (
                                         <span className="text-sm text-gray-500 line-through mr-2">

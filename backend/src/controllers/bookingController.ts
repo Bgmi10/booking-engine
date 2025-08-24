@@ -6,6 +6,7 @@ import { calculateNights, handleError, responseHandler } from "../utils/helper";
 import { stripe } from "../config/stripeConfig";
 import Stripe from "stripe";
 import { getBaseUrl } from "../config/stripeConfig";
+import { BrevoContactService } from "../services/brevoContactService";
 
 dotenv.config();
 
@@ -317,6 +318,24 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       where: { id: pendingBooking.id },
       data: { stripeSessionId: session.id, status: "PENDING" }
     });
+
+    if (customerDetails.receiveMarketing) {
+      // Add customer to Brevo marketing list
+      try {
+        await BrevoContactService.addToMarketingList({
+          email: customerDetails.email,
+          firstName: customerDetails.firstName,
+          middleName: customerDetails.middleName,
+          lastName: customerDetails.lastName,
+          phone: customerDetails.phone,
+          nationality: customerDetails.nationality,
+        });
+        console.log(`Customer ${customerDetails.email} added to Brevo marketing list`);
+      } catch (error) {
+        // Log error but don't fail the booking
+        console.error('Failed to add customer to Brevo marketing list:', error);
+      }
+    }
 
     responseHandler(res, 200, "Checkout session created", { 
       url: session.url,

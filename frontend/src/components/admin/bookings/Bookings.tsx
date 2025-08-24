@@ -10,7 +10,7 @@ import { baseUrl } from "../../../utils/constants"
 import { CreateBookingModal } from "./CreateBookingModal"
 import Occupancy from "./Occupancy" 
 import BookingGroups from "./BookingGroups"
-import type { PaymentDetails, PaymentIntent } from "../../../types/types"
+import type { BookingGroup, PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
 import PaymentIntentDetailsView from "./PaymentIntentDetailView"
 import ComprehensivePaymentIntentEditForm from "./ComprehensivePaymentIntentEditForm"
@@ -20,6 +20,10 @@ import toast from 'react-hot-toast';
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import RestoreConfirmationModal from "./RestoreConfirmationModal";
 import { usePaymentIntents } from "../../../hooks/usePaymentIntents";
+import BookingGroupCard from "./BookingGroupCard"
+import BookingGroupModal from "./BookingGroupModal"
+import { useBookingGroups } from "../../../hooks/useBookingGroups"
+import { generateMergedBookingId } from "../../../utils/helper"
 
 export default function BookingManagement() {
   const [filteredPaymentIntents, setFilteredPaymentIntents] = useState<PaymentIntent[]>([])
@@ -37,10 +41,6 @@ export default function BookingManagement() {
   const [editingPaymentIntent, setEditingPaymentIntent] = useState<PaymentIntent | null>(null)
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([])
   const [showGroupModal, setShowGroupModal] = useState(false)
-  const [groupName, setGroupName] = useState("")
-  const [primaryEmail, setPrimaryEmail] = useState("")
-  const [groupLoading, setGroupLoading] = useState(false)
-  const [selectionMode, setSelectionMode] = useState(false);
   const [tempHolds, setTempHolds] = useState<any[] | null>(null);
   const [loadingTempHoldDelete, setLoadingTempHoldDelete] = useState<string | null>(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -49,7 +49,14 @@ export default function BookingManagement() {
   const [futureRefundPaymentIntent, setFutureRefundPaymentIntent] = useState<PaymentIntent | null>(null);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [restorePaymentIntent, setRestorePaymentIntent] = useState<PaymentIntent | null>(null);
-
+  const [filterType, setFilterType] = useState('ALL'); // ALL, AUTO, MANUAL
+  const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, OUTSTANDING, PAID
+  const [selectedGroup, setSelectedGroup] = useState<BookingGroup | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const {
+    bookingGroups,
+    refetch,
+  } = useBookingGroups();
   // Use the custom hooks for active and deleted payment intents
   const {
     paymentIntents: activePaymentIntents,
@@ -70,6 +77,26 @@ export default function BookingManagement() {
   // Determine current data based on active tab
   const currentPaymentIntents = activeTab === "deleted" ? deletedPaymentIntents : activePaymentIntents;
   const currentLoading = activeTab === "deleted" ? deletedLoading : activeLoading;
+
+  const filteredGroups = bookingGroups.filter(group => {
+    const matchesSearch = !searchTerm || 
+      (group.groupName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      group.paymentIntents.some(pi => 
+        pi.customer?.guestFirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pi.customer?.guestLastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pi.customer?.guestEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+    const matchesType = filterType === 'ALL' || 
+      (filterType === 'AUTO' && group.isAutoGrouped) ||
+      (filterType === 'MANUAL' && !group.isAutoGrouped);
+
+    const matchesStatus = filterStatus === 'ALL' ||
+      (filterStatus === 'OUTSTANDING' && (group.outstandingAmount || 0) > 0) ||
+      (filterStatus === 'PAID' && (group.outstandingAmount || 0) <= 0);
+
+    return matchesSearch && matchesType && matchesStatus;
+  });
 
   const fetchAllTempHolds = async () => {
     try {
@@ -356,14 +383,33 @@ export default function BookingManagement() {
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(
-        (pi) =>
-          pi.customerData.firstName?.toLowerCase().includes(term) ||
-          pi.customerData.lastName?.toLowerCase().includes(term) ||
-          pi.customerData.email?.toLowerCase().includes(term) ||
-          pi.id.toLowerCase().includes(term) ||
-          pi.bookingData.some((booking) => booking.roomDetails?.name?.toLowerCase().includes(term)),
-      )
+      filtered = filtered.filter((pi) => {
+        // Search by customer name
+        const nameMatch = pi.customerData.firstName?.toLowerCase().includes(term) ||
+          pi.customerData.lastName?.toLowerCase().includes(term);
+        
+        // Search by email
+        const emailMatch = pi.customerData.email?.toLowerCase().includes(term);
+        
+        // Search by payment intent ID
+        const idMatch = pi.id.toLowerCase().includes(term);
+        
+        // Search by room name
+        const roomMatch = pi.bookingData.some((booking) => 
+          booking.roomDetails?.name?.toLowerCase().includes(term)
+        );
+        
+        // Search by confirmation ID (merged booking ID)
+        const confirmationId = pi.bookings.length > 0 
+          ? generateMergedBookingId(pi.bookings.map(b => b.id)).toLowerCase()
+          : '';
+        const confirmationMatch = confirmationId.includes(term);
+        
+        // Search by group name (if part of a booking group)
+        const groupMatch = pi.bookingGroup?.groupName?.toLowerCase().includes(term) || false;
+        
+        return nameMatch || emailMatch || idMatch || roomMatch || confirmationMatch || groupMatch;
+      })
     }
 
     setFilteredPaymentIntents(filtered)
@@ -391,7 +437,6 @@ export default function BookingManagement() {
       groupEmail: pi.customerData.groupEmail
     }))
   );
-  const selectedBookings = allBookings.filter(b => selectedBookingIds.includes(b.id));
 
   const deleteTempHold = async (id: string) => {
     if (!confirm("Are you sure you want to delete this temp hold? This action cannot be undone.")) {
@@ -415,6 +460,17 @@ export default function BookingManagement() {
     } finally {
       setLoadingTempHoldDelete(null);
     }
+  };
+
+  const handleViewBookings = (group: BookingGroup) => {
+    setSelectedPaymentIntent(null); // Clear any selected payment intent
+    setSelectedGroup(group);
+    setShowGroupModal(true);
+  };
+
+  const handleEditGroup = (group: BookingGroup) => {
+    setSelectedGroup(group);
+    setShowEditModal(true);
   };
 
   return (
@@ -450,7 +506,10 @@ export default function BookingManagement() {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
-            onClick={() => setActiveTab("all")}
+            onClick={() => {
+              setActiveTab("all");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "all"
                 ? "border-blue-500 text-blue-600"
@@ -460,7 +519,10 @@ export default function BookingManagement() {
             All Bookings
           </button>
           <button
-            onClick={() => setActiveTab("admin")}
+            onClick={() => {
+              setActiveTab("admin");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "admin"
                 ? "border-blue-500 text-blue-600"
@@ -470,7 +532,10 @@ export default function BookingManagement() {
             Admin Created
           </button>
           <button
-            onClick={() => setActiveTab("groups")}
+            onClick={() => {
+              setActiveTab("groups");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "groups"
                 ? "border-blue-500 text-blue-600"
@@ -480,7 +545,10 @@ export default function BookingManagement() {
             Groups
           </button>
           <button
-            onClick={() => setActiveTab("occupancy")}
+            onClick={() => {
+              setActiveTab("occupancy");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "occupancy"
                 ? "border-blue-500 text-blue-600"
@@ -490,7 +558,10 @@ export default function BookingManagement() {
             Occupancy
           </button>
           <button
-            onClick={() => setActiveTab("temp-holds")}
+            onClick={() => {
+              setActiveTab("temp-holds");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "temp-holds"
                 ? "border-blue-500 text-blue-600"
@@ -500,7 +571,10 @@ export default function BookingManagement() {
             Temp Holds Rooms 
           </button>
           <button
-            onClick={() => setActiveTab("deleted")}
+            onClick={() => {
+              setActiveTab("deleted");
+              setSelectedPaymentIntent(null);
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === "deleted"
                 ? "border-blue-500 text-blue-600"
@@ -570,7 +644,7 @@ export default function BookingManagement() {
       ) : activeTab === "occupancy" ? (
         <Occupancy bookings={activePaymentIntents} />
       ) : activeTab === "groups" ? (
-        <BookingGroups />
+        <BookingGroups  selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} setShowEditModal={setShowEditModal} showEditModal={showEditModal} showGroupModal={showGroupModal}  setShowGroupModal={setShowGroupModal} handleEditGroup={handleEditGroup} handleViewBookings={handleViewBookings}  filteredGroups={filteredGroups} filterType={filterType} setFilterStatus={setFilterStatus} setFilterType={setFilterType} filterStatus={filterStatus} />
       ) : (
         <>
           {/* Filters */}
@@ -579,7 +653,7 @@ export default function BookingManagement() {
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search bookings..."
+                placeholder="Search by name, email, confirmation ID, group name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -614,30 +688,7 @@ export default function BookingManagement() {
             </div>
           </div>
 
-        {selectionMode && (
-            <div className="mb-2 flex gap-2">
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                disabled={selectedBookingIds.length < 2}
-                onClick={() => {
-                  setShowGroupModal(true);
-                  setGroupName("");
-                  setPrimaryEmail(selectedBookings[0]?.customer?.email || "");
-                }}
-              >
-                Confirm Selection
-              </button>
-              <button
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                onClick={() => {
-                  setSelectionMode(false);
-                  setSelectedBookingIds([]);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+       
 
           {/* Bookings List */}
           <PaymentIntentsList
@@ -653,15 +704,25 @@ export default function BookingManagement() {
             onDelete={handleDeleteClick}
             onRestore={activeTab === "deleted" ? handleRestore : undefined}
             loadingAction={loadingAction}
-            selectionMode={selectionMode}
             selectedBookingIds={selectedBookingIds}
             onBookingSelect={handleBookingSelect}
             onConfirmBooking={confirmBooking}
             isDeletedTab={activeTab === "deleted"}
           />
 
-          {/* Booking Details Modal */}
-          {selectedPaymentIntent && (
+          {filteredGroups.map((group) => (
+            <BookingGroupCard 
+              key={group.id}
+              group={group} 
+              onRefresh={refetch} 
+              onEdit={handleEditGroup} 
+              onViewBookings={handleViewBookings} 
+              isMergedView={true}
+              onViewPaymentIntent={(pi) => setSelectedPaymentIntent(pi)}
+            />
+          ))}
+
+          {selectedPaymentIntent && activeTab !== "groups" && activeTab !== "occupancy" && activeTab !== "temp-holds" && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
@@ -692,103 +753,9 @@ export default function BookingManagement() {
                     }
                     onRefresh={fetchPaymentIntents}
                     loadingAction={loadingAction}
-                            isDeletedTab={activeTab === "deleted"}
+                    isDeletedTab={activeTab === "deleted"}
                   />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {showGroupModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-md w-full p-6 relative">
-                <button
-                  onClick={() => setShowGroupModal(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl"
-                >
-                  &times;
-                </button>
-                <h2 className="text-xl font-bold mb-4">Create Group</h2>
-                <form
-                  onSubmit={async e => {
-                    e.preventDefault()
-                    setGroupLoading(true)
-                    try {
-                      const res = await fetch(baseUrl + "/admin/bookings/group", {
-                        method: "POST",
-                        credentials: "include",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          bookingIds: selectedBookingIds,
-                          groupName,
-                          primaryEmail
-                        })
-                      })
-                      if (res.ok) {
-                        setShowGroupModal(false)
-                        setSelectedBookingIds([])
-                        setGroupName("")
-                        setPrimaryEmail("")
-                        setSelectionMode(false)
-                        fetchPaymentIntents()
-                      } else {
-                        // Handle error
-                      }
-                    } finally {
-                      setGroupLoading(false)
-                    }
-                  }}
-                >
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
-                    <input
-                      type="text"
-                      className="border rounded px-3 py-2 w-full"
-                      value={groupName}
-                      onChange={e => setGroupName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Primary Email</label>
-                    <select
-                      className="border rounded px-3 py-2 w-full"
-                      value={primaryEmail}
-                      onChange={e => setPrimaryEmail(e.target.value)}
-                      required
-                    >
-                      {selectedBookings.map(b => (
-                        <option key={b.id} value={b.customer?.email}>{b.customer?.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Selected Bookings</label>
-                    <ul className="list-disc pl-5 text-sm text-gray-700">
-                      {selectedBookings.map(b => (
-                        // @ts-ignore
-                        <li key={b.id}>{b.customer?.firstName} {b.customer?.lastName} - {b.roomDetails?.name || b.selectedRoom || (b.roomId ?? "")}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      type="submit"
-                      className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                      disabled={groupLoading}
-                    >
-                      {groupLoading ? "Creating..." : "Create Group"}
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300"
-                      onClick={() => setShowGroupModal(false)}
-                      disabled={groupLoading}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
               </div>
             </div>
           )}
@@ -859,6 +826,24 @@ export default function BookingManagement() {
             />
           </div>
         </div>
+      )}
+
+      {/* Booking Group Modal - This is needed for when BookingGroupCard is rendered outside Groups tab */}
+      {showGroupModal && selectedGroup && activeTab !== "groups" && (
+        <BookingGroupModal
+          group={selectedGroup}
+          onClose={() => {
+            setShowGroupModal(false);
+            setSelectedGroup(null);
+          }}
+          onRefresh={refetch}
+          onDelete={async (groupId, reason) => {
+            // Handle deletion if needed
+            setShowGroupModal(false);
+            setSelectedGroup(null);
+            refetch();
+          }}
+        />
       )}
     </div>
   )

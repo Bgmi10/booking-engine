@@ -250,174 +250,154 @@ import { useState } from "react"
         </div>
   
         {/* Payment Information */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Booking Payment Information
-              <span
-                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(paymentIntent.status)}`}
-              >
-                {paymentIntent.status}
-              </span>
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Total Amount</label>
-                <div className="font-medium text-gray-900">€{paymentIntent.totalAmount}</div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Currency</label>
-                <div className="font-medium text-gray-900">{paymentIntent.currency.toUpperCase()}</div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Tax Amount</label>
-                <div className="font-medium text-gray-900">€{paymentIntent.taxAmount}</div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Payment Date</label>
-                <div className="font-medium text-gray-900">
-                  {paymentIntent.paidAt ? format(new Date(paymentIntent.paidAt), "MMM dd, yyyy HH:mm") : "Not paid"}
-                </div>
-              </div>
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Booking Payment Information
+                <span
+                  className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(paymentIntent.status)}`}
+                >
+                  {paymentIntent.status}
+                </span>
+              </h3>
             </div>
-
-            {/* Payment Structure Information */}
-            {paymentIntent.paymentStructure && (
-              <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Structure</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6">
+              {/* Payment Summary */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-blue-600">Payment Type</label>
-                    <div className="font-medium text-blue-900">
-                      {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
-                    </div>
+                    <label className="text-sm font-medium text-gray-600">Subtotal</label>
+                    <div className="text-lg font-semibold text-gray-900">€{(paymentIntent.totalAmount - paymentIntent.taxAmount).toFixed(2)}</div>
                   </div>
-                  {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && (
-                    <>
-                      <div>
-                        <label className="text-sm font-medium text-blue-600">Prepaid Amount</label>
-                        <div className="font-medium text-blue-900">€{paymentIntent.prepaidAmount || 0}</div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-blue-600">Remaining Amount</label>
-                        <div className="font-medium text-blue-900">€{paymentIntent.remainingAmount || 0}</div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-blue-600">Remaining Due Date</label>
-                        <div className="font-medium text-blue-900">
-                          {paymentIntent.remainingDueDate 
-                            ? format(new Date(paymentIntent.remainingDueDate), "MMM dd, yyyy")
-                            : "Not set"
-                          }
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Tax (VAT)</label>
+                    <div className="text-lg font-semibold text-gray-900">€{paymentIntent.taxAmount.toFixed(2)}</div>
+                  </div>
+                  <div className="border-l-2 border-gray-200 pl-4">
+                    <label className="text-sm font-medium text-gray-600">Total Amount</label>
+                    <div className="text-xl font-bold text-gray-900">€{paymentIntent.totalAmount.toFixed(2)}</div>
+                  </div>
                 </div>
-                
-              
-                {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' &&
-                //@ts-ignore
-                paymentIntent?.remainingAmount > 0 && (
-                  <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-yellow-800">
-                        Remaining payment of €{paymentIntent.remainingAmount} required
-                      </span>
-                      {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
-                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-md">
-                          Overdue
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Second Payment Status Display */}
-                    {paymentIntent.secondPaymentStatus && (
-                      <div className="mb-3">
-                        <span className="text-sm font-medium text-gray-600">Second Payment Status: </span>
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-md ${
-                          paymentIntent.secondPaymentStatus === 'SUCCEEDED' 
-                            ? 'bg-green-100 text-green-800'
-                            : paymentIntent.secondPaymentStatus === 'FAILED' || paymentIntent.secondPaymentStatus === 'CANCELLED'
-                            ? 'bg-red-100 text-red-800'
-                            : paymentIntent.secondPaymentStatus === 'EXPIRED'
-                            ? 'bg-gray-100 text-gray-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {paymentIntent.secondPaymentStatus}
-                        </span>
+              </div>
+
+              {/* Payment Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Currency</label>
+                  <div className="font-medium text-gray-900">{paymentIntent.currency.toUpperCase()}</div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Payment Date</label>
+                  <div className="font-medium text-gray-900">
+                    {paymentIntent.paidAt ? format(new Date(paymentIntent.paidAt), "MMM dd, yyyy HH:mm") : "Not paid"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Structure Information */}
+              {paymentIntent.paymentStructure && (
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Structure</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-blue-600">Payment Type</label>
+                      <div className="font-medium text-blue-900">
+                        {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' ? 'Split Payment (30% + 70%)' : 'Full Payment'}
                       </div>
+                    </div>
+                    {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' && (
+                      <>
+                        <div>
+                          <label className="text-sm font-medium text-blue-600">Prepaid Amount</label>
+                          <div className="font-medium text-blue-900">€{paymentIntent.prepaidAmount || 0}</div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-blue-600">Remaining Amount</label>
+                          <div className="font-medium text-blue-900">€{paymentIntent.remainingAmount || 0}</div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-blue-600">Remaining Due Date</label>
+                          <div className="font-medium text-blue-900">
+                            {paymentIntent.remainingDueDate 
+                              ? format(new Date(paymentIntent.remainingDueDate), "MMM dd, yyyy")
+                              : "Not set"
+                            }
+                          </div>
+                        </div>
+                      </>
                     )}
-                    
-                    {/* Admin Actions for Second Payment - Only show if second payment not succeeded */}
-                    {paymentIntent.secondPaymentStatus !== 'SUCCEEDED' && (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/create-second-payment`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                              });
-                              
-                              if (response.ok) {
-                                const data = await response.json();
-                                alert('Second payment intent created successfully! Email sent to customer.');
-                                console.log('Payment intent created:', data.data.paymentIntentId);
-                              } else {
-                                const error = await response.json();
-                                alert(`Error: ${error.message}`);
-                              }
-                            } catch (error) {
-                              console.error('Error creating payment link:', error);
-                              alert('Failed to create payment intent');
-                            }
-                          }}
-                          disabled={loadingAction}
-                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          Create Payment Intent
-                        </button>
-                        
-                        <button
-                          onClick={async () => {
-                            try {
-                              const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                              });
-                              
-                              if (response.ok) {
-                                alert('Payment reminder sent successfully!');
-                              } else {
-                                const error = await response.json();
-                                alert(`Error: ${error.message}`);
-                              }
-                            } catch (error) {
-                              console.error('Error sending reminder:', error);
-                              alert('Failed to send reminder');
-                            }
-                          }}
-                          disabled={loadingAction}
-                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5-5-5h5v-12" />
-                          </svg>
-                          Send Reminder
-                        </button>
-                        
+                  </div>
+                  
+                
+                  {paymentIntent.paymentStructure === 'SPLIT_PAYMENT' &&
+                  //@ts-ignore
+                  paymentIntent?.remainingAmount > 0 && (
+                    <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-yellow-800">
+                          Remaining payment of €{paymentIntent.remainingAmount} required
+                        </span>
                         {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                          <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-md">
+                            Overdue
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Second Payment Status Display */}
+                      {paymentIntent.secondPaymentStatus && (
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-gray-600">Second Payment Status: </span>
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-md ${
+                            paymentIntent.secondPaymentStatus === 'SUCCEEDED' 
+                              ? 'bg-green-100 text-green-800'
+                              : paymentIntent.secondPaymentStatus === 'FAILED' || paymentIntent.secondPaymentStatus === 'CANCELLED'
+                              ? 'bg-red-100 text-red-800'
+                              : paymentIntent.secondPaymentStatus === 'EXPIRED'
+                              ? 'bg-gray-100 text-gray-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {paymentIntent.secondPaymentStatus}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Admin Actions for Second Payment - Only show if second payment not succeeded */}
+                      {paymentIntent.secondPaymentStatus !== 'SUCCEEDED' && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/create-second-payment`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                });
+                                
+                                if (response.ok) {
+                                  const data = await response.json();
+                                  alert('Second payment intent created successfully! Email sent to customer.');
+                                  console.log('Payment intent created:', data.data.paymentIntentId);
+                                } else {
+                                  const error = await response.json();
+                                  alert(`Error: ${error.message}`);
+                                }
+                              } catch (error) {
+                                console.error('Error creating payment link:', error);
+                                alert('Failed to create payment intent');
+                              }
+                            }}
+                            disabled={loadingAction}
+                            className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Create Payment Intent
+                          </button>
+                          
                           <button
                             onClick={async () => {
                               try {
@@ -429,102 +409,133 @@ import { useState } from "react"
                                 });
                                 
                                 if (response.ok) {
-                                  alert('Overdue notice sent successfully!');
+                                  alert('Payment reminder sent successfully!');
                                 } else {
                                   const error = await response.json();
                                   alert(`Error: ${error.message}`);
                                 }
                               } catch (error) {
-                                console.error('Error sending overdue notice:', error);
-                                alert('Failed to send overdue notice');
+                                console.error('Error sending reminder:', error);
+                                alert('Failed to send reminder');
                               }
                             }}
                             disabled={loadingAction}
-                            className="inline-flex items-center px-3 py-2 text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center px-3 py-2 text-xs font-medium text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5-5-5h5v-12" />
                             </svg>
-                            Send Overdue Notice
+                            Send Reminder
                           </button>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Show dummy refund button when second payment is succeeded */}
-                    {paymentIntent.secondPaymentStatus === 'SUCCEEDED' && (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => {
-                            alert('Refund functionality will be implemented in the future.');
-                          }}
-                          disabled={loadingAction}
-                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-gray-600 border border-transparent rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m5 14v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3" />
-                          </svg>
-                          Refund Second Payment (Coming Soon)
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-  
-            {paymentIntent.stripePaymentIntentId && (
-              <button
-                onClick={onViewPayment}
-                disabled={loadingPayment}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
-              >
-                {loadingPayment ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="h-4 w-4 mr-2" />
-                )}
-                View Stripe Payment Details
-              </button>
-            )}
-  
-            {paymentDetails && (
-              <div className="bg-gray-50 rounded-lg border border-gray-200">
-                <div className="p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Stripe Payment Details</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    {paymentDetails.payment_method?.card && (
-                      <>
-                        <div>
-                          <span className="text-gray-600">Card:</span>
-                          <span className="ml-2 font-medium">
-                            **** **** **** {paymentDetails.payment_method.card.last4}
-                          </span>
+                          
+                          {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(baseUrl + `/payment-intent/${paymentIntent.id}/send-reminder`, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                    },
+                                  });
+                                  
+                                  if (response.ok) {
+                                    alert('Overdue notice sent successfully!');
+                                  } else {
+                                    const error = await response.json();
+                                    alert(`Error: ${error.message}`);
+                                  }
+                                } catch (error) {
+                                  console.error('Error sending overdue notice:', error);
+                                  alert('Failed to send overdue notice');
+                                }
+                              }}
+                              disabled={loadingAction}
+                              className="inline-flex items-center px-3 py-2 text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              Send Overdue Notice
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-gray-600">Brand:</span>
-                          <span className="ml-2 font-medium capitalize">{paymentDetails.payment_method.card.brand}</span>
+                      )}
+                      
+                      {/* Show dummy refund button when second payment is succeeded */}
+                      {paymentIntent.secondPaymentStatus === 'SUCCEEDED' && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => {
+                              alert('Refund functionality will be implemented in the future.');
+                            }}
+                            disabled={loadingAction}
+                            className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-gray-600 border border-transparent rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m5 14v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3" />
+                            </svg>
+                            Refund Second Payment (Coming Soon)
+                          </button>
                         </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+    
+              {paymentIntent.stripePaymentIntentId && (
+                <button
+                  onClick={onViewPayment}
+                  disabled={loadingPayment}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
+                >
+                  {loadingPayment ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4 mr-2" />
+                  )}
+                  View Stripe Payment Details
+                </button>
+              )}
+    
+              {paymentDetails && (
+                <div className="bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Stripe Payment Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      {paymentDetails.payment_method?.card && (
+                        <>
+                          <div>
+                            <span className="text-gray-600">Card:</span>
+                            <span className="ml-2 font-medium">
+                              **** **** **** {paymentDetails.payment_method.card.last4}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Brand:</span>
+                            <span className="ml-2 font-medium capitalize">{paymentDetails.payment_method.card.brand}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Expires:</span>
+                            <span className="ml-2 font-medium">
+                              {paymentDetails.payment_method.card.exp_month}/{paymentDetails.payment_method.card.exp_year}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                      {paymentDetails.billing_details?.name && (
                         <div>
-                          <span className="text-gray-600">Expires:</span>
-                          <span className="ml-2 font-medium">
-                            {paymentDetails.payment_method.card.exp_month}/{paymentDetails.payment_method.card.exp_year}
-                          </span>
+                          <span className="text-gray-600">Billing Name:</span>
+                          <span className="ml-2 font-medium">{paymentDetails.billing_details.name}</span>
                         </div>
-                      </>
-                    )}
-                    {paymentDetails.billing_details?.name && (
-                      <div>
-                        <span className="text-gray-600">Billing Name:</span>
-                        <span className="ml-2 font-medium">{paymentDetails.billing_details.name}</span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
   
         {/* Actions */}
         <div className="bg-white rounded-lg border border-gray-200">

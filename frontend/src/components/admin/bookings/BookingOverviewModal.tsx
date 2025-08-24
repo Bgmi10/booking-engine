@@ -539,7 +539,6 @@ export default function BookingOverviewModal({ isOpen, onClose, paymentIntent, o
                                 {order.items.map((item: any, index: number) => {
                                   const totalPrice = (item.price || 0) * (item.quantity || 1);
                                   const taxAmount = item.tax ? (totalPrice * item.tax / (100 + item.tax)) : 0;
-                                  const priceBeforeTax = totalPrice - taxAmount;
                                   
                                   return (
                                     <div key={index} className="bg-white rounded p-2 shadow-sm">

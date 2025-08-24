@@ -269,9 +269,17 @@ export default function EnhancedPaymentIntentCard({
                   />
                 </div>
               ) : (
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {displayData.customerData.firstName} {displayData.customerData.lastName}
-                </h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {displayData.customerData.firstName} {displayData.customerData.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {paymentIntent.bookings.length > 0 
+                      ? `Confirmation: ${generateMergedBookingId(paymentIntent.bookings.map(b => b.id))}`
+                      : `#${paymentIntent.id.slice(-8)}`
+                    }
+                  </p>
+                </div>
               )}
               <span
                 className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${

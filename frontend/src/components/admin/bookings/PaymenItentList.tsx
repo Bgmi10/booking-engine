@@ -1,8 +1,7 @@
-import { Calendar, RefreshCw } from "lucide-react"
+import { Calendar } from "lucide-react"
 import type { PaymentIntent, PaymentIntentsListProps } from "../../../types/types"
 import PaymentIntentCard from "./PaymentIntentCard"
 import EnhancedPaymentIntentCard from "./EnhancedPaymentIntentCard"
-import Loader from "../../Loader";
 
 export default function PaymentIntentsList({
   paymentIntents,
