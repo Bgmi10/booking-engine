@@ -582,8 +582,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                     
                     {/* Capacity status indicators */}
                     {adults >= maxGuestCapacity && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        Maximum available capacity reached ({maxGuestCapacity} guests)
+                      <p className="text-xs text-red-600 mt-1">
+                        Maximum capacity ({maxGuestCapacity} guests)
                       </p>
                     )}
                     

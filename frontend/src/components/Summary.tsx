@@ -18,7 +18,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         for (let j = i + 1; j < allItems.length; j++) {
           const item1 = allItems[i];
           const item2 = allItems[j];
-
+          
           // Check if same room
           if (item1.selectedRoom === item2.selectedRoom) {
             const checkIn1 = new Date(item1.checkIn);

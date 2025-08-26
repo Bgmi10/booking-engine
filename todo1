@@ -93,12 +93,14 @@ non refund automatically
 
 [C] => channel markup price should apply for override price also
 
-[] => we need a all bookings tab should inculde remove the individual bookings
+[C] => we need a all bookings tab should inculde remove the individual bookings
 
-[] => when user click to recieve marketing email that should automatically send hte user mail to mailchimp
+[C] => when user click to recieve marketing email that should automatically send hte user mail to brevo
 
-[] => we need another unknown role for mini bar/all  in product
+[C] => we need another unknown role for mini bar/all  in product
 
 [C] => Ability to assign different VAT rates to different services and products (0%, 3%, 5%, 10%, 22%). in product 
 
-[] =>  instead of showing null show 0 in outstanding balance
+[C] =>  instead of showing null show 0 in outstanding balance
+
+[] => we need to provide a two charges export btn over the payment intent. one is customer pdf invoice export which is bascially collect every charges and orders and link them together and here the question orders are diff and charges are diff they are not linked together.  so, in this case what we should do to represent hte pdf ui.

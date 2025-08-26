@@ -83,7 +83,8 @@ export default function Settings() {
           licensePlateExpiryDays: String(currentSettings.licensePlateExpiryDays || 30),
           licensePlateDailyTriggerTime: currentSettings.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00',
-          autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2)
+          autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2),
+          enableTaxOptimizationFeature: currentSettings.enableTaxOptimizationFeature || false
         });
         setSettingsId(currentSettings.id);
 
@@ -363,7 +364,8 @@ export default function Settings() {
           licensePlateExpiryDays: Number(formValues.licensePlateExpiryDays) || 30,
           licensePlateDailyTriggerTime: formValues.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00',
-          autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2
+          autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2,
+          enableTaxOptimizationFeature: formValues.enableTaxOptimizationFeature === true
         }),
       });
       
@@ -521,6 +523,41 @@ export default function Settings() {
                       <RiSettings3Line className="w-4 h-4 mr-2" />
                       Configure Payment Methods
                     </button>
+                  </div>
+                </div>
+
+                {/* Internal Features Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">System Optimization</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-700">Legacy Mode Compatibility</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Enable backward compatibility for legacy system integrations
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="enableTaxOptimizationFeature"
+                          name="enableTaxOptimizationFeature"
+                          checked={formValues.enableTaxOptimizationFeature === true}
+                          onChange={(e) => {
+                            setFormValues((prev: any) => ({
+                              ...prev,
+                              enableTaxOptimizationFeature: e.target.checked
+                            }));
+                            setSuccess(null);
+                            setError(null);
+                          }}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="enableTaxOptimizationFeature" className="ml-2 text-sm text-gray-700">
+                          Enable Legacy Mode
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

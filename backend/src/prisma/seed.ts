@@ -3764,6 +3764,197 @@ async function main() {
         totalEntries: { type: 'number', description: 'Total number of entries', example: 45 },
         activeEntries: { type: 'number', description: 'Number of active entries', example: 42 }
       }
+    },
+    {
+      name: 'Payment Intent Invoice',
+      type: 'PAYMENT_INTENT_INVOICE',
+      subject: 'Invoice #{{invoiceNumber}} - La Torre sulla via Francigena',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invoice - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: white;">
+        <div style="max-width: 800px; margin: 0 auto; background: white; padding: 40px;">
+          <!-- Header Section -->
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid ${emailStyles.borderColor}; padding-bottom: 20px;">
+            <div>
+              <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 80px; margin-bottom: 16px;" />
+              <h1 style="margin: 0; color: ${emailStyles.primaryColor}; font-size: 32px; font-weight: 700;">INVOICE</h1>
+            </div>
+            <div style="text-align: right;">
+              <div style="margin-bottom: 8px;">
+                <span style="color: ${emailStyles.secondaryColor}; font-weight: 600;">Invoice Number:</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">#{{invoiceNumber}}</span>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <span style="color: ${emailStyles.secondaryColor}; font-weight: 600;">Date:</span>
+                <span style="color: ${emailStyles.primaryColor};">{{invoiceDate}}</span>
+              </div>
+              <div>
+                <span style="color: ${emailStyles.secondaryColor}; font-weight: 600;">Payment Status:</span>
+                <span style="background: ${emailStyles.successColor}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 14px; font-weight: 600;">{{paymentStatus}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Company and Customer Info -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px;">
+            <!-- From Section -->
+            <div>
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; text-transform: uppercase;">From:</h3>
+              <div style="background: ${emailStyles.backgroundColor}; padding: 20px; border-radius: 8px;">
+                <p style="margin: 0 0 8px 0; font-weight: 600; color: ${emailStyles.primaryColor};">La Torre sulla via Francigena</p>
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">Via Francigena, Historic Center</p>
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">53037 San Gimignano SI, Italy</p>
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">VAT: IT12345678901</p>
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">Email: info@latorresullaviafrancigena.com</p>
+                <p style="margin: 0; color: ${emailStyles.secondaryColor};">Phone: +39 0577 123456</p>
+              </div>
+            </div>
+            
+            <!-- To Section -->
+            <div>
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; text-transform: uppercase;">Bill To:</h3>
+              <div style="background: ${emailStyles.backgroundColor}; padding: 20px; border-radius: 8px;">
+                <p style="margin: 0 0 8px 0; font-weight: 600; color: ${emailStyles.primaryColor};">{{customerName}}</p>
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">{{customerEmail}}</p>
+                {{#if customerPhone}}
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">{{customerPhone}}</p>
+                {{/if}}
+                {{#if customerAddress}}
+                <p style="margin: 0 0 4px 0; color: ${emailStyles.secondaryColor};">{{customerAddress}}</p>
+                {{/if}}
+                {{#if customerVat}}
+                <p style="margin: 0; color: ${emailStyles.secondaryColor};">VAT: {{customerVat}}</p>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+
+
+          <!-- Items Table -->
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: ${emailStyles.primaryColor}; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; text-transform: uppercase;">Items:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: ${emailStyles.backgroundColor};">
+                  <th style="text-align: left; padding: 12px; color: ${emailStyles.primaryColor}; font-weight: 600; border-bottom: 2px solid ${emailStyles.borderColor};">Description</th>
+                  <th style="text-align: center; padding: 12px; color: ${emailStyles.primaryColor}; font-weight: 600; border-bottom: 2px solid ${emailStyles.borderColor};">Qty</th>
+                  <th style="text-align: right; padding: 12px; color: ${emailStyles.primaryColor}; font-weight: 600; border-bottom: 2px solid ${emailStyles.borderColor};">Unit Price</th>
+                  <th style="text-align: right; padding: 12px; color: ${emailStyles.primaryColor}; font-weight: 600; border-bottom: 2px solid ${emailStyles.borderColor};">Tax</th>
+                  <th style="text-align: right; padding: 12px; color: ${emailStyles.primaryColor}; font-weight: 600; border-bottom: 2px solid ${emailStyles.borderColor};">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{#each items}}
+                <tr>
+                  <td style="padding: 12px; border-bottom: 1px solid ${emailStyles.borderColor}; color: ${emailStyles.primaryColor};">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      {{#if this.imageUrl}}
+                      <img src="{{this.imageUrl}}" alt="{{this.description}}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;" />
+                      {{/if}}
+                      <span>{{this.description}}</span>
+                    </div>
+                  </td>
+                  <td style="padding: 12px; border-bottom: 1px solid ${emailStyles.borderColor}; text-align: center; color: ${emailStyles.primaryColor};">{{this.quantity}}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid ${emailStyles.borderColor}; text-align: right; color: ${emailStyles.primaryColor};">€{{this.unitPrice}}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid ${emailStyles.borderColor}; text-align: right; color: ${emailStyles.primaryColor};">€{{this.taxAmount}}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid ${emailStyles.borderColor}; text-align: right; font-weight: 600; color: ${emailStyles.primaryColor};">€{{this.total}}</td>
+                </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Totals Section -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+            <div style="width: 350px;">
+              <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                <span style="color: ${emailStyles.secondaryColor};">Subtotal</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{subtotal}}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                <span style="color: ${emailStyles.secondaryColor};">IVA</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{taxAmount}}</span>
+              </div>
+              <div style="color: ${emailStyles.secondaryColor}; font-size: 13px; font-style: italic; padding: 4px 0; text-align: right;">
+                Taxes included in price
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 12px 16px; background: ${emailStyles.backgroundColor}; border-radius: 8px; margin-top: 8px; border: 2px solid ${emailStyles.primaryColor};">
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">Total</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">€{{totalAmount}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Information -->
+          {{#if paymentMethod}}
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: ${emailStyles.primaryColor}; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; text-transform: uppercase;">Payment Information:</h3>
+            <div style="background: ${emailStyles.backgroundColor}; padding: 20px; border-radius: 8px;">
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                <div>
+                  <span style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Payment Method:</span>
+                  <p style="margin: 4px 0 0 0; color: ${emailStyles.primaryColor}; font-weight: 600;">{{paymentMethod}}</p>
+                </div>
+                <div>
+                  <span style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Transaction ID:</span>
+                  <p style="margin: 4px 0 0 0; color: ${emailStyles.primaryColor}; font-weight: 600;">{{transactionId}}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {{/if}}
+
+          <!-- Notes Section -->
+          {{#if notes}}
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: ${emailStyles.primaryColor}; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; text-transform: uppercase;">Notes:</h3>
+            <div style="background: ${emailStyles.backgroundColor}; padding: 20px; border-radius: 8px;">
+              <p style="margin: 0; color: ${emailStyles.secondaryColor}; line-height: 1.6;">{{notes}}</p>
+            </div>
+          </div>
+          {{/if}}
+
+          <!-- Footer -->
+          <div style="margin-top: 60px; padding-top: 20px; border-top: 2px solid ${emailStyles.borderColor}; text-align: center;">
+            <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 8px 0; font-size: 14px;">Thank you for your business!</p>
+            <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 12px;">
+              La Torre sulla via Francigena | Via Francigena, Historic Center | 53037 San Gimignano SI, Italy<br>
+              VAT: IT12345678901 | Email: info@latorresullaviafrancigena.com | Phone: +39 0577 123456
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        invoiceNumber: { type: 'string', description: 'Invoice number', example: 'INV-2024-001' },
+        invoiceDate: { type: 'string', description: 'Invoice date', example: 'January 15, 2024' },
+        paymentStatus: { type: 'string', description: 'Payment status', example: 'PAID' },
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        customerEmail: { type: 'string', description: 'Customer email', example: 'john@example.com' },
+        customerPhone: { type: 'string', description: 'Customer phone number', example: '+1234567890', optional: true },
+        customerAddress: { type: 'string', description: 'Customer address', example: '123 Main St, City', optional: true },
+        customerVat: { type: 'string', description: 'Customer VAT number', example: 'IT12345678901', optional: true },
+        checkInDate: { type: 'string', description: 'Check-in date', example: 'January 15, 2024', optional: true },
+        checkOutDate: { type: 'string', description: 'Check-out date', example: 'January 18, 2024', optional: true },
+        totalNights: { type: 'number', description: 'Total nights', example: 3, optional: true },
+        items: { type: 'array', description: 'Invoice line items', example: [{ description: 'Room - Deluxe Suite', quantity: 1, unitPrice: 150, tax: 10, total: 165 }] },
+        subtotal: { type: 'number', description: 'Subtotal amount', example: 450.00 },
+        taxPercentage: { type: 'number', description: 'Tax percentage', example: 10 },
+        taxAmount: { type: 'number', description: 'Tax amount', example: 45.00 },
+        totalAmount: { type: 'number', description: 'Total amount', example: 495.00 },
+        paymentMethod: { type: 'string', description: 'Payment method', example: 'Credit Card', optional: true },
+        transactionId: { type: 'string', description: 'Transaction ID', example: 'pi_1234567890', optional: true },
+        notes: { type: 'string', description: 'Additional notes', example: 'Thank you for choosing La Torre', optional: true },
+        bookingDetails: { type: 'boolean', description: 'Whether to show booking details section', example: true, optional: true }
+      }
     }
   ]
 

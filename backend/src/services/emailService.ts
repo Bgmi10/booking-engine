@@ -5,6 +5,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Register Handlebars helpers
+Handlebars.registerHelper('gt', function(a: number, b: number) {
+  return a > b;
+});
+
 interface EmailOptions {
   to: { email: string; name: string };
   subject?: string;
@@ -79,7 +84,7 @@ export class EmailService {
       const template = await this.getTemplate(templateType);
 
       // Compile subject and body
-      const compiledSubject = this.compileTemplate(template.subject, templateData);
+      const compiledSubject = this.compileTemplate(template.subject, templateData); 
       const compiledHtml = this.compileTemplate(template.html, templateData);
 
       // Prepare email payload

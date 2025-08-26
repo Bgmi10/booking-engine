@@ -136,6 +136,7 @@ export interface PaymentIntentDetailsViewProps {
   loadingAction: boolean
   isDeletedTab?: boolean
   hideViewPayments?: boolean
+  hideInvoiceButtons?: boolean
 }
 
 interface Image {
@@ -174,6 +175,7 @@ export interface PaymentIntent {
   expiresAt: string
   createdByAdmin: boolean
   customer?: CustomerData;
+  customerId?: string;
   adminNotes?: string
   refundStatus?: RefundStatus
   bookingGroupId?: string;
@@ -184,8 +186,8 @@ export interface PaymentIntent {
   totalAmount: number
   customerData: CustomerData
   bookingData: BookingData[]
-  bookings: Booking[]
-paymentMethod?: PaymentMethod
+  bookings: Booking[] 
+  paymentMethod?: PaymentMethod
   actualPaymentMethod?: PaymentMethod // STRIPE | BANK_TRANSFER | CASH
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
   prepaidAmount?: number
@@ -557,6 +559,7 @@ export interface GeneralSettings { // Represents the actual data structure from/
   dahuaLicensePlateExpiryHours?: number;
   licensePlateExpiryDays?: number;
   licensePlateDailyTriggerTime?: string;
+  enableTaxOptimizationFeature: boolean;
   // Add other settings properties here as they are defined in the backend model
 }
 
@@ -816,6 +819,7 @@ export interface PaymentIntentData {
   customerData: any;
   createdAt: string;
   expiresAt?: string;
+  orders: OrderItem[]
   paidAt?: string;
   bookings?: any[]; // Individual booking records
   createdByAdmin?: boolean;
@@ -867,6 +871,8 @@ export interface BookingGroup {
   outstandingAmount?: number;
   createdAt: string;
   updatedAt: string;
+  mainGuestId: string;
+  mainGuest: Customer;
   paymentIntents: Array<{
     id: string;
     totalAmount: number;

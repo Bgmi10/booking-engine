@@ -68,38 +68,37 @@ model RoomImage {
 }
 
 model Customer {      
-  id                  String              @id @default(uuid())
-  guestFirstName      String      
-  guestMiddleName     String?      
-  guestLastName       String      
-  guestEmail          String              @unique
-  guestPhone          String       
-  guestNationality    String?      
-  dob                 DateTime?      
-  passportNumber      String?      
-  vipStatus           Boolean             @default(false)
-  anniversaryDate     DateTime?      
-  passportExpiry      DateTime?      
-  totalNightStayed    Int                 @default(0)
-  totalMoneySpent     Float               @default(0)
-  favoriteItems       Json?      
-  stripeCustomerId    String?      
-  updatedAt           DateTime            @updatedAt
-  createdAt           DateTime            @default(now())
-  accountActivated     Boolean             @default(false)
-  emailVerified        Boolean             @default(false)
-  emailVerifyToken     String?
-  lastLogin            DateTime?
-  password             String?
-  temporaryAccessToken String?
-  bookings            Booking[]
-  paymentIntents      PaymentIntent[]
-  groupName           String?
-  groupEmail          String?
-  charges             Charge[]
-  notifications       Notification[]
-  orders              Order[]
-  weddingProposals    WeddingProposal[]
+  id                         String              @id @default(uuid())
+  guestFirstName             String      
+  guestMiddleName            String?      
+  guestLastName              String      
+  guestEmail                 String              @unique
+  guestPhone                 String       
+  guestNationality           String?      
+  dob                        DateTime?      
+  passportNumber             String?      
+  vipStatus                  Boolean             @default(false)
+  anniversaryDate            DateTime?      
+  passportExpiry             DateTime?      
+  totalNightStayed           Int                 @default(0)
+  totalMoneySpent            Float               @default(0)
+  favoriteItems              Json?      
+  stripeCustomerId           String?      
+  updatedAt                  DateTime            @updatedAt
+  createdAt                  DateTime            @default(now())
+  accountActivated           Boolean             @default(false)
+  emailVerified              Boolean             @default(false)
+  emailVerifyToken           String?
+  lastLogin                  DateTime?
+  password                   String?
+  temporaryAccessToken       String?
+  bookings                   Booking[]
+  paymentIntents             PaymentIntent[]
+  bookingGroups              BookingGroup[]
+  charges                    Charge[]
+  notifications              Notification[]
+  orders                     Order[]
+  weddingProposals           WeddingProposal[]
   @@index([guestEmail, guestFirstName])
 }
 
@@ -312,18 +311,20 @@ model Payment {
   paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
 }
 
-model BookingGroup {
-  id                    String             @id @default(uuid())
-  groupName             String?           
-  isAutoGrouped         Boolean            @default(false) 
-  outstandingAmount     Float?    
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  paymentIntents        PaymentIntent[]
-  charges               Charge[]    
-  orders                Order[]
-  auditLogs             BookingAuditLog[]
-}
+  model BookingGroup {
+    id                    String             @id @default(uuid())
+    groupName             String?           
+    isAutoGrouped         Boolean            @default(false) 
+    mainGuestId           String             @default("")
+    mainGuest             Customer           @relation(fields: [mainGuestId], references: [id])
+    outstandingAmount     Float?    
+    createdAt             DateTime           @default(now())
+    updatedAt             DateTime           @updatedAt
+    paymentIntents        PaymentIntent[]
+    charges               Charge[]    
+    orders                Order[]
+    auditLogs             BookingAuditLog[]
+  }
 
 model RatePolicy {
   id                    String   @id @default(uuid())
@@ -399,7 +400,7 @@ model RateDatePrice {
 
 model GeneralSettings {        
   id                                String        @id            @default(uuid())
-  autoGroupingRoomCount             Int                          @default(2)
+  autoGroupingRoomCount             Int                          @default(2)  
   minStayDays                       Int                          @default(2)
   updatedAt                         DateTime                     @updatedAt
   taxPercentage                     Float?               
@@ -413,6 +414,7 @@ model GeneralSettings {
   licensePlateExpiryDays            Int                          @default(30)
   licensePlateDailyTriggerTime      String                       @default("00:00")
   dailyBookingStartTime             String?                      @default("00:00")
+  enableTaxOptimizationFeature      Boolean                      @default(true)
 }
 
 model Otp {
@@ -1482,4 +1484,6 @@ enum AuditActionType {
   GROUP_DELETED
   BOOKING_ADDED_TO_GROUP
   BOOKING_REMOVED_FROM_GROUP
+  INVOICE_GENERATED
+  TAX_OPTIMIZED_INVOICE_GENERATED
 }

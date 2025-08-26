@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, CreditCard, FileText, AlertCircle, Plus, User, RefreshCw, Filter, Info, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { X, CreditCard, FileText, AlertCircle, Plus, User, RefreshCw, Filter, Info, ChevronDown, ShoppingBag } from 'lucide-react';
 import { format } from 'date-fns';
 import OrderDetailsModal from '../customers/OrderDetailsModal';
 import ChargeModal from '../customers/ChargeModal';

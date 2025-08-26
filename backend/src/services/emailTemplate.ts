@@ -38,6 +38,9 @@ Handlebars.registerHelper('or', function() {
   return Array.prototype.slice.call(arguments, 0, -1).some(Boolean);
 });
 
+Handlebars.registerHelper('gt', function(a: number, b: number) {
+  return a > b;
+});
 
 interface RefundDetail {
   refundId: string;
@@ -399,7 +402,6 @@ export const sendRefundConfirmationEmail = async (
   customerDetails: CustomerDetails,
   refund?: RefundDetail
 ) => {
-  console.log("387", bookings)
   if (!bookings || !bookings.length) return;
 
   // Process ALL bookings (not just the first one)
@@ -514,7 +516,6 @@ export const sendRefundConfirmationEmail = async (
   }
 
   try {
-    console.log(customerDetails.email)
     await EmailService.sendEmail({
       to: {
         email: customerDetails.email,

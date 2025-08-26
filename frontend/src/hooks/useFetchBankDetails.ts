@@ -3,7 +3,7 @@ import { baseUrl } from "../utils/constants";
 import type { BankDetails } from "../types/types";
 
 export const useFetchBankDetails = () => {
-    const [bankDetails, setBankDetails] = useState<null | BankDetails[]>(null);
+    const [bankDetails, setBankDetails] = useState<BankDetails[]>(null);
     const [loader, setLoader] = useState<boolean>(true);
 
     const fetchBankDetails = async () => {

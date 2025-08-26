@@ -1,19 +1,16 @@
 import { useState } from "react";
-import { format, formatDistanceToNow, differenceInDays } from "date-fns";
+import { formatDistanceToNow, differenceInDays } from "date-fns";
 import {
-  Calendar,
   CreditCard,
   DollarSign, 
   Eye,
   Mail,
-  Users,
   CheckCircle,
   Building2,
   Coins,
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  MapPin,
   Save,
   Trash2,
   X,
@@ -28,8 +25,7 @@ import AuditLogModal from './AuditLogModal';
 import type { 
   EnhancedPaymentIntentCardProps, 
   PaymentMethodInfo,
-  Booking, 
-  BookingData
+  Booking
 } from "../../../types/types";
 
 export default function EnhancedPaymentIntentCard({
@@ -47,16 +43,12 @@ export default function EnhancedPaymentIntentCard({
   onUpdateEditFormData,
   onSaveEdit,
   onCancelEdit,
-  selectionMode = false,
-  selectedBookingIds = [],
-  onBookingSelect = () => {},
   onConfirmBooking,
   onRefresh,
   isDeletedTab = false
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
-  console.log(individualBookings)
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);

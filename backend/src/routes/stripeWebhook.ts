@@ -5,9 +5,11 @@ import dotenv from "dotenv";
 import { handleError, responseHandler, generateMergedBookingId } from "../utils/helper";
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
-import { dahuaService } from "../services/dahuaService";
+import { dahuaService } from "../services/dahuaService";    
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from "../cron/cron";
+import { BookingGroupService } from "../services/bookingGroupService";
+import { Customer } from "@prisma/client";
 
 dotenv.config();
 
@@ -862,10 +864,10 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
         // Extract customerRequest from Stripe metadata if present
         const customerRequest = (stripePayment.metadata && stripePayment.metadata.customerRequest) || customerDetails.specialRequests || null;
         const sendConfirmationEmail = stripePayment.metadata.sendConfirmationEmail || "true";
-
+        let customer: any; 
         const result = await prisma.$transaction(async (tx) => {
             // Check or create customer
-            let customer = await tx.customer.findUnique({
+            customer = await tx.customer.findUnique({
                 where: { guestEmail: customerDetails.email }
             });
 
@@ -999,16 +1001,16 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
 
         // Check for auto-grouping after successful payment
         try {
-            const { BookingGroupService } = await import("../services/bookingGroupService");
             const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([ourPaymentIntent.id]);
             
             if (shouldAutoGroup && !ourPaymentIntent.bookingGroupId) {
                 // Auto-create booking group
                 const bookingData = JSON.parse(ourPaymentIntent.bookingData);
                 const groupName = `${customerDetails.firstName} ${customerDetails.lastName} - ${bookingData.length} rooms`;
-                
+          
                 await BookingGroupService.createBookingGroup({
                     groupName,
+                    mainGuestId: customer?.id,
                     isAutoGrouped: true,
                     paymentIntentIds: [ourPaymentIntent.id],
                     userId: 'SYSTEM', // System-generated for webhook

@@ -16,7 +16,6 @@ import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCusto
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { 
-    createBookingsGroup, 
     createBookingGroup, 
     updateBookingGroup, 
     addPaymentIntentsToGroup, 
@@ -61,6 +60,7 @@ import {
 } from '../zod/licensePlate.schema';
 import { getBulkOverRideLogs } from "../controllers/bulkOverRideLogsController";
 import { createOrderItemScheme, updateOrderItemsScheme } from "../zod/orderItem.scheme";
+import { generateCustomerInvoice, generateTaxOptimizedInvoice, generateGroupCustomerInvoice, generateGroupTaxOptimizedInvoice } from '../controllers/invoiceController';
 
 const adminRouter = Router();
 
@@ -211,6 +211,10 @@ adminRouter.get('/payment-intent/soft-delete/all', authMiddleware, getAllSoftDel
 adminRouter.put('/payment-intent/:id', authMiddleware, updatePaymentIntent);
 adminRouter.get('/payment-intent/:id/audit-logs', authMiddleware, getPaymentIntentAuditLogs);
 
+// Invoice endpoints
+adminRouter.get('/payment-intent/:id/invoice', authMiddleware, generateCustomerInvoice);
+adminRouter.post('/payment-intent/:id/invoice/tax-optimized', authMiddleware, generateTaxOptimizedInvoice);
+
 adminRouter.get('/bookings/restrictions/all', authMiddleware, getAllBookingsRestriction);
 
 adminRouter.post('/bookings/restrictions', validateMiddleware(bookingRestrictionSchema), authMiddleware, createBookingsRestriction);
@@ -257,10 +261,6 @@ adminRouter.get('/temp-customers/:id/charge-payments', authMiddleware, getTempCu
 
 adminRouter.get('/temp-customers/:id/orders', authMiddleware, getTempCustomerOrders);
 
-// Legacy booking group endpoint
-adminRouter.post('/bookings/group', authMiddleware, createBookingsGroup);
-
-// New comprehensive booking group endpoints
 adminRouter.get('/booking-groups', authMiddleware, getAllBookingGroups);
 adminRouter.get('/booking-groups/:id', authMiddleware, getBookingGroup);
 adminRouter.post('/booking-groups', authMiddleware, createBookingGroup);
@@ -269,6 +269,8 @@ adminRouter.delete('/booking-groups/:id', authMiddleware, deleteBookingGroup);
 adminRouter.post('/booking-groups/:id/payment-intents', authMiddleware, addPaymentIntentsToGroup);
 adminRouter.post('/booking-groups/remove-payment-intents', authMiddleware, removePaymentIntentsFromGroup);
 adminRouter.get('/booking-groups/:id/audit-logs', authMiddleware, getBookingGroupAuditLogs);
+adminRouter.get('/booking-groups/:id/invoice', authMiddleware, generateGroupCustomerInvoice); 
+adminRouter.post('/booking-groups/:id/invoice/tax-optimized', authMiddleware, generateGroupTaxOptimizedInvoice);
 adminRouter.get('/audit-logs/deletions', authMiddleware, getAllDeletionAuditLogs);
 
 adminRouter.post('/customers/:id/payment-methods', authMiddleware, getPaymentMethodsForCustomer);

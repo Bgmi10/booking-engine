@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, Users, CreditCard, RefreshCw, Filter, AlertCircle, Plus, Eye, FileText, User, Info, Trash2, Edit, DollarSign, History } from 'lucide-react';
+import { X, Users, CreditCard, RefreshCw, Filter, Plus, Eye, FileText, User, Info, Trash2, Edit, DollarSign, History, Crown, Mail, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BookingGroup, Charge } from '../../../types/types';
 import { formatCurrency, generateMergedBookingId } from '../../../utils/helper';
@@ -13,8 +13,10 @@ import OrderDetailsModal from '../customers/OrderDetailsModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import RefundConfirmationModal from './RefundConfirmationModal';
 import AuditLogModal from './AuditLogModal';
+import TaxOptimizationModal from '../invoices/TaxOptimizationModal';
 import { baseUrl } from '../../../utils/constants';
 import toast from 'react-hot-toast';
+import { useGeneralSettings } from '../../../hooks/useGeneralSettings';
 
 interface BookingGroupModalProps {
   group: BookingGroup;
@@ -29,8 +31,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Additional state for payments functionality
+  const { settings } = useGeneralSettings();
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [creatorIdForModal, setCreatorIdForModal] = useState<string | null>(null);  
   const [showChargeRefundModal, setShowChargeRefundModal] = useState(false);
@@ -48,6 +49,9 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   // Refund state for payment intents
   const [refundingPaymentIntent, setRefundingPaymentIntent] = useState<any>(null);
   const [showPaymentIntentRefundModal, setShowPaymentIntentRefundModal] = useState(false);
+  
+  // Group invoice state
+  const [showGroupTaxModal, setShowGroupTaxModal] = useState(false);
   const [showPartialRefundModal, setShowPartialRefundModal] = useState(false);
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   
@@ -65,6 +69,11 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   const totalOrders = group.orders?.reduce((sum, order) => sum + order.total, 0) || 0;
   const outstandingAmount = group.outstandingAmount || 0;
   const paidAmount = totalAmount - outstandingAmount;
+
+  // Get main guest information
+  const mainGuest = group.mainGuest || group.paymentIntents?.find(pi => pi.customer?.id === group.mainGuestId)?.customer;
+  const mainGuestBookingsCount = group.paymentIntents?.filter(pi => pi.customer?.id === group.mainGuestId).length || 0;
+  const mainGuestTotalAmount = group.paymentIntents?.filter(pi => pi.customer?.id === group.mainGuestId).reduce((sum, pi) => sum + pi.totalAmount, 0) || 0;
 
   // Get all charges and apply filters
   const allCharges = group.charges || [];
@@ -236,7 +245,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] p-4">
         <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
           {/* Loading Overlay */}
           {isRefreshing && (
@@ -276,6 +285,26 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                   Delete
                 </button>
               )}
+              
+              {/* Group Invoice Export Buttons */}
+              <button
+                onClick={() => window.open(`${baseUrl}/admin/booking-groups/${group.id}/invoice`, '_blank')}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 transition-colors"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Export Invoice
+              </button>
+
+              {settings?.enableTaxOptimizationFeature && (
+                <button
+                  onClick={() => setShowGroupTaxModal(true)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700 transition-colors"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Tax Invoice
+                </button>
+              )}
+              
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
@@ -294,19 +323,52 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
             </div>
           </div>
 
-          {/* Outstanding Balance Alert */}
-          <div className={`border-b px-4 py-2.5 ${outstandingAmount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertCircle className={`h-4 w-4 flex-shrink-0 ${outstandingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
-                <div>
-                  <p className={`text-xs font-medium ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>Group Outstanding Balance</p>
-                  <p className={`text-xs ${outstandingAmount > 0 ? 'text-amber-700' : 'text-gray-500'}`}>Total amount due across all bookings</p>
+          {/* Main Guest Profile Section */}
+          {mainGuest && (
+            <div className="border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
+                      <Crown className="h-5 w-5 text-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        {mainGuest.guestFirstName} {mainGuest.guestLastName}
+                      </h3>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Primary Guest
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1">
+                      <div className="flex items-center gap-1 text-xs text-gray-600">
+                        <Mail className="h-3 w-3" />
+                        {mainGuest.guestEmail}
+                      </div>
+                      {mainGuest.guestPhone && (
+                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                          <Phone className="h-3 w-3" />
+                          {mainGuest.guestPhone}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{formatCurrency(mainGuestTotalAmount)}</p>
+                  <p className="text-xs text-gray-600">
+                    {mainGuestBookingsCount} booking{mainGuestBookingsCount !== 1 ? 's' : ''}
+                  </p>
+                  {mainGuest.guestNationality && (
+                    <p className="text-xs text-gray-500 mt-0.5">{mainGuest.guestNationality}</p>
+                  )}
                 </div>
               </div>
-              <span className={`text-lg font-bold ${outstandingAmount > 0 ? 'text-amber-900' : 'text-gray-700'}`}>{formatCurrency(outstandingAmount)}</span>
             </div>
-          </div>
+          )}
+
 
           {/* Summary Stats */}
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
@@ -841,7 +903,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
 
       {/* Payment Intent Detail Modal */}
       {selectedPaymentIntent && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <div>
@@ -867,6 +929,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                 onDelete={() => {}}
                 onRefresh={handleRefresh}
                 loadingAction={false}
+                hideInvoiceButtons={true}
                 hideViewPayments={true}
               />
             </div>
@@ -1063,6 +1126,15 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
         reasonLabel="Reason for deletion"
         reasonPlaceholder="Please explain why you are deleting this booking group (e.g., duplicate entry, test data, customer request, etc.)"
       />
+
+      {/* Group Tax Optimization Modal */}
+      {showGroupTaxModal && (
+        <TaxOptimizationModal
+          onClose={() => setShowGroupTaxModal(false)}
+          group={group}
+          isGroupMode={true}
+        />
+      )}
     </>
   );
 }

@@ -8,7 +8,7 @@ import BookingGroupEditModal from './BookingGroupEditModal';
 import BookingGroupCreateModal from './BookingGroupCreateModal';
 import DeletionAuditLogs from './DeletionAuditLogs';
 
-export default function BookingGroups({ handleViewBookings, handleEditGroup, filteredGroups, filterType, filterStatus, setFilterType, setFilterStatus, selectedGroup, setSelectedGroup, showEditModal, setShowEditModal, showGroupModal, setShowGroupModal }: { selectedGroup: BookingGroup | null, setSelectedGroup: any, showEditModal: boolean, setShowEditModal: (b: boolean) => void, handleViewBookings: (group: BookingGroup) => void, setFilterType: (e: string) => void, setFilterStatus  : (e: string) => void, filteredGroups: BookingGroup[], filterType: string, filterStatus: string, handleEditGroup: (group: BookingGroup) => void, showGroupModal: boolean, setShowGroupModal: (b: boolean) => void }) {
+export default function BookingGroups({ handleViewBookings, handleEditGroup, filteredGroups, filterType, filterStatus, setFilterType, setFilterStatus, selectedGroup, setSelectedGroup, showEditModal, setShowEditModal, showGroupModal, setShowGroupModal, searchTerm, setSearchTerm }: { selectedGroup: BookingGroup | null, setSelectedGroup: any, showEditModal: boolean, setShowEditModal: (b: boolean) => void, handleViewBookings: (group: BookingGroup) => void, setFilterType: (e: string) => void, setFilterStatus  : (e: string) => void, filteredGroups: BookingGroup[], filterType: string, filterStatus: string, handleEditGroup: (group: BookingGroup) => void, showGroupModal: boolean, setShowGroupModal: (b: boolean) => void, searchTerm: string, setSearchTerm: (term: string) => void }) {
   const {
     bookingGroups,
     loading,
@@ -18,8 +18,6 @@ export default function BookingGroups({ handleViewBookings, handleEditGroup, fil
   } = useBookingGroups();
 
   const [activeTab, setActiveTab] = useState<'groups' | 'deletions'>('groups');
-  const [searchTerm, setSearchTerm] = useState('');
-  
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   if (loading) {

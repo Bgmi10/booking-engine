@@ -48,7 +48,7 @@ export function CreateBookingModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('STRIPE')
   const [selectedBankId, setSelectedBankId] = useState<string>('')
   // Booking Items State
-  const [bookingItems, setBookingItems] = useState<BookingItem[]>([
+  const [bookingItems, setBookingItems] = useState<BookingItem[]>([ 
     {
       checkIn: "",
       checkOut: "",
@@ -181,6 +181,8 @@ export function CreateBookingModal({
       const activeBanks = (bankDetails || []).filter((bank: BankDetails) => bank.isActive);
       if (activeBanks.length > 0) {
         setSelectedBankId(activeBanks[0].id);
+      } else {
+        setSelectedBankId(''); // Set to empty string if no banks available
       }
     })();
   }, [])
@@ -776,7 +778,7 @@ const createBooking = async () => {
     return;
   }
 
-  // Validate bank transfer selection
+  // Validate bank transfer selection (only required for BANK_TRANSFER)
   if (paymentMethod === 'BANK_TRANSFER' && !selectedBankId) {
     toast.error("Please select a bank account for bank transfer");
     return;
@@ -812,7 +814,7 @@ const createBooking = async () => {
         endpoint = `${baseUrl}/admin/bookings/create-payment-link`;
         requestBody.expiresInHours = finalExpiryHours;
         requestBody.adminNotes = adminNotes;
-        requestBody.bankDetailsId = selectedBankId;
+        requestBody.bankDetailsId = selectedBankId || ""; // Send empty string if no bank selected
         break;
       case 'CASH':
         endpoint = `${baseUrl}/admin/bookings/collect-cash`;
@@ -1024,26 +1026,31 @@ const createBooking = async () => {
               </button>
             </div>
 
-            {/* Bank Selection for Bank Transfer */}
-            {(paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'STRIPE') && (
+            {/* Bank Selection - Required for BANK_TRANSFER, Optional for STRIPE */}
+            {(paymentMethod === 'BANK_TRANSFER' || (paymentMethod === 'STRIPE' && bankDetails?.length > 0)) && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Bank Account
+                  Select Bank Account {paymentMethod === 'BANK_TRANSFER' ? '' : '(Optional)'}
                 </label>
                 {loader ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                   </div>
                 ) : bankDetails?.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500">
-                    No active bank accounts found. Please add bank accounts in Settings.
-                  </div>
+                  paymentMethod === 'BANK_TRANSFER' ? (
+                    <div className="text-center py-4 text-gray-500">
+                      No active bank accounts found. Please add bank accounts in Settings.
+                    </div>
+                  ) : null
                 ) : (
                   <select
                     value={selectedBankId}
                     onChange={(e) => setSelectedBankId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
+                    {paymentMethod === 'STRIPE' && (
+                      <option value="">None</option>
+                    )}
                     {bankDetails?.map((bank: BankDetails) => (
                       <option key={bank.id} value={bank.id}>
                         {bank.name} - {bank.bankName}

@@ -34,6 +34,7 @@ export function useBookingGroups() {
   const createBookingGroup = async (data: {
     groupName: string;
     paymentIntentIds: string[];
+    mainGuestId: string;
     reason?: string;
   }) => {
     try {
@@ -63,6 +64,7 @@ export function useBookingGroups() {
 
   const updateBookingGroup = async (groupId: string, data: {
     groupName: string;
+    mainGuestId?: string;
     reason?: string;
   }) => {
     try {

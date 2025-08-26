@@ -1,45 +1,11 @@
 import express from "express";
 import { handleError, responseHandler } from "../utils/helper";
 import prisma from "../prisma";
-import { v4 as uuidv4 } from 'uuid';
 import { BookingGroupService } from "../services/bookingGroupService";
-
-// Legacy endpoint - kept for backward compatibility
-export const createBookingsGroup = async (req: express.Request, res: express.Response) => {
-    const { bookingIds, groupName, primaryEmail } = req.body;
-
-    if (!bookingIds || !groupName || !primaryEmail) {
-        responseHandler(res, 400, "Missing body");
-        return;
-    }
-
-    try {
-        const groupId = uuidv4();
-        await prisma.booking.updateMany({
-            where: { id: { in: bookingIds }},
-            data: {
-                groupId
-            }
-        });
-
-        await prisma.customer.updateMany({
-            where: { 
-              bookings: { some: { id: { in: bookingIds } } }
-            },
-            data: { groupName, groupEmail: primaryEmail }
-        });
-
-        responseHandler(res, 200, "success");
-    } catch (e) {
-        console.log(e);
-        handleError(res, e as Error);
-    }
-}
-
 // New comprehensive booking group endpoints
 export const createBookingGroup = async (req: express.Request, res: express.Response) => {
     try {
-        const { groupName, paymentIntentIds, reason } = req.body;
+        const { groupName, paymentIntentIds, reason, mainGuestId } = req.body;
         //@ts-ignore
         const userId = req.user!.id;
 
@@ -54,6 +20,7 @@ export const createBookingGroup = async (req: express.Request, res: express.Resp
             paymentIntentIds,
             userId,
             reason,
+            mainGuestId
         }, res);
 
         if (bookingGroup) {
@@ -67,7 +34,7 @@ export const createBookingGroup = async (req: express.Request, res: express.Resp
 export const updateBookingGroup = async (req: express.Request, res: express.Response) => {
     try {
         const { id } = req.params;
-        const { groupName, reason } = req.body;
+        const { groupName, reason, mainGuestId } = req.body;
         //@ts-ignore
         const userId = req.user!.id;
 
@@ -75,6 +42,7 @@ export const updateBookingGroup = async (req: express.Request, res: express.Resp
             groupName,
             userId,
             reason,
+            mainGuestId
         });
 
         responseHandler(res, 200, "Booking group updated successfully", updatedGroup);

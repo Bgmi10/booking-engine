@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Users, Plus, Trash2, Search } from 'lucide-react';
+import { X, Save, Users, Plus, Trash2, Search, Crown } from 'lucide-react';
 import { useBookingGroups } from '../../../hooks/useBookingGroups';
 import type { BookingGroup } from '../../../types/types';
 import { usePaymentIntents } from '../../../hooks/usePaymentIntents';
@@ -15,6 +15,7 @@ interface BookingGroupEditModalProps {
 export default function BookingGroupEditModal({ group, onClose, onSave }: BookingGroupEditModalProps) {
   const [groupName, setGroupName] = useState(group.groupName || '');
   const [reason, setReason] = useState('');
+  const [mainGuestId, setMainGuestId] = useState(group.mainGuestId || '');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'members'>('details');
   
@@ -27,6 +28,15 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
   const [keepCharges, setKeepCharges] = useState(false);
 
   const { updateBookingGroup, addPaymentIntentsToGroup, removePaymentIntentsFromGroup } = useBookingGroups();
+
+  // Get unique customers from group payment intents
+  const availableCustomers = group.paymentIntents.reduce((customers, pi) => {
+    const customer = pi.customer;
+    if (customer && !customers.find(c => c.id === customer.id)) {
+      customers.push(customer);
+    }
+    return customers;
+  }, [] as any[]);
   const { paymentIntents: allPaymentIntents, loading: loadingPaymentIntents } = usePaymentIntents();
 
   useEffect(() => {
@@ -57,10 +67,16 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
       return;
     }
 
+    if (!mainGuestId) {
+      toast.error('Please select a main guest');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await updateBookingGroup(group.id, {
         groupName: groupName.trim(),
+        mainGuestId: mainGuestId,
         reason: reason.trim() || 'Updated group details via admin interface'
       });
       
@@ -143,7 +159,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
@@ -221,6 +237,69 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                 />
               </div>
 
+              {/* Main Guest Selection */}
+              {availableCustomers.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Main Guest <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-y-2">
+                    {availableCustomers.map((customer) => {
+                      const customerPaymentIntents = group.paymentIntents.filter(pi => pi.customer?.id === customer.id);
+                      const totalAmount = customerPaymentIntents.reduce((sum, pi) => sum + pi.totalAmount, 0);
+                      return (
+                        <div 
+                          key={customer.id}
+                          className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                            mainGuestId === customer.id 
+                              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setMainGuestId(customer.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name="mainGuest"
+                                checked={mainGuestId === customer.id}
+                                onChange={() => setMainGuestId(customer.id)}
+                                className="rounded border-gray-300"
+                                disabled={isLoading}
+                              />
+                              <div className="flex items-center gap-2">
+                                {mainGuestId === customer.id && (
+                                  <Crown className="h-4 w-4 text-yellow-500" />
+                                )}
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {customer.guestFirstName} {customer.guestLastName}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {customer.guestEmail}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-600">
+                                {customerPaymentIntents.length} booking{customerPaymentIntents.length !== 1 ? 's' : ''}
+                              </p>
+                              <p className="text-xs font-medium text-gray-900">
+                                €{totalAmount.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    The main guest will be the primary contact of this group
+                  </p>
+                </div>
+              )}
+
               {/* Group Info */}
               <div className="bg-gray-50 rounded-lg p-3">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Current Group Information</h4>
@@ -256,7 +335,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                 </button>
                 <button
                   onClick={handleSaveDetails}
-                  disabled={isLoading || !groupName.trim()}
+                  disabled={isLoading || !groupName.trim() || !mainGuestId}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {isLoading ? (
@@ -381,7 +460,7 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                                   }
                                 </p>
                                 <p className="text-xs text-gray-600">
-                                  {pi.bookings?.length > 0 ? generateMergedBookingId(pi.bookings.map(b => b.id)) : `#${pi.id.slice(-8)}`} • €{pi.totalAmount} • {pi.bookings?.length || 0} room{(pi.bookings?.length || 0) !== 1 ? 's' : ''}
+                                  {pi.bookings?.length > 0 ? generateMergedBookingId(pi.bookings.map((b: any) => b.id)) : `#${pi.id.slice(-8)}`} • €{pi.totalAmount} • {pi.bookings?.length || 0} room{(pi.bookings?.length || 0) !== 1 ? 's' : ''}
                                 </p>
                               </div>
                             </div>

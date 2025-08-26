@@ -870,9 +870,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount } = req.body;
+  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature } = req.body;
 
-  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number } = {};
+  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -923,6 +923,10 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   
   if (typeof autoGroupingRoomCount !== 'undefined') {
     updateData.autoGroupingRoomCount = autoGroupingRoomCount;
+  }
+  
+  if (typeof enableTaxOptimizationFeature !== 'undefined') {
+    updateData.enableTaxOptimizationFeature = enableTaxOptimizationFeature;
   }
   
   try {
@@ -1121,15 +1125,14 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
     });
     const route = `/payment-intent/${paymentIntent.id}/check-status`
     const paymentLinkUrl = process.env.NODE_ENV === "local" ? process.env.FRONTEND_DEV_URL + route : process.env.FRONTEND_PROD_URL + route;
-    // Fetch bank details by ID
-    if (!bankDetailsId) {
-      responseHandler(res, 400, "Bank details ID is required");
-      return;
-    }
-    const bankDetails = await prisma.bankDetails.findUnique({ where: { id: bankDetailsId } });
-    if (!bankDetails) {
-      responseHandler(res, 400, "Bank details not found");
-      return;
+    // Fetch bank details by ID (optional)
+    let bankDetails = null;
+    if (bankDetailsId) {
+      bankDetails = await prisma.bankDetails.findUnique({ where: { id: bankDetailsId } });
+      if (!bankDetails) {
+        responseHandler(res, 400, "Bank details not found");
+        return;
+      }
     }
     await sendPaymentLinkEmail({
       email: customerDetails.email,
@@ -1138,12 +1141,12 @@ const createAdminPaymentLink = async (req: express.Request, res: express.Respons
       bookingDetails: bookingItems,
       totalAmount,
       expiresAt,
-      bankName: bankDetails.bankName || '',
-      accountName: bankDetails.accountName || '',
-      accountNumber: bankDetails.accountNumber || '',
-      iban: bankDetails.iban || '',
-      swiftCode: bankDetails.swiftCode || '',
-      routingNumber: bankDetails.routingNumber || ''
+      bankName: bankDetails?.bankName || '',
+      accountName: bankDetails?.accountName || '',
+      accountNumber: bankDetails?.accountNumber || '',
+      iban: bankDetails?.iban || '',
+      swiftCode: bankDetails?.swiftCode || '',
+      routingNumber: bankDetails?.routingNumber || ''
     });
     responseHandler(res, 200, "Payment link created and sent to customer", {
       paymentIntentId: paymentIntent.id,

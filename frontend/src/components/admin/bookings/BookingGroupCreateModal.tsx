@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Save, Users, Search, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Save, Users, Search, AlertCircle, Crown } from 'lucide-react';
 import { useBookingGroups } from '../../../hooks/useBookingGroups';
 import { usePaymentIntents } from '../../../hooks/usePaymentIntents';
 import { formatCurrency } from '../../../utils/helper';
@@ -15,6 +15,7 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
   const [reason, setReason] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPaymentIntents, setSelectedPaymentIntents] = useState<string[]>([]);
+  const [primaryGuestCustomerId, setPrimaryGuestCustomerId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   const { createBookingGroup } = useBookingGroups();
@@ -41,6 +42,17 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
     selectedPaymentIntents.includes(pi.id)
   );
 
+  // Auto-clear primary guest if they're no longer in selected payment intents
+  useEffect(() => {
+    if (primaryGuestCustomerId) {
+      // Use the same logic as in the UI - check against customerId
+      const isStillSelected = selectedPaymentIntentData.some(pi => pi.customerId === primaryGuestCustomerId);
+      if (!isStillSelected) {
+        setPrimaryGuestCustomerId('');
+      }
+    }
+  }, [selectedPaymentIntents, primaryGuestCustomerId, selectedPaymentIntentData]);
+
   const totalSelectedAmount = selectedPaymentIntentData.reduce((sum, pi) => sum + pi.totalAmount, 0);
   const totalSelectedOutstanding = selectedPaymentIntentData.reduce((sum, pi) => sum + (pi.outstandingAmount || 0), 0);
 
@@ -55,11 +67,17 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
       return;
     }
 
+    if (!primaryGuestCustomerId) {
+      toast.error('Please select a primary guest by checking the box next to their booking');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await createBookingGroup({
         groupName: groupName.trim(),
         paymentIntentIds: selectedPaymentIntents,
+        mainGuestId: primaryGuestCustomerId,
         reason: reason.trim() || 'Manual group creation via admin interface'
       });
       
@@ -88,7 +106,7 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
@@ -143,6 +161,7 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
                   disabled={isLoading}
                 />
               </div>
+
             </div>
           </div>
 
@@ -175,9 +194,14 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
           {/* Payment Intent Selection */}
           <div>
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-medium text-gray-900">
-                Select Payment Intents ({availablePaymentIntents.length} available)
-              </h3>
+              <div>
+                <h3 className="text-sm font-medium text-gray-900">
+                  Select Payment Intents ({availablePaymentIntents.length} available)
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Select bookings and check ✓ Primary Guest for the group leader
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={selectAll}
@@ -228,17 +252,18 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
-                {filteredPaymentIntents.map((pi) => {
-                  const customer = pi.customer || pi.customerData;
+                {filteredPaymentIntents.filter((pi) => pi.status === "SUCCEEDED").map((pi) => {
+                  const customer: any = {...pi.customerData, ...{ customerId: pi.customerId }};
                   const isSelected = selectedPaymentIntents.includes(pi.id);
-                  
+                  const isPrimaryGuest = customer?.customerId === primaryGuestCustomerId;
                   return (
                     <div 
                       key={pi.id} 
-                      className={`flex items-center justify-between p-3 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-gray-50 ${
+                      className={`flex items-center justify-between p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
                         isSelected ? 'bg-blue-50' : ''
+                      } ${
+                        isPrimaryGuest ? 'ring-2 ring-yellow-200 bg-yellow-50' : ''
                       }`}
-                      onClick={() => togglePaymentIntentSelection(pi.id)}
                     >
                       <div className="flex items-center gap-3">
                         <input
@@ -250,12 +275,17 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {customer 
-                                ? `${customer.firstName || customer.guestFirstName || ''} ${customer.lastName || customer.guestLastName || ''}`.trim() || 'Unknown Customer'
-                                : 'Unknown Customer'
-                              }
-                            </p>
+                            <div className="flex items-center gap-2">
+                              {isPrimaryGuest && (
+                                <Crown className="h-4 w-4 text-yellow-500" />
+                              )}
+                              <p className="text-sm font-medium text-gray-900">
+                                {customer 
+                                  ? `${customer.firstName || customer.guestFirstName || ''} ${customer.lastName || customer.guestLastName || ''}`.trim() || 'Unknown Customer'
+                                  : 'Unknown Customer'
+                                }
+                              </p>
+                            </div>
                             <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
                               pi.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
                               pi.status === 'FAILED' ? 'bg-red-100 text-red-800' :
@@ -263,6 +293,11 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
                             }`}>
                               {pi.status}
                             </span>
+                            {isPrimaryGuest && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Primary Guest
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-gray-600">
                             #{pi.id.slice(-8)} • {customer?.email || customer?.guestEmail || 'No email'}
@@ -277,11 +312,34 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
-                        <p className={`text-xs ${(pi.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
-                          Outstanding: {formatCurrency(pi.outstandingAmount || 0)}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        {/* Primary Guest Checkbox */}
+                        {isSelected && customer && (
+                          <div className="flex flex-col items-center">
+                            <input
+                              type="checkbox"
+                              checked={isPrimaryGuest}
+                              onChange={() => {
+                                if (isPrimaryGuest) {
+                                  setPrimaryGuestCustomerId('');
+                                } else {
+                                  setPrimaryGuestCustomerId(customer?.customerId);
+                                }
+                              }}
+                              className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                              disabled={isLoading}
+                            />
+                            <span className="text-xs text-gray-600 mt-1 text-center">
+                              Primary
+                            </span>
+                          </div>
+                        )}
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-900">{formatCurrency(pi.totalAmount)}</p>
+                          <p className={`text-xs ${(pi.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                            Outstanding: {formatCurrency(pi.outstandingAmount || 0)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   );
@@ -309,7 +367,7 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isLoading || !groupName.trim() || selectedPaymentIntents.length === 0}
+              disabled={isLoading || !groupName.trim() || selectedPaymentIntents.length === 0 || !primaryGuestCustomerId}
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
               {isLoading ? (

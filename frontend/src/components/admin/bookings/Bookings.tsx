@@ -26,8 +26,8 @@ import { useBookingGroups } from "../../../hooks/useBookingGroups"
 import { generateMergedBookingId } from "../../../utils/helper"
 
 export default function BookingManagement() {
-  const [filteredPaymentIntents, setFilteredPaymentIntents] = useState<PaymentIntent[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [groupSearchTerm, setGroupSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("ALL")
   const [selectedPaymentIntent, setSelectedPaymentIntent] = useState<PaymentIntent | null>(null)
@@ -78,13 +78,71 @@ export default function BookingManagement() {
   const currentPaymentIntents = activeTab === "deleted" ? deletedPaymentIntents : activePaymentIntents;
   const currentLoading = activeTab === "deleted" ? deletedLoading : activeLoading;
 
+  // Filter payment intents based on search term and filters
+  const filteredPaymentIntents = currentPaymentIntents.filter(pi => {
+    // Filter by tab (admin created vs all)
+    if (activeTab === "admin") {
+      if (!pi.createdByAdmin) return false;
+    }
+
+    // Status filter
+    if (statusFilter !== "ALL") {
+      if (pi.status !== statusFilter) return false;
+    }
+
+    // Payment method filter
+    if (paymentMethodFilter !== "ALL") {
+      if (pi.paymentMethod !== paymentMethodFilter) return false;
+    }
+
+    // Search filter
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      
+      // Search by customer name
+      const nameMatch = pi.customerData?.firstName?.toLowerCase().includes(term) ||
+        pi.customerData?.lastName?.toLowerCase().includes(term);
+      
+      // Search by email
+      const emailMatch = pi.customerData?.email?.toLowerCase().includes(term);
+      
+      // Search by payment intent ID
+      const idMatch = pi.id.toLowerCase().includes(term);
+      
+      // Search by room name
+      const roomMatch = pi.bookingData?.some?.((booking) => 
+        booking.roomDetails?.name?.toLowerCase().includes(term)
+      );
+      
+      // Search by confirmation ID (merged booking ID)
+      const confirmationId = pi.bookings?.length > 0 
+        ? generateMergedBookingId(pi.bookings.map(b => b.id)).toLowerCase()
+        : '';
+      const confirmationMatch = confirmationId.includes(term);
+      
+      // Search by group name (if part of a booking group)
+      const groupMatch = pi.bookingGroup?.groupName?.toLowerCase().includes(term) || false;
+      
+      if (!(nameMatch || emailMatch || idMatch || roomMatch || confirmationMatch || groupMatch)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
   const filteredGroups = bookingGroups.filter(group => {
-    const matchesSearch = !searchTerm || 
-      (group.groupName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    // Use the appropriate search term based on active tab
+    // In "All Bookings" tab, use the same search term as individual payment intents
+    // In "Groups" tab, use the separate group search term
+    const searchTermToUse = activeTab === "groups" ? groupSearchTerm : searchTerm;
+    
+    const matchesSearch = !searchTermToUse || 
+      (group.groupName?.toLowerCase().includes(searchTermToUse.toLowerCase())) ||
       group.paymentIntents.some(pi => 
-        pi.customer?.guestFirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pi.customer?.guestLastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pi.customer?.guestEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+        pi.customer?.guestFirstName?.toLowerCase().includes(searchTermToUse.toLowerCase()) ||
+        pi.customer?.guestLastName?.toLowerCase().includes(searchTermToUse.toLowerCase()) ||
+        pi.customer?.guestEmail?.toLowerCase().includes(searchTermToUse.toLowerCase())
       );
 
     const matchesType = filterType === 'ALL' || 
@@ -362,81 +420,11 @@ export default function BookingManagement() {
     setEditingPaymentIntent(null)
   }
 
-  useEffect(() => {
-    let filtered = currentPaymentIntents;
-
-    // Filter by tab (admin created vs all)
-    if (activeTab === "admin") {
-      filtered = filtered.filter((pi) => pi.createdByAdmin)
-    }
-
-    // Filter by status
-    if (statusFilter !== "ALL") {
-      filtered = filtered.filter((pi) => pi.status === statusFilter)
-    }
-
-    // Filter by payment method
-    if (paymentMethodFilter !== "ALL") {
-      filtered = filtered.filter((pi) => pi.paymentMethod === paymentMethodFilter)
-    }
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter((pi) => {
-        // Search by customer name
-        const nameMatch = pi.customerData.firstName?.toLowerCase().includes(term) ||
-          pi.customerData.lastName?.toLowerCase().includes(term);
-        
-        // Search by email
-        const emailMatch = pi.customerData.email?.toLowerCase().includes(term);
-        
-        // Search by payment intent ID
-        const idMatch = pi.id.toLowerCase().includes(term);
-        
-        // Search by room name
-        const roomMatch = pi.bookingData.some((booking) => 
-          booking.roomDetails?.name?.toLowerCase().includes(term)
-        );
-        
-        // Search by confirmation ID (merged booking ID)
-        const confirmationId = pi.bookings.length > 0 
-          ? generateMergedBookingId(pi.bookings.map(b => b.id)).toLowerCase()
-          : '';
-        const confirmationMatch = confirmationId.includes(term);
-        
-        // Search by group name (if part of a booking group)
-        const groupMatch = pi.bookingGroup?.groupName?.toLowerCase().includes(term) || false;
-        
-        return nameMatch || emailMatch || idMatch || roomMatch || confirmationMatch || groupMatch;
-      })
-    }
-
-    setFilteredPaymentIntents(filtered)
-  }, [currentPaymentIntents, activeTab, statusFilter, searchTerm, paymentMethodFilter])
-
-
-  // Handler for booking selection
   const handleBookingSelect = (bookingId: string, checked: boolean) => {
     setSelectedBookingIds(ids =>
       checked ? [...ids, bookingId] : ids.filter(id => id !== bookingId)
     );
   };
-
-  // Get all bookings flat for selection modal
-  const allBookings = filteredPaymentIntents.flatMap(pi =>
-    pi.bookingData.map(b => ({
-      ...b,
-      paymentIntentId: pi.id,
-      customer: pi.customerData,
-      // @ts-ignore
-      groupId: b.groupId,
-      // @ts-ignore
-      groupName: pi.customerData.groupName,
-      // @ts-ignore
-      groupEmail: pi.customerData.groupEmail
-    }))
-  );
 
   const deleteTempHold = async (id: string) => {
     if (!confirm("Are you sure you want to delete this temp hold? This action cannot be undone.")) {
@@ -644,7 +632,7 @@ export default function BookingManagement() {
       ) : activeTab === "occupancy" ? (
         <Occupancy bookings={activePaymentIntents} />
       ) : activeTab === "groups" ? (
-        <BookingGroups  selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} setShowEditModal={setShowEditModal} showEditModal={showEditModal} showGroupModal={showGroupModal}  setShowGroupModal={setShowGroupModal} handleEditGroup={handleEditGroup} handleViewBookings={handleViewBookings}  filteredGroups={filteredGroups} filterType={filterType} setFilterStatus={setFilterStatus} setFilterType={setFilterType} filterStatus={filterStatus} />
+        <BookingGroups  selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} setShowEditModal={setShowEditModal} showEditModal={showEditModal} showGroupModal={showGroupModal}  setShowGroupModal={setShowGroupModal} handleEditGroup={handleEditGroup} handleViewBookings={handleViewBookings}  filteredGroups={filteredGroups} filterType={filterType} setFilterStatus={setFilterStatus} setFilterType={setFilterType} filterStatus={filterStatus} searchTerm={groupSearchTerm} setSearchTerm={setGroupSearchTerm} />
       ) : (
         <>
           {/* Filters */}
@@ -694,7 +682,30 @@ export default function BookingManagement() {
           <PaymentIntentsList
             paymentIntents={filteredPaymentIntents}
             loading={currentLoading}
-            onViewDetails={(pi) => setSelectedPaymentIntent(pi)}
+            onViewDetails={(pi) => {
+              // If payment intent belongs to a group, open group modal instead
+              if (pi.bookingGroupId) {
+                const group = bookingGroups.find(g => g.id === pi.bookingGroupId);
+                if (group) {
+                  // Ensure no other modals are open first
+                  setSelectedPaymentIntent(null);
+                  setShowGroupModal(false);
+                  
+                  // Use setTimeout to ensure state updates are processed
+                  setTimeout(() => {
+                    setSelectedGroup(group);
+                    setShowGroupModal(true);
+                  }, 10);
+                  return;
+                }
+              }
+              
+              // Otherwise open individual payment intent details
+              // Make sure group modal is closed first
+              setShowGroupModal(false);
+              setSelectedGroup(null);
+              setSelectedPaymentIntent(pi);
+            }}
             onSendEmail={sendConfirmationEmail}
             onCancel={cancelAndRefundPaymentIntent}
             onRefund={cancelAndRefundPaymentIntent}
@@ -718,11 +729,20 @@ export default function BookingManagement() {
               onEdit={handleEditGroup} 
               onViewBookings={handleViewBookings} 
               isMergedView={true}
-              onViewPaymentIntent={(pi) => setSelectedPaymentIntent(pi)}
+              onViewPaymentIntent={(pi) => {
+                // For payment intents within groups, always open the group modal
+                setSelectedPaymentIntent(null);
+                setShowGroupModal(false);
+                
+                setTimeout(() => {
+                  setSelectedGroup(group);
+                  setShowGroupModal(true);
+                }, 10);
+              }}
             />
           ))}
 
-          {selectedPaymentIntent && activeTab !== "groups" && activeTab !== "occupancy" && activeTab !== "temp-holds" && (
+          {selectedPaymentIntent && !showGroupModal && activeTab !== "groups" && activeTab !== "occupancy" && activeTab !== "temp-holds" && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">

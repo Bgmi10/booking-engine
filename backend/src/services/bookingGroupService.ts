@@ -13,8 +13,9 @@ export class BookingGroupService {
     paymentIntentIds?: string[];
     userId: string;
     reason?: string;
+    mainGuestId?: string
   }, res?: express.Response) {
-    const { groupName, isAutoGrouped, paymentIntentIds = [], userId, reason } = data;
+    const { groupName, isAutoGrouped, paymentIntentIds = [], userId, reason, mainGuestId } = data;
 
     // Start transaction
     return await prisma.$transaction(async (tx) => {
@@ -25,14 +26,12 @@ export class BookingGroupService {
           where: { 
             id: { in: paymentIntentIds },
             OR: [
-              { payments: { some: {} } },
               { charges: { some: {} } },
               { orders: { some: {} } }
             ]
           },
           select: { 
             id: true,
-            payments: { select: { id: true } },
             charges: { select: { id: true } },
             orders: { select: { id: true } }
           },
@@ -53,7 +52,8 @@ export class BookingGroupService {
         data: {
           groupName,
           isAutoGrouped,
-          outstandingAmount: 0, // Will be calculated below
+          outstandingAmount: 0, 
+          mainGuestId 
         },
       });
 
@@ -140,9 +140,10 @@ export class BookingGroupService {
       groupName?: string;
       userId: string;
       reason?: string;
+      mainGuestId?: string
     }
   ) {
-    const { groupName, userId, reason } = data;
+    const { groupName, userId, reason, mainGuestId } = data;
 
     return await prisma.$transaction(async (tx) => {
       // Get current group data
@@ -157,7 +158,7 @@ export class BookingGroupService {
       // Update the group
       const updatedGroup = await tx.bookingGroup.update({
         where: { id: groupId },
-        data: { groupName },
+        data: { groupName, mainGuestId },
       });
 
       // Create audit log

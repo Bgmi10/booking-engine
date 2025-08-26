@@ -1,11 +1,12 @@
-import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye } from "lucide-react"
+import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye, FileText } from "lucide-react"
 import type { BookingData, PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
 import { baseUrl } from "../../../utils/constants"
 import CustomPartialRefundModal from "./CustomPartialRefundModal"
 import BookingOverviewModal from "./BookingOverviewModal"
-import { useState } from "react"
+import TaxOptimizationModal from "../invoices/TaxOptimizationModal"
+import { useState, useEffect } from "react"
 
   export default function PaymentIntentDetailsView({
     paymentIntent,
@@ -20,9 +21,32 @@ import { useState } from "react"
     loadingAction,
     isDeletedTab = false,
     hideViewPayments = false,
+    hideInvoiceButtons = false,
   }: PaymentIntentDetailsViewProps) {
     const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
     const [showBookingOverviewModal, setShowBookingOverviewModal] = useState(false);
+    const [showTaxModal, setShowTaxModal] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
+
+    // Fetch general settings to check if tax optimization is enabled
+    useEffect(() => {
+      const fetchSettings = async () => {
+        try {
+          const response = await fetch(`${baseUrl}/admin/settings`, {
+            credentials: 'include',
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.data && data.data.length > 0) {
+              setSettings(data.data[0]);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching settings:', error);
+        }
+      };
+      fetchSettings();
+    }, []);
 
     const handleCustomRefundSuccess = () => {
       // Refresh the payment intent data
@@ -621,6 +645,29 @@ import { useState } from "react"
                 </button>
                 )
               }
+
+              {/* Invoice Export Buttons */}
+              {!hideInvoiceButtons && (paymentIntent.status === "SUCCEEDED" || paymentIntent.status === "CONFIRMED") && (
+                <>
+                  <button
+                    onClick={() => window.open(`${baseUrl}/admin/payment-intent/${paymentIntent.id}/invoice`, '_blank')}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export Invoice
+                  </button>
+
+                  {settings?.enableTaxOptimizationFeature && (
+                    <button
+                      onClick={() => setShowTaxModal(true)}
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Tax Invoice
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -639,6 +686,13 @@ import { useState } from "react"
         paymentIntent={paymentIntent}
         onRefresh={onRefresh}
       />
+
+      {showTaxModal && (
+        <TaxOptimizationModal
+          paymentIntent={paymentIntent}
+          onClose={() => setShowTaxModal(false)}
+        />
+      )}
       </>
     )
   }
