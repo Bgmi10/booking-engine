@@ -12,8 +12,8 @@ import { useState, useEffect } from "react"
     paymentIntent,
     paymentDetails,
     loadingPayment,
-    onSendEmail,
     onDelete,
+    onSendInvoice,
     onRestore,
     onRefund,
     onViewPayment,
@@ -71,7 +71,7 @@ import { useState, useEffect } from "react"
 
     return (
       <>
-      <div className="space-y-6">
+      <div className="space-y-6 z-50">
         {/* Customer Information */}
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -569,12 +569,12 @@ import { useState, useEffect } from "react"
           <div className="p-6">
             <div className="flex gap-2 flex-wrap">
              {paymentIntent.status === "SUCCEEDED"  && <button
-                onClick={onSendEmail}
+                onClick={() => onSendInvoice(paymentIntent.id)}
                 disabled={loadingAction}
                 className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Mail className="h-4 w-4 mr-2" />
-                Send Confirmation Email
+                Send Invoice
               </button>}
               {(paymentIntent.status === "SUCCEEDED" && 
                 (!paymentIntent.refundStatus || 
@@ -647,7 +647,7 @@ import { useState, useEffect } from "react"
               }
 
               {/* Invoice Export Buttons */}
-              {!hideInvoiceButtons && (paymentIntent.status === "SUCCEEDED" || paymentIntent.status === "CONFIRMED") && (
+              {!hideInvoiceButtons && (paymentIntent.status === "SUCCEEDED") && (
                 <>
                   <button
                     onClick={() => window.open(`${baseUrl}/admin/payment-intent/${paymentIntent.id}/invoice`, '_blank')}

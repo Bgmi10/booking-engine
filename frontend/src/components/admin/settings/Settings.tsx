@@ -84,7 +84,8 @@ export default function Settings() {
           licensePlateDailyTriggerTime: currentSettings.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00',
           autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2),
-          enableTaxOptimizationFeature: currentSettings.enableTaxOptimizationFeature || false
+          enableTaxOptimizationFeature: currentSettings.enableTaxOptimizationFeature || false,
+          checkinReminderDays: currentSettings.checkinReminderDays || 0
         });
         setSettingsId(currentSettings.id);
 
@@ -354,18 +355,12 @@ export default function Settings() {
           id: settingsId,
           minStayDays: Number(formValues.minStayDays),
           taxPercentage: Number(formValues.taxPercentage) / 100,
-          // Dahua Camera Settings
-          dahuaApiUrl: formValues.dahuaApiUrl || null,
-          dahuaUsername: formValues.dahuaUsername || null,
-          dahuaPassword: formValues.dahuaPassword || null,
-          dahuaIsEnabled: formValues.dahuaIsEnabled === true,
-          dahuaGateId: formValues.dahuaGateId || null,
-          dahuaLicensePlateExpiryHours: Number(formValues.dahuaLicensePlateExpiryHours) || 24,
           licensePlateExpiryDays: Number(formValues.licensePlateExpiryDays) || 30,
           licensePlateDailyTriggerTime: formValues.licensePlateDailyTriggerTime || '00:00',
           dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00',
           autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2,
-          enableTaxOptimizationFeature: formValues.enableTaxOptimizationFeature === true
+          enableTaxOptimizationFeature: formValues.enableTaxOptimizationFeature === true,
+          checkinReminderDays: formValues.checkinReminderDays || 0
         }),
       });
       
@@ -471,6 +466,23 @@ export default function Settings() {
                         Minimum number of rooms required to automatically create a booking group
                       </p>
                     </div>
+                    <div>
+                      <label htmlFor="autoGroupingRoomCountInput" className="block text-sm font-medium text-gray-700 mb-2">
+                        CheckInReminderDays 
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          id="checkinReminderDays"
+                          name="checkinReminderDays"
+                          type="number"
+                          value={formValues.checkinReminderDays}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isLoading}
+                          placeholder="e.g., 2"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -560,173 +572,6 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
-
-                {/* Dahua Camera Configuration Section */}
-                {/* <div className="p-6">
-                  <h4 className="text-base font-medium text-gray-900 mb-4">Dahua Camera Integration</h4>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-700">Enable automatic gate access via license plate recognition</p>
-                        <p className="text-xs text-gray-500 mt-1">Automatically add/remove license plates for guest access</p>
-                      </div>
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="dahuaIsEnabled"
-                          name="dahuaIsEnabled"
-                          checked={formValues.dahuaIsEnabled === true}
-                          onChange={(e) => {
-                            setFormValues((prev: any) => ({
-                              ...prev,
-                              dahuaIsEnabled: e.target.checked
-                            }));
-                            setSuccess(null);
-                            setError(null);
-                          }}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="dahuaIsEnabled" className="ml-2 text-sm text-gray-700">
-                          Enable Dahua Integration
-                        </label>
-                      </div>
-                    </div>
-
-                    {formValues.dahuaIsEnabled && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                          <label htmlFor="dahuaApiUrl" className="block text-sm font-medium text-gray-700 mb-2">
-                            Dahua API URL
-                          </label>
-                          <input
-                            id="dahuaApiUrl"
-                            name="dahuaApiUrl"
-                            type="url"
-                            value={formValues.dahuaApiUrl || ''}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="https://camera-ip:port"
-                            disabled={isLoading}
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="dahuaGateId" className="block text-sm font-medium text-gray-700 mb-2">
-                            Gate ID
-                          </label>
-                          <input
-                            id="dahuaGateId"
-                            name="dahuaGateId"
-                            type="text"
-                            value={formValues.dahuaGateId || ''}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="1"
-                            disabled={isLoading}
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="dahuaUsername" className="block text-sm font-medium text-gray-700 mb-2">
-                            Username
-                          </label>
-                          <input
-                            id="dahuaUsername"
-                            name="dahuaUsername"
-                            type="text"
-                            value={formValues.dahuaUsername || ''}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="admin"
-                            disabled={isLoading}
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="dahuaPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                            Password
-                          </label>
-                          <input
-                            id="dahuaPassword"
-                            name="dahuaPassword"
-                            type="password"
-                            value={formValues.dahuaPassword || ''}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="••••••••"
-                            disabled={isLoading}
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="dahuaLicensePlateExpiryHours" className="block text-sm font-medium text-gray-700 mb-2">
-                            License Plate Expiry (hours)
-                          </label>
-                          <input
-                            id="dahuaLicensePlateExpiryHours"
-                            name="dahuaLicensePlateExpiryHours"
-                            type="number"
-                            value={formValues.dahuaLicensePlateExpiryHours || ''}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            min="1"
-                            max="168"
-                            placeholder="24"
-                            disabled={isLoading}
-                          />
-                          <p className="mt-1 text-xs text-gray-500">
-                            Hours after checkout to automatically remove license plate
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div> */}
-  
-                {/* License Plate Management Configuration */}
-                {/* <div className="p-6">
-                  <h4 className="text-base font-medium text-gray-900 mb-4">License Plate Management</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="licensePlateExpiryDays" className="block text-sm font-medium text-gray-700 mb-2">
-                        License Plate Expiry (days)
-                      </label>
-                      <input
-                        id="licensePlateExpiryDays"
-                        name="licensePlateExpiryDays"
-                        type="number"
-                        value={formValues.licensePlateExpiryDays || ''}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        min="1"
-                        max="365"
-                        placeholder="30"
-                        disabled={isLoading}
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Days after which expired license plates will be deleted automatically
-                      </p>
-                    </div>
-
-                    <div>
-                      <label htmlFor="licensePlateDailyTriggerTime" className="block text-sm font-medium text-gray-700 mb-2">
-                        Daily Export Time (Italian Time)
-                      </label>
-                      <input
-                        id="licensePlateDailyTriggerTime"
-                        name="licensePlateDailyTriggerTime"
-                        type="time"
-                        value={formValues.licensePlateDailyTriggerTime || ''}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={isLoading}
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Time when daily license plate export email will be sent to admin
-                      </p>
-                    </div>
-                  </div>
-                </div> */}
               </div>
             </div>
 

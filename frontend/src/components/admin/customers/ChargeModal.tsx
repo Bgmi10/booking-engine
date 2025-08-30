@@ -1,10 +1,10 @@
 import { CreditCard, Link, X } from "lucide-react";
 import { useState } from "react";
-import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import CreatePaymentForm from "./CreatePaymentForm";
+import type { Customer } from "../../../hooks/useCustomers";
 
 interface ChargeModalProps {
-    customer: CustomerType;
+    customer: Customer;
     onClose: () => void;
     step?: string;
     paymentIntentId?: string;

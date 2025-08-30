@@ -12,7 +12,7 @@ export class InvoiceService {
    */
   async generateInvoice(paymentIntentId: string, replacementMap?: Record<string, string>) {
     // Get payment intent with all related data
-    const paymentIntent = await prisma.paymentIntent.findUnique({
+    const paymentIntent: any = await prisma.paymentIntent.findUnique({
       where: { id: paymentIntentId },
       include: {
         bookings: {
@@ -28,6 +28,11 @@ export class InvoiceService {
         charges: {
           include: {
             tempCustomer: true
+          }
+        },
+        customer: {
+          select: {
+            guestEmail: true
           }
         }
       }
@@ -228,6 +233,6 @@ export class InvoiceService {
     // Generate PDF
     const pdfBuffer = await generatePDF(compiledHtml);
     
-    return pdfBuffer;
+    return { pdfBuffer, paymentIntent };
   }
 }

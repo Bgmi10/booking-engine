@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react"
 import { baseUrl } from "../utils/constants";
-import type { BankDetails } from "../types/types";
 
 export const useFetchBankDetails = () => {
-    const [bankDetails, setBankDetails] = useState<BankDetails[]>(null);
+    const [bankDetails, setBankDetails] = useState<any>(null);
     const [loader, setLoader] = useState<boolean>(true);
 
     const fetchBankDetails = async () => {

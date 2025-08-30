@@ -78,6 +78,32 @@ export default function BookingManagement() {
   const currentPaymentIntents = activeTab === "deleted" ? deletedPaymentIntents : activePaymentIntents;
   const currentLoading = activeTab === "deleted" ? deletedLoading : activeLoading;
 
+  const onSendInvoice = async (id: string) => {
+    setLoadingAction(true);
+    try {
+      const res = await fetch(baseUrl + "/admin/customers/send-invoice", {
+        credentials: "include",
+        method: "POST",
+        body: JSON.stringify({ paymentIntentId: id }),
+        headers: {
+          "Content-type": "application/json"
+        }
+      });
+
+      if (res.ok) {
+        toast.success("Invoice sent successfully");
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to send invoice");
+      }
+    } catch (e: any) {
+      console.error("Error sending invoice:", e);
+      toast.error(e.message || "Failed to send invoice");
+    } finally {
+      setLoadingAction(false);
+    }
+  } 
+
   // Filter payment intents based on search term and filters
   const filteredPaymentIntents = currentPaymentIntents.filter(pi => {
     // Filter by tab (admin created vs all)
@@ -121,6 +147,7 @@ export default function BookingManagement() {
       const confirmationMatch = confirmationId.includes(term);
       
       // Search by group name (if part of a booking group)
+      //@ts-ignore
       const groupMatch = pi.bookingGroup?.groupName?.toLowerCase().includes(term) || false;
       
       if (!(nameMatch || emailMatch || idMatch || roomMatch || confirmationMatch || groupMatch)) {
@@ -729,7 +756,7 @@ export default function BookingManagement() {
               onEdit={handleEditGroup} 
               onViewBookings={handleViewBookings} 
               isMergedView={true}
-              onViewPaymentIntent={(pi) => {
+              onViewPaymentIntent={() => {
                 // For payment intents within groups, always open the group modal
                 setSelectedPaymentIntent(null);
                 setShowGroupModal(false);
@@ -759,6 +786,7 @@ export default function BookingManagement() {
 
                 <div className="p-6">
                   <PaymentIntentDetailsView
+                    onSendInvoice={onSendInvoice}
                     onDelete={() => handleDeleteClick(selectedPaymentIntent)}
                     onRestore={activeTab === "deleted" ? () => handleRestore(selectedPaymentIntent) : undefined}
                     paymentIntent={selectedPaymentIntent}
@@ -857,7 +885,7 @@ export default function BookingManagement() {
             setSelectedGroup(null);
           }}
           onRefresh={refetch}
-          onDelete={async (groupId, reason) => {
+          onDelete={async () => {
             // Handle deletion if needed
             setShowGroupModal(false);
             setSelectedGroup(null);

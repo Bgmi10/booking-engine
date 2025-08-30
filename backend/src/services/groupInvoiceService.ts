@@ -13,10 +13,11 @@ export class GroupInvoiceService {
    * @returns PDF buffer
    */
   async generateGroupInvoice(bookingGroupId: string, replacementMap?: Record<string, string>, userId?: string) {
-    // Get booking group with all related data
+    // Get booking group with all related data, including main guest
     const bookingGroup = await prisma.bookingGroup.findUnique({
       where: { id: bookingGroupId },
       include: {
+        mainGuest: true,
         paymentIntents: {
           include: {
             bookings: {
@@ -47,9 +48,16 @@ export class GroupInvoiceService {
       throw new Error('No payment intents found in booking group');
     }
 
-    // Get customer data from the first payment intent
-    const firstPaymentIntent = bookingGroup.paymentIntents[0];
-    const customerData = JSON.parse(firstPaymentIntent.customerData || '{}');
+    // Get customer data from the main guest
+    if (!bookingGroup.mainGuest) {
+      throw new Error('Main guest not found in booking group');
+    }
+    
+    const customerData = {
+      name: `${bookingGroup.mainGuest.guestFirstName} ${bookingGroup.mainGuest.guestLastName}`.trim(),
+      email: bookingGroup.mainGuest.guestEmail,
+      phone: bookingGroup.mainGuest.guestPhone,
+    };
     
     // Generate invoice number
     const invoiceNumber = `INV-${format(new Date(), 'yyyy')}-GROUP-${bookingGroup.id.substring(0, 8).toUpperCase()}`;
@@ -237,8 +245,6 @@ export class GroupInvoiceService {
       customerName: customerData.name || 'Guest',
       customerEmail: customerData.email || '',
       customerPhone: customerData.phone || null,
-      customerAddress: customerData.address || null,
-      customerVat: customerData.vat || null,
       checkInDate,
       checkOutDate,
       totalNights,

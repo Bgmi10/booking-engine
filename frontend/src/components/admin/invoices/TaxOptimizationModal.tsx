@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, FileText, Download } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
-import type { BookingGroup, PaymentIntentData } from '../../../types/types';
+import type { BookingGroup } from '../../../types/types';
 
 interface OrderItem {
   id: string;
@@ -19,7 +19,7 @@ interface PaymentIntentOrder {
 }
 
 interface TaxOptimizationModalProps {
-  paymentIntent?: PaymentIntentData;
+  paymentIntent?: any;
   group?: BookingGroup; // BookingGroup type
   isGroupMode?: boolean;
   onClose: () => void;

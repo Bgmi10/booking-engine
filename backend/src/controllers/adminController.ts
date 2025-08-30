@@ -8,22 +8,26 @@ import { sendOtp } from "../services/sendotp";
 import { s3 } from "../config/s3";
 import { deleteImagefromS3 } from "../services/s3";
 import { PartialRefundService } from "../services/partialRefundService";
-import { sendConsolidatedBookingConfirmation, sendPaymentLinkEmail, sendRefundConfirmationEmail } from "../services/emailTemplate";
+import { sendPaymentLinkEmail, routeGroupEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { baseUrl } from "../utils/constants";
 import { dahuaService } from '../services/dahuaService';
-import { licensePlateCleanupService } from '../services/licensePlateCleanupService';
 import { findOrCreatePrice } from "../config/stripeConfig"; 
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from '../cron/cron';
 import AuditService from "../services/auditService";
 import { BookingGroupService } from "../services/bookingGroupService";
+import { InvoiceService } from "../services/invoiceService";
+import { GroupInvoiceService } from "../services/groupInvoiceService";
+import { Booking } from "@prisma/client";
 
 dotenv.config();
 
 const devUrl = "https://localhost:5173";
 const prodUrl = process.env.FRONTEND_PROD_URL;
+const invoiceService = new InvoiceService();
+const groupInvoiceService = new GroupInvoiceService();
 
 const getAllusers = async (req: express.Request, res: express.Response) => {
   //@ts-ignore
@@ -489,10 +493,6 @@ const updateBooking = async (req: express.Request, res: express.Response) => {
     roomId,
     checkIn,
     checkOut,
-    guestEmail,
-    guestName,
-    guestNationality,
-    guestPhone,
     status,
     reason // Add reason field for audit
   } = req.body;
@@ -870,9 +870,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, chargePaymentConfig, dahuaApiUrl, dahuaGateId, dahuaIsEnabled, dahuaLicensePlateExpiryHours, dahuaPassword, dahuaUsername, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature } = req.body;
+  const { minStayDays, id, taxPercentage, checkinReminderDays, chargePaymentConfig, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature } = req.body;
 
-  let updateData: { minStayDays?: number; taxPercentage?: number, chargePaymentConfig?: string, dahuaApiUrl?: string, dahuaGateId?: string, dahuaIsEnabled?: boolean, dahuaLicensePlateExpiryHours?: number, dahuaPassword?: string, dahuaUsername?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean } = {};
+  let updateData: { checkinReminderDays?: number, minStayDays?: number,  taxPercentage?: number, chargePaymentConfig?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -886,29 +886,10 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
     updateData.taxPercentage = taxPercentage;
   }
   
-  if (typeof dahuaApiUrl !== 'undefined') {
-    updateData.dahuaApiUrl = dahuaApiUrl;
-  }
-  
-  if (typeof dahuaGateId !== 'undefined') {
-    updateData.dahuaGateId = dahuaGateId;
+  if (typeof checkinReminderDays !== 'undefined') {
+    updateData.checkinReminderDays = parseInt(checkinReminderDays);
   }
 
-  if (typeof dahuaLicensePlateExpiryHours !== 'undefined') {
-    updateData.dahuaLicensePlateExpiryHours = dahuaLicensePlateExpiryHours;
-  }
-
-  if (typeof dahuaIsEnabled !== 'undefined') {
-    updateData.dahuaIsEnabled = dahuaIsEnabled;
-  }
-  
-  if (typeof dahuaPassword !== 'undefined') {
-    updateData.dahuaPassword = dahuaPassword;
-  }
-  if (typeof dahuaUsername !== 'undefined') {
-    updateData.dahuaUsername = dahuaUsername;
-  }
-  
   if (typeof licensePlateExpiryDays !== 'undefined') {
     updateData.licensePlateExpiryDays = licensePlateExpiryDays;
   }
@@ -943,7 +924,7 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
 };
 
 const getGeneralSettings = async (req: express.Request, res: express.Response) => {
-   
+
   try {
     const settingsData = await prisma.generalSettings.findMany({});
     responseHandler(res, 200, "success", settingsData);
@@ -1236,7 +1217,7 @@ const collectCash = async (req: express.Request, res: express.Response) => {
         outstandingAmount: totalAmount, // Initial outstanding amount equals total amount
         createdByAdmin: true,
         adminUserId,
-        adminNotes: adminNotes || customerRequest || "Cash payment - pending confirmation",
+        adminNotes: adminNotes || customerRequest,  
         expiresAt,
       }
     });
@@ -1509,7 +1490,7 @@ const processFutureRefund = async (req: express.Request, res: express.Response) 
 };
 
 const refund = async (req: express.Request, res: express.Response) => {
-    const { paymentIntentId, reason, bookingData, customerDetails, paymentMethod, sendEmailToCustomer = true, processRefund = true } = req.body;
+    const { paymentIntentId, reason, customerDetails, paymentMethod, sendEmailToCustomer = true, processRefund = true } = req.body;
     //@ts-ignore
     const { id: userId } = req.user;  
     if (!paymentIntentId) { 
@@ -1521,15 +1502,15 @@ const refund = async (req: express.Request, res: express.Response) => {
     try {
         // Find the payment intent in our database
         const ourPaymentIntent = await prisma.paymentIntent.findUnique({
-            where: { id: paymentIntentId },
-            include: {
-              bookings: {
-                include: {
-                  room: true
-                }
-              },
-              payments: true,
-            }
+          where: { id: paymentIntentId },
+          include: {
+            bookings: {
+              include: {
+                room: true
+              }
+            },
+            payments: true,
+          }
         });
 
         if (!ourPaymentIntent) {
@@ -1623,34 +1604,44 @@ const refund = async (req: express.Request, res: express.Response) => {
               refundConfirmationId = `REFUND-${paymentIntentId}`;
             }
 
-            // Update bookingData with the confirmation ID and paymentMethod
-            const parsedBookingData = JSON.parse(bookingData);
-            const updatedBookingData = typeof bookingData === "string" ? parsedBookingData.map((booking: any) => ({
-              ...booking,
-              confirmationId: refundConfirmationId,
-              paymentMethod: methodToRefund
-            })) : bookingData.map((booking: any) => ({
-              ...booking,
+            // Prepare actual booking data for email instead of form data
+            const actualBookingsForEmail = ourPaymentIntent.bookings.map((booking: any) => ({
+              id: booking.id,
+              checkIn: booking.checkIn,
+              checkOut: booking.checkOut,
+              totalGuests: booking.totalGuests,
+              adults: booking.adults || booking.totalGuests,
+              roomName: booking.room?.name,
+              roomDetails: booking.room,
               confirmationId: refundConfirmationId,
               paymentMethod: methodToRefund
             }));
 
             if (sendEmailToCustomer) {
               if (processRefund) {
-                await sendRefundConfirmationEmail(updatedBookingData, customer, {
-                  refundId: `manual-${paymentIntentId}`,
-                  refundAmount: refundAmount,
-                  refundCurrency: ourPaymentIntent.currency || 'EUR',
-                  refundReason: refundNote
+                // Send refund email using group routing
+                await routeGroupEmail(paymentIntentId, 'REFUND', {
+                  bookings: actualBookingsForEmail,
+                  customerDetails: customer,
+                  refundDetails: {
+                    refundId: `manual-${paymentIntentId}`,
+                    refundAmount: refundAmount,
+                    refundCurrency: ourPaymentIntent.currency || 'EUR',
+                    refundReason: refundNote
+                  }
                 });
               } else {
-                // Send cancellation email without refund info
-                await sendRefundConfirmationEmail(updatedBookingData, customer, {
-                  refundId: `cancel-${paymentIntentId}`,
-                  refundAmount: 0,
-                  refundCurrency: ourPaymentIntent.currency || 'EUR',
-                  refundReason: `Booking cancelled - ${reason || 'No refund processed'}`,
-                  isCancellationOnly: true
+                // Send cancellation email without refund info using group routing
+                await routeGroupEmail(paymentIntentId, 'CANCELLATION', {
+                  bookings: actualBookingsForEmail,
+                  customerDetails: customer,
+                  refundDetails: {
+                    refundId: `cancel-${paymentIntentId}`,
+                    refundAmount: 0,
+                    refundCurrency: ourPaymentIntent.currency || 'EUR',
+                    refundReason: `Booking cancelled - ${reason || 'No refund processed'}`,
+                    isCancellationOnly: true
+                  }
                 });
               }
             }
@@ -1713,14 +1704,32 @@ const refund = async (req: express.Request, res: express.Response) => {
                     cancelConfirmationId = generateMergedBookingId(bookingIds);
                   }
                 }
-                // Update bookingData with the confirmation ID
-                const updatedBookingData = bookingData ? bookingData.map((booking: any) => ({
-                  ...booking,
-                  confirmationId: cancelConfirmationId
-                })) : [];
+                // Prepare actual booking data for email instead of form data
+                const actualBookingsForEmail = ourPaymentIntent.bookings.map((booking: any) => ({
+                  id: booking.id,
+                  checkIn: booking.checkIn,
+                  checkOut: booking.checkOut,
+                  totalGuests: booking.totalGuests,
+                  adults: booking.adults || booking.totalGuests,
+                  roomName: booking.room?.name,
+                  roomDetails: booking.room,
+                  confirmationId: cancelConfirmationId,
+                  paymentMethod: 'STRIPE'
+                }));
 
                 if (sendEmailToCustomer) {
-                  await sendRefundConfirmationEmail(updatedBookingData, customer);
+                  // Send cancellation email using group routing
+                  await routeGroupEmail(paymentIntentId, 'CANCELLATION', {
+                    bookings: actualBookingsForEmail,
+                    customerDetails: customer,
+                    refundDetails: {
+                      refundId: `cancel-${paymentIntentId}`,
+                      refundAmount: 0,
+                      refundCurrency: ourPaymentIntent.currency || 'EUR',
+                      refundReason: 'Booking cancelled',
+                      isCancellationOnly: true
+                    }
+                  });
                 }
       
               responseHandler(res, 200, "Payment intent cancelled successfully", {
@@ -1777,19 +1786,31 @@ const refund = async (req: express.Request, res: express.Response) => {
                     }
                   }
 
-                  // Update bookingData with the confirmation ID
-                  const updatedBookingData = bookingData ? bookingData.map((booking: any) => ({
-                    ...booking,
-                    confirmationId: cancelConfirmationId
-                  })) : [];
+                  // Prepare actual booking data for email instead of form data
+                  const actualBookingsForEmail = ourPaymentIntent.bookings.map((booking: any) => ({
+                    id: booking.id,
+                    checkIn: booking.checkIn,
+                    checkOut: booking.checkOut,
+                    totalGuests: booking.totalGuests,
+                    adults: booking.adults || booking.totalGuests,
+                    roomName: booking.room?.name,
+                    roomDetails: booking.room,
+                    confirmationId: cancelConfirmationId,
+                    paymentMethod: 'STRIPE'
+                  }));
 
                   if (sendEmailToCustomer) {
-                    await sendRefundConfirmationEmail(updatedBookingData, customer, {
-                      refundId: `cancel-${paymentIntentId}`,
-                      refundAmount: 0,
-                      refundCurrency: ourPaymentIntent.currency || 'EUR',
-                      refundReason: `Booking cancelled - ${reason || 'No refund processed'}`,
-                      isCancellationOnly: true
+                    // Send cancellation email using group routing
+                    await routeGroupEmail(paymentIntentId, 'CANCELLATION', {
+                      bookings: actualBookingsForEmail,
+                      customerDetails: customer,
+                      refundDetails: {
+                        refundId: `cancel-${paymentIntentId}`,
+                        refundAmount: 0,
+                        refundCurrency: ourPaymentIntent.currency || 'EUR',
+                        refundReason: `Booking cancelled - ${reason || 'No refund processed'}`,
+                        isCancellationOnly: true
+                      }
                     });
                   }
 
@@ -2046,9 +2067,12 @@ export const sendConfirmationEmail = async (req: express.Request, res: express.R
       }
     }));
 
-    // Send confirmation email with PDF attachment for all payment methods
-    //@ts-ignore
-    await sendConsolidatedBookingConfirmation(bookingsWithPaymentIntent, parsedCustomerDetails, receipt_url);
+    // Send confirmation email with PDF attachment for all payment methods - use group routing
+    await routeGroupEmail(id, 'CONFIRMATION', {
+      bookings: bookingsWithPaymentIntent,
+      customerDetails: parsedCustomerDetails,
+      receipt_url: receipt_url
+    });
     
     responseHandler(res, 200, "Confirmation email sent successfully");
   } catch (e) {
@@ -2288,39 +2312,6 @@ export const getLicensePlateStatus = async (req: express.Request, res: express.R
   }
 };
 
-export const removeLicensePlate = async (req: express.Request, res: express.Response) => {
-  const { bookingId } = req.params;
-  
-  if (!bookingId) {
-    responseHandler(res, 400, "Booking ID is required");
-    return;
-  }
-
-  try {
-    const success = await licensePlateCleanupService.cleanupLicensePlateForBooking(bookingId);
-    
-    if (success) {
-      responseHandler(res, 200, "License plate removed successfully");
-    } else {
-      responseHandler(res, 404, "No license plate found for this booking");
-    }
-  } catch (error: any) {
-    console.error("License plate removal error:", error);
-    responseHandler(res, 500, `Failed to remove license plate: ${error.message}`);
-  }
-};
-
-export const runLicensePlateCleanup = async (req: express.Request, res: express.Response) => {
-  try {
-    await licensePlateCleanupService.cleanupExpiredLicensePlates();
-    responseHandler(res, 200, "License plate cleanup completed successfully");
-  } catch (error: any) {
-    console.error("License plate cleanup error:", error);
-    responseHandler(res, 500, `Cleanup failed: ${error.message}`);
-  }
-};
-
-// Get users for notification assignment (optionally filter by role)
 const getNotificationAssignableUsers = async (req: express.Request, res: express.Response) => {
   const { role } = req.query;
   try {
@@ -2458,8 +2449,6 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
         });
       };
 
-      console.log(customer);
-
       await tx.paymentIntent.update({
         where: { id: paymentIntentId },
         data: { 
@@ -2481,8 +2470,7 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
             totalAmount: bookingItem.totalPrice,
             customerId: customer.id,
             paymentIntentId: paymentIntent.id,
-            request: customerRequest || customerData.specialRequests || null, // <-- use customerRequest if provided
-            carNumberPlate: customerData.carNumberPlate,
+            request: customerRequest || customerData.specialRequests || null, 
             groupId: customerData.groupId,
           }
         });
@@ -2509,6 +2497,7 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
           paymentIntentIds: [paymentIntentId],
           userId: 'SYSTEM', // System-generated for cash booking confirmation
           reason: `Auto-grouped on ${paymentIntent.paymentMethod || 'CASH'} booking confirmation: ${bookingData.length} rooms booked together`,
+          bookingType: "DIRECT"
         });
         
         console.log(`[Booking Confirmation] Auto-grouped payment intent ${paymentIntentId} with ${bookingData.length} bookings`);
@@ -2612,7 +2601,7 @@ const resendBankTransferInstructions = async (req: express.Request, res: express
   }
 };
 
-// Add confirmPaymentMethod controller
+// Add confirmPaymentMethod controll
 const confirmPaymentMethod = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
   const { actualPaymentMethod } = req.body;
@@ -2677,7 +2666,6 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
               customerId: customer.id,
               paymentIntentId: updatedPaymentIntent.id,
               request: customerData.specialRequests || null,
-              carNumberPlate: customerData.carNumberPlate,
               groupId: customerData.groupId
             }
           });
@@ -2691,7 +2679,6 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
     // Check for auto-grouping after manual payment confirmation
     if (result.updatedPaymentIntent && (actualPaymentMethod === 'CASH' || actualPaymentMethod === 'BANK_TRANSFER')) {
       try {
-        const { BookingGroupService } = await import("../services/bookingGroupService");
         const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([result.updatedPaymentIntent.id]);
         
         if (shouldAutoGroup && !result.updatedPaymentIntent.bookingGroupId) {
@@ -2704,6 +2691,7 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
             paymentIntentIds: [result.updatedPaymentIntent.id],
             userId: 'SYSTEM',
             reason: `Auto-grouped on ${actualPaymentMethod} payment confirmation: ${bookingCount} rooms booked together`,
+            bookingType: "DIRECT"
           });
           
           console.log(`[Manual Payment] Auto-grouped payment intent ${result.updatedPaymentIntent.id} with ${bookingCount} bookings`);
@@ -2859,7 +2847,7 @@ const processCustomPartialRefund = async (req: express.Request, res: express.Res
       const updatedRefundAmount = currentRefundAmount + refundAmount;
       const newStatus = updatedRefundAmount >= booking.totalAmount ? 'REFUNDED' : booking.status;
 
-      const updatedBooking = await prisma.booking.update({
+      await prisma.booking.update({
         where: { id: bookingId },
         data: {
           refundAmount: updatedRefundAmount,
@@ -3296,6 +3284,300 @@ const getPaymentIntentAuditLogs = async (req: express.Request, res: express.Resp
     handleError(res, e as Error);
   }
 };
+
+export const sendInvoice = async (req: express.Request, res: express.Response) => {
+  try {
+    const { paymentIntentId } = req.body;
+
+    if (!paymentIntentId) {
+      responseHandler(res, 400, "PaymentIntent id is required");
+      return;
+    }
+
+    // Generate PDF invoice
+    const { pdfBuffer, paymentIntent} = await invoiceService.generateInvoice(paymentIntentId);
+    
+    const customerData = JSON.parse(paymentIntent.customerData || '{}');
+    const bookingData = JSON.parse(paymentIntent.bookingData || '[]');
+
+    // Convert PDF buffer to base64 for email attachment
+    const base64Content = pdfBuffer.toString('base64');
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${paymentIntentId.substring(0, 8).toUpperCase()}`;
+    
+    // Prepare booking overview data for email template
+    const processedBookings = paymentIntent.bookings.map((booking: Booking) => {
+      const bookingInfo = bookingData.find((b: any) => b.selectedRoom === booking.roomId);
+      const nights = Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        id: booking.id,
+        room: {
+          //@ts-ignore
+          name: booking.room.name,
+          //@ts-ignore
+          description: booking.room.description
+        },
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        formattedCheckIn: new Date(booking.checkIn).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        formattedCheckOut: new Date(booking.checkOut).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        totalGuests: booking.totalGuests,
+        nights,
+        total: bookingInfo?.totalPrice || 0
+      };
+    });
+
+    const templateData = {
+      invoiceNumber,
+      customerName: `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim(),
+      bookings: processedBookings,
+      totalAmount: paymentIntent.totalAmount.toFixed(2),
+      currency: paymentIntent.currency === 'EUR' ? '€' : paymentIntent.currency.toUpperCase(),
+      paymentStatus: paymentIntent.status,
+      invoiceDate: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    };
+
+    // Send email with PDF attachment using EmailService
+    await EmailService.sendEmail({
+      to: {
+        email: customerData.email,
+        name: templateData.customerName || 'Guest'
+      },
+      templateType: 'BOOKING_INVOICE',
+      subject: '', // Will be taken from template
+      templateData,
+      attachments: [{
+        content: base64Content,
+        name: `${invoiceNumber}.pdf`,
+        type: 'application/pdf'
+      }]
+    });
+
+    // Create audit log for invoice send
+    try {
+      await AuditService.createAuditLog(null, {
+        entityType: 'PAYMENT_INTENT',
+        entityId: paymentIntentId,
+        actionType: 'INVOICE_SENT',
+        //@ts-ignore
+        userId: req.user?.id,
+        notes: `Invoice sent to ${customerData.email}`,
+        paymentIntentId: paymentIntentId,
+        newValues: { invoiceNumber, recipientEmail: customerData.email }
+      });
+    } catch (auditError) {
+      console.error('Failed to create audit log for invoice send:', auditError);
+      // Don't fail the invoice send if audit logging fails
+    }
+
+    responseHandler(res, 200, "Invoice sent successfully");
+  } catch (error) {
+    console.error("Error sending invoice:", error);
+    handleError(res, error as Error);
+  }
+}
+
+export const sendGroupInvoice = async (req: express.Request, res: express.Response) => {
+  try {
+    const { bookingGroupId } = req.body;
+
+    if (!bookingGroupId) {
+      responseHandler(res, 400, "BookingGroup id is required");
+      return;
+    }
+
+    // Generate PDF invoice for the booking group
+    //@ts-ignore
+    const pdfBuffer = await groupInvoiceService.generateGroupInvoice(bookingGroupId, undefined, req.user?.id);
+    
+    // Get booking group with main guest data
+    const bookingGroup = await prisma.bookingGroup.findUnique({
+      where: { id: bookingGroupId },
+      include: {
+        mainGuest: true,
+        paymentIntents: {
+          include: {
+            bookings: {
+              include: {
+                room: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!bookingGroup || !bookingGroup.mainGuest) {
+      responseHandler(res, 404, "Booking group or main guest not found");
+      return;
+    }
+
+    // Convert PDF buffer to base64 for email attachment
+    const base64Content = pdfBuffer.toString('base64');
+    const invoiceNumber = `INV-${new Date().getFullYear()}-GROUP-${bookingGroupId.substring(0, 8).toUpperCase()}`;
+    
+    // Prepare booking overview data for email template using main guest
+    const processedBookings = bookingGroup.paymentIntents.flatMap(pi => 
+      pi.bookings.map((booking: any) => {
+        const nights = Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+        
+        return {
+          id: booking.id,
+          room: {
+            name: booking.room.name,
+            description: booking.room.description
+          },
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+          formattedCheckIn: new Date(booking.checkIn).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }),
+          formattedCheckOut: new Date(booking.checkOut).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }),
+          totalGuests: booking.totalGuests,
+          nights
+        };
+      })
+    );
+
+    const totalAmount = bookingGroup.paymentIntents.reduce((sum, pi) => sum + pi.totalAmount, 0);
+
+    const templateData = {
+      invoiceNumber,
+      customerName: `${bookingGroup.mainGuest.guestFirstName} ${bookingGroup.mainGuest.guestLastName}`.trim(),
+      bookings: processedBookings,
+      totalAmount: totalAmount.toFixed(2),
+      currency: bookingGroup.paymentIntents[0]?.currency === 'EUR' ? '€' : 'EUR',
+      paymentStatus: 'PAID', // Groups are typically paid
+      invoiceDate: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    };
+    
+    if (bookingGroup.emailToMainGuestOnly) {
+      await EmailService.sendEmail({
+        to: {
+          email: bookingGroup.mainGuest.guestEmail,
+          name: templateData.customerName || 'Guest'
+        },
+        templateType: 'BOOKING_INVOICE',
+        subject: '', // Will be taken from template
+        templateData,
+        attachments: [{
+          content: base64Content,
+          name: `${invoiceNumber}.pdf`,
+          type: 'application/pdf'
+        }]
+      });
+    } else {
+      // Send individual emails to each customer in each payment intent
+      for (const paymentIntent of bookingGroup.paymentIntents) {
+        if (paymentIntent.customerData) {
+          const customerData = JSON.parse(paymentIntent.customerData);
+          const customerName = `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim();
+          
+          // Filter bookings for this specific payment intent
+          const paymentIntentBookings = processedBookings.filter(booking => 
+            paymentIntent.bookings.some(b => b.id === booking.id)
+          );
+          
+          // Create individual template data for this customer
+          const individualTemplateData = {
+            ...templateData,
+            customerName: customerName || 'Guest',
+            bookings: paymentIntentBookings
+          };
+          
+          await EmailService.sendEmail({
+            to: {
+              email: customerData.email,
+              name: customerName || 'Guest'
+            },
+            templateType: 'BOOKING_INVOICE',
+            subject: '', // Will be taken from template
+            templateData: individualTemplateData,
+            attachments: [{
+              content: base64Content,
+              name: `${invoiceNumber}.pdf`,
+              type: 'application/pdf'
+            }]
+          });
+        }
+      }
+    }
+  
+
+    // Create audit log for group invoice send at booking group level
+    try {
+      let auditNotes: string;
+      let recipientEmails: string[];
+      
+      if (bookingGroup.emailToMainGuestOnly) {
+        auditNotes = `Group invoice sent to main guest: ${bookingGroup.mainGuest.guestEmail}`;
+        recipientEmails = [bookingGroup.mainGuest.guestEmail];
+      } else {
+        // Collect all customer emails from payment intents
+        const allCustomerEmails = bookingGroup.paymentIntents
+          .filter(pi => pi.customerData)
+          .map(pi => {
+            const customerData = JSON.parse(pi.customerData || '{}');
+            return customerData.email;
+          })
+          .filter(email => email); // Remove any undefined/null emails
+          
+        auditNotes = `Group invoice sent to ${allCustomerEmails.length} customers: ${allCustomerEmails.join(', ')}`;
+        recipientEmails = allCustomerEmails;
+      }
+      
+      await AuditService.createAuditLog(null, {
+        entityType: 'BOOKING_GROUP',
+        entityId: bookingGroupId,
+        actionType: 'INVOICE_SENT',
+        //@ts-ignore
+        userId: req.user?.id,
+        notes: auditNotes,
+        bookingGroupId: bookingGroupId,
+        newValues: { 
+          invoiceNumber, 
+          recipientEmails,
+          emailToMainGuestOnly: bookingGroup.emailToMainGuestOnly,
+          totalRecipientsCount: recipientEmails.length
+        }
+      });
+    } catch (auditError) {
+      console.error('Failed to create audit log for group invoice send:', auditError);
+      // Don't fail the invoice send if audit logging fails
+    }
+
+    responseHandler(res, 200, "Group invoice sent successfully");
+  } catch (error) {
+    console.error("Error sending group invoice:", error);
+    handleError(res, error as Error);
+  }
+}
 
 export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs };
 

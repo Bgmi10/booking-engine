@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import prisma from "../prisma";
 import dotenv from "dotenv";
 import { handleError, responseHandler, generateMergedBookingId } from "../utils/helper";
-import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail } from "../services/emailTemplate";
+import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail, routeGroupEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { dahuaService } from "../services/dahuaService";    
 import { EmailService } from "../services/emailService";
@@ -307,53 +307,38 @@ async function handleRefundCreated(event: Stripe.Event) {
                     }
                 }
             } else {
-                // Send regular refund confirmation email
+                // Send regular refund confirmation email using actual booking records
                 // Check if this is a full refund (all bookings) or specific booking refund
-                let emailBookingData = updatedBookingData;
+                let actualBookingsForEmail = ourPaymentIntent.bookings.map((booking: any) => ({
+                    id: booking.id,
+                    checkIn: booking.checkIn,
+                    checkOut: booking.checkOut,
+                    totalGuests: booking.totalGuests,
+                    adults: booking.adults || booking.totalGuests,
+                    roomName: booking.room?.name,
+                    roomDetails: booking.room,
+                    confirmationId: confirmationId,
+                    paymentMethod: 'STRIPE'
+                }));
                 
-                if (refund.metadata?.isFullRefund === 'true') {
-                    // Full refund - include all bookings in the email
-                    // Map all bookings from database with their corresponding booking data
-                    emailBookingData = ourPaymentIntent.bookings.map((dbBooking: any) => {
-                        // Find the corresponding booking data by matching room details or booking specifics
-                        const correspondingBookingData = bookingData.find((booking: any) => 
-                            booking.roomDetails?.name === dbBooking.room?.name ||
-                            booking.roomName === dbBooking.room?.name
-                        ) || bookingData[0]; // Fallback to first booking data if no match
-                        
-                        return {
-                            ...correspondingBookingData,
-                            confirmationId: confirmationId,
-                            roomName: dbBooking.room?.name || correspondingBookingData.roomDetails?.name || 'Unknown Room',
-                            // Include additional booking details from database
-                            checkInDate: dbBooking.checkInDate,
-                            checkOutDate: dbBooking.checkOutDate,
-                            totalAmount: dbBooking.totalAmount
-                        };
-                    });
-                } else if (specificBookingId) {
-                    const specificBooking = ourPaymentIntent.bookings.find(b => b.id === specificBookingId);
-                    if (specificBooking && bookingData) {
-                        // Find the specific booking in the bookingData and use only that for the email
-                        const specificBookingIndex = ourPaymentIntent.bookings.findIndex(b => b.id === specificBookingId);
-                        if (specificBookingIndex !== -1 && bookingData[specificBookingIndex]) {
-                            emailBookingData = [{
-                                ...bookingData[specificBookingIndex],
-                                confirmationId: confirmationId,
-                                roomName: specificBooking.room.name
-                            }];
-                        }
-                    }
+                if (specificBookingId) {
+                    // Filter to only the specific booking if specified
+                    actualBookingsForEmail = actualBookingsForEmail.filter(b => b.id === specificBookingId);
                 }
                 
                 // Send regular refund confirmation email only if requested
                 const sendEmailToCustomer = refund.metadata?.sendEmailToCustomer === 'true';
                 if (sendEmailToCustomer) {
-                    await sendRefundConfirmationEmail(emailBookingData, customerDetails, {
-                        refundId: refund.id,
-                        refundAmount: refund.amount / 100,
-                        refundCurrency: refund.currency,
-                        refundReason: refund.metadata?.refundReason || "Refund processed"
+                    // Use group routing for refund emails
+                    await routeGroupEmail(ourPaymentIntent.id, 'REFUND', {
+                        bookings: actualBookingsForEmail,
+                        customerDetails,
+                        refundDetails: {
+                            refundId: refund.id,
+                            refundAmount: refund.amount / 100,
+                            refundCurrency: refund.currency,
+                            refundReason: refund.metadata?.refundReason || "Refund processed"
+                        }
                     });
                 }
             }
@@ -1015,6 +1000,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                     paymentIntentIds: [ourPaymentIntent.id],
                     userId: 'SYSTEM', // System-generated for webhook
                     reason: `Auto-grouped: ${bookingData.length} rooms booked together`,
+                    bookingType: "DIRECT"
                 });
                 
                 console.log(`[Auto-grouping] Successfully created booking group for payment intent ${ourPaymentIntent.id}`);
@@ -1453,7 +1439,6 @@ async function processBookingsInTransaction(
                     room: { connect: { id: roomId } },
                     status: "CONFIRMED",
                     request: customerDetails.specialRequests || null,
-                    carNumberPlate: customerDetails.carNumberPlate || null,
                     paymentIntent: { connect: { id: paymentIntentId } },
                     paymentStructure: paymentIntent?.paymentStructure || 'FULL_PAYMENT',
                     totalAmount: totalAmount,
@@ -1473,71 +1458,6 @@ async function processBookingsInTransaction(
                 },
                 include: { room: true, paymentIntent: true }
             });
-            
-            console.log(`Successfully created booking: ${newBooking.id}`);
-
-        // Handle license plate integration with Dahua camera and database
-        if (customerDetails.carNumberPlate) {
-            try {
-                const guestName = `${customerDetails.firstName} ${customerDetails.lastName}`.trim();
-                
-                // Add to Dahua camera system
-                await dahuaService.addLicensePlate({
-                    plateNumber: customerDetails.carNumberPlate,
-                    checkInDate: new Date(checkIn),
-                    checkOutDate: new Date(checkOut),
-                    guestName: guestName,
-                    bookingId: newBooking.id
-                });
-                console.log(`License plate ${customerDetails.carNumberPlate} added to Dahua camera for booking ${newBooking.id}`);
-                
-                // Create license plate entry in database for CSV export
-                try {
-                    await tx.licensePlateEntry.create({
-                        data: {
-                            plateNo: customerDetails.carNumberPlate.toUpperCase().trim(),
-                            type: 'ALLOW_LIST',
-                            ownerName: guestName,
-                            validStartTime: new Date(checkIn),
-                            validEndTime: new Date(checkOut),
-                            bookingId: newBooking.id,
-                            userId: null, // No user association for booking-generated entries
-                            notes: `Auto-created from booking ${newBooking.id}`,
-                            createdBy: 'SYSTEM' // Mark as system-generated
-                        }
-                    });
-                    console.log(`License plate entry created in database for ${customerDetails.carNumberPlate}`);
-                } catch (dbError) {
-                    // If plate already exists, update the entry with new dates if needed
-                    const existingEntry = await tx.licensePlateEntry.findUnique({
-                        where: { plateNo: customerDetails.carNumberPlate.toUpperCase().trim() }
-                    });
-                    
-                    if (existingEntry) {
-                        // Update existing entry to extend validity if this booking ends later
-                        const newEndTime = new Date(checkOut);
-                        if (newEndTime > existingEntry.validEndTime) {
-                            await tx.licensePlateEntry.update({
-                                where: { id: existingEntry.id },
-                                data: {
-                                    validEndTime: newEndTime,
-                                    notes: existingEntry.notes 
-                                        ? `${existingEntry.notes}; Extended by booking ${newBooking.id}`
-                                        : `Extended by booking ${newBooking.id}`
-                                }
-                            });
-                            console.log(`Extended license plate entry validity for ${customerDetails.carNumberPlate}`);
-                        }
-                    } else {
-                        console.error(`Failed to create license plate entry for ${customerDetails.carNumberPlate}:`, dbError);
-                    }
-                }
-                
-            } catch (error) {
-                console.error(`Failed to add license plate to Dahua camera for booking ${newBooking.id}:`, error);
-                // Don't fail the booking creation if Dahua integration fails
-            }
-        }
 
             if (booking.selectedEnhancements?.length) {
                 try {
@@ -1682,12 +1602,18 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
             }
         }
 
-        await Promise.all([
-            //@ts-ignore
-            sendConsolidatedBookingConfirmation(enrichedBookings, customerDetails, receipt_url, voucherInfo),
-            //@ts-ignore
-            sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId, voucherInfo)
-        ]);
+        // Use group routing for confirmation emails
+        const paymentIntentId = paymentIntent.id;
+        await routeGroupEmail(paymentIntentId, 'CONFIRMATION', {
+            bookings: enrichedBookings,
+            customerDetails,
+            receipt_url,
+            voucherInfo
+        });
+
+        // Always send admin notification (not affected by group preferences)
+        //@ts-ignore
+        await sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId, voucherInfo);
     } catch (error) {
         console.error("Error sending confirmation emails:", error);
     }

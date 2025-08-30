@@ -1,0 +1,130 @@
+[C] => Phase 1: Configuration & Backend Setup
+Config Setup
+
+ Add preCheckinEmailTriggerDays config field to database
+ Set default value (e.g., 10 days)
+ Create admin interface to modify this config
+ Add validation (1-30 days range)
+
+Token System
+
+ Design secure token generation for check-in links
+ Implement token verification middleware
+ Add token expiration logic (e.g., expires after checkin date)
+ Create token persistence mechanism
+ Add token-based route protection
+
+Cron Job
+
+ Create daily cron job to check upcoming bookings
+ Query bookings where checkin_date - current_date = config_days
+ Filter bookings that haven't received online checkin email yet
+ Send personalized check-in emails with secure tokens
+
+Phase 2: Frontend Step Form Implementation
+Step 1: Personal Details
+
+ Create multi-step form component with progress indicator
+ Build personal details form with fields:
+
+ First name (required)
+ Last name (required)
+ Country selector dropdown
+ Phone number input with country code
+ Nationality dropdown (required)
+ Date of birth picker (required)
+ Sex radio buttons: Male/Female (required)
+ Place of birth input (required)
+ City input (required)
+ Reservation purpose enum: Business/Leisure/Education
+
+
+ Implement form validation for required fields
+ Add toast notifications for validation errors
+ Style form to match provided UI design
+
+Step 2: Passport/License
+
+ Create passport details form with fields:
+
+ Passport number (required)
+ Issuing country dropdown (required)
+ Expiration date in DD/MM/YYYY format (required)
+ Car license plate (optional)
+
+
+ Implement date format validation and masking
+ Add form validation for all required fields
+ Prevent progression without valid data
+ Style to match provided UI reference
+
+Step 3: Terms & Signature
+
+ Create terms and conditions step with:
+
+ Agreement checkbox (required)
+ Marketing emails checkbox (optional)
+ Canvas signature component (required)
+ Delete/clear signature functionality
+
+
+ Integrate signature canvas (from previous discussion)
+ Connect to S3 upload service using useImageUpload.ts
+ Add terms link to https://www.latorre.farm/terms
+ Implement signature validation
+
+Step 4: Additional Guests
+
+ Create add guest interface
+ Build guest list display
+ Implement add guest popup with two tabs:
+
+ Guest Details tab (manual entry)
+ Invite Guest tab (email invitation)
+
+
+ Create guest invitation email system
+ Generate unique tokens per guest invitation
+ Implement guest lifecycle management
+ Add delete guest functionality (main guest only)
+ Restrict guest editing after declaration step
+
+Phase 3: Security & Integration
+Route Security
+
+ Implement token-based authentication middleware
+ Protect all online checkin routes
+ Add token validation on each API call
+ Handle token expiration gracefully
+
+Data Persistence
+
+ Design database schema for guest information
+ Create APIs for saving form data at each step
+ Implement draft saving functionality
+ Add data validation on backend
+
+Email System
+
+ Create check-in invitation email template
+ Design guest invitation email template
+ Implement email delivery tracking
+ Add email status indicators in admin panel
+
+Phase 4: UI/UX Polish
+
+ Implement progress indicator showing current step
+ Add smooth transitions between steps
+ Create responsive design for mobile devices
+ Add loading states for form submissions
+ Implement auto-save drafts functionality
+ Add confirmation screens after completion
+
+Phase 5: Testing & Deployment
+
+ Write comprehensive unit tests
+ Test token security and expiration
+ Test email delivery across different providers
+ Perform end-to-end testing of entire flow
+ Load test cron job with large booking volumes
+ Security audit of token system

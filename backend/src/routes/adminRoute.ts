@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs, sendInvoice, sendGroupInvoice } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -61,6 +61,12 @@ import {
 import { getBulkOverRideLogs } from "../controllers/bulkOverRideLogsController";
 import { createOrderItemScheme, updateOrderItemsScheme } from "../zod/orderItem.scheme";
 import { generateCustomerInvoice, generateTaxOptimizedInvoice, generateGroupCustomerInvoice, generateGroupTaxOptimizedInvoice } from '../controllers/invoiceController';
+import { 
+    createBookingGroupSchema, 
+    updateBookingGroupSchema, 
+    addPaymentIntentsSchema, 
+    removePaymentIntentsSchema 
+} from '../zod/bookingGroup.schema';
 
 const adminRouter = Router();
 
@@ -243,6 +249,10 @@ adminRouter.delete('/vouchers/:id', authMiddleware, deleteVoucher);
 
 adminRouter.post('/customers', authMiddleware, validateMiddleware(customerSchema), createCustomer);
 
+adminRouter.post('/customers/send-invoice', authMiddleware, sendInvoice);
+
+adminRouter.post('/customers/send-group-invoice', authMiddleware, sendGroupInvoice);
+
 adminRouter.get('/customers/all', authMiddleware, getAllCustomers);
 
 adminRouter.get('/customers/:id', authMiddleware, getCustomerById);
@@ -263,11 +273,11 @@ adminRouter.get('/temp-customers/:id/orders', authMiddleware, getTempCustomerOrd
 
 adminRouter.get('/booking-groups', authMiddleware, getAllBookingGroups);
 adminRouter.get('/booking-groups/:id', authMiddleware, getBookingGroup);
-adminRouter.post('/booking-groups', authMiddleware, createBookingGroup);
-adminRouter.put('/booking-groups/:id', authMiddleware, updateBookingGroup);
+adminRouter.post('/booking-groups', authMiddleware, validateMiddleware(createBookingGroupSchema), createBookingGroup);
+adminRouter.put('/booking-groups/:id', authMiddleware, validateMiddleware(updateBookingGroupSchema), updateBookingGroup);
 adminRouter.delete('/booking-groups/:id', authMiddleware, deleteBookingGroup);
-adminRouter.post('/booking-groups/:id/payment-intents', authMiddleware, addPaymentIntentsToGroup);
-adminRouter.post('/booking-groups/remove-payment-intents', authMiddleware, removePaymentIntentsFromGroup);
+adminRouter.post('/booking-groups/:id/payment-intents', authMiddleware, validateMiddleware(addPaymentIntentsSchema), addPaymentIntentsToGroup);
+adminRouter.post('/booking-groups/remove-payment-intents', authMiddleware, validateMiddleware(removePaymentIntentsSchema), removePaymentIntentsFromGroup);
 adminRouter.get('/booking-groups/:id/audit-logs', authMiddleware, getBookingGroupAuditLogs);
 adminRouter.get('/booking-groups/:id/invoice', authMiddleware, generateGroupCustomerInvoice); 
 adminRouter.post('/booking-groups/:id/invoice/tax-optimized', authMiddleware, generateGroupTaxOptimizedInvoice);

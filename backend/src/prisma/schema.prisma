@@ -79,7 +79,8 @@ model Customer {
   passportNumber             String?      
   vipStatus                  Boolean             @default(false)
   anniversaryDate            DateTime?      
-  passportExpiry             DateTime?      
+  carNumberPlate             String?
+  passportExpiry             DateTime?      //  here we need include passport issued country attribute
   totalNightStayed           Int                 @default(0)
   totalMoneySpent            Float               @default(0)
   favoriteItems              Json?      
@@ -153,8 +154,7 @@ model Booking {
   voucherCode         String?         
   voucherDiscount     Float?           
   voucherProducts     Json?          
-  groupId             String?
-  carNumberPlate      String?          
+  groupId             String?  
   notifications       Notification[]
   
   // Extra bed fields
@@ -317,6 +317,8 @@ model Payment {
     isAutoGrouped         Boolean            @default(false) 
     mainGuestId           String             @default("")
     mainGuest             Customer           @relation(fields: [mainGuestId], references: [id])
+    bookingType           BookingType        @default(DIRECT)
+    emailToMainGuestOnly  Boolean            @default(true)
     outstandingAmount     Float?    
     createdAt             DateTime           @default(now())
     updatedAt             DateTime           @updatedAt
@@ -415,6 +417,7 @@ model GeneralSettings {
   licensePlateDailyTriggerTime      String                       @default("00:00")
   dailyBookingStartTime             String?                      @default("00:00")
   enableTaxOptimizationFeature      Boolean                      @default(true)
+  checkinReminderDays               Int                          @default(10)
 }
 
 model Otp {
@@ -635,6 +638,17 @@ enum Role {
   MAINTENANCE
   KITCHEN
   WAITER
+}
+
+enum BookingType {
+  BOOKING_COM
+  EXPEDIA
+  AIRBNB
+  WEDDING
+  PRIVATE_EVENT
+  DIRECT
+  CORPORATE
+  OTHER
 }
 
 enum RestrictionType {
@@ -1486,4 +1500,5 @@ enum AuditActionType {
   BOOKING_REMOVED_FROM_GROUP
   INVOICE_GENERATED
   TAX_OPTIMIZED_INVOICE_GENERATED
+  INVOICE_SENT
 }

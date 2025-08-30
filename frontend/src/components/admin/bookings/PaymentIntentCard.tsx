@@ -1,16 +1,13 @@
 import { useState } from "react"
-import { differenceInDays, format, formatDistanceToNow } from "date-fns"
+import { differenceInDays, formatDistanceToNow } from "date-fns"
 import {
-  Calendar,
   CreditCard,
   DollarSign,
   Eye,
   Mail,
-  MapPin,
   Save,
   Trash2,
   X,
-  Users,
   CheckCircle,
   Building2,
   Coins,
@@ -44,9 +41,6 @@ export default function PaymentIntentCard({
   onUpdateEditFormData,
   onSaveEdit,
   onCancelEdit,
-  selectionMode = false,
-  selectedBookingIds = [],
-  onBookingSelect = () => {},
   onConfirmBooking,
   isDeletedTab = false,
 }: PaymentIntentCardProps) {
@@ -185,7 +179,7 @@ export default function PaymentIntentCard({
                   <p className="text-sm text-gray-600">
                     {paymentIntent.bookings.length > 0 
                       ? `Confirmation: ${generateMergedBookingId(paymentIntent.bookings.map(b => b.id))}`
-                      : `#${paymentIntent.id.slice(-8)}`
+                      : `Processing...`
                     }
                   </p>
                 </div>

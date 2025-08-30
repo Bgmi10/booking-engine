@@ -5,7 +5,7 @@ import { BookingGroupService } from "../services/bookingGroupService";
 // New comprehensive booking group endpoints
 export const createBookingGroup = async (req: express.Request, res: express.Response) => {
     try {
-        const { groupName, paymentIntentIds, reason, mainGuestId } = req.body;
+        const { groupName, paymentIntentIds, reason, mainGuestId, bookingType, emailToMainGuestOnly } = req.body;
         //@ts-ignore
         const userId = req.user!.id;
 
@@ -20,7 +20,9 @@ export const createBookingGroup = async (req: express.Request, res: express.Resp
             paymentIntentIds,
             userId,
             reason,
-            mainGuestId
+            mainGuestId,
+            bookingType,
+            emailToMainGuestOnly
         }, res);
 
         if (bookingGroup) {
@@ -34,7 +36,7 @@ export const createBookingGroup = async (req: express.Request, res: express.Resp
 export const updateBookingGroup = async (req: express.Request, res: express.Response) => {
     try {
         const { id } = req.params;
-        const { groupName, reason, mainGuestId } = req.body;
+        const { groupName, reason, mainGuestId, bookingType, emailToMainGuestOnly } = req.body;
         //@ts-ignore
         const userId = req.user!.id;
 
@@ -42,7 +44,9 @@ export const updateBookingGroup = async (req: express.Request, res: express.Resp
             groupName,
             userId,
             reason,
-            mainGuestId
+            mainGuestId,
+            bookingType,
+            emailToMainGuestOnly
         });
 
         responseHandler(res, 200, "Booking group updated successfully", updatedGroup);

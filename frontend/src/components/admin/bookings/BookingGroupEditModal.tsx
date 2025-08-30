@@ -16,6 +16,8 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
   const [groupName, setGroupName] = useState(group.groupName || '');
   const [reason, setReason] = useState('');
   const [mainGuestId, setMainGuestId] = useState(group.mainGuestId || '');
+  const [bookingType, setBookingType] = useState((group as any).bookingType || 'DIRECT');
+  const [emailToMainGuestOnly, setEmailToMainGuestOnly] = useState((group as any).emailToMainGuestOnly !== false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'members'>('details');
   
@@ -77,7 +79,9 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
       await updateBookingGroup(group.id, {
         groupName: groupName.trim(),
         mainGuestId: mainGuestId,
-        reason: reason.trim() || 'Updated group details via admin interface'
+        reason: reason.trim() || 'Updated group details via admin interface',
+        bookingType,
+        emailToMainGuestOnly
       });
       
       toast.success('Group details updated successfully');
@@ -235,6 +239,44 @@ export default function BookingGroupEditModal({ group, onClose, onSave }: Bookin
                   placeholder="Optional reason for this update"
                   disabled={isLoading}
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Booking Type
+                  </label>
+                  <select
+                    value={bookingType}
+                    onChange={(e) => setBookingType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isLoading}
+                  >
+                    <option value="DIRECT">Direct Booking</option>
+                    <option value="BOOKING_COM">Booking.com</option>
+                    <option value="EXPEDIA">Expedia</option>
+                    <option value="AIRBNB">Airbnb</option>
+                    <option value="WEDDING">Wedding</option>
+                    <option value="PRIVATE_EVENT">Private Event</option>
+                    <option value="CORPORATE">Corporate</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={emailToMainGuestOnly}
+                      onChange={(e) => setEmailToMainGuestOnly(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Send all emails to primary guest only
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {/* Main Guest Selection */}

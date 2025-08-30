@@ -123,6 +123,7 @@ export interface RatePolicy {
 }
 
 export interface PaymentIntentDetailsViewProps {
+  onSendInvoice: (id: string) => void;
   paymentIntent: PaymentIntent
   paymentDetails: PaymentDetails | null
   loadingPayment: boolean
@@ -205,6 +206,7 @@ export interface Booking {
   checkIn: string
   checkOut: string
   guestEmail: string
+  totalGuests: number;
   guestFirstName: string
   guestMiddleName?: string
   guestLastName: string
@@ -263,6 +265,7 @@ export interface CustomerData {
   id?: string;
   surname?: string;
   email: string
+  guestPhone?: string;
   guestFirstName?: string;
   guestLastName?: string;
   guestEmail?: string | undefined | any;
@@ -560,6 +563,7 @@ export interface GeneralSettings { // Represents the actual data structure from/
   licensePlateExpiryDays?: number;
   licensePlateDailyTriggerTime?: string;
   enableTaxOptimizationFeature: boolean;
+  checkinReminderDays: number;
   // Add other settings properties here as they are defined in the backend model
 }
 
@@ -577,6 +581,7 @@ export interface SettingsFormValues {
   dahuaLicensePlateExpiryHours?: string;
   licensePlateExpiryDays?: string;
   licensePlateDailyTriggerTime?: string;
+  checkinReminderDays: number;
 }
 
 export interface AvailabilityRule {
@@ -864,6 +869,7 @@ export interface Charge {
   refundedAt?: string;
 }
 
+
 export interface BookingGroup {
   id: string;
   groupName?: string;
@@ -873,23 +879,7 @@ export interface BookingGroup {
   updatedAt: string;
   mainGuestId: string;
   mainGuest: Customer;
-  paymentIntents: Array<{
-    id: string;
-    totalAmount: number;
-    outstandingAmount?: number;
-    status: string;
-    bookings: Array<{
-      id: string;
-      room: {
-        id: string;
-        name: string;
-      };
-      checkIn: string;
-      checkOut: string;
-      totalGuests: number;
-    }>;
-    customer?: Customer
-  }>;
+  paymentIntents:PaymentIntent[];
   _count: {
     paymentIntents: number;
     charges: number;
@@ -923,7 +913,7 @@ export interface BookingGroupAuditLog {
 }
 
 export interface EnhancedPaymentIntentCardProps {
-  paymentIntent: PaymentIntentData;
+  paymentIntent: PaymentIntent;
   onViewDetails?: (paymentIntent: any) => void;
   onSendEmail?: (id: string) => void;
   onCancel?: (paymentIntent: any) => void;

@@ -1957,6 +1957,198 @@ async function main() {
       }
     },
     {
+      name: 'Group Booking Confirmation',
+      type: 'GROUP_CONFIRMATION',
+      subject: 'Group Booking Confirmed - Welcome to La Torre! ({{groupName}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Group Booking Confirmation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+          
+          <!-- Group Confirmation Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.successColor} 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">👥</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Group Booking Confirmed!</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              {{totalRooms}} {{#if (gt totalRooms 1)}}Rooms{{else}}Room{{/if}} • {{totalGuests}} Guests • Welcome to La Torre
+            </p>
+            {{#if bookingType}}
+            <div style="margin-top: 16px;">
+              <span style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">
+                {{bookingType}} Booking
+              </span>
+            </div>
+            {{/if}}
+          </div>
+          
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{mainGuestName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Thank you for choosing La Torre sulla via Francigena for your group stay. We're delighted to confirm your group reservation <strong>"{{groupName}}"</strong>!
+              </p>
+            </div>
+            
+            <!-- Group Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📋 Group Summary</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Group Name:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700;">{{groupName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-in:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkInDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-out:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkOutDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Nights:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalNights}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Rooms:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalRooms}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Total Guests:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalGuests}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Primary Guest:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{mainGuestName}} 👑</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment Intents Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">💳 Bookings in Group</h3>
+              {{#each paymentIntents}}
+              <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; border-left: 4px solid ${emailStyles.infoColor};">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                  <div style="flex: 1;">
+                    <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 8px 0; font-size: 18px; font-weight: 700;">
+                      {{customerName}}
+                      {{#if isMainGuest}}
+                      <span style="background: #fbbf24; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 8px;">PRIMARY GUEST</span>
+                      {{/if}}
+                    </h4>
+                    <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 8px 0; font-size: 14px;">{{customerEmail}}</p>
+                    <div style="background: #f0f9ff; padding: 12px; border-radius: 8px;">
+                      <div style="color: ${emailStyles.infoColor}; font-size: 14px; line-height: 1.5;">
+                        <div><strong>Confirmation ID:</strong> #{{confirmationId}}</div>
+                        <div><strong>Rooms:</strong> {{roomCount}} • <strong>Total:</strong> {{../currency}} {{totalAmount}}</div>
+                        <div><strong>Status:</strong> 
+                          <span style="background: ${emailStyles.successColor}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">{{status}}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{/each}}
+            </div>
+
+            <!-- Group Total -->
+            <div style="background: #dcfce7; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #166534; margin: 0 0 20px 0; font-size: 20px;">💰 Group Payment Summary</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 2px solid #bbf7d0;">
+                  <span style="color: #166534; font-weight: 700; font-size: 18px;">Total Group Amount:</span>
+                  <span style="color: #166534; font-weight: 700; font-size: 24px;">{{currency}} {{groupTotalAmount}}</span>
+                </div>
+                <div style="margin-top: 16px; color: #166534; font-size: 14px; text-align: center;">
+                  <p style="margin: 0;">Individual bookings have been processed separately for each guest</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Important Information -->
+            <div style="background: #fef2f2; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #dc2626; margin: 0 0 20px 0; font-size: 20px;">ℹ️ Group Check-in Information</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <ul style="color: #b91c1c; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Group Check-in:</strong> 3:00 PM onwards</li>
+                  <li><strong>Group Check-out:</strong> 11:00 AM</li>
+                  <li><strong>Primary Guest:</strong> {{mainGuestName}} will coordinate check-in</li>
+                  <li><strong>ID Required:</strong> Each guest must bring valid identification</li>
+                  <li><strong>Group Changes:</strong> Contact us 24 hours in advance for modifications</li>
+                  <li><strong>Parking:</strong> Complimentary parking available on-site</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Final Message -->
+            <div style="text-align: center; padding: 32px 24px; background: linear-gradient(135deg, ${emailStyles.backgroundColor} 0%, #f1f5f9 100%); border-radius: 16px; margin-bottom: 24px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 26px; font-weight: 700;">We Can't Wait to Welcome Your Group!</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 17px; line-height: 1.7;">
+                Your group's journey along the Via Francigena begins with us. As the group leader, please coordinate with your fellow guests and feel free to contact us with any questions.
+              </p>
+              <div style="color: ${emailStyles.infoColor}; font-size: 18px; font-weight: 600;">
+                Safe travels, and see you soon! 🌟
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        groupName: { type: 'string', description: 'Name of the booking group', example: 'Johnson Family Reunion' },
+        bookingType: { type: 'string', description: 'Type of booking', example: 'WEDDING', optional: true },
+        mainGuestName: { type: 'string', description: 'Main guest (group leader) name', example: 'John Johnson' },
+        checkInDate: { type: 'string', description: 'Group check-in date', example: 'Monday, January 1, 2024' },
+        checkOutDate: { type: 'string', description: 'Group check-out date', example: 'Wednesday, January 3, 2024' },
+        totalNights: { type: 'number', description: 'Total nights for group stay', example: 2 },
+        totalRooms: { type: 'number', description: 'Total rooms in group', example: 3 },
+        totalGuests: { type: 'number', description: 'Total guests in group', example: 8 },
+        currency: { type: 'string', description: 'Currency symbol', example: '€' },
+        groupTotalAmount: { type: 'string', description: 'Total amount for entire group', example: '1500.00' },
+        paymentIntents: {
+          type: 'array',
+          description: 'Array of payment intents in the group',
+          example: [{
+            confirmationId: 'CONF-123',
+            customerName: 'John Johnson',
+            customerEmail: 'john@example.com',
+            roomCount: 2,
+            totalAmount: '800.00',
+            status: 'CONFIRMED',
+            isMainGuest: true
+          }, {
+            confirmationId: 'CONF-124', 
+            customerName: 'Jane Smith',
+            customerEmail: 'jane@example.com',
+            roomCount: 1,
+            totalAmount: '700.00',
+            status: 'CONFIRMED',
+            isMainGuest: false
+          }]
+        }
+      }
+    },
+    {
       name: 'Wedding Proposal PDF',
       type: 'WEDDING_PROPOSAL_PDF',
       subject: 'Wedding Proposal - La Torre',
@@ -3954,6 +4146,157 @@ async function main() {
         transactionId: { type: 'string', description: 'Transaction ID', example: 'pi_1234567890', optional: true },
         notes: { type: 'string', description: 'Additional notes', example: 'Thank you for choosing La Torre', optional: true },
         bookingDetails: { type: 'boolean', description: 'Whether to show booking details section', example: true, optional: true }
+      }
+    },
+    {
+      name: 'Booking Invoice',
+      type: 'BOOKING_INVOICE',
+      subject: 'Your Invoice for Booking at La Torre (#{{invoiceNumber}})',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Invoice - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+          
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.primaryColor} 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🧾</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Your Booking Invoice</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">Complete invoice attached as PDF</p>
+          </div>
+
+          <div style="padding: 0 32px 32px;">
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                Thank you for your stay with us at La Torre sulla via Francigena. Please find your complete booking invoice attached to this email as a PDF document.
+              </p>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                This invoice contains all the details of your booking charges and payment information.
+              </p>
+            </div>
+
+            <!-- Invoice Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; padding: 24px; border-radius: 12px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 20px; margin: 0 0 16px 0;">Invoice Summary</h3>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: ${emailStyles.secondaryColor};">Invoice Number:</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{invoiceNumber}}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: ${emailStyles.secondaryColor};">Date:</span>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{invoiceDate}}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <span style="color: ${emailStyles.secondaryColor};">Status:</span>
+                <span style="background: ${emailStyles.successColor}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">{{paymentStatus}}</span>
+              </div>
+              <hr style="border: none; border-top: 1px solid ${emailStyles.borderColor}; margin: 16px 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: ${emailStyles.primaryColor}; font-size: 18px; font-weight: 700;">Total Amount:</span>
+                <span style="color: ${emailStyles.primaryColor}; font-size: 24px; font-weight: 700;">{{currency}}{{totalAmount}}</span>
+              </div>
+            </div>
+
+            <!-- Booking Details -->
+            {{#if bookings}}
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 20px; margin: 0 0 20px 0;">Booking Summary</h3>
+              {{#each bookings}}
+              <div style="background: white; border: 1px solid ${emailStyles.borderColor}; border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                  <div>
+                    <h4 style="color: ${emailStyles.primaryColor}; font-size: 18px; margin: 0 0 4px 0;">{{room.name}}</h4>
+                    <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 14px;">{{room.description}}</p>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{currency}}{{total}}</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 12px;">{{nights}} nights</div>
+                  </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+                  <div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-bottom: 4px;">Check-in</div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{formattedCheckIn}}</div>
+                  </div>
+                  <div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-bottom: 4px;">Check-out</div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{formattedCheckOut}}</div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-bottom: 4px;">Guests</div>
+                  <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{totalGuests}} guests</div>
+                </div>
+              </div>
+              {{/each}}
+            </div>
+            {{/if}}
+
+            <!-- Attachment Notice -->
+            <div style="background: ${emailStyles.infoColor}; background-opacity: 0.1; border-left: 4px solid ${emailStyles.infoColor}; padding: 20px; margin-bottom: 32px;">
+              <h4 style="color: ${emailStyles.infoColor}; font-size: 16px; margin: 0 0 8px 0; display: flex; align-items: center;">
+                📎 Invoice Attachment
+              </h4>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 14px; line-height: 1.6;">
+                Your detailed invoice ({{invoiceNumber}}.pdf) is attached to this email. Please save it for your records.
+              </p>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="background: ${emailStyles.backgroundColor}; padding: 24px; border-radius: 12px; text-align: center;">
+              <h4 style="color: ${emailStyles.primaryColor}; font-size: 16px; margin: 0 0 12px 0;">Need Help?</h4>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+                If you have any questions about your booking or need assistance, we're here to help.
+              </p>
+              <div style="margin-bottom: 8px;">
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">Email:</span>
+                <span style="color: ${emailStyles.secondaryColor};"> info@latorresullaviafrancigena.com</span>
+              </div>
+              <div>
+                <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">Phone:</span>
+                <span style="color: ${emailStyles.secondaryColor};"> +39 0577 123456</span>
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        invoiceNumber: { type: 'string', description: 'Invoice number', example: 'INV-2024-001' },
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        invoiceDate: { type: 'string', description: 'Invoice date', example: 'January 15, 2024' },
+        totalAmount: { type: 'string', description: 'Total amount', example: '495.00' },
+        currency: { type: 'string', description: 'Currency symbol', example: '€' },
+        paymentStatus: { type: 'string', description: 'Payment status', example: 'SUCCEEDED' },
+        bookings: { 
+          type: 'array', 
+          description: 'Array of booking details for invoice', 
+          example: [{ 
+            room: { name: 'Deluxe Suite', description: 'Luxury room with garden view' }, 
+            formattedCheckIn: 'Saturday, January 15, 2024',
+            formattedCheckOut: 'Tuesday, January 18, 2024',
+            nights: 3,
+            totalGuests: 2,
+            total: 165.00
+          }] 
+        }
       }
     }
   ]

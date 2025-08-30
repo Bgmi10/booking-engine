@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive, cleanupExpiredLicensePlates, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport, startChannelSync } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport, startChannelSync } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
@@ -62,8 +62,6 @@ app.use("/api/v1/beds24/webhook", webhookLimiter, beds24WebhookRouter);
 
 cleanExpiredTempHolds();
 makeExpiredSessionToInactive();
-cleanupExpiredLicensePlates();
-//initializeDahuaService();
 triggerAutomatedTasks();
 schedulePaymentReminders();
 scheduleWeddingReminders();

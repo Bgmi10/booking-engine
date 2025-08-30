@@ -3,6 +3,7 @@ import prisma from '../prisma';
 import { handleError, responseHandler } from '../utils/helper';
 import beds24Service from '../services/beds24Service';
 import { markForChannelSync } from '../cron/cron';
+import { BookingGroupService } from '../services/bookingGroupService';
 
 const beds24WebhookRouter = express.Router();
 
@@ -265,20 +266,20 @@ async function createBookingFromBeds24(bookingData: any, roomMapping: any, isDou
   // Check for auto-grouping after booking creation
   if (newBooking.paymentIntent && !isDoubleBooking) {
     try {
-      const { BookingGroupService } = await import("../services/bookingGroupService");
       const shouldAutoGroup = await BookingGroupService.checkAutoGrouping([newBooking.paymentIntent.id]);
       
       if (shouldAutoGroup && !newBooking.paymentIntent.bookingGroupId) {
         const bookingCount = await prisma.booking.count({
           where: { paymentIntentId: newBooking.paymentIntent.id }
         });
-        
+      
         await BookingGroupService.createBookingGroup({
           groupName: `${customer.guestFirstName} ${customer.guestLastName} - ${bookingCount} rooms`,
           isAutoGrouped: true,
           paymentIntentIds: [newBooking.paymentIntent.id],
           userId: 'SYSTEM',
           reason: `Auto-grouped from Beds24: ${bookingCount} rooms booked together`,
+          bookingType: "OTHER"  // we need check the booking type before it gets created. based on that we will create it for testing purpose i will delcare others in later we need to figure out this 
         });
         
         console.log(`[Beds24 Webhook] Auto-grouped booking ${newBooking.id} with payment intent ${newBooking.paymentIntent.id}`);

@@ -173,7 +173,6 @@ export default function CollectPaymentModal({ order, onClose, onPaymentSuccess }
                         currency={{ code: 'eur', symbol: '€' }}
                         onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
-                        customerId={order.customerId || order.temporaryCustomerId!}
                         description={`Payment for Order #${order.id.slice(-6)}`}
                     />
                 );

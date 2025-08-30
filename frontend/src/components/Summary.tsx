@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, X, AlertTriangle } from 'lucide-react';
 import { calculateNights } from '../utils/format';
 
-export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData, taxPercentage = 0.1 }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
+export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
   const [expandedItems, setExpandedItems] = useState<any>({});
   const [conflicts, setConflicts] = useState<any[]>([]);
   
@@ -298,12 +298,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     return allItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
-  const calculateDisplayTax = (subtotal: number) => {
-    return Math.round(subtotal * taxPercentage * 100) / 100;
-  };
-
   const grandTotal = calculateSubtotal();
-  const displayTax = calculateDisplayTax(grandTotal);
 
   const isItemConflicting = (itemId: string) => {
     return conflicts.some(conflict => conflict.id === itemId);

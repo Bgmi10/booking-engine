@@ -10,7 +10,6 @@ interface PaymentMethodSelectionProps {
     };
     onNext: (selectedMethodId: string, data?: any) => void;
     isProcessing: boolean;
-    customerId: string;
     description?: string;
     hideAmountDisplay?: boolean;
 }

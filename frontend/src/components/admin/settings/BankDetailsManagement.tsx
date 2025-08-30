@@ -115,7 +115,7 @@ export default function BankDetailsManagement() {
   const toggleActiveStatus = async (id: string, currentStatus: boolean) => {
     setLoading(true);
     try {
-      const bank = bankDetails?.find(b => b.id === id);
+      const bank = bankDetails?.find((b: BankDetails) => b.id === id);
       if (!bank) return;
 
       const response = await fetch(`${baseUrl}/admin/bank-details/${id}`, {
@@ -208,7 +208,7 @@ export default function BankDetailsManagement() {
           </div>
         ) : (
           <div className="space-y-4">
-            {bankDetails?.map((bank) => (
+            {bankDetails?.map((bank: BankDetails) => (
               <div
                 key={bank.id}
                 className={`bg-white rounded-xl border-2 p-4 sm:p-6 transition-all overflow-hidden ${

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import { ArrowLeft, X } from 'lucide-react';
 import CurrencySelectionModal, { currencies } from './CurrencySelectionModal';
 import PaymentMethodSelection from './PaymentMethodSelection';
 import ManualTransactionForm from './ManualTransactionForm';
 import HostedInvoiceForm from './HostedInvoiceForm';
 import { baseUrl } from '../../../utils/constants';
+import type { Customer } from '../../../hooks/useCustomers';
 
 interface CreatePaymentFormProps {
-    customer: CustomerType;
+    customer: Customer;
     onBack: () => void;
     onClose: () => void;
     paymentIntentId?: string;
@@ -282,7 +282,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose, paymentIn
                         currency={currency}
                         onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
-                        customerId={customer.id}
                         description={description}
                         hideAmountDisplay={true}
                     />
@@ -297,7 +296,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose, paymentIn
                         currency={currency}
                         onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
-                        customerId={customer.id}
                         description={description}
                     />
                 );
@@ -308,7 +306,6 @@ export default function CreatePaymentForm({ customer, onBack, onClose, paymentIn
                         currency={currency}
                         onNext={handlePaymentMethodSelected}
                         isProcessing={isProcessing}
-                        customerId={customer.id}
                         description={description}
                     />
                 );

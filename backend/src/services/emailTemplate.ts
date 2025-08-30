@@ -2,6 +2,7 @@ import dotenv from "dotenv"
 import { EmailService } from './emailService';
 import Handlebars from 'handlebars';
 import { generateMergedBookingId } from "../utils/helper";
+import prisma from '../prisma';
 
 dotenv.config()
 
@@ -201,8 +202,7 @@ export const sendConsolidatedBookingConfirmation = async (
   const totalGuests = bookings.reduce((sum, booking) => sum + booking.totalGuests, 0);
   const roomCharges = processedBookings.reduce((sum, booking) => sum + booking.roomTotal, 0);
   const enhancementsTotal = processedBookings.reduce((sum, booking) => sum + booking.enhancementsTotal, 0);
-  const subtotal = roomCharges + enhancementsTotal;
-
+  
   try {
     // Generate confirmation ID using the helper function for consistency
     const bookingIds = bookings.map(booking => booking.id);
@@ -397,7 +397,7 @@ export const sendPaymentLinkEmail = async (bookingItems: any) => {
   });
 };
 
-export const sendRefundConfirmationEmail = async (
+export const  sendRefundConfirmationEmail = async (
   bookings: any[],
   customerDetails: CustomerDetails,
   refund?: RefundDetail
@@ -621,5 +621,172 @@ export const sendChargeConfirmationEmail = async (
   } catch (error) {
     console.error('Error sending charge confirmation email:', error);
     throw error;
+  }
+};
+
+// Group Email Routing Functions
+
+export const checkGroupEmailPreferences = async (paymentIntentId: string) => {
+  const paymentIntent = await prisma.paymentIntent.findUnique({
+    where: { id: paymentIntentId },
+    include: { 
+      bookingGroup: { 
+        include: { 
+          mainGuest: true,
+          paymentIntents: {
+            include: {
+              customer: true,
+              bookings: {
+                include: {
+                  room: true
+                }
+              }
+            }
+          }
+        } 
+      } 
+    }
+  });
+  
+  return paymentIntent?.bookingGroup ? {
+    emailToMainGuestOnly: paymentIntent.bookingGroup.emailToMainGuestOnly,
+    mainGuestId: paymentIntent.bookingGroup.mainGuestId,
+    mainGuest: paymentIntent.bookingGroup.mainGuest,
+    groupId: paymentIntent.bookingGroup.id,
+    groupName: paymentIntent.bookingGroup.groupName,
+    bookingType: paymentIntent.bookingGroup.bookingType,
+    paymentIntents: paymentIntent.bookingGroup.paymentIntents
+  } : null;
+};
+
+export const sendGroupConfirmationEmail = async (
+  groupData: any,
+  customerDetails: any,
+  receipt_url?: string | null
+) => {
+  try {
+    // Calculate group totals
+    const totalRooms = groupData.paymentIntents.reduce((sum: number, pi: any) => 
+      sum + (pi.bookings?.length || 0), 0);
+    
+    const totalGuests = groupData.paymentIntents.reduce((sum: number, pi: any) => 
+      sum + pi.bookings?.reduce((bookingSum: number, booking: any) => 
+        bookingSum + (booking.totalGuests || 0), 0), 0);
+    
+    const groupTotalAmount = groupData.paymentIntents.reduce((sum: number, pi: any) => 
+      sum + (pi.totalAmount || 0), 0);
+
+    // Get date range for the group
+    const allCheckInDates = groupData.paymentIntents.flatMap((pi: any) => 
+      pi.bookings?.map((b: any) => new Date(b.checkIn)) || []
+    );
+    const allCheckOutDates = groupData.paymentIntents.flatMap((pi: any) => 
+      pi.bookings?.map((b: any) => new Date(b.checkOut)) || []
+    );
+    
+    const earliestCheckIn = new Date(Math.min(...allCheckInDates.map((d: Date) => d.getTime())));
+    const latestCheckOut = new Date(Math.max(...allCheckOutDates.map((d: Date) => d.getTime())));
+    const totalNights = Math.ceil((latestCheckOut.getTime() - earliestCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Format payment intents for template
+    const formattedPaymentIntents = groupData.paymentIntents.map((pi: any) => {
+      const customer = pi.customer || JSON.parse(pi.customerData);
+      return {
+        confirmationId: generateMergedBookingId(pi.bookings?.map((b: any) => b.id) || [pi.id]),
+        customerName: `${customer.guestFirstName || customer.firstName} ${customer.guestLastName || customer.lastName}`,
+        customerEmail: customer.guestEmail || customer.email,
+        roomCount: pi.bookings?.length || 0,
+        totalAmount: pi.totalAmount?.toFixed(2) || '0.00',
+        status: pi.status,
+        isMainGuest: pi.customerId === groupData.mainGuestId
+      };
+    });
+
+    const emailData = {
+      groupName: groupData.groupName || 'Your Group',
+      bookingType: groupData.bookingType,
+      mainGuestName: `${groupData.mainGuest.guestFirstName} ${groupData.mainGuest.guestLastName}`,
+      checkInDate: Handlebars.helpers.formatDate(earliestCheckIn),
+      checkOutDate: Handlebars.helpers.formatDate(latestCheckOut),
+      totalNights,
+      totalRooms,
+      totalGuests,
+      currency: '€',
+      groupTotalAmount: groupTotalAmount.toFixed(2),
+      paymentIntents: formattedPaymentIntents
+    };
+
+    await EmailService.sendEmail({
+      to: {
+        email: groupData.mainGuest.guestEmail,
+        name: `${groupData.mainGuest.guestFirstName} ${groupData.mainGuest.guestLastName}`,
+      },
+      templateType: 'GROUP_CONFIRMATION',
+      subject: '', // Will be taken from template
+      templateData: emailData,
+    });
+
+    console.log(`Group confirmation email sent to main guest: ${groupData.mainGuest.guestEmail}`);
+  } catch (error) {
+    console.error('Error sending group confirmation email:', error);
+    throw error;
+  }
+};
+
+export const routeGroupEmail = async (
+  paymentIntentId: string, 
+  emailType: 'CONFIRMATION' | 'REFUND' | 'CANCELLATION',
+  emailData: any
+) => {
+  const groupConfig = await checkGroupEmailPreferences(paymentIntentId);
+  
+  if (groupConfig?.emailToMainGuestOnly) {
+    console.log(`Routing ${emailType} email to main guest for group: ${groupConfig.groupName}`);
+    
+    switch (emailType) {
+      case 'CONFIRMATION':
+        await sendGroupConfirmationEmail(groupConfig, emailData.customerDetails, emailData.receipt_url);
+        break;
+      case 'REFUND':
+      case 'CANCELLATION':
+        // Send individual email to main guest instead of original customer
+        const mainGuestDetails: CustomerDetails = {
+          firstName: groupConfig.mainGuest.guestFirstName || '',
+          lastName: groupConfig.mainGuest.guestLastName || '',
+          email: groupConfig.mainGuest.guestEmail || '',
+          phone: groupConfig.mainGuest.guestPhone || '',
+          nationality: groupConfig.mainGuest.guestNationality || '',
+          specialRequests: undefined,
+          receiveMarketing: undefined
+        };
+        
+        await sendRefundConfirmationEmail(
+          Array.isArray(emailData.bookings) ? emailData.bookings : (emailData.bookingData ? [emailData.bookingData] : []), 
+          mainGuestDetails, 
+          emailData.refundDetails || emailData.refund
+        );
+        break;
+    }
+  } else {
+    console.log(`Sending ${emailType} email to individual customer (group emails disabled)`);
+    // Send to individual customer (existing behavior)
+    switch (emailType) {
+      case 'CONFIRMATION':
+        await sendConsolidatedBookingConfirmation(
+          emailData.bookings, 
+          emailData.customerDetails, 
+          emailData.receipt_url, 
+          emailData.voucherInfo
+        );
+        break;
+      case 'REFUND':
+      case 'CANCELLATION':
+        await sendRefundConfirmationEmail(
+          Array.isArray(emailData.bookings) ? emailData.bookings : (emailData.bookingData ? [emailData.bookingData] : []), 
+          emailData.customerDetails, 
+          emailData.refundDetails || emailData.refund
+        );
+        break;
+    }
   }
 };

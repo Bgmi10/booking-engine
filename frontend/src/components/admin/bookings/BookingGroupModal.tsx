@@ -12,6 +12,7 @@ import ChargeRefundModal from '../shared/ChargeRefundModal';
 import OrderDetailsModal from '../customers/OrderDetailsModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import RefundConfirmationModal from './RefundConfirmationModal';
+import FutureRefundModal from './FutureRefundModal';
 import AuditLogModal from './AuditLogModal';
 import TaxOptimizationModal from '../invoices/TaxOptimizationModal';
 import { baseUrl } from '../../../utils/constants';
@@ -43,12 +44,17 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  
   // Edit payment intent state
   const [editingPaymentIntent, setEditingPaymentIntent] = useState<any>(null);
   
   // Refund state for payment intents
   const [refundingPaymentIntent, setRefundingPaymentIntent] = useState<any>(null);
   const [showPaymentIntentRefundModal, setShowPaymentIntentRefundModal] = useState(false);
+  
+  // Future refund state
+  const [futureRefundPaymentIntent, setFutureRefundPaymentIntent] = useState<any>(null);
+  const [showFutureRefundModal, setShowFutureRefundModal] = useState(false);
   
   // Group invoice state
   const [showGroupTaxModal, setShowGroupTaxModal] = useState(false);
@@ -162,6 +168,105 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
     setShowPartialRefundModal(true);
   };
 
+  const sendConfirmationEmail = async (paymentIntentId: string) => {
+    setIsRefreshing(true);
+    try {
+      const paymentIntent = group.paymentIntents?.find((pi) => pi.id === paymentIntentId);
+      if (!paymentIntent) throw new Error("Payment intent not found");
+
+      const response = await fetch(`${baseUrl}/admin/bookings/${paymentIntentId}/send-confirmation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          paymentMethod: paymentIntent.paymentMethod || 'STRIPE'
+        })
+      });
+
+      if (response.ok) {
+        toast.success("Confirmation email sent successfully");
+      } else {
+        throw new Error("Failed to send email");
+      }
+    } catch (error) {
+      toast.error("Failed to send confirmation email");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const sendGroupConfirmationEmails = async () => {
+    setIsRefreshing(true);
+    try {
+      const successfulPaymentIntents = group.paymentIntents?.filter(pi => pi.status === 'SUCCEEDED') || [];
+      
+      if (successfulPaymentIntents.length === 0) {
+        toast.error("No successful payment intents found in this group");
+        return;
+      }
+
+      const emailToMainGuestOnly = (group as any).emailToMainGuestOnly;
+      
+      if (emailToMainGuestOnly) {
+        // When emailToMainGuestOnly is true, send ANY payment intent email - backend will automatically route to GROUP_CONFIRMATION template for main guest
+        const anyPaymentIntent = successfulPaymentIntents[0]; // Just pick the first one
+        
+        const response = await fetch(`${baseUrl}/admin/bookings/${anyPaymentIntent.id}/send-confirmation`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            paymentMethod: anyPaymentIntent.paymentMethod || 'STRIPE'
+          })
+        });
+        
+        if (response.ok) {
+          toast.success("Group confirmation email sent to primary guest");
+        } else {
+          toast.error("Failed to send group confirmation email");
+        }
+      } else {
+        // When emailToMainGuestOnly is false, send individual emails to all guests
+        const emailPromises = successfulPaymentIntents.map(async (pi) => {
+          try {
+            const response = await fetch(`${baseUrl}/admin/bookings/${pi.id}/send-confirmation`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                paymentMethod: pi.paymentMethod || 'STRIPE'
+              })
+            });
+            
+            if (response.ok) {
+              return { success: true };
+            } else {
+              return { success: false };
+            }
+          } catch (error) {
+            return { success: false };
+          }
+        });
+
+        const results = await Promise.all(emailPromises);
+        const emailsSent = results.filter(r => r.success).length;
+        const errors = results.filter(r => !r.success).length;
+
+        if (emailsSent > 0 && errors === 0) {
+          toast.success(`Confirmation emails sent to all ${emailsSent} guests`);
+        } else if (emailsSent > 0 && errors > 0) {
+          toast.error(`Sent ${emailsSent} emails, ${errors} failed`);
+        } else {
+          toast.error("Failed to send any confirmation emails");
+        }
+      }
+    } catch (error) {
+      toast.error("Failed to send group confirmation emails");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
     if (!refundingPaymentIntent) return;
     
@@ -198,6 +303,44 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
       setIsProcessingRefund(false);
     }
   };
+
+  const handleProcessFutureRefund = (paymentIntent: any) => {
+    setFutureRefundPaymentIntent(paymentIntent);
+    setShowFutureRefundModal(true);
+  };
+
+  const processFutureRefund = async (data: { sendEmailToCustomer: boolean }) => {
+    if (!futureRefundPaymentIntent) return;
+    
+    setIsProcessingRefund(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/bookings/future-refund`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentIntentId: futureRefundPaymentIntent.id,
+          sendEmailToCustomer: data.sendEmailToCustomer
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Future refund processed successfully');
+        setShowFutureRefundModal(false);
+        setFutureRefundPaymentIntent(null);
+        handleRefresh();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Failed to process future refund');
+      }
+    } catch (error) {
+      console.error('Error processing future refund:', error);
+      toast.error('Failed to process future refund');
+    } finally {
+      setIsProcessingRefund(false);
+    }
+  };
+
 
   const handleViewAuditLogs = async (paymentIntent: any) => {
     setSelectedPaymentIntentForAudit(paymentIntent);
@@ -245,7 +388,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] p-4">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
           {/* Loading Overlay */}
           {isRefreshing && (
@@ -270,8 +413,14 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                 )}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {group._count.paymentIntents} payment intents • {totalBookings} bookings • Created {format(new Date(group.createdAt), 'MMM dd, yyyy')}
+                {group._count.paymentIntents} payment intents • {totalBookings} bookings • {(group as any).bookingType || 'DIRECT'} • Created {format(new Date(group.createdAt), 'MMM dd, yyyy')}
               </p>
+              {(group as any).emailToMainGuestOnly && (
+                <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                  <Mail className="h-3 w-3" />
+                  All emails automatically routed to primary guest via backend
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 relative z-20">
               {onDelete && !group.isAutoGrouped && (
@@ -285,6 +434,18 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                   Delete
                 </button>
               )}
+
+              {/* Group Email Confirmation Button - Always show but with different behavior */}
+              <button
+                onClick={sendGroupConfirmationEmails}
+                disabled={isRefreshing}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 disabled:opacity-50 transition-colors"
+                title={(group as any).emailToMainGuestOnly ? "Send group confirmation email to primary guest (backend automatically routes all group emails)" : "Send confirmation emails to all guests in group"}
+              >
+                <Mail className="h-4 w-4 mr-1" />
+                {(group as any).emailToMainGuestOnly ? "Send Confirmation Email" : "Send Confirmation Email"}
+              </button>
+              
               
               {/* Group Invoice Export Buttons */}
               <button
@@ -507,6 +668,22 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                               }`}>
                                 {pi.status}
                               </span>
+                              {pi.refundStatus && pi.refundStatus !== 'NOT_REFUNDED' && (
+                                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                  pi.refundStatus === 'CANCELLED_NO_REFUND' 
+                                    ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' 
+                                    : pi.refundStatus === 'FULLY_REFUNDED' 
+                                    ? 'bg-green-100 text-green-800 border border-green-200'
+                                    : pi.refundStatus === 'PARTIALLY_REFUNDED'
+                                    ? 'bg-orange-100 text-orange-800 border border-orange-200'
+                                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}>
+                                  {pi.refundStatus === 'CANCELLED_NO_REFUND' ? 'Cancelled (No Refund)' 
+                                   : pi.refundStatus === 'FULLY_REFUNDED' ? 'Refunded'
+                                   : pi.refundStatus === 'PARTIALLY_REFUNDED' ? 'Partial Refund'
+                                   : pi.refundStatus}
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-600">
                               #{generateMergedBookingId(pi.bookings.map((booking) =>  booking.id))} • {pi.customer?.guestEmail}
@@ -559,15 +736,23 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                             <History className="h-3 w-3 mr-1" />
                             History
                           </button>
-                          <button
+                        {pi.status === "SUCCEEDED" &&  <button
                             onClick={() => handleEditPaymentIntent(pi)}
                             className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                           >
                             <Edit className="h-3 w-3 mr-1" />
                             Edit
-                          </button>
+                          </button>}
                           {pi.status === 'SUCCEEDED' && (
                             <>
+                              <button
+                                onClick={() => sendConfirmationEmail(pi.id)}
+                                disabled={isRefreshing}
+                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors disabled:opacity-50"
+                              >
+                                <Mail className="h-3 w-3 mr-1" />
+                                Send Email
+                              </button>
                               <button
                                 onClick={() => handlePartialRefund(pi)}
                                 className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 transition-colors"
@@ -583,6 +768,18 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                                 Full Refund
                               </button>
                             </>
+                          )}
+                          
+                          {/* Process Refund Button for Cancelled Payment Intents */}
+                          {pi.refundStatus === 'CANCELLED_NO_REFUND' && (
+                            <button
+                              onClick={() => handleProcessFutureRefund(pi)}
+                              disabled={isRefreshing}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                              <DollarSign className="h-3 w-3 mr-1" />
+                              Process Refund
+                            </button>
                           )}
                         </div>
                       </div>
@@ -901,9 +1098,8 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
         </div>
       </div>
 
-      {/* Payment Intent Detail Modal */}
       {selectedPaymentIntent && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <div>
@@ -922,7 +1118,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
                 paymentIntent={selectedPaymentIntent}
                 paymentDetails={null}
                 loadingPayment={false}
-                onSendEmail={() => {}}
+                onSendEmail={() => sendConfirmationEmail(selectedPaymentIntent.id)}
                 onCancel={() => {}}
                 onRefund={() => {}}
                 onViewPayment={() => {}}
@@ -948,6 +1144,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
       {showChargeModal && group.paymentIntents?.[0]?.customer && (
         <ChargeModal
           step='create_payment'
+          //@ts-ignore
           customer={group.paymentIntents[0].customer}
           paymentIntentId={group.paymentIntents[0]?.id}
           onClose={async () => {
@@ -1079,6 +1276,21 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
           loading={isProcessingRefund}
         />
       )}
+
+      {/* Future Refund Modal */}
+      {showFutureRefundModal && futureRefundPaymentIntent && (
+        <FutureRefundModal
+          isOpen={showFutureRefundModal}
+          onClose={() => {
+            setShowFutureRefundModal(false);
+            setFutureRefundPaymentIntent(null);
+          }}
+          paymentIntent={futureRefundPaymentIntent}
+          onConfirm={processFutureRefund}
+          isLoading={isProcessingRefund}
+        />
+      )}
+
 
       {/* Partial Refund Modal */}
       {showPartialRefundModal && refundingPaymentIntent && (

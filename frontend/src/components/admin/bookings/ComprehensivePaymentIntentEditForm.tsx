@@ -138,6 +138,7 @@ export default function ComprehensivePaymentIntentEditForm({
           return {
             ...b,
             cancellationFees: [
+              //@ts-ignore
               ...(b.cancellationFees || []),
               {
                 roomName: bookingToRemove.roomName,

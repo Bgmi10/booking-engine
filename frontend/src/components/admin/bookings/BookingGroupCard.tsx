@@ -7,7 +7,8 @@ import {
   CreditCard,
   ShoppingBag,
   DollarSign,
-  Badge
+  Badge,
+  Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BookingGroup } from '../../../types/types';
@@ -81,6 +82,7 @@ function SingleBookingGroupCard({
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingInvoice, setIsSendingInvoice] = useState(false);
 
   const totalBookings = group.paymentIntents.reduce(
     (sum, pi) => sum + pi.bookings.length,
@@ -133,6 +135,32 @@ function SingleBookingGroupCard({
       toast.error('Failed to delete booking group');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSendInvoice = async () => {
+    setIsSendingInvoice(true);
+    try {
+      const response = await fetch(`${baseUrl}/admin/customers/send-group-invoice`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookingGroupId: group.id }),
+      });
+
+      if (response.ok) {
+        toast.success('Group invoice sent successfully');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send group invoice');
+      }
+    } catch (error: any) {
+      console.error('Error sending group invoice:', error);
+      toast.error(error.message || 'Failed to send group invoice');
+    } finally {
+      setIsSendingInvoice(false);
     }
   };
 
@@ -227,6 +255,15 @@ function SingleBookingGroupCard({
             >
               <Edit className="h-4 w-4 mr-1" />
               Edit
+            </button>
+
+            <button
+              onClick={handleSendInvoice}
+              disabled={isSendingInvoice}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              <Mail className="h-4 w-4 mr-1" />
+              {isSendingInvoice ? 'Sending...' : 'Send Invoice'}
             </button>
 
             <button

@@ -1,7 +1,5 @@
 import cron from "node-cron";
 import prisma from "../prisma";
-import { licensePlateCleanupService } from "../services/licensePlateCleanupService";
-import { dahuaService } from "../services/dahuaService";
 import { notificationService } from "../services/notificationService";
 import { PaymentReminderService } from "../services/paymentReminderService";
 import { WeddingReminderService } from "../services/weddingReminderService";
@@ -43,8 +41,6 @@ export const makeExpiredSessionToInactive = () => {
         select: { id: true }
       });
 
-      console.log("log")
-
       if (!paymentIntent) {
         console.log("No expired session found");
         return 
@@ -69,30 +65,6 @@ export const makeExpiredSessionToInactive = () => {
     }
   })
 }
-
-export const cleanupExpiredLicensePlates = () => {
-  cron.schedule("0 * * * *", async () => {
-    try {
-      console.log("[Cron] Starting license plate cleanup...");
-      await licensePlateCleanupService.cleanupExpiredLicensePlates();
-      console.log("[Cron] License plate cleanup completed");
-    } catch (error) {
-      console.error("[Cron] License plate cleanup failed:", error);
-    }
-  });
-};
-
-// export const initializeDahuaService = () => {
-//   cron.schedule("0 0 * * *", async () => {
-//     try {
-//       console.log("[Cron] Initializing Dahua service...");
-//       await dahuaService.initialize();
-//       console.log("[Cron] Dahua service initialization completed");
-//     } catch (error) {
-//       console.error("[Cron] Dahua service initialization failed:", error);
-//     }
-//   });
-// };
 
 export const triggerAutomatedTasks = () => {
   cron.schedule("*/5 * * * *", async () => {
@@ -731,3 +703,13 @@ export const getChannelSyncHealth = async () => {
     lastRun: new Date()
   };
 };
+
+export const ScheduleCheckinReminder = async () => {
+  cron.schedule("0 0 * * *", async () => {
+    try {
+      // here the logic is this need to check hte every booking check in date and if that matches the general settings => checkinreminder int in days then it should trigger the email to user with the template that says a  
+    } catch (error) {
+      console.error("[Cron] Error in Schedule checkin reminder:", error);
+    }
+  });
+}

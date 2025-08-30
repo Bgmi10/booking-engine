@@ -268,7 +268,7 @@ export default function EnhancedPaymentIntentCard({
                   <p className="text-sm text-gray-600">
                     {paymentIntent.bookings.length > 0 
                       ? `Confirmation: ${generateMergedBookingId(paymentIntent.bookings.map(b => b.id))}`
-                      : `#${paymentIntent.id.slice(-8)}`
+                      : `Processing...`
                     }
                   </p>
                 </div>

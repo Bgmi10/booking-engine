@@ -3,7 +3,6 @@ import { format } from "date-fns";
 import {
   Calendar,
   Users,
-  DollarSign,
   RefreshCw,
   AlertTriangle,
   CheckCircle,

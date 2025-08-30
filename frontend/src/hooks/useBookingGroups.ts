@@ -36,6 +36,8 @@ export function useBookingGroups() {
     paymentIntentIds: string[];
     mainGuestId: string;
     reason?: string;
+    bookingType?: string;
+    emailToMainGuestOnly?: boolean;
   }) => {
     try {
       const response = await fetch(`${baseUrl}/admin/booking-groups`, {
@@ -63,9 +65,11 @@ export function useBookingGroups() {
   };
 
   const updateBookingGroup = async (groupId: string, data: {
-    groupName: string;
+    groupName?: string;
     mainGuestId?: string;
     reason?: string;
+    bookingType?: string;
+    emailToMainGuestOnly?: boolean;
   }) => {
     try {
       const response = await fetch(`${baseUrl}/admin/booking-groups/${groupId}`, {

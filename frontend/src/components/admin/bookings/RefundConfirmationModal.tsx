@@ -7,6 +7,7 @@ interface RefundConfirmationModalProps {
   onConfirm: (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => void;
   paymentIntent: any;
   isLoading?: boolean;
+  loading?: boolean; // Alternative prop name for loading state
 }
 
 const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
@@ -14,7 +15,8 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
   onClose,
   onConfirm, 
   paymentIntent,
-  isLoading = false
+  isLoading = false,
+  loading = false
 }) => {
   const [reason, setReason] = useState('');
   const [sendEmailToCustomer, setSendEmailToCustomer] = useState(true);
@@ -56,7 +58,7 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            disabled={isLoading}
+            disabled={isLoading || loading}
           >
             <X className="h-5 w-5" />
           </button>
@@ -92,7 +94,7 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                       checked={selectedReason === reasonOption.value}
                       onChange={(e) => setSelectedReason(e.target.value)}
                       className="mr-2"
-                      disabled={isLoading}
+                      disabled={isLoading || loading}
                     />
                     <span className="text-sm text-gray-700">{reasonOption.label}</span>
                   </label>
@@ -105,7 +107,7 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                 placeholder="Enter refund reason or note (optional)..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 rows={3}
-                disabled={isLoading}
+                disabled={isLoading || loading}
               />
             )}
           </div>
@@ -118,7 +120,7 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                 checked={processRefund}
                 onChange={(e) => setProcessRefund(e.target.checked)}
                 className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                disabled={isLoading}
+                disabled={isLoading || loading}
               />
               <span className="text-sm text-gray-700">
                 <strong>Process refund payment</strong>
@@ -137,7 +139,7 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                 checked={sendEmailToCustomer}
                 onChange={(e) => setSendEmailToCustomer(e.target.checked)}
                 className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                disabled={isLoading}
+                disabled={isLoading || loading}
               />
               <span className="text-sm text-gray-700">
                 <strong>Send email notification to customer</strong>
@@ -152,17 +154,17 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
         <div className="flex justify-end space-x-3 p-6 border-t bg-gray-50">
           <button
             onClick={onClose}
-            disabled={isLoading}
+            disabled={isLoading || loading}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
-            disabled={isLoading}
+            disabled={isLoading || loading}
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
           >
-            {isLoading ? (
+            {(isLoading || loading) ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

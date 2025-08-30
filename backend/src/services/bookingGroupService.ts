@@ -1,3 +1,4 @@
+import { BookingType } from "@prisma/client";
 import prisma from "../prisma";
 import { responseHandler } from "../utils/helper";
 import { AuditService } from "./auditService";
@@ -13,9 +14,11 @@ export class BookingGroupService {
     paymentIntentIds?: string[];
     userId: string;
     reason?: string;
+    bookingType: BookingType;
     mainGuestId?: string
+    emailToMainGuestOnly?: boolean
   }, res?: express.Response) {
-    const { groupName, isAutoGrouped, paymentIntentIds = [], userId, reason, mainGuestId } = data;
+    const { groupName, isAutoGrouped, paymentIntentIds = [], userId, reason, mainGuestId, bookingType, emailToMainGuestOnly } = data;
 
     // Start transaction
     return await prisma.$transaction(async (tx) => {
@@ -53,7 +56,9 @@ export class BookingGroupService {
           groupName,
           isAutoGrouped,
           outstandingAmount: 0, 
-          mainGuestId 
+          mainGuestId,
+          bookingType,
+          emailToMainGuestOnly
         },
       });
 
@@ -140,10 +145,12 @@ export class BookingGroupService {
       groupName?: string;
       userId: string;
       reason?: string;
-      mainGuestId?: string
+      mainGuestId?: string,
+      emailToMainGuestOnly?: boolean;
+      bookingType: BookingType
     }
   ) {
-    const { groupName, userId, reason, mainGuestId } = data;
+    const { groupName, userId, reason, mainGuestId, bookingType, emailToMainGuestOnly } = data;
 
     return await prisma.$transaction(async (tx) => {
       // Get current group data
@@ -158,7 +165,7 @@ export class BookingGroupService {
       // Update the group
       const updatedGroup = await tx.bookingGroup.update({
         where: { id: groupId },
-        data: { groupName, mainGuestId },
+        data: { groupName, mainGuestId, bookingType: bookingType, emailToMainGuestOnly },
       });
 
       // Create audit log
@@ -203,7 +210,8 @@ export class BookingGroupService {
       const paymentIntents = await tx.paymentIntent.findMany({
         where: { 
           id: { in: paymentIntentIds },
-          bookingGroupId: null, // Only unassigned payment intents
+          bookingGroupId: null,
+          status: "SUCCEEDED" // Only unassigned payment intents
         },
         select: { 
           id: true, 
