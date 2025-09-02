@@ -94,6 +94,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         customerData: JSON.stringify({
           ...customerDetails,
           receiveMarketing: customerDetails.receiveMarketing || false,
+          tcAgreed: customerDetails.tcAgreed || true
         }),
         taxAmount,
         totalAmount: paymentAmount, // Amount to be paid now

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "GuestCheckInAccess" ADD COLUMN     "tokenExpriesAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

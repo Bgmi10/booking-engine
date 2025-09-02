@@ -564,6 +564,7 @@ export interface GeneralSettings { // Represents the actual data structure from/
   licensePlateDailyTriggerTime?: string;
   enableTaxOptimizationFeature: boolean;
   checkinReminderDays: number;
+  onlineCheckinHomeImageUrl?: string;
   // Add other settings properties here as they are defined in the backend model
 }
 
@@ -582,6 +583,7 @@ export interface SettingsFormValues {
   licensePlateExpiryDays?: string;
   licensePlateDailyTriggerTime?: string;
   checkinReminderDays: number;
+  onlineCheckinHomeImageUrl?: string;
 }
 
 export interface AvailabilityRule {

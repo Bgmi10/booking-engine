@@ -16,7 +16,13 @@ import {
     getProposalDetails,
     acceptProposal,
     getPaymentPlan,
-    confirmFinalGuestNumbers
+    confirmFinalGuestNumbers,
+    editCustomer,
+    verifyOnlineCheckInToken,
+    getGuestDetails,
+    createManualGuest,
+    inviteBookingGuest,
+    deleteGuest
 } from "../controllers/customerController";
 import { generateProposalPDF } from '../controllers/proposalController';
 import customerAuthMiddleware from "../middlewares/customerAuthMiddleware";
@@ -33,6 +39,7 @@ import {
 } from '../controllers/serviceRequestController';
 import { getAllProducts } from "../controllers/productController";
 import { getAllRooms } from "../controllers/roomController";
+import { onlineCheckInMiddleware } from "../middlewares/onlineCheckinMiddleware";
 
 const customerRouter = Router();
 
@@ -45,6 +52,14 @@ customerRouter.get('/profile', customerAuthMiddleware, getCustomerProfile);
 customerRouter.post('/logout', customerLogout);
 customerRouter.post('/orders', customerAuthMiddleware, createOrder);
 customerRouter.get('/products/all', getAllProducts);
+customerRouter.put('/profile/:id', editCustomer);
+customerRouter.post('/online-checkin/verify-token', verifyOnlineCheckInToken);
+customerRouter.get('/online-checkin/guest-details', onlineCheckInMiddleware, getGuestDetails);
+
+// Guest Management Routes (Protected by onlineCheckInMiddleware)
+customerRouter.post('/online-checkin/guests/manual', onlineCheckInMiddleware, createManualGuest);
+customerRouter.post('/online-checkin/guests/invite', onlineCheckInMiddleware, inviteBookingGuest);
+customerRouter.delete('/online-checkin/bookings/:bookingId/guests/:guestId', onlineCheckInMiddleware, deleteGuest);
 
 // Wedding Portal Authentication Routes
 customerRouter.post('/wedding-portal-login', weddingPortalLogin);

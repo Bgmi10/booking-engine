@@ -7,7 +7,17 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "WebFetch(domain:wiki.beds24.com)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)"
     ],
     "deny": []
   }

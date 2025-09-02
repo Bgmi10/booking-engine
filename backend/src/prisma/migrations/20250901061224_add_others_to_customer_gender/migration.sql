@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "GENDER" ADD VALUE 'OTHERS';

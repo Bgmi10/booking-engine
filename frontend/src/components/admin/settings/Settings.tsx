@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RiSave3Line, RiErrorWarningLine, RiCheckLine, RiSettings3Line } from 'react-icons/ri';
+import { RiSave3Line, RiErrorWarningLine, RiCheckLine, RiSettings3Line, RiUploadLine, RiDeleteBinLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl, paymentMethods } from '../../../utils/constants';
 import { Template as TemplateComponent } from './templates/Template';
@@ -10,6 +10,8 @@ import LicensePlateManagement from './LicensePlateManagement';
 import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
 import Profile from '../Profile';
 import Users from '../user/Users';
+import toast from 'react-hot-toast';
+import { useImageUpload } from '../../../hooks/useImageUpload';
 
 interface PaymentConfig {
   qr_code: boolean;
@@ -27,8 +29,20 @@ export default function Settings() {
   const [formValues, setFormValues] = useState<SettingsFormValues | any>({});
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+
+  // Image upload hook for online check-in image
+  const {
+    images: checkInImages,
+    uploadingImage: uploadingCheckInImage,
+    isDragging: isDraggingCheckInImage,
+    uploadImages: uploadCheckInImages,
+    removeImage: removeCheckInImage,
+    handleDragEnter: handleCheckInDragEnter,
+    handleDragLeave: handleCheckInDragLeave,
+    handleDragOver: handleCheckInDragOver,
+    handleDrop: handleCheckInDrop,
+    setInitialImages: setInitialCheckInImages
+  } = useImageUpload();
 
   // Payment config state
   const [showPaymentConfig, setShowPaymentConfig] = useState(false);
@@ -54,8 +68,6 @@ export default function Settings() {
 
   const fetchSettings = async () => {
     setIsLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       const response = await fetch(`${baseUrl}/admin/settings`, {
         credentials: "include",
@@ -85,9 +97,15 @@ export default function Settings() {
           dailyBookingStartTime: currentSettings.dailyBookingStartTime || '00:00',
           autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2),
           enableTaxOptimizationFeature: currentSettings.enableTaxOptimizationFeature || false,
-          checkinReminderDays: currentSettings.checkinReminderDays || 0
+          checkinReminderDays: currentSettings.checkinReminderDays || 0,
+          onlineCheckinHomeImageUrl: currentSettings.onlineCheckinHomeImageUrl || ''
         });
         setSettingsId(currentSettings.id);
+
+        // Initialize image upload hook with existing image
+        if (currentSettings.onlineCheckinHomeImageUrl) {
+          setInitialCheckInImages([currentSettings.onlineCheckinHomeImageUrl]);
+        }
 
         // Parse payment config
         if (currentSettings.chargePaymentConfig) {
@@ -116,7 +134,7 @@ export default function Settings() {
       }
     } catch (err: any) {
       console.error("Failed to fetch settings:", err);
-      setError(err.message || 'Failed to fetch settings.');
+      toast.error(err.message || 'Failed to fetch settings.');
       setInitialSettings(null); 
       setFormValues({});
     } finally {
@@ -133,8 +151,6 @@ export default function Settings() {
 
   const handleSavePaymentConfig = async () => {
     setIsSavingPaymentConfig(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const response = await fetch(`${baseUrl}/admin/settings`, {
@@ -154,11 +170,11 @@ export default function Settings() {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       
-      setSuccess('Payment configuration updated successfully!');
+      toast.success('Payment configuration updated successfully!');
       setShowPaymentConfig(false);
     } catch (err: any) {
       console.error("Failed to save payment config:", err);
-      setError(err.message || 'Failed to save payment configuration.');
+      toast.error(err.message || 'Failed to save payment configuration.');
     } finally {
       setIsSavingPaymentConfig(false);
     }
@@ -166,7 +182,6 @@ export default function Settings() {
 
   const fetchTemplates = async () => {
     setIsLoadingTemplates(true);
-    setError(null);
     try {
       const response = await fetch(`${baseUrl}/admin/email-templates`, {
         credentials: "include",
@@ -218,7 +233,7 @@ export default function Settings() {
       setTemplates(validTemplates);
     } catch (err: any) {
       console.error('Failed to fetch templates:', err);
-      setError(err.message || 'Failed to fetch templates');
+      toast.error(err.message || 'Failed to fetch templates');
       setTemplates([]);
     } finally {
       setIsLoadingTemplates(false);
@@ -250,9 +265,9 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to save template');
   
       await fetchTemplates();
-      setSuccess('Template saved successfully!');
+      toast.success('Template saved successfully!');
     } catch (err: any) {
-      setError(err.message || 'Failed to save template');
+      toast.error(err.message || 'Failed to save template');
       throw err;
     }
   };
@@ -267,9 +282,9 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to delete template');
   
       await fetchTemplates();
-      setSuccess('Template deleted successfully!');
+      toast.success('Template deleted successfully!');
     } catch (err: any) {
-      setError(err.message || 'Failed to delete template');
+      toast.error(err.message || 'Failed to delete template');
       throw err;
     }
   };
@@ -288,9 +303,9 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to delete templates');
   
       await fetchTemplates();
-      setSuccess(`Successfully deleted ${templateIds.length} template${templateIds.length > 1 ? 's' : ''}!`);
+      toast.success(`Successfully deleted ${templateIds.length} template${templateIds.length > 1 ? 's' : ''}!`);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete templates');
+      toast.error(err.message || 'Failed to delete templates');
       throw err;
     }
   };
@@ -314,9 +329,9 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to duplicate template');
   
       await fetchTemplates();
-      setSuccess('Template duplicated successfully!');
+      toast.success('Template duplicated successfully!');
     } catch (err: any) {
-      setError(err.message || 'Failed to duplicate template');
+      toast.error(err.message || 'Failed to duplicate template');
       throw err;
     }
   };
@@ -329,20 +344,16 @@ export default function Settings() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormValues((prev: any) => ({ ...prev, [name]: value }));
-    setSuccess(null);
-    setError(null);
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settingsId) {
-      setError("Settings ID is missing");
+      toast.error("Settings ID is missing");
       return;
     }
 
     setIsLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const response = await fetch(`${baseUrl}/admin/settings`, {
@@ -360,7 +371,8 @@ export default function Settings() {
           dailyBookingStartTime: formValues.dailyBookingStartTime || '00:00',
           autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2,
           enableTaxOptimizationFeature: formValues.enableTaxOptimizationFeature === true,
-          checkinReminderDays: formValues.checkinReminderDays || 0
+          checkinReminderDays: formValues.checkinReminderDays || 0,
+          onlineCheckinHomeImageUrl: checkInImages[0] || ''
         }),
       });
       
@@ -371,10 +383,10 @@ export default function Settings() {
       
       const updatedSettingsData = await response.json();
       setInitialSettings(updatedSettingsData.data);
-      setSuccess('Settings updated successfully!');
+      toast.success('Settings updated successfully!')
     } catch (err: any) {
       console.error("Failed to save settings:", err);
-      setError(err.message || 'Failed to save settings.');
+      toast.error(err.message || 'Failed to save settings.')
     } finally {
       setIsLoading(false);
     }
@@ -560,14 +572,101 @@ export default function Settings() {
                               ...prev,
                               enableTaxOptimizationFeature: e.target.checked
                             }));
-                            setSuccess(null);
-                            setError(null);
                           }}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <label htmlFor="enableTaxOptimizationFeature" className="ml-2 text-sm text-gray-700">
                           Enable Legacy Mode
                         </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Online Check-in Image Section */}
+                <div className="p-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-4">Online Check-in Home Page</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Check-in Home Page Image
+                      </label>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Upload an image to display on the online check-in home page. This image will be shown to guests when they access their check-in portal.
+                      </p>
+                      
+                      {/* Image Upload Area */}
+                      <div
+                        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                          isDraggingCheckInImage
+                            ? 'border-blue-400 bg-blue-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onDragEnter={handleCheckInDragEnter}
+                        onDragLeave={handleCheckInDragLeave}
+                        onDragOver={handleCheckInDragOver}
+                        onDrop={handleCheckInDrop}
+                      >
+                        {checkInImages.length > 0 ? (
+                          <div className="space-y-4">
+                            <div className="relative inline-block">
+                              <img
+                                src={checkInImages[0]}
+                                alt="Online check-in home page"
+                                className="max-w-full max-h-48 object-contain rounded-lg shadow-sm"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeCheckInImage(0)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                              >
+                                <RiDeleteBinLine className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Click the × button to remove this image, or drag and drop a new image to replace it.
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <RiUploadLine className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-600">
+                                Drag and drop an image here, or{' '}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const input = document.createElement('input')
+                                    input.type = 'file'
+                                    input.accept = 'image/*'
+                                    input.onchange = (e) => {
+                                      const file = (e.target as HTMLInputElement).files?.[0]
+                                      if (file) {
+                                        uploadCheckInImages([file])
+                                      }
+                                    }
+                                    input.click()
+                                  }}
+                                  className="text-blue-600 hover:text-blue-500 font-medium"
+                                >
+                                  browse to upload
+                                </button>
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                PNG, JPG, GIF up to 10MB
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {uploadingCheckInImage && (
+                          <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <BiLoader className="w-5 h-5 animate-spin text-blue-500" />
+                              <span className="text-sm text-gray-600">Uploading...</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -732,8 +831,6 @@ export default function Settings() {
                       type="button"
                       onClick={async () => {
                         setIsSavingCashSettings(true);
-                        setError(null);
-                        setSuccess(null);
                         
                         try {
                           const response = await fetch(`${baseUrl}/admin/cash-settings`, {
@@ -753,10 +850,10 @@ export default function Settings() {
                             throw new Error(errorData.message || 'Failed to save cash settings');
                           }
                           
-                          setSuccess('Cash management settings updated successfully!');
+                          toast.success('Cash management settings updated successfully!');
                         } catch (err: any) {
                           console.error("Failed to save cash settings:", err);
-                          setError(err.message || 'Failed to save cash management settings.');
+                          toast.error(err.message || 'Failed to save cash management settings.');
                         } finally {
                           setIsSavingCashSettings(false);
                         }
@@ -800,7 +897,7 @@ export default function Settings() {
     }
   };
 
-  if (isLoading && !initialSettings && !error) {
+  if (isLoading && !initialSettings) {
     return (
       <div className="min-h-screen bg-gray-50/50">
         <div className="p-8 w-full max-w-7xl mx-auto">
@@ -843,23 +940,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Messages */}
-        {error && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-md">
-              <RiErrorWarningLine className="flex-shrink-0" />
-              <p>{error}</p>
-            </div>
-          </div>
-        )}
-        {success && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-md">
-              <RiCheckLine className="flex-shrink-0" />
-              <p>{success}</p>
-            </div>
-          </div>
-        )}
 
         {/* Main Content */}
         <form onSubmit={handleSaveSettings}>

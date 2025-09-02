@@ -4298,6 +4298,358 @@ async function main() {
           }] 
         }
       }
+    },
+    {
+      name: 'Online Check-In Invitation',
+      type: 'ONLINE_CHECKIN_INVITATION',
+      subject: 'Complete Your Online Check-In - {{roomName}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Online Check-In Invitation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Online Check-In Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.infoColor} 0%, #2563eb 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">📱</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Complete Your Online Check-In</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.9; font-weight: 500;">Save time at arrival - check in now!</p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Your check-in date at La Torre sulla via Francigena is approaching! To make your arrival smooth and hassle-free, we invite you to complete your online check-in process.
+              </p>
+            </div>
+
+            <!-- Check-In Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🏨 Your Stay Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Room:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700;">{{roomName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-in Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkInDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Days Until Arrival:</span>
+                    <span style="background: ${emailStyles.infoColor}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 600;">{{daysUntilCheckin}} days</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="{{checkinUrl}}" style="display: inline-block; background: ${emailStyles.infoColor}; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3); transition: all 0.3s ease;">
+                🚀 Start Online Check-In
+              </a>
+            </div>
+
+            <!-- Benefits Section -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 24px;">⚡</span> Benefits of Online Check-In
+              </h3>
+              <div style="display: grid; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">✓</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Skip reception desk queues</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">✓</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Secure digital process</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">✓</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Update your information in advance</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">✓</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Contactless and convenient</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Process Steps -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 18px;">📋 What to Expect</h3>
+              <div style="display: grid; gap: 16px;">
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">1</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Personal Information</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Confirm and update your personal details</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">2</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Document Verification</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Upload passport/ID and license plate information</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">3</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Terms & Signature</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Review terms and provide digital signature</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.successColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Ready to Go!</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Arrive and enjoy your stay without delays</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Notice -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 20px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <span style="font-size: 24px;">🔒</span>
+                <h3 style="color: #92400e; margin: 0; font-size: 16px; font-weight: 600;">Secure Access</h3>
+              </div>
+              <p style="color: #92400e; margin: 0; font-size: 14px; line-height: 1.6;">
+                This link is unique and secure for your booking only. Please do not share this link with others. 
+                It will expire after your check-in date for your security.
+              </p>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="background: white; border: 1px solid ${emailStyles.borderColor}; border-radius: 12px; padding: 24px; text-align: center;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 18px;">Need Help?</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+                If you have any questions about the online check-in process, our team is here to help.
+              </p>
+              <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">📞</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">+39 123 456 7890</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">📧</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">info@latorresullaviafrancigena.com</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Guest full name', example: 'John Doe' },
+        roomName: { type: 'string', required: true, description: 'Name of the reserved room', example: 'Deluxe Suite' },
+        checkInDate: { type: 'string', required: true, description: 'Formatted check-in date', example: 'Monday, January 15, 2024' },
+        checkinUrl: { type: 'string', required: true, description: 'Secure URL for online check-in with token', example: 'https://latorre.farm/online-checkin/abc123token456' },
+        daysUntilCheckin: { type: 'number', required: true, description: 'Number of days until check-in', example: 10 }
+      }
+    },
+    {
+      name: 'Guest Check-In Invitation',
+      type: 'GUEST_CHECKIN_INVITATION',
+      subject: 'You\'re Invited to Complete Online Check-In - {{roomName}}',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Guest Check-In Invitation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Guest Invitation Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.successColor} 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🎉</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">You're Invited!</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.9; font-weight: 500;">Complete your online check-in for the upcoming stay</p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{guestName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                <strong>{{inviterName}}</strong> has invited you to complete your online check-in for the upcoming stay at La Torre sulla via Francigena.
+              </p>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                To ensure a smooth arrival experience, please complete your check-in process using the link below.
+              </p>
+            </div>
+
+            <!-- Booking Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🏨 Stay Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Room:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700;">{{roomName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-in Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkInDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-out Date:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkOutDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Invited by:</span>
+                    <span style="background: ${emailStyles.successColor}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 600;">{{inviterName}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="{{checkinUrl}}" style="display: inline-block; background: ${emailStyles.successColor}; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3); transition: all 0.3s ease;">
+                🚀 Complete My Check-In
+              </a>
+            </div>
+
+            <!-- Important Information -->
+            <div style="background: #fef3cd; border: 1px solid #f59e0b; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #d97706; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 24px;">ℹ️</span> Important Information
+              </h3>
+              <div style="color: #92400e; font-size: 15px; line-height: 1.6;">
+                <p style="margin: 0 0 12px 0;">
+                  <strong>Personal Information Required:</strong> You'll need to provide your personal details, including passport/ID information for registration purposes.
+                </p>
+                <p style="margin: 0 0 12px 0;">
+                  <strong>Document Upload:</strong> Please have your passport or ID ready to upload during the check-in process.
+                </p>
+                <p style="margin: 0;">
+                  <strong>Secure Process:</strong> All information is encrypted and handled securely according to Italian privacy regulations.
+                </p>
+              </div>
+            </div>
+
+            <!-- What You'll Need -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 24px;">📋</span> What You'll Need
+              </h3>
+              <div style="display: grid; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">📄</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Valid passport or national ID</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">📱</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Mobile phone for document photos</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">📧</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Valid email address</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="background: ${emailStyles.infoColor}; color: white; border-radius: 50%; padding: 6px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">📞</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">Contact phone number</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Process Timeline -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 18px;">⏱️ Check-in Process</h3>
+              <div style="display: grid; gap: 16px;">
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.successColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">1</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Personal Details</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Enter your personal information and contact details</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.successColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">2</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Document Upload</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Upload photos of your passport or ID document</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.successColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">3</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">Terms & Confirmation</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">Review and accept terms and conditions</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 12px;">
+                  <span style="background: ${emailStyles.successColor}; color: white; border-radius: 50%; padding: 8px; font-size: 12px; font-weight: bold; min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</span>
+                  <div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 600; margin-bottom: 4px;">All Set!</div>
+                    <div style="color: ${emailStyles.secondaryColor}; font-size: 14px;">You'll be ready for a smooth arrival experience</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; text-align: center;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 18px;">Need Help?</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 14px;">
+                If you have any questions about the check-in process, please contact us:
+              </p>
+              <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; font-size: 14px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 16px;">📞</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">+39 0583 394107</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 16px;">📧</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-weight: 500;">info@latorresullaviafrancigena.com</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        guestName: { type: 'string', required: true, description: 'Name of the invited guest', example: 'Jane Smith' },
+        inviterName: { type: 'string', required: true, description: 'Name of the person who invited this guest', example: 'John Doe' },
+        roomName: { type: 'string', required: true, description: 'Name of the reserved room', example: 'Deluxe Suite' },
+        checkInDate: { type: 'string', required: true, description: 'Formatted check-in date', example: 'Monday, January 15, 2024' },
+        checkOutDate: { type: 'string', required: true, description: 'Formatted check-out date', example: 'Wednesday, January 17, 2024' },
+        checkinUrl: { type: 'string', required: true, description: 'Secure URL for guest online check-in with token', example: 'https://latorre.farm/online-checkin/xyz789token123' }
+      }
     }
   ]
 

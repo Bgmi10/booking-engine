@@ -870,9 +870,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, checkinReminderDays, chargePaymentConfig, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature } = req.body;
+  const { minStayDays, id, taxPercentage, checkinReminderDays, chargePaymentConfig, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature, onlineCheckinHomeImageUrl } = req.body;
 
-  let updateData: { checkinReminderDays?: number, minStayDays?: number,  taxPercentage?: number, chargePaymentConfig?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean } = {};
+  let updateData: { checkinReminderDays?: number, minStayDays?: number,  taxPercentage?: number, chargePaymentConfig?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean, onlineCheckinHomeImageUrl?: string } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -908,6 +908,10 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   
   if (typeof enableTaxOptimizationFeature !== 'undefined') {
     updateData.enableTaxOptimizationFeature = enableTaxOptimizationFeature;
+  }
+  
+  if (typeof onlineCheckinHomeImageUrl !== 'undefined') {
+    updateData.onlineCheckinHomeImageUrl = onlineCheckinHomeImageUrl;
   }
   
   try {
@@ -2475,6 +2479,9 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
           }
         });
         createdBookings.push(booking);
+
+        // Note: GuestCheckInAccess records will be created by the cron job when sending check-in reminder emails
+        // This ensures tokens are only created when actually needed for customer communication
       }
   
       // Remove temporary holds

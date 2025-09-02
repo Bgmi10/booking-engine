@@ -5,11 +5,9 @@ import dotenv from "dotenv";
 import { handleError, responseHandler, generateMergedBookingId } from "../utils/helper";
 import { sendConsolidatedBookingConfirmation, sendConsolidatedAdminNotification, sendRefundConfirmationEmail, sendChargeRefundConfirmationEmail, routeGroupEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
-import { dahuaService } from "../services/dahuaService";    
 import { EmailService } from "../services/emailService";
 import { markForChannelSync } from "../cron/cron";
 import { BookingGroupService } from "../services/bookingGroupService";
-import { Customer } from "@prisma/client";
 
 dotenv.config();
 
@@ -846,7 +844,6 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
         // Parse booking data
         const bookingItems = JSON.parse(ourPaymentIntent.bookingData);
         const customerDetails = JSON.parse(ourPaymentIntent.customerData);
-        // Extract customerRequest from Stripe metadata if present
         const customerRequest = (stripePayment.metadata && stripePayment.metadata.customerRequest) || customerDetails.specialRequests || null;
         const sendConfirmationEmail = stripePayment.metadata.sendConfirmationEmail || "true";
         let customer: any; 
@@ -866,6 +863,7 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                     }
                 });
 
+
                 customer = await tx.customer.create({
                     data: {
                         guestEmail: customerDetails.email,
@@ -874,7 +872,9 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                         guestPhone: customerDetails.phone,
                         guestMiddleName: customerDetails.middleName || null,
                         guestNationality: customerDetails.nationality,
-                        stripeCustomerId: stripeCustomer.id
+                        stripeCustomerId: stripeCustomer.id,
+                        tcAgreed: customerDetails.tcAgreed,
+                        receiveMarketingEmail: customerDetails.receiveMarketing
                     }
                 });
             } else {
@@ -886,7 +886,9 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
                         guestFirstName: customerDetails.firstName,
                         guestPhone: customerDetails.phone,
                         guestMiddleName: customerDetails.middleName || null,
-                        guestNationality: customerDetails.nationality
+                        guestNationality: customerDetails.nationality,  
+                        receiveMarketingEmail: customerDetails.receiveMarketing,
+                        tcAgreed: customerDetails.tcAgreed
                     }
                 });
             }
@@ -980,6 +982,9 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
 
             // Handle voucher success - increment usage counts and confirm applied status
             await handleVoucherSuccess(tx, ourPaymentIntent, createdBookings);
+
+            // Note: GuestCheckInAccess records will be created by the cron job when sending check-in reminder emails
+            // This ensures tokens are only created when actually needed for customer communication
 
             return { createdBookings, customer };
         });

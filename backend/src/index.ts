@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import roomsRouter from "./routes/roomRoute";
 import bookingRouter from "./routes/bookingRouter";
 import stipeWebhookRouter from "./routes/stripeWebhook";
-import { cleanExpiredTempHolds, makeExpiredSessionToInactive, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport, startChannelSync } from "./cron/cron";
+import { cleanExpiredTempHolds, makeExpiredSessionToInactive, triggerAutomatedTasks, schedulePaymentReminders, scheduleWeddingReminders, updateExpiredLicensePlates, scheduleLicensePlateExport, startChannelSync, scheduleCheckinReminder } from "./cron/cron";
 import enhancementRouter from "./routes/enhancementRouter";
 import sessionRouter from "./routes/sessionRoute";
 import paymentIntentRouter from "./routes/paymentIntentRoute";
@@ -68,6 +68,7 @@ scheduleWeddingReminders();
 updateExpiredLicensePlates();
 scheduleLicensePlateExport(); // Dynamic cron for license plate export emails
 startChannelSync(); // Start channel manager sync cron job
+scheduleCheckinReminder()
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

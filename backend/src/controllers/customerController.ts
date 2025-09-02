@@ -8,6 +8,7 @@ import TelegramService from "../services/telegramService";
 import { CustomerPortalService } from "../services/customerPortalService";
 import { CustomerAuthService } from '../services/customerAuthService';
 import { loginSchema, resetPasswordSchema, activateAccountSchema } from '../zod/auth.schema';
+import { EmailService } from "../services/emailService";
 
 dotenv.config();
 
@@ -65,7 +66,27 @@ export const deleteCustomer = async (req: express.Request, res: express.Response
 }
 
 export const editCustomer =  async (req: express.Request, res: express.Response) => {
-    const { firstName, lastName, middleName, nationality, email, phone, dob, passportExpiry, passportNumber, vipStatus, totalNigthsStayed, totalMoneySpent } = req.body; 
+    const { 
+        firstName, 
+        lastName, 
+        middleName, 
+        nationality, 
+        email, 
+        phone, 
+        dob, 
+        passportExpiry, 
+        passportNumber, 
+        passportIssuedCountry,
+        gender,
+        placeOfBirth,
+        city,
+        tcAgreed,
+        receiveMarketingEmail,
+        carNumberPlate,
+        vipStatus, 
+        totalNigthsStayed, 
+        totalMoneySpent 
+    } = req.body; 
 
     const { id } = req.params;
 
@@ -80,18 +101,65 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
             data: {
                 guestFirstName: firstName,
                 guestEmail: email,
-                passportExpiry: new Date(passportExpiry),
+                passportExpiry: passportExpiry ? new Date(passportExpiry) : null,
                 passportNumber: passportNumber,
+                passportIssuedCountry: passportIssuedCountry,
                 guestPhone: phone,
-                dob: new Date(dob),
+                dob: dob ? new Date(dob) : null,
                 guestLastName: lastName,
                 guestMiddleName: middleName,
                 guestNationality: nationality,
+                gender: gender,
+                placeOfBirth: placeOfBirth,
+                city: city,
+                tcAgreed: tcAgreed,
+                receiveMarketingEmail: receiveMarketingEmail,
+                carNumberPlate: carNumberPlate,
                 vipStatus,
                 totalNightStayed: totalNigthsStayed,
                 totalMoneySpent
             }
         });
+
+        // Update GuestCheckInAccess tracking for all bookings this customer is associated with
+        const guestAccessRecords = await prisma.guestCheckInAccess.findMany({
+            where: {
+                customerId: id
+            }
+        });
+
+        if (guestAccessRecords.length > 0) {
+            // Calculate completion status based on updated data
+            const personalDetailsComplete = !!(firstName && lastName && email && dob);
+            const identityDetailsComplete = !!(nationality && passportNumber && passportExpiry && passportIssuedCountry);
+            const addressDetailsComplete = !!(city);
+            
+            let completionStatus = 'INCOMPLETE';
+            if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
+                completionStatus = 'COMPLETE';
+            } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
+                completionStatus = 'PARTIAL';
+            }
+
+            // Update all GuestCheckInAccess records for this customer
+            await prisma.guestCheckInAccess.updateMany({
+                where: {
+                    customerId: id
+                },
+                data: {
+                    personalDetailsComplete,
+                    identityDetailsComplete,
+                    addressDetailsComplete,
+                    completionStatus: completionStatus as any,
+                    checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null,
+                    // Update invitation status if they were invited and now completing
+                    ...(completionStatus === 'COMPLETE' && {
+                        invitationAcceptedAt: new Date()
+                    })
+                }
+            });
+        }
+
         responseHandler(res, 200, "Updated customer data success");
     } catch (e) {
         console.log(e);
@@ -171,6 +239,376 @@ export const getOccupiedRooms = async (req: express.Request, res: express.Respon
     }
 };
 
+export const verifyOnlineCheckInToken = async (req: express.Request, res: express.Response) => {
+    const { token } = req.body;
+
+    if (!token) {
+        responseHandler(res, 400, "Token is required");
+        return;
+    }
+
+    try {
+        const verifyToken = await prisma.guestCheckInAccess.findUnique({
+            where: { accessToken: token },
+            include: {
+                customer: {
+                    select: {
+                        id: true,
+                        guestFirstName: true,
+                        guestLastName: true,
+                        guestEmail: true
+                    }
+                },
+                booking: {
+                    select: {
+                        id: true,
+                        checkIn: true,
+                        checkOut: true,
+                        room: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!verifyToken) {
+            responseHandler(res, 400, "Invalid Token");
+            return;
+        }
+
+        // Check if token has expired
+        const now = new Date();
+        if (verifyToken.tokenExpiresAt < now) {
+            responseHandler(res, 400, "Token has expired");
+            return;
+        }
+
+        // Update invitation status to ACCEPTED if this is an invited guest
+        if (verifyToken.guestType === 'INVITED' && verifyToken.invitationStatus === 'PENDING') {
+            await prisma.guestCheckInAccess.update({
+                where: {
+                    customerId_bookingId: {
+                        customerId: verifyToken.customerId,
+                        bookingId: verifyToken.bookingId
+                    }
+                },
+                data: {
+                    invitationStatus: 'ACCEPTED',
+                    invitationAcceptedAt: new Date()
+                }
+            });
+        }
+
+        // Return token verification success with customer and booking data
+        const clientToken = generateToken({ 
+            customerId: verifyToken.customerId, 
+            customerEmail: verifyToken.customer.guestEmail,
+            bookingId: verifyToken.bookingId // Include booking ID for context
+        })
+        res.cookie("onlineCheckInToken", clientToken, {
+            domain: process.env.NODE_ENV === "local" ? "localhost" : "latorre.farm",
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        });
+
+        responseHandler(res, 200, "success");
+        
+    } catch (e) {
+        handleError(res, e as Error);
+        console.log(e);
+    }
+}
+
+export const getGuestDetails = async (req: express.Request, res: express.Response) => {
+    //@ts-ignore
+    const { customerId, bookingId } = req.user;
+
+    try {
+        // Get all bookings for this customer that they have access to
+        const customer = await prisma.customer.findUnique({
+            where: { id: customerId },
+            select: {
+                id: true,
+                guestFirstName: true,
+                guestMiddleName: true,
+                guestLastName: true,
+                guestEmail: true,
+                guestPhone: true,
+                guestNationality: true,
+                dob: true,
+                passportNumber: true,
+                passportExpiry: true,
+                passportIssuedCountry: true,
+                gender: true,
+                placeOfBirth: true,
+                city: true,
+                carNumberPlate: true,
+                tcAgreed: true,
+                receiveMarketingEmail: true
+            }
+        });
+
+        if (!customer) {
+            responseHandler(res, 404, "Customer not found");
+            return;
+        }
+
+        // Get all bookings this customer has direct access to (they made the booking)
+        const ownedBookings = await prisma.booking.findMany({
+            where: {
+                customerId: customerId,
+                status: "CONFIRMED"
+            },
+            include: {
+                room: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        images: {
+                            select: {
+                                id: true,
+                                url: true
+                            }
+                        }
+                    }
+                },
+                // Include all guests for this booking
+                guestCheckInAccess: {
+                    include: {
+                        customer: {
+                            select: {
+                                id: true,
+                                guestFirstName: true,
+                                guestLastName: true,
+                                guestMiddleName: true,
+                                guestEmail: true,
+                                guestPhone: true,
+                                guestNationality: true,
+                                dob: true,
+                                city: true,
+                                passportNumber: true,
+                                passportExpiry: true,
+                                passportIssuedCountry: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Get bookings they have guest access to (invited by other customers)
+        const guestAccessRecords = await prisma.guestCheckInAccess.findMany({
+            where: {
+                customerId: customerId,
+                tokenExpiresAt: {
+                    gte: new Date()
+                },
+                booking: {
+                    status: "CONFIRMED"
+                }
+            },
+            include: {
+                booking: {
+                    include: {
+                        room: {
+                            select: {
+                                id: true,
+                                name: true,
+                                description: true,
+                                images: {
+                                    select: {
+                                        id: true,
+                                        url: true
+                                    }
+                                }
+                            }
+                        },
+                        // Include all guests for this booking too
+                        guestCheckInAccess: {
+                            include: {
+                                customer: {
+                                    select: {
+                                        id: true,
+                                        guestFirstName: true,
+                                        guestLastName: true,
+                                        guestMiddleName: true,
+                                        guestEmail: true,
+                                        guestPhone: true,
+                                        guestNationality: true,
+                                        dob: true,
+                                        city: true,
+                                        passportNumber: true,
+                                        passportExpiry: true,
+                                        passportIssuedCountry: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Combine all accessible bookings (remove duplicates)
+        const allBookings = [...ownedBookings];
+        guestAccessRecords.forEach(access => {
+            if (access.booking && !allBookings.find(b => b.id === access.booking?.id)) {
+                allBookings.push(access.booking);
+            }
+        });
+
+        if (allBookings.length === 0) {
+            responseHandler(res, 404, "No accessible bookings found");
+            return;
+        }
+
+        // Determine if this customer is the main guest for any booking
+        const isMainGuest = ownedBookings.length > 0;
+
+        // Process bookings with guest data and update completion statuses
+        const processedBookings = await Promise.all(allBookings.map(async (booking) => {
+            // Update completion status for all guests in this booking
+            for (const access of booking.guestCheckInAccess) {
+                const guestCustomer = access.customer;
+                
+                const personalDetailsComplete = !!(
+                    guestCustomer.guestFirstName && 
+                    guestCustomer.guestLastName && 
+                    guestCustomer.guestEmail && 
+                    guestCustomer.dob
+                );
+                
+                const identityDetailsComplete = !!(
+                    guestCustomer.guestNationality && 
+                    guestCustomer.passportNumber && 
+                    guestCustomer.passportExpiry && 
+                    guestCustomer.passportIssuedCountry
+                );
+                
+                const addressDetailsComplete = !!(guestCustomer.city);
+                
+                let completionStatus = 'INCOMPLETE';
+                if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
+                    completionStatus = 'COMPLETE';
+                } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
+                    completionStatus = 'PARTIAL';
+                }
+                
+                // Update the database with current completion status
+                await prisma.guestCheckInAccess.update({
+                    where: {
+                        customerId_bookingId: {
+                            customerId: access.customerId,
+                            bookingId: booking.id
+                        }
+                    },
+                    data: {
+                        personalDetailsComplete,
+                        identityDetailsComplete,
+                        addressDetailsComplete,
+                        completionStatus: completionStatus as any,
+                        checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
+                    }
+                });
+            }
+
+            // Get updated guest data with completion status
+            const updatedGuestAccess = await prisma.guestCheckInAccess.findMany({
+                where: { bookingId: booking.id },
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            guestFirstName: true,
+                            guestLastName: true,
+                            guestMiddleName: true,
+                            guestEmail: true,
+                            guestPhone: true,
+                            guestNationality: true,
+                            dob: true,
+                            city: true,
+                            passportNumber: true,
+                            passportExpiry: true,
+                            passportIssuedCountry: true
+                        }
+                    }
+                }
+            });
+
+            // Process guests with completion data
+            const guests = updatedGuestAccess.map(access => ({
+                id: access.customer.id,
+                guestFirstName: access.customer.guestFirstName,
+                guestLastName: access.customer.guestLastName,
+                guestMiddleName: access.customer.guestMiddleName,
+                guestEmail: access.customer.guestEmail,
+                guestPhone: access.customer.guestPhone,
+                guestNationality: access.customer.guestNationality,
+                dob: access.customer.dob,
+                city: access.customer.city,
+                passportNumber: access.customer.passportNumber,
+                passportExpiry: access.customer.passportExpiry,
+                passportIssuedCountry: access.customer.passportIssuedCountry,
+                // Enhanced tracking fields
+                guestType: access.guestType,
+                invitationStatus: access.invitationStatus,
+                completionStatus: access.completionStatus,
+                personalDetailsComplete: access.personalDetailsComplete,
+                identityDetailsComplete: access.identityDetailsComplete,
+                addressDetailsComplete: access.addressDetailsComplete,
+                invitationSentAt: access.invitationSentAt,
+                invitationAcceptedAt: access.invitationAcceptedAt,
+                checkInCompletedAt: access.checkInCompletedAt,
+                addedManuallyAt: access.addedManuallyAt,
+                // Legacy fields for compatibility
+                addedManually: access.guestType === 'MANUAL',
+                invitationPending: access.invitationStatus === 'PENDING',
+                addedAt: access.createdAt
+            }));
+
+            return {
+                ...booking,
+                guests: guests
+            };
+        }));
+
+        // Structure the response data for online check-in
+        const checkInData = {
+            customer: {
+                id: customer.id,
+                firstName: customer.guestFirstName,
+                middleName: customer.guestMiddleName,
+                lastName: customer.guestLastName,
+                email: customer.guestEmail,
+                phone: customer.guestPhone,
+                nationality: customer.guestNationality,
+                dateOfBirth: customer.dob,
+                passportNumber: customer.passportNumber,
+                passportExpiry: customer.passportExpiry,
+                passportIssuedCountry: customer.passportIssuedCountry,
+                gender: customer.gender,
+                placeOfBirth: customer.placeOfBirth,
+                city: customer.city,
+                tcAgreed: customer.tcAgreed,
+                receiveMarketingEmail: customer.receiveMarketingEmail,
+                carNumberPlate: customer.carNumberPlate
+            },
+            bookings: processedBookings, // Send bookings with included guest data
+            isMainGuest: isMainGuest
+        };
+
+        responseHandler(res, 200, "Guest details retrieved successfully", checkInData);
+        
+    } catch (e) {
+        console.error(e);
+        handleError(res, e as Error);
+    }
+}
 
 export const loginCustomer = async (req: express.Request, res: express.Response) => {
     const { surname, roomName, isGuest } = req.body;
@@ -892,3 +1330,350 @@ export const createGuestProposal = async (req: express.Request, res: express.Res
         handleError(res, error as Error);
     }
 };
+
+export const createManualGuest = async (req: express.Request, res: express.Response) => {
+    const { customerId } = (req as any).user;
+    const { 
+        bookingId,
+        firstName, 
+        lastName, 
+        middleName, 
+        email, 
+        telephone, 
+        nationality, 
+        dateOfBirth, 
+        city, 
+        passportNumber,
+        passportExpiryDate,
+        passportIssuedCountry
+    } = req.body;
+
+    if (!customerId) {
+        responseHandler(res, 401, "Unauthorized - Please log in");
+        return;
+    }
+
+    if (!bookingId || !firstName || !lastName || !email) {
+        responseHandler(res, 400, "Missing required fields");
+        return;
+    }
+
+    try {
+        // Verify that the booking belongs to the authenticated customer
+        const firstBooking = await prisma.booking.findFirst({
+            where: {
+                id: bookingId,
+                customerId: customerId
+            }
+        });
+
+        if (!firstBooking) {
+            responseHandler(res, 404, "Booking not found or doesn't belong to you");
+            return;
+        }
+
+        // Create or update the guest customer record
+        const guestCustomer = await prisma.customer.upsert({
+            where: {
+                guestEmail: email
+            },
+            create: {
+                guestFirstName: firstName,
+                guestLastName: lastName,
+                guestMiddleName: middleName || null,
+                guestEmail: email,
+                guestPhone: telephone || null,
+                guestNationality: nationality || null,
+                dob: dateOfBirth ? new Date(dateOfBirth) : null,
+                city: city || null,
+                passportNumber: passportNumber || null,
+                passportExpiry: passportExpiryDate ? new Date(passportExpiryDate) : null,
+                passportIssuedCountry: passportIssuedCountry || null,
+            },
+            update: {
+                guestFirstName: firstName,
+                guestLastName: lastName,
+                guestMiddleName: middleName || null,
+                guestPhone: telephone || null,
+                guestNationality: nationality || null,
+                dob: dateOfBirth ? new Date(dateOfBirth) : null,
+                city: city || null,
+                passportNumber: passportNumber || null,
+                passportExpiry: passportExpiryDate ? new Date(passportExpiryDate) : null,
+                passportIssuedCountry: passportIssuedCountry || null,
+            }
+        });
+
+        // Link the guest to the booking using GuestCheckInAccess table
+        // Set token expiry to the day after booking check-in date
+        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        const tokenExpiresAt = new Date(booking!.checkIn);
+        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1);
+        tokenExpiresAt.setHours(23, 59, 59, 999);
+
+        // Calculate completion status based on provided data
+        const personalDetailsComplete = !!(firstName && lastName && email && dateOfBirth);
+        const identityDetailsComplete = !!(nationality && passportNumber && passportExpiryDate && passportIssuedCountry);
+        const addressDetailsComplete = !!(city);
+        
+        let completionStatus = 'INCOMPLETE';
+        if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
+            completionStatus = 'COMPLETE';
+        } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
+            completionStatus = 'PARTIAL';
+        }
+
+        await prisma.guestCheckInAccess.upsert({
+            where: {
+                customerId_bookingId: {
+                    customerId: guestCustomer.id,
+                    bookingId: bookingId
+                }
+            },
+            create: {
+                customerId: guestCustomer.id,
+                bookingId: bookingId,
+                accessToken: `manual-guest-${guestCustomer.id}`, // Special token for manual guests
+                tokenExpiresAt: tokenExpiresAt,
+                guestType: 'MANUAL',
+                invitationStatus: 'NOT_APPLICABLE',
+                completionStatus: completionStatus as any,
+                personalDetailsComplete,
+                identityDetailsComplete,
+                addressDetailsComplete,
+                addedManuallyBy: customerId,
+                addedManuallyAt: new Date(),
+                checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
+            },
+            update: {
+                guestType: 'MANUAL',
+                invitationStatus: 'NOT_APPLICABLE',
+                completionStatus: completionStatus as any,
+                personalDetailsComplete,
+                identityDetailsComplete,
+                addressDetailsComplete,
+                addedManuallyBy: customerId,
+                addedManuallyAt: new Date(),
+                checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
+            }
+        });
+
+        responseHandler(res, 200, "Guest created successfully", {
+            guest: {
+                id: guestCustomer.id,
+                firstName: guestCustomer.guestFirstName,
+                lastName: guestCustomer.guestLastName,
+                email: guestCustomer.guestEmail,
+                addedManually: true
+            }
+        });
+
+    } catch (error) {
+        console.error("Error creating manual guest:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const inviteBookingGuest = async (req: express.Request, res: express.Response) => {
+    const { customerId } = (req as any).user; 
+    const { bookingId, firstName, lastName, email } = req.body;
+
+    if (!bookingId || !firstName || !lastName || !email) {
+        responseHandler(res, 400, "Missing required fields");
+        return;
+    }
+
+    try {
+        // Verify that the booking belongs to the authenticated customer
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingId,
+                customerId: customerId
+            },
+            include: {
+                room: true
+            }
+        });
+
+        if (!booking) {
+            responseHandler(res, 404, "Booking not found or doesn't belong to you");
+            return;
+        }
+
+        // Get inviter details
+        const inviter = await prisma.customer.findUnique({
+            where: { id: customerId }
+        });
+
+        if (!inviter) {
+            responseHandler(res, 404, "Inviter not found");
+            return;
+        }
+
+        if (inviter.guestEmail === email) {
+            responseHandler(res, 400, "Cannot Invite Yourself");
+            return;
+        }
+
+        // Create or update a guest customer record
+        const guestCustomer = await prisma.customer.upsert({
+            where: {
+                guestEmail: email
+            },
+            create: {
+                guestFirstName: firstName,
+                guestLastName: lastName,
+                guestEmail: email,
+                guestPhone: ""
+            },
+            update: {
+                guestFirstName: firstName,
+                guestLastName: lastName
+            }
+        });
+
+        
+       
+        const token = require('crypto').randomBytes(32).toString('hex');
+        const tokenExpiresAt = new Date(booking.checkIn);
+        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1);
+        tokenExpiresAt.setHours(23, 59, 59, 999);
+
+        // Create guest check-in access record
+        await prisma.guestCheckInAccess.upsert({
+            where: {
+                customerId_bookingId: {
+                    customerId: guestCustomer.id,
+                    bookingId: booking.id
+                }
+            },
+            create: {
+                customerId: guestCustomer.id,
+                bookingId: booking.id,
+                accessToken: token,
+                tokenExpiresAt: tokenExpiresAt,
+                guestType: 'INVITED',
+                invitationStatus: 'PENDING',
+                completionStatus: 'INCOMPLETE',
+                personalDetailsComplete: false,
+                identityDetailsComplete: false,
+                addressDetailsComplete: false,
+                invitationSentAt: new Date()
+            },
+            update: {
+                accessToken: token,
+                tokenExpiresAt: tokenExpiresAt,
+                guestType: 'INVITED',
+                invitationStatus: 'PENDING',
+                invitationSentAt: new Date()
+            }
+        }); 
+
+        // Create the online check-in URL
+        const baseUrl = process.env.NODE_ENV === 'local' ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL;
+        const checkinUrl = `${baseUrl}/online-checkin/${token}`;
+
+        // Send invitation email
+        await EmailService.sendEmail({
+            to: {
+                email: email,
+                name: `${firstName} ${lastName}`
+            },
+            templateType: "GUEST_CHECKIN_INVITATION",
+            templateData: {
+                guestName: `${firstName} ${lastName}`,
+                inviterName: `${inviter.guestFirstName} ${inviter.guestLastName}`,
+                roomName: booking.room?.name || "your room",
+                checkinUrl: checkinUrl,
+                checkInDate: new Date(booking.checkIn).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                }),
+                checkOutDate: new Date(booking.checkOut).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                })
+            }
+        });
+
+        responseHandler(res, 200, "Guest invitation sent successfully", {
+            guest: {
+                id: guestCustomer.id,
+                firstName: guestCustomer.guestFirstName,
+                lastName: guestCustomer.guestLastName,
+                email: guestCustomer.guestEmail,
+                invitationSent: true
+            }
+        });
+
+    } catch (error) {
+        console.error("Error inviting booking guest:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const deleteGuest = async (req: express.Request, res: express.Response) => {
+    const { customerId } = (req as any).user;
+    const { bookingId, guestId } = req.params;
+    
+    
+    if (!bookingId || !guestId) {
+        responseHandler(res, 400, "Missing booking ID or guest ID");
+        return;
+    }
+    
+    try {
+        // Verify that the booking belongs to the authenticated customer
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingId,
+                customerId: customerId
+            }
+        });
+        
+        if (!booking) {
+            responseHandler(res, 404, "Booking not found or doesn't belong to you");
+            return;
+        }
+        
+        // Check if the guest access exists
+        const guestAccess = await prisma.guestCheckInAccess.findFirst({
+            where: {
+                customerId: guestId,
+                bookingId: bookingId
+            }
+        });
+        
+        if (!guestAccess) {
+            responseHandler(res, 404, "Guest not found for this booking");
+            return;
+        }
+        
+        // Prevent deletion of main guest
+        if (guestAccess.isMainGuest) {
+            responseHandler(res, 400, "Cannot delete the main guest");
+            return;
+        }
+        
+        // Delete the guest access record
+        await prisma.guestCheckInAccess.delete({
+            where: {
+                customerId_bookingId: {
+                    customerId: guestId,
+                    bookingId: bookingId
+                }
+            }
+        });
+        
+        responseHandler(res, 200, "Guest deleted successfully");
+        
+    } catch (error) {
+        console.error("Error deleting guest:", error);
+        handleError(res, error as Error);
+    }
+};
+

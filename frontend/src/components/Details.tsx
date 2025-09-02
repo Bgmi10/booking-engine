@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { baseUrl } from "../utils/constants";
+import { baseUrl, countries } from "../utils/constants";
 import { ChevronDown, ChevronUp, LoaderIcon, Search, CheckCircle, Gift, Sparkles } from "lucide-react";
-import CountryList from 'country-list-with-dial-code-and-flag';
 import confetti from 'canvas-confetti';
 import { calculateNights } from "../utils/format";
 
@@ -17,7 +16,7 @@ export default function Details({
     taxPercentage?: number 
 }) {
     // Form states
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState({ 
         firstName: "",
         middleName: "",
         lastName: "",
@@ -45,8 +44,6 @@ export default function Details({
     const [isProcessing, setIsProcessing] = useState(false);
     const [errors, setErrors] = useState<any>({});    
     const [apiError, setApiError] = useState("");
-    
-    const countries = CountryList.getAll();
     
     // Validate voucher code on component mount if code exists
     useEffect(() => {
@@ -423,7 +420,8 @@ const validateForm = () => {
                     nationality: formData.nationality,
                     specialRequests: formData.specialRequests,
                     carNumberPlate: formData.carNumberPlate.trim() || null,
-                    receiveMarketing: receiveMarketing
+                    receiveMarketing: receiveMarketing,
+                    tcAgreed: agreeToTerms
                 },
                 bookingItems: allItems,
                 totalAmount: priceDetails.finalTotal,
@@ -600,7 +598,11 @@ const validateForm = () => {
                                                 role="option"
                                                 aria-selected={formData.nationality === country.name}
                                             >
-                                                <span className="text-xl">{country.flag}</span>
+                                                {country.image ? (
+                                                    <img src={country.image} alt={country.name} className="w-6 h-4 object-cover rounded" />
+                                                ) : (
+                                                    <span className="text-xl">{country.flag}</span>
+                                                )}
                                                 <span className="text-sm">{country.name}</span>
                                             </button>
                                         ))}
@@ -697,7 +699,7 @@ const validateForm = () => {
                         <button
                             onClick={validateVoucher}
                             disabled={isValidatingVoucher}
-                            className={`px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 ${
+                            className={`px-6 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed ${
                                 showVoucherDetails ? 'bg-green-600 hover:bg-green-700' : ''
                             }`}
                         >
@@ -917,12 +919,12 @@ const validateForm = () => {
                                     id="agreeTerms"
                                     checked={agreeToTerms}
                                     onChange={(e) => setAgreeToTerms(e.target.checked)}
-                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
+                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0 cursor-pointer"
                                     aria-required="true"
                                     aria-invalid={!!errors.terms}
                                     aria-describedby={errors.terms ? "terms-error" : undefined}
                                 />
-                                <label htmlFor="agreeTerms" className="text-sm text-gray-700">
+                                <label htmlFor="agreeTerms" className="text-sm text-gray-700 cursor-pointer">
                                     I agree to{" "}
                                     <a href="https://www.latorre.farm/terms" target="_blank" rel="noopener noreferrer" className="text-gray-800 underline hover:no-underline">
                                         Property T&C
@@ -942,9 +944,9 @@ const validateForm = () => {
                                     id="receiveMarketing"
                                     checked={receiveMarketing}
                                     onChange={(e) => setReceiveMarketing(e.target.checked)}
-                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0"
+                                    className="mt-1 h-4 w-4 text-gray-800 border-gray-300 rounded focus:ring-gray-500 flex-shrink-0 cursor-pointer"
                                 />
-                                <label htmlFor="receiveMarketing" className="text-sm text-gray-700">
+                                <label htmlFor="receiveMarketing" className="text-sm text-gray-700 cursor-pointer">
                                     I'd like to occasionally receive marketing updates from La Torre sulla via Francigena.
                                 </label>
                               
@@ -956,7 +958,7 @@ const validateForm = () => {
                             <button
                                 onClick={handleConfirmAndPay}
                                 disabled={isProcessing || !isFormComplete()}
-                                className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 aria-describedby={!isFormComplete() && !isProcessing ? "form-incomplete-message" : undefined}
                             >
                                 {isProcessing ? (
