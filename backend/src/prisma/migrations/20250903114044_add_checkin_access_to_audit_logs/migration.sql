@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AuditActionType" ADD VALUE 'ADMIN_CHECKIN_ACCESS';

@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
+import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
 
 interface Booking {
   bookingId: any;
@@ -144,6 +145,11 @@ export default function IndividualBookingCard({
     booking.checkIn
   );
 
+  // Check if admin access should be available
+  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
+    booking.status
+  );
+
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
       {/* Header */}
@@ -214,6 +220,19 @@ export default function IndividualBookingCard({
               variant="outline"
               size="sm"
               className="text-xs"
+            />
+          )}
+
+          {/* Admin Access Check-In Portal Button */}
+          {isAdminAccessAvailable && booking.paymentIntentId && (
+            <AdminCheckInAccessButton
+              type="paymentIntent"
+              id={booking.paymentIntentId}
+              disabled={loadingRefund}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              label="Access Portal"
             />
           )}
         </div>

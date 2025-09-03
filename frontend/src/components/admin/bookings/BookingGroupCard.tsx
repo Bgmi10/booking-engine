@@ -17,6 +17,8 @@ import { baseUrl } from '../../../utils/constants';
 import BookingGroupAuditModal from './BookingGroupAuditModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
+import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
+import PaymentIntentSelectionModal from './PaymentIntentSelectionModal';
 import toast from 'react-hot-toast';
 
 interface BookingGroupCardProps {
@@ -84,6 +86,7 @@ function SingleBookingGroupCard({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+  const [showPaymentIntentSelection, setShowPaymentIntentSelection] = useState(false);
 
   const totalBookings = group.paymentIntents.reduce(
     (sum, pi) => sum + pi.bookings.length,
@@ -109,6 +112,10 @@ function SingleBookingGroupCard({
   const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
     hasConfirmedBookings ? 'CONFIRMED' : 'PENDING',
     earliestCheckIn
+  );
+
+  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
+    hasConfirmedBookings ? 'SUCCEEDED' : 'PENDING'
   );
 
   const getStatusColor = (outstandingAmount?: number) => {
@@ -275,6 +282,17 @@ function SingleBookingGroupCard({
               />
             )}
 
+            {/* Admin Access Check-In Portal Button */}
+            {isAdminAccessAvailable && (
+              <button
+                onClick={() => setShowPaymentIntentSelection(true)}
+                disabled={isDeleting || isSendingInvoice}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-white border border-blue-600 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
+              >
+                Access Portal
+              </button>
+            )}
+
             <button
               onClick={() => setShowAuditLogs(true)}
               className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
@@ -340,6 +358,12 @@ function SingleBookingGroupCard({
         requireReason={true}
         reasonLabel="Reason for deletion"
         reasonPlaceholder="Please explain why you are deleting this booking group (e.g., duplicate entry, test data, customer request, etc.)"
+      />
+
+      <PaymentIntentSelectionModal
+        isOpen={showPaymentIntentSelection}
+        onClose={() => setShowPaymentIntentSelection(false)}
+        bookingGroup={group}
       />
     </>
   );

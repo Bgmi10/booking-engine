@@ -18,7 +18,8 @@
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)"
     ],
     "deny": []
   }

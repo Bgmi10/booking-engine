@@ -18,6 +18,7 @@ import type { PaymentIntentCardProps } from "../../../types/types"
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants"
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
+import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
 
 // Add a simple spinner component
 const Spinner = () => (
@@ -74,6 +75,10 @@ export default function PaymentIntentCard({
   const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
     paymentIntent.status,
     earliestCheckIn
+  );
+
+  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
+    paymentIntent.status
   );
 
   // Get payment method display info
@@ -356,6 +361,18 @@ export default function PaymentIntentCard({
                 />
               )}
 
+              {/* Admin Access Check-In Portal Button */}
+              {isAdminAccessAvailable && (
+                <AdminCheckInAccessButton
+                  type="paymentIntent"
+                  id={paymentIntent.id}
+                  disabled={loadingAction}
+                  variant="outline"
+                  size="sm"
+                  label="Access Portal"
+                />
+              )}
+
               {/* Send Email with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
                 <>
@@ -387,17 +404,6 @@ export default function PaymentIntentCard({
                     </button>
                   )}
                 </>
-              )}
-
-              {/* View Payment */}
-              {paymentIntent.stripePaymentIntentId && (
-                <button
-                  onClick={onViewPayment}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  <CreditCard className="h-4 w-4 mr-1" />
-                  Payment Details
-                </button>
               )}
 
               {/* Delete/Restore */}
