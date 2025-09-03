@@ -6,6 +6,7 @@ import { WeddingReminderService } from "../services/weddingReminderService";
 import { cashReminderService } from "../services/cashReminderService";
 import { LicensePlateExportService } from "../services/licensePlateExportService";
 import { EmailService } from "../services/emailService";
+import { CheckInReminderService } from "../services/checkInReminderService";
 import beds24Service from "../services/beds24Service";
 
 const now = new Date();
@@ -706,7 +707,7 @@ export const getChannelSyncHealth = async () => {
 export const scheduleCheckinReminder = async () => {
   cron.schedule("* * * * *", async () => {
     try {
-      console.log("[Cron] Starting online check-in reminder process...");
+      console.log("[Cron] Starting automated online check-in reminder process...");
       
       const settings = await prisma.generalSettings.findFirst();
       if (!settings || !settings.checkinReminderDays) {
@@ -721,229 +722,16 @@ export const scheduleCheckinReminder = async () => {
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() + triggerDays);
       
-      const upcomingBookings = await prisma.booking.findMany({
-        where: {
-          checkIn: {
-            gte: targetDate,
-            lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000) // Same day
-          },
-          status: "CONFIRMED",
-        },
-        include: {
-          room: true,
-          customer: true,
-          paymentIntent: {
-            include: {
-              bookingGroup: {
-                include: {
-                  mainGuest: true
-                }
-              }
-            }
-          }
-        }
-      });
+      // Use the new CheckInReminderService
+      const results = await CheckInReminderService.processCheckInReminders(targetDate, triggerDays);
       
-      console.log(`[Cron] Found ${upcomingBookings.length} bookings for check-in in ${triggerDays} days`);
+      const successCount = results.filter(r => r.success).length;
+      const totalProcessed = results.length;
       
-      // Group bookings by check-in date and payment intent
-      const bookingGroups = new Map<string, typeof upcomingBookings>();
-      
-      for (const booking of upcomingBookings) {
-        const checkInDate = booking.checkIn.toISOString().split('T')[0];
-        const paymentIntentId = booking.paymentIntentId || 'direct';
-        const groupKey = `${checkInDate}_${paymentIntentId}`;
-        
-        if (!bookingGroups.has(groupKey)) {
-          bookingGroups.set(groupKey, []);
-        }
-        bookingGroups.get(groupKey)!.push(booking);
-      }
-      
-      console.log(`[Cron] Grouped ${upcomingBookings.length} bookings into ${bookingGroups.size} email groups`);
-      
-      // Process each group (same check-in date and payment intent)
-      for (const [groupKey, groupBookings] of bookingGroups.entries()) {
-        try {
-          // Check if any booking in this group already has a token
-          const existingAccess = await prisma.guestCheckInAccess.findFirst({
-            where: {
-              bookingId: {
-                in: groupBookings.map(b => b.id)
-              },
-              tokenExpiresAt: {
-                gt: new Date() // Only active tokens
-              }
-            }
-          });
-          
-          if (existingAccess) {
-            console.log(`[Cron] Token already exists for booking group ${groupKey}, skipping...`);
-            continue;
-          }
-          
-          const firstBooking = groupBookings[0];
-          let recipientEmail: string;
-          let recipientName: string;
-          let customerId: string;
-          
-          if (firstBooking.customer) {
-            // Direct customer booking
-            recipientEmail = firstBooking.customer.guestEmail;
-            recipientName = `${firstBooking.customer.guestFirstName} ${firstBooking.customer.guestLastName}`;
-            customerId = firstBooking.customer.id;
-          } else if (firstBooking.paymentIntent?.bookingGroup?.mainGuest) {
-            // Group booking - send to main guest
-            const mainGuest = firstBooking.paymentIntent.bookingGroup.mainGuest;
-            recipientEmail = mainGuest.guestEmail;
-            recipientName = `${mainGuest.guestFirstName} ${mainGuest.guestLastName}`;
-            customerId = mainGuest.id;
-          } else {
-            console.warn(`[Cron] No customer or main guest found for booking group ${groupKey}, skipping...`);
-            continue;
-          }
-          
-          // Set token expiry to the day after check-in (as per client requirement)
-          const tokenExpiresAt = new Date(firstBooking.checkIn);
-          tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1); // Day after check-in
-          tokenExpiresAt.setHours(23, 59, 59, 999); // End of day
-          
-          // Create main guest access record ONLY for the first booking (main room)
-          // Other rooms will have no guests initially - guests can be added later
-          const bookingToken = require('crypto').randomBytes(32).toString('hex');
-          
-          // Calculate completion status based on customer data
-          const customer = firstBooking.customer || (firstBooking.paymentIntent?.bookingGroup?.mainGuest);
-          if (!customer) {
-            console.warn(`[Cron] No customer data found for first booking in group ${groupKey}, skipping...`);
-            continue;
-          }
-          
-          const personalDetailsComplete = !!(
-            customer.guestFirstName && 
-            customer.guestLastName && 
-            customer.guestEmail && 
-            customer.dob
-          );
-          
-          const identityDetailsComplete = !!(
-            customer.guestNationality && 
-            customer.passportNumber && 
-            customer.passportExpiry && 
-            customer.passportIssuedCountry
-          );
-          
-          const addressDetailsComplete = !!(customer.city);
-          
-          let completionStatus = 'INCOMPLETE';
-          if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
-            completionStatus = 'COMPLETE';
-          } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
-            completionStatus = 'PARTIAL';
-          }
-          
-          try {
-            // Create main guest record ONLY for the first booking
-            await prisma.guestCheckInAccess.create({
-              data: {
-                customerId: customerId,
-                bookingId: firstBooking.id,
-                accessToken: bookingToken,
-                tokenExpiresAt: tokenExpiresAt,
-                isMainGuest: true,
-                guestType: 'MAIN_GUEST',
-                invitationStatus: 'NOT_APPLICABLE',
-                completionStatus: completionStatus as any,
-                personalDetailsComplete,
-                identityDetailsComplete,
-                addressDetailsComplete,
-                checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
-              }
-            });
-            
-            console.log(`[Cron] Created main guest access record for first booking ${firstBooking.id}`);
-            
-          } catch (error: any) {
-            if (error.code === 'P2002') {
-              // Token already exists for this booking
-              const existingRecord = await prisma.guestCheckInAccess.findFirst({
-                where: {
-                  bookingId: firstBooking.id,
-                  customerId: customerId,
-                  tokenExpiresAt: {
-                    gt: new Date()
-                  }
-                }
-              });
-              if (existingRecord) {
-                console.log(`[Cron] Main guest access record already exists for booking ${firstBooking.id}, using existing token`);
-              } else {
-                throw error; // Re-throw if it's a different uniqueness issue
-              }
-            } else {
-              throw error; // Re-throw other errors
-            }
-          }
-          
-          // Use the first booking's token for the email URL (since customer has access to all)
-          const firstBookingAccess = await prisma.guestCheckInAccess.findFirst({
-            where: {
-              bookingId: groupBookings[0].id,
-              customerId: customerId
-            },
-            orderBy: {
-              createdAt: 'desc'
-            }
-          });
-          
-          const checkinToken = firstBookingAccess?.accessToken || bookingToken;
-          
-          // Create the online check-in URL
-          const baseUrl = process.env.NODE_ENV === 'local' ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL;
-          const checkinUrl = `${baseUrl}/online-checkin/${checkinToken}`;
-          
-          // Prepare booking details for email template
-          const bookingDetails = groupBookings.map(booking => ({
-            roomName: booking.room.name,
-            checkIn: booking.checkIn,
-            checkOut: booking.checkOut
-          }));
-          
-          // Send single online check-in invitation email for all bookings in this group
-          await EmailService.sendEmail({
-            to: {
-              email: recipientEmail,
-              name: recipientName
-            },
-            templateType: 'ONLINE_CHECKIN_INVITATION',
-            subject: `Complete Your Online Check-In${groupBookings.length > 1 ? ' - Multiple Rooms' : ` - ${firstBooking.room.name}`}`,
-            templateData: {
-              customerName: recipientName,
-              roomName: firstBooking.room.name, // For backward compatibility
-              bookings: bookingDetails, // New field for multiple bookings
-              checkInDate: firstBooking.checkIn.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              }),
-              checkinUrl: checkinUrl,
-              daysUntilCheckin: triggerDays,
-              isMultipleBookings: groupBookings.length > 1
-            }
-          });
-          
-          console.log(`[Cron] Online check-in invitation sent to ${recipientEmail} for ${groupBookings.length} booking(s) in group ${groupKey}`);
-          
-        } catch (bookingError) {
-          console.error(`[Cron] Failed to process online check-in for booking group ${groupKey}:`, bookingError);
-        }
-      }
-      
-      console.log(`[Cron] Online check-in reminder process completed. Processed ${bookingGroups.size} booking groups`);
+      console.log(`[Cron] Automated check-in reminder process completed. Successfully processed: ${successCount}/${totalProcessed} booking groups`);
       
     } catch (error) {
-      console.error("[Cron] Error in Schedule checkin reminder:", error);
+      console.error("[Cron] Error in automated check-in reminder process:", error);
     }
   });
 }

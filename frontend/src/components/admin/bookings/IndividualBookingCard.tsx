@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
+import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
 
 interface Booking {
   bookingId: any;
@@ -49,7 +50,6 @@ export default function IndividualBookingCard({
   onViewDetails,
   showRefundButton = true
 }: IndividualBookingCardProps) {
-  console.log(booking)
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [loadingRefund, setLoadingRefund] = useState(false);
   const [refundReason, setRefundReason] = useState('');
@@ -138,6 +138,12 @@ export default function IndividualBookingCard({
   const canRefund = booking.status === 'CONFIRMED' && booking.totalAmount && booking.totalAmount > 0;
   const isRefunded = booking.status === 'REFUNDED';
 
+  // Check if manual check-in should be available
+  const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
+    booking.status,
+    booking.checkIn
+  );
+
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
       {/* Header */}
@@ -191,12 +197,26 @@ export default function IndividualBookingCard({
 
       {/* Actions */}
       <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-        <button
-          onClick={() => onViewDetails?.(booking.id)}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
-          View Details
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => onViewDetails?.(booking.id)}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            View Details
+          </button>
+
+          {/* Manual Check-In Button */}
+          {isCheckInAvailable && (
+            <ManualCheckInButton
+              type="booking"
+              id={booking.bookingId}
+              disabled={loadingRefund}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            />
+          )}
+        </div>
 
         {showRefundButton && canRefund && (
           <button

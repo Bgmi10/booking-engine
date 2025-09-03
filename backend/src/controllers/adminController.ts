@@ -20,6 +20,7 @@ import AuditService from "../services/auditService";
 import { BookingGroupService } from "../services/bookingGroupService";
 import { InvoiceService } from "../services/invoiceService";
 import { GroupInvoiceService } from "../services/groupInvoiceService";
+import { CheckInReminderService } from "../services/checkInReminderService";
 import { Booking } from "@prisma/client";
 
 dotenv.config();
@@ -3586,6 +3587,141 @@ export const sendGroupInvoice = async (req: express.Request, res: express.Respon
   }
 }
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings,  login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs };
+// Manual Check-In Controllers
+const sendManualCheckInForBooking = async (req: express.Request, res: express.Response) => {
+  const { id: bookingId } = req.params;
+  //@ts-ignore
+  const { id: userId } = req.user;
+
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking ID is required");
+    return;
+  }
+
+  try {
+    const result = await CheckInReminderService.sendManualCheckInForBooking(bookingId, userId);
+    
+    if (result.success) {
+      //@ts-ignore
+      responseHandler(res, 200, result.message, result.result);
+    } else {
+      responseHandler(res, 400, result.error || "Failed to send manual check-in");
+    }
+  } catch (error) {
+    console.error("Error sending manual check-in for booking:", error);
+    handleError(res, error as Error);
+  }
+};
+
+const sendManualCheckInForPaymentIntent = async (req: express.Request, res: express.Response) => {
+  const { id: paymentIntentId } = req.params;
+  //@ts-ignore
+  const { id: userId } = req.user;
+
+  if (!paymentIntentId) {
+    responseHandler(res, 400, "Payment Intent ID is required");
+    return;
+  }
+
+  try {
+    const result = await CheckInReminderService.sendManualCheckInForPaymentIntent(paymentIntentId, userId);
+    
+    if (result.success) {
+      //@ts-ignore
+      responseHandler(res, 200, result.message, result.results);
+    } else {
+      responseHandler(res, 400, result.error || "Failed to send manual check-in");
+    }
+  } catch (error) {
+    console.error("Error sending manual check-in for payment intent:", error);
+    handleError(res, error as Error);
+  }
+};
+
+const sendManualCheckInForBookingGroup = async (req: express.Request, res: express.Response) => {
+  const { id: bookingGroupId } = req.params;
+  //@ts-ignore
+  const { id: userId } = req.user;
+
+  if (!bookingGroupId) {
+    responseHandler(res, 400, "Booking Group ID is required");
+    return;
+  }
+
+  try {
+    // Get all payment intents in this booking group
+    const bookingGroup = await prisma.bookingGroup.findUnique({
+      where: { id: bookingGroupId },
+      include: {
+        paymentIntents: {
+          where: {
+            status: 'SUCCEEDED' // Only confirmed bookings
+          },
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    if (!bookingGroup) {
+      responseHandler(res, 404, "Booking group not found");
+      return;
+    }
+
+    if (bookingGroup.paymentIntents.length === 0) {
+      responseHandler(res, 400, "No confirmed bookings found in this group");
+      return;
+    }
+
+    const results = [];
+    const errors = [];
+
+    // Send check-in invitations for each payment intent in the group
+    for (const paymentIntent of bookingGroup.paymentIntents) {
+      try {
+        const result = await CheckInReminderService.sendManualCheckInForPaymentIntent(paymentIntent.id, userId);
+        if (result.success) {
+          //@ts-ignore
+          results.push(...result.results);
+        } else {
+          errors.push({
+            paymentIntentId: paymentIntent.id,
+            error: result.error
+          });
+        }
+      } catch (error) {
+        errors.push({
+          paymentIntentId: paymentIntent.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const totalProcessed = results.length;
+
+    if (successCount > 0) {
+      responseHandler(res, 200, `Manual check-in invitations sent for booking group`, {
+        bookingGroupId,
+        successfulInvitations: successCount,
+        totalProcessed,
+        results,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } else {
+      responseHandler(res, 400, "Failed to send any check-in invitations", {
+        bookingGroupId,
+        errors
+      });
+    }
+
+  } catch (error) {
+    console.error("Error sending manual check-in for booking group:", error);
+    handleError(res, error as Error);
+  }
+};
+
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings, login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup };
 
 

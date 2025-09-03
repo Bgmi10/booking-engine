@@ -22,7 +22,8 @@ import {
     getGuestDetails,
     createManualGuest,
     inviteBookingGuest,
-    deleteGuest
+    deleteGuest,
+    applyGuestToAllBookings
 } from "../controllers/customerController";
 import { generateProposalPDF } from '../controllers/proposalController';
 import customerAuthMiddleware from "../middlewares/customerAuthMiddleware";
@@ -60,6 +61,7 @@ customerRouter.get('/online-checkin/guest-details', onlineCheckInMiddleware, get
 customerRouter.post('/online-checkin/guests/manual', onlineCheckInMiddleware, createManualGuest);
 customerRouter.post('/online-checkin/guests/invite', onlineCheckInMiddleware, inviteBookingGuest);
 customerRouter.delete('/online-checkin/bookings/:bookingId/guests/:guestId', onlineCheckInMiddleware, deleteGuest);
+customerRouter.post('/online-checkin/apply-guest-to-all', onlineCheckInMiddleware, applyGuestToAllBookings);
 
 // Wedding Portal Authentication Routes
 customerRouter.post('/wedding-portal-login', weddingPortalLogin);

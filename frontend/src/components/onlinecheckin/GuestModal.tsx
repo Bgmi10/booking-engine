@@ -100,7 +100,7 @@ export const GuestModal: React.FC<GuestModalProps> = ({
       }
 
       const data = await response.json()
-      onGuestAdded({ type: 'manual', data: data.data.guest })
+      onGuestAdded({ type: 'manual', data: data.data })
       toast.success('Guest details saved successfully!')
       onClose()
       

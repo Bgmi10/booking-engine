@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AuditActionType" ADD VALUE 'CHECKIN_INVITATION_SENT';

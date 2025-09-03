@@ -325,7 +325,7 @@ export const verifyOnlineCheckInToken = async (req: express.Request, res: expres
 
 export const getGuestDetails = async (req: express.Request, res: express.Response) => {
     //@ts-ignore
-    const { customerId, bookingId } = req.user;
+    const { customerId, bookingId: primaryBookingId } = req.user;
 
     try {
         // Get all bookings for this customer that they have access to
@@ -599,7 +599,8 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 carNumberPlate: customer.carNumberPlate
             },
             bookings: processedBookings, // Send bookings with included guest data
-            isMainGuest: isMainGuest
+            isMainGuest: isMainGuest,
+            primaryBookingId: primaryBookingId // Indicates which booking triggered the check-in
         };
 
         responseHandler(res, 200, "Guest details retrieved successfully", checkInData);
@@ -1332,7 +1333,7 @@ export const createGuestProposal = async (req: express.Request, res: express.Res
 };
 
 export const createManualGuest = async (req: express.Request, res: express.Response) => {
-    const { customerId } = (req as any).user;
+    const { customerId , customerEmail } = (req as any).user;
     const { 
         bookingId,
         firstName, 
@@ -1355,6 +1356,11 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
 
     if (!bookingId || !firstName || !lastName || !email) {
         responseHandler(res, 400, "Missing required fields");
+        return;
+    }
+
+    if (customerEmail === email) {
+        responseHandler(res, 400, 'Cannot Add Yourself');
         return;
     }
 
@@ -1458,15 +1464,7 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
             }
         });
 
-        responseHandler(res, 200, "Guest created successfully", {
-            guest: {
-                id: guestCustomer.id,
-                firstName: guestCustomer.guestFirstName,
-                lastName: guestCustomer.guestLastName,
-                email: guestCustomer.guestEmail,
-                addedManually: true
-            }
-        });
+        responseHandler(res, 200, "Guest created successfully", guestCustomer);
 
     } catch (error) {
         console.error("Error creating manual guest:", error);
@@ -1673,6 +1671,163 @@ export const deleteGuest = async (req: express.Request, res: express.Response) =
         
     } catch (error) {
         console.error("Error deleting guest:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const applyGuestToAllBookings = async (req: express.Request, res: express.Response) => {
+    const { customerId } = (req as any).user;
+    const { 
+        guestData, 
+        excludeBookingId 
+    } = req.body;
+    
+    if (!guestData) {
+        responseHandler(res, 400, "Guest data is required");
+        return;
+    }
+    
+    try {
+        // Extract the actual guest data from nested structure
+        const actualGuestData = guestData.data || guestData;
+        
+        // Get all confirmed bookings for this customer (excluding the specified booking)
+        const bookings = await prisma.booking.findMany({
+            where: {
+                customerId: customerId,
+                status: "CONFIRMED",
+                ...(excludeBookingId && {
+                    id: {
+                        not: excludeBookingId
+                    }
+                })
+            }
+        });
+        
+        if (bookings.length === 0) {
+            responseHandler(res, 200, "No other bookings to apply guest to");
+            return;
+        }
+        
+        const results = [];
+        
+        for (const booking of bookings) {
+            try {
+                // Create or update a guest customer record
+                const guestCustomer = await prisma.customer.upsert({
+                    where: {
+                        guestEmail: actualGuestData.guestEmail
+                    },
+                    create: {
+                        guestFirstName: actualGuestData.guestFirstName,
+                        guestLastName: actualGuestData.guestLastName,
+                        guestMiddleName: actualGuestData.guestMiddleName || null,
+                        guestEmail: actualGuestData.guestEmail,
+                        guestPhone: actualGuestData.guestPhone || null,
+                        guestNationality: actualGuestData.guestNationality || null,
+                        dob: actualGuestData.dob ? new Date(actualGuestData.dob) : null,
+                        city: actualGuestData.city || null,
+                        passportNumber: actualGuestData.passportNumber || null,
+                        passportExpiry: actualGuestData.passportExpiry ? new Date(actualGuestData.passportExpiry) : null,
+                        passportIssuedCountry: actualGuestData.passportIssuedCountry || null,
+                    },
+                    update: {
+                        guestFirstName: actualGuestData.guestFirstName,
+                        guestLastName: actualGuestData.guestLastName,
+                        guestMiddleName: actualGuestData.guestMiddleName || null,
+                        guestPhone: actualGuestData.guestPhone || null,
+                        guestNationality: actualGuestData.guestNationality || null,
+                        dob: actualGuestData.dob ? new Date(actualGuestData.dob) : null,
+                        city: actualGuestData.city || null,
+                        passportNumber: actualGuestData.passportNumber || null,
+                        passportExpiry: actualGuestData.passportExpiry ? new Date(actualGuestData.passportExpiry) : null,
+                        passportIssuedCountry: actualGuestData.passportIssuedCountry || null,
+                    }
+                });
+                
+                // Set token expiry to the day after booking check-in date
+                const tokenExpiresAt = new Date(booking.checkIn);
+                tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1);
+                tokenExpiresAt.setHours(23, 59, 59, 999);
+                
+                // Calculate completion status based on provided data
+                const personalDetailsComplete = !!(actualGuestData.guestFirstName && actualGuestData.guestLastName && actualGuestData.guestEmail && actualGuestData.dob);
+                const identityDetailsComplete = !!(actualGuestData.guestNationality && actualGuestData.passportNumber && actualGuestData.passportExpiry && actualGuestData.passportIssuedCountry);
+                const addressDetailsComplete = !!(actualGuestData.city);
+                
+                let completionStatus = 'INCOMPLETE';
+                if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
+                    completionStatus = 'COMPLETE';
+                } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
+                    completionStatus = 'PARTIAL';
+                }
+                
+                // Link the guest to this booking
+                await prisma.guestCheckInAccess.upsert({
+                    where: {
+                        customerId_bookingId: {
+                            customerId: guestCustomer.id,
+                            bookingId: booking.id
+                        }
+                    },
+                    create: {
+                        customerId: guestCustomer.id,
+                        bookingId: booking.id,
+                        accessToken: `replicated-guest-${guestCustomer.id}-${booking.id}-${Date.now()}`,
+                        tokenExpiresAt: tokenExpiresAt,
+                        guestType: 'MANUAL',
+                        invitationStatus: 'NOT_APPLICABLE',
+                        completionStatus: completionStatus as any,
+                        personalDetailsComplete,
+                        identityDetailsComplete,
+                        addressDetailsComplete,
+                        addedManuallyBy: customerId,
+                        addedManuallyAt: new Date(),
+                        checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
+                    },
+                    update: {
+                        guestType: 'MANUAL',
+                        invitationStatus: 'NOT_APPLICABLE',
+                        completionStatus: completionStatus as any,
+                        personalDetailsComplete,
+                        identityDetailsComplete,
+                        addressDetailsComplete,
+                        addedManuallyBy: customerId,
+                        addedManuallyAt: new Date(),
+                        checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null
+                    }
+                });
+                
+                results.push({
+                    bookingId: booking.id,
+                    success: true,
+                    message: `Guest added to booking ${booking.id}`
+                });
+                
+            } catch (bookingError) {
+                console.error(`Error adding guest to booking ${booking.id}:`, bookingError);
+                results.push({
+                    bookingId: booking.id,
+                    success: false,
+                    message: `Failed to add guest to booking ${booking.id}`
+                });
+            }
+        }
+        
+        const successCount = results.filter(r => r.success).length;
+        const totalCount = results.length;
+        
+        responseHandler(res, 200, `Guest applied to ${successCount}/${totalCount} bookings`, {
+            results,
+            summary: {
+                total: totalCount,
+                successful: successCount,
+                failed: totalCount - successCount
+            }
+        });
+        
+    } catch (error) {
+        console.error("Error applying guest to all bookings:", error);
         handleError(res, error as Error);
     }
 };

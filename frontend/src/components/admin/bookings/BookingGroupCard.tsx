@@ -16,6 +16,7 @@ import { formatCurrency } from '../../../utils/helper';
 import { baseUrl } from '../../../utils/constants';
 import BookingGroupAuditModal from './BookingGroupAuditModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
+import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
 import toast from 'react-hot-toast';
 
 interface BookingGroupCardProps {
@@ -87,6 +88,27 @@ function SingleBookingGroupCard({
   const totalBookings = group.paymentIntents.reduce(
     (sum, pi) => sum + pi.bookings.length,
     0
+  );
+
+  // Check if manual check-in should be available for this booking group
+  // Get the earliest check-in date from all bookings in all payment intents
+  const earliestCheckIn = group.paymentIntents.reduce((earliest: string | null, pi) => {
+    if (pi.bookings && pi.bookings.length > 0) {
+      const piEarliest = pi.bookings.reduce((piEarly: string, booking: any) => 
+        new Date(booking.checkIn) < new Date(piEarly) ? booking.checkIn : piEarly,
+        pi.bookings[0].checkIn
+      );
+      return !earliest || new Date(piEarliest) < new Date(earliest) ? piEarliest : earliest;
+    }
+    return earliest;
+  }, null);
+
+  // Check if there's at least one confirmed payment intent
+  const hasConfirmedBookings = group.paymentIntents.some(pi => pi.status === 'SUCCEEDED');
+  
+  const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
+    hasConfirmedBookings ? 'CONFIRMED' : 'PENDING',
+    earliestCheckIn
   );
 
   const getStatusColor = (outstandingAmount?: number) => {
@@ -240,6 +262,18 @@ function SingleBookingGroupCard({
               <Eye className="h-4 w-4 mr-1" />
               View Details
             </button>
+
+            {/* Manual Check-In Button */}
+            {isCheckInAvailable && (
+              <ManualCheckInButton
+                type="bookingGroup"
+                id={group.id}
+                disabled={isDeleting || isSendingInvoice}
+                variant="secondary"
+                size="sm"
+                label="Send Group Check-In"
+              />
+            )}
 
             <button
               onClick={() => setShowAuditLogs(true)}

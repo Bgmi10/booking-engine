@@ -1,9 +1,10 @@
 import { Calendar } from "lucide-react"
-import type { PaymentIntent, PaymentIntentsListProps } from "../../../types/types"
+import type { BookingGroup, PaymentIntent, PaymentIntentsListProps } from "../../../types/types"
 import PaymentIntentCard from "./PaymentIntentCard"
 import EnhancedPaymentIntentCard from "./EnhancedPaymentIntentCard"
 
 export default function PaymentIntentsList({
+  groups,
   paymentIntents,
   loading,
   onViewDetails,
@@ -23,6 +24,7 @@ export default function PaymentIntentsList({
   onRestore,
   isDeletedTab = false,
 }: PaymentIntentsListProps & {
+  groups: BookingGroup[]
   selectionMode?: boolean;
   selectedBookingIds?: string[];
   onBookingSelect?: (bookingId: string, checked: boolean) => void;
@@ -37,8 +39,8 @@ export default function PaymentIntentsList({
       </div>
     )
   }
-
-  if (paymentIntents.length === 0) {
+console.log(groups)
+  if (paymentIntents.length === 0 && groups.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow border border-gray-200">
         <div className="text-center py-12">

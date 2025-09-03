@@ -707,6 +707,7 @@ export default function BookingManagement() {
 
           {/* Bookings List */}
           <PaymentIntentsList
+            groups={bookingGroups}
             paymentIntents={filteredPaymentIntents}
             loading={currentLoading}
             onViewDetails={(pi) => {

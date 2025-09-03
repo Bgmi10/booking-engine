@@ -17,6 +17,7 @@ import { getStatusColor, generateMergedBookingId } from "../../../utils/helper"
 import type { PaymentIntentCardProps } from "../../../types/types"
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants"
+import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
 
 // Add a simple spinner component
 const Spinner = () => (
@@ -61,6 +62,19 @@ export default function PaymentIntentCard({
   const [loadingResend, setLoadingResend] = useState(false);
   // Add handler for confirming as bank transfer
   const [loadingConfirmBank, setLoadingConfirmBank] = useState(false);
+  
+  // Check if manual check-in should be available
+  const earliestCheckIn = paymentIntent.bookingData.length > 0 
+    ? paymentIntent.bookingData.reduce((earliest, booking) => 
+        new Date(booking.checkIn) < new Date(earliest) ? booking.checkIn : earliest, 
+        paymentIntent.bookingData[0].checkIn
+      )
+    : null;
+  
+  const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
+    paymentIntent.status,
+    earliestCheckIn
+  );
 
   // Get payment method display info
   const getPaymentMethodInfo = () => {
@@ -330,6 +344,17 @@ export default function PaymentIntentCard({
                 <Eye className="h-4 w-4 mr-1" />
                 View Details
               </button>
+
+              {/* Manual Check-In Button */}
+              {isCheckInAvailable && (
+                <ManualCheckInButton
+                  type="paymentIntent"
+                  id={paymentIntent.id}
+                  disabled={loadingAction}
+                  variant="secondary"
+                  size="sm"
+                />
+              )}
 
               {/* Send Email with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
