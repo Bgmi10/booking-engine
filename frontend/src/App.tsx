@@ -54,12 +54,11 @@ function App() {
           </Route>
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/online-checkin/:token" element={<OnlineCheckInVerify />} />
-          <Route element={<OnlineCheckInProtectedRoutes />}>
+        
           <Route path="/online-checkin/home" element={<OnlineCheckInHome />} />
            <Route path="/online-checkin" element={<OnlineCheckIn />} />
            <Route path="/online-checkin/manage-guests" element={<ManageGuests />} />
            <Route path="/online-checkin/success" element={<CheckInSuccess />} />
-          </Route>
           <Route path="/wedding-portal/login" element={<WeddingPortalLogin />} />
           <Route path="/wedding-portal/activate-account" element={<WeddingPortalActivation />} />
           <Route path="/wedding-portal/reset-password" element={<WeddingPortalPasswordReset />} />

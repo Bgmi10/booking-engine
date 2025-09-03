@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { baseUrl } from "../../utils/constants";
 import Loader from "../Loader";
 import { XCircle, RefreshCw, Home, AlertTriangle } from "lucide-react";
@@ -9,7 +9,6 @@ export const OnlineCheckInVerify = () => {
     const { token } = useParams();
     const [loader, setLoader] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const navigate = useNavigate();
 
     const fetchOnlineCheckInUser = async () => {
         try  {
@@ -24,19 +23,14 @@ export const OnlineCheckInVerify = () => {
                 })
             });
 
-            const data = await res.json();
-
             if (res.status === 200) {
-                navigate('/online-checkin');
-            } else {
-                setError(data.message || "Invalid or expired token");
+               window.location.href = '/online-checkin'
             }
         } catch (e) {
             console.log(e);
             setError("Failed to verify token. Please try again later.");
-        } finally {
             setLoader(false);
-        } 
+        }
     }
 
     const handleTryAgain = () => {
@@ -58,12 +52,10 @@ export const OnlineCheckInVerify = () => {
        }
     }, [token]);
 
-    // Show loader for success case (user will be redirected automatically)
     if (loader) {
         return <Loader />;
     }
 
-    // Show error UI following Failure.tsx pattern
     if (error) {
         return (
             <>
