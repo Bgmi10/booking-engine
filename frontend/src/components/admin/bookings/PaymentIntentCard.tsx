@@ -34,7 +34,6 @@ export default function PaymentIntentCard({
   onSendEmail,
   onRefund,
   onFutureRefund,
-  onViewPayment,
   onDelete,
   onRestore,
   loadingAction,
@@ -452,7 +451,7 @@ export default function PaymentIntentCard({
                     {loadingAction ? <Spinner /> : <DollarSign className="h-4 w-4 mr-1" />}
                     {loadingAction ? 'Processing...' : 'Confirm Refund'}
                   </button>
-                </>
+                </> 
               )}
 
               {/* Confirm Booking (Cash/Bank Transfer) */}

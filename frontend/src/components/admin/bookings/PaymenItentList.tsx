@@ -39,7 +39,7 @@ export default function PaymentIntentsList({
       </div>
     )
   }
-console.log(groups)
+  
   if (paymentIntents.length === 0 && groups.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow border border-gray-200">

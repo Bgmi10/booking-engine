@@ -267,7 +267,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
     }
   };
 
-  const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
+  const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean, stripeReason: string }) => {
     if (!refundingPaymentIntent) return;
     
     setIsProcessingRefund(true);
@@ -283,7 +283,8 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
           paymentMethod: refundingPaymentIntent.paymentMethod || 'STRIPE',
           reason: data.reason,
           sendEmailToCustomer: data.sendEmailToCustomer,
-          processRefund: data.processRefund
+          processRefund: data.processRefund,
+          stripeReason: data.stripeReason
         }),
       });
 

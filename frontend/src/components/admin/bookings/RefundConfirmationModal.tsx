@@ -4,7 +4,7 @@ import { X, DollarSign } from 'lucide-react';
 interface RefundConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => void;
+  onConfirm: (data: { stripeReason: string; reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => void;
   paymentIntent: any;
   isLoading?: boolean;
   loading?: boolean; // Alternative prop name for loading state
@@ -33,13 +33,10 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                           paymentIntent?.stripePaymentLinkId || 
                           paymentIntent?.stripeSessionId;
 
-  const handleConfirm = () => {
-    const finalReason = isStripePayment 
-      ? selectedReason
-      : reason || '';
-    
+  const handleConfirm = () => {    
     onConfirm({
-      reason: finalReason,
+      stripeReason: selectedReason,
+      reason: reason,
       sendEmailToCustomer,
       processRefund
     });
@@ -48,14 +45,14 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
             <DollarSign className="h-5 w-5 mr-2 text-orange-600" />
             {processRefund ? 'Confirm Refund' : 'Confirm Cancellation'}
           </h3>
-          <button
+          <button 
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
             disabled={isLoading || loading}
@@ -83,8 +80,8 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
               Refund Reason {isStripePayment && '*'}
             </label>
             
-            {isStripePayment ? (
-              <div className="space-y-2">
+           
+             {isStripePayment && <div className="space-y-2">
                 {allowedReasons.map((reasonOption) => (
                   <label key={reasonOption.value} className="flex items-center">
                     <input
@@ -99,17 +96,15 @@ const RefundConfirmationModal: React.FC<RefundConfirmationModalProps> = ({
                     <span className="text-sm text-gray-700">{reasonOption.label}</span>
                   </label>
                 ))}
-              </div>
-            ) : (
+              </div>}
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Enter refund reason or note (optional)..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 rows={3}
                 disabled={isLoading || loading}
               />
-            )}
           </div>
 
           {/* Process Refund Checkbox */}

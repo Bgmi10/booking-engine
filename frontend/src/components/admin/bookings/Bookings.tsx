@@ -369,7 +369,7 @@ export default function BookingManagement() {
     setShowFutureRefundModal(true);
   }
 
-  const processRefund = async (data: { reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
+  const processRefund = async (data: { stripeReason: string; reason: string; sendEmailToCustomer: boolean; processRefund: boolean }) => {
     if (!refundPaymentIntent) return;
     
     setLoadingAction(true);
@@ -385,6 +385,7 @@ export default function BookingManagement() {
           paymentMethod: refundPaymentIntent.paymentMethod || 'STRIPE',
           reason: data.reason,
           sendEmailToCustomer: data.sendEmailToCustomer,
+          stripeReason: data.stripeReason,
           processRefund: data.processRefund
         }),
       });

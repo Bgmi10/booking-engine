@@ -1495,7 +1495,7 @@ const processFutureRefund = async (req: express.Request, res: express.Response) 
 };
 
 const refund = async (req: express.Request, res: express.Response) => {
-    const { paymentIntentId, reason, customerDetails, paymentMethod, sendEmailToCustomer = true, processRefund = true } = req.body;
+    const { paymentIntentId, reason, customerDetails, paymentMethod, sendEmailToCustomer = true, processRefund = true, stripeReason } = req.body;
     //@ts-ignore
     const { id: userId } = req.user;  
     if (!paymentIntentId) { 
@@ -1853,7 +1853,7 @@ const refund = async (req: express.Request, res: express.Response) => {
                 const refund = await stripe.refunds.create({
                     payment_intent: ourPaymentIntent.stripePaymentIntentId,
                     amount: Math.round(refundAmount * 100), // Convert to cents
-                    reason: reason || "requested_by_customer",
+                    reason: stripeReason || "requested_by_customer",
                     metadata: {
                       paymentIntentId: paymentIntentId,
                       refundReason: refundNote,

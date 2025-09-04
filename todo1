@@ -103,12 +103,12 @@ non refund automatically
 
 [C] =>  instead of showing null show 0 in outstanding balance
 
-[] => we need to provide a two charges export btn over the payment intent. one is customer pdf invoice export which is bascially collect every charges and orders and link them together and here the question orders are diff and charges are diff they are not linked together.  so, in this case what we should do to represent hte pdf ui.
+[C] => we need to provide a two charges export btn over the payment intent. one is customer pdf invoice export which is bascially collect every charges and orders and link them together and here the question orders are diff and charges are diff they are not linked together.  so, in this case what we should do to represent hte pdf ui. 
 
-[] => refund cancellation model for stripe we need collect the reason from admin 
+[C] => refund cancellation model for stripe we need collect the reason from admin 
 
 [] => checkout should check hte outstadning balance before checkout and then it should send out a thank email to user
 
 [] => check in feature need to ahve ability to check whether the user as a any outstanding balance if it has/ this restriction is optional like checking hte outstanding amount is purely optional if the manager or admin wants to allow hte user they can its a optional based restriction and then keep in mind check in and check out feature is purely exist one of them if hte user checked then only they can able to checkout vice versa. 
 
-[] => in groups we need ability to 
+[] => in groups we need ability to  
