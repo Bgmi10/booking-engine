@@ -11,6 +11,7 @@ interface PassportStepProps {
 }
 
 export const PassportStep = ({ formData, updateFormData, onNext }: PassportStepProps) => {
+    const [documentType, setDocumentType] = useState<'passport' | 'idCard'>(formData.idCard ? 'idCard' : 'passport')
     const [showCountryDropdown, setShowCountryDropdown] = useState(false)
     const [countrySearch, setCountrySearch] = useState('')
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -69,23 +70,29 @@ export const PassportStep = ({ formData, updateFormData, onNext }: PassportStepP
     const validateForm = () => {
         const newErrors: Record<string, string> = {}
 
-        if (!formData.passportNumber.trim()) {
-            newErrors.passportNumber = 'Passport number is required'
-        }
-        
-        if (!formData.passportIssuedCountry) {
-            newErrors.passportIssuedCountry = 'Issuing country is required'
-        }
-        
-        if (!formData.passportExpiry) {
-            newErrors.passportExpiry = 'Expiration date is required'
-        } else {
-            const expiryDate = new Date(formData.passportExpiry)
-            const today = new Date()
-            today.setHours(0, 0, 0, 0)
+        if (documentType === 'passport') {
+            if (!formData.passportNumber.trim()) {
+                newErrors.passportNumber = 'Passport number is required'
+            }
             
-            if (expiryDate <= today) {
-                newErrors.passportExpiry = 'Passport must not be expired'
+            if (!formData.passportIssuedCountry) {
+                newErrors.passportIssuedCountry = 'Issuing country is required'
+            }
+            
+            if (!formData.passportExpiry) {
+                newErrors.passportExpiry = 'Expiration date is required'
+            } else {
+                const expiryDate = new Date(formData.passportExpiry)
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                
+                if (expiryDate <= today) {
+                    newErrors.passportExpiry = 'Passport must not be expired'
+                }
+            }
+        } else {
+            if (!formData.idCard?.trim()) {
+                newErrors.idCard = 'ID card number is required'
             }
         }
 
@@ -95,6 +102,17 @@ export const PassportStep = ({ formData, updateFormData, onNext }: PassportStepP
 
     const handleContinue = () => {
         if (validateForm()) {
+            // Clear the unused field when switching document types
+            if (documentType === 'idCard') {
+                updateFormData({ 
+                    passportNumber: '', 
+                    passportExpiry: '', 
+                    passportExpiryDisplay: '',
+                    passportIssuedCountry: '' 
+                })
+            } else {
+                updateFormData({ idCard: '' })
+            }
             onNext()
         }
     }
@@ -250,8 +268,70 @@ export const PassportStep = ({ formData, updateFormData, onNext }: PassportStepP
 
     const expiryWarning = checkPassportExpiry()
 
+    const handleDocumentTypeChange = (type: 'passport' | 'idCard') => {
+        setDocumentType(type)
+        setErrors({})
+        // Clear errors when switching
+        if (type === 'idCard') {
+            updateFormData({ documentType: 'idCard' })
+        } else {
+            updateFormData({ documentType: 'passport' })
+        }
+    }
+
     return (
         <div className="space-y-6">
+            {/* Document Type Selection */}
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Document Type <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        type="button"
+                        onClick={() => handleDocumentTypeChange('passport')}
+                        className={`px-4 py-3 border rounded-xl text-center font-medium transition-all duration-300 ${
+                            documentType === 'passport'
+                                ? 'bg-gray-900 text-white border-gray-900'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                        Passport
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleDocumentTypeChange('idCard')}
+                        className={`px-4 py-3 border rounded-xl text-center font-medium transition-all duration-300 ${
+                            documentType === 'idCard'
+                                ? 'bg-gray-900 text-white border-gray-900'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                        ID Card
+                    </button>
+                </div>
+            </div>
+
+            {documentType === 'idCard' ? (
+                /* ID Card Number */
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ID Card Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        value={formData.idCard || ''}
+                        onChange={(e) => handleInputChange('idCard', e.target.value)}
+                        className={`w-full px-4 py-3.5 border rounded-xl bg-white font-mono text-lg tracking-wider focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 transition-all duration-300 ${
+                            errors.idCard ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        placeholder="Enter ID card number"
+                        maxLength={30}
+                    />
+                    {errors.idCard && <p className="mt-1 text-sm text-red-600">{errors.idCard}</p>}
+                </div>
+            ) : (
+                <>
             {/* Passport Number */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -358,6 +438,8 @@ export const PassportStep = ({ formData, updateFormData, onNext }: PassportStepP
                     </div>
                 )}
             </div>
+                </>
+            )}
             {/* Continue Button */}
             <div className="pt-6">
                 <button

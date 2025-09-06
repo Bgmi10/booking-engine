@@ -16,6 +16,7 @@ import {
   X,
   Edit,
   History,
+  Users,
 } from "lucide-react";
 import { getStatusColor, generateMergedBookingId } from "../../../utils/helper";
 import IndividualBookingCard from "./IndividualBookingCard";
@@ -49,6 +50,7 @@ export default function EnhancedPaymentIntentCard({
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
+  console.log(individualBookings)
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
@@ -102,25 +104,45 @@ export default function EnhancedPaymentIntentCard({
     }
   };
 
-  // Fetch individual bookings when expanded
-  const fetchIndividualBookings = async () => {
-    if (individualBookings.length > 0) return; // Already loaded
+  // Use existing booking data from paymentIntent instead of making separate API call
+  const prepareIndividualBookings = () => {
+    if (!paymentIntent.bookings || individualBookings.length > 0) return;
     
     setLoadingBookings(true);
     try {
-      const response = await fetch(`${baseUrl}/admin/payment-intents/${paymentIntent.id}/bookings`, {
-        credentials: 'include'
+      // Transform paymentIntent.bookings to match IndividualBookingCard expected format
+      // The bookings already have checkIn, checkOut, and guestCheckInAccess data
+      const bookingsData = paymentIntent.bookings.map((booking: any) => {
+        return {
+          bookingId: booking.id,
+          id: booking.id,
+          checkIn: booking.checkIn || '',
+          checkOut: booking.checkOut || '',
+          totalGuests: booking.guestCheckInAccess?.length || 1,
+          status: paymentIntent.status === 'SUCCEEDED' ? 'CONFIRMED' : 
+                 paymentIntent.status === 'CANCELLED' ? 'CANCELLED' : 'PENDING',
+          totalAmount: paymentIntent.totalAmount,
+          roomName: booking.room?.name || 'Unknown Room',
+          room: {
+            id: booking.room?.id || '',
+            name: booking.room?.name || 'Unknown Room',
+            description: booking.room?.description || ''
+          },
+          customer: {
+            id: paymentIntent.customerId,
+            guestFirstName: displayData.customerData.firstName,
+            guestLastName: displayData.customerData.lastName,
+            guestEmail: displayData.customerData.email
+          },
+          paymentIntentId: paymentIntent.id,
+          guestCheckInAccess: booking.guestCheckInAccess || []
+        };
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setIndividualBookings(data.data || []);
-      } else {
-        toast.error('Failed to load individual bookings');
-      }
+      setIndividualBookings(bookingsData);
     } catch (error) {
-      console.error('Error fetching individual bookings:', error);
-      toast.error('Failed to load individual bookings');
+      console.error('Error preparing individual bookings:', error);
+      toast.error('Failed to prepare individual bookings');
     } finally {
       setLoadingBookings(false);
     }
@@ -128,7 +150,7 @@ export default function EnhancedPaymentIntentCard({
 
   const handleExpand = () => {
     if (!expanded) {
-      fetchIndividualBookings();
+      prepareIndividualBookings();
     }
     setExpanded(!expanded);
   };
@@ -168,7 +190,7 @@ export default function EnhancedPaymentIntentCard({
   const handleBookingRefund = () => {
     // Refresh the individual bookings to show updated status
     setIndividualBookings([]);
-    fetchIndividualBookings();
+    prepareIndividualBookings();
     // Also trigger parent refresh if needed
     if (onRefresh) {
       onRefresh();
@@ -335,42 +357,6 @@ export default function EnhancedPaymentIntentCard({
           </div>
         </div>
 
-        {/* Bookings Summary */}
-        {/* <div className="mb-4">
-          <h4 className="font-medium text-gray-900 mb-2">Bookings ({totalBookings})</h4>
-          <div className="grid gap-2">
-            {displayData.bookingData.map((booking: BookingData, index: number) => (
-              <div key={index} className="bg-gray-50 rounded-lg p-3 flex items-center">
-                {selectionMode && (
-                  <input
-                    type="checkbox"
-                    className="mr-3"
-                    checked={selectedBookingIds.includes(booking.id)}
-                    onChange={e => onBookingSelect(booking.id, e.target.checked)}
-                  />
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">{booking.roomDetails?.name || "Room"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {format(new Date(booking.checkIn), "MMM dd")} - {format(new Date(booking.checkOut), "MMM dd")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {booking.adults} adult{booking.adults !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div> */}
 
         {/* Status Summary for Multi-Room Bookings */}
         {expanded && individualBookings.length > 0 && (

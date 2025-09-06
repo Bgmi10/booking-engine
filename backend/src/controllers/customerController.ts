@@ -9,11 +9,12 @@ import { CustomerPortalService } from "../services/customerPortalService";
 import { CustomerAuthService } from '../services/customerAuthService';
 import { loginSchema, resetPasswordSchema, activateAccountSchema } from '../zod/auth.schema';
 import { EmailService } from "../services/emailService";
+import { GuestRelationshipService } from "../services/guestRelationshipService";
 
 dotenv.config();
 
 export const createCustomer = async (req: express.Request, res: express.Response) => {
-    const { firstName, lastName, middleName, nationality, email, phone, dob, passportExpiry, passportNumber, vipStatus, totalNigthsStayed, totalMoneySpent } = req.body; 
+    const { firstName, lastName, middleName, nationality, email, phone, dob, passportExpiry, passportNumber, idCard, vipStatus, totalNigthsStayed, totalMoneySpent, gender, city, placeOfBirth, passportIssuedCountry, receiveMarketingEmail, carNumberPlate, adminNotes } = req.body; 
 
     const findExistingCustomer = await prisma.customer.findUnique({
         where: { guestEmail: email }
@@ -31,6 +32,7 @@ export const createCustomer = async (req: express.Request, res: express.Response
                 guestEmail: email,
                 passportExpiry: new Date(passportExpiry),
                 passportNumber: passportNumber,
+                idCard: idCard,
                 guestPhone: phone,
                 dob: new Date(dob),
                 guestLastName: lastName,
@@ -38,7 +40,15 @@ export const createCustomer = async (req: express.Request, res: express.Response
                 guestNationality: nationality,
                 vipStatus,
                 totalNightStayed: totalNigthsStayed,
-                totalMoneySpent
+                totalMoneySpent,
+                city,
+                placeOfBirth,
+                gender,
+                passportIssuedCountry,
+                carNumberPlate,
+                tcAgreed: true,
+                receiveMarketingEmail,
+                adminNotes
             }
         });
         responseHandler(res, 200, "Customer created successfully", customer);
@@ -77,6 +87,7 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
         passportExpiry, 
         passportNumber, 
         passportIssuedCountry,
+        idCard,
         gender,
         placeOfBirth,
         city,
@@ -85,7 +96,8 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
         carNumberPlate,
         vipStatus, 
         totalNigthsStayed, 
-        totalMoneySpent 
+        totalMoneySpent,
+        adminNotes 
     } = req.body; 
 
     const { id } = req.params;
@@ -104,6 +116,7 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
                 passportExpiry: passportExpiry ? new Date(passportExpiry) : null,
                 passportNumber: passportNumber,
                 passportIssuedCountry: passportIssuedCountry,
+                idCard: idCard,
                 guestPhone: phone,
                 dob: dob ? new Date(dob) : null,
                 guestLastName: lastName,
@@ -117,7 +130,8 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
                 carNumberPlate: carNumberPlate,
                 vipStatus,
                 totalNightStayed: totalNigthsStayed,
-                totalMoneySpent
+                totalMoneySpent,
+                adminNotes
             }
         });
 
@@ -131,7 +145,7 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
         if (guestAccessRecords.length > 0) {
             // Calculate completion status based on updated data
             const personalDetailsComplete = !!(firstName && lastName && email && dob);
-            const identityDetailsComplete = !!(nationality && passportNumber && passportExpiry && passportIssuedCountry);
+            const identityDetailsComplete = !!(nationality && ((passportNumber && passportExpiry && passportIssuedCountry) || idCard));
             const addressDetailsComplete = !!(city);
             
             let completionStatus = 'INCOMPLETE';
@@ -343,6 +357,7 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 passportNumber: true,
                 passportExpiry: true,
                 passportIssuedCountry: true,
+                idCard: true,
                 gender: true,
                 placeOfBirth: true,
                 city: true,
@@ -374,6 +389,22 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                 id: true,
                                 url: true
                             }
+                        },
+                        RoomRate: {
+                            select: {
+                                percentageAdjustment: true,
+                                ratePolicy: {
+                                    select: {
+                                        name: true,
+                                        description: true,
+                                        cancellationPolicy: true,
+                                        refundable: true,
+                                        rebookValidityDays: true,
+                                        adjustmentPercentage: true
+                                    }
+                                }
+                            },
+                            
                         }
                     }
                 },
@@ -393,7 +424,8 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                 city: true,
                                 passportNumber: true,
                                 passportExpiry: true,
-                                passportIssuedCountry: true
+                                passportIssuedCountry: true,
+                                idCard: true
                             }
                         }
                     }
@@ -425,7 +457,23 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                         id: true,
                                         url: true
                                     }
+                                },
+                                RoomRate: {
+                                    select: {
+                                        percentageAdjustment: true,
+                                        ratePolicy: {
+                                            select: {
+                                                name: true,
+                                                description: true,
+                                                cancellationPolicy: true,
+                                                refundable: true,
+                                                rebookValidityDays: true,
+                                                adjustmentPercentage: true
+                                            }
+                                        }
+                                    }
                                 }
+                               
                             }
                         },
                         // Include all guests for this booking too
@@ -444,7 +492,8 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                         city: true,
                                         passportNumber: true,
                                         passportExpiry: true,
-                                        passportIssuedCountry: true
+                                        passportIssuedCountry: true,
+                                        idCard: true
                                     }
                                 }
                             }
@@ -485,9 +534,10 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 
                 const identityDetailsComplete = !!(
                     guestCustomer.guestNationality && 
-                    guestCustomer.passportNumber && 
+                    ((guestCustomer.passportNumber && 
                     guestCustomer.passportExpiry && 
-                    guestCustomer.passportIssuedCountry
+                    guestCustomer.passportIssuedCountry) || 
+                    guestCustomer.idCard)
                 );
                 
                 const addressDetailsComplete = !!(guestCustomer.city);
@@ -534,7 +584,8 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                             city: true,
                             passportNumber: true,
                             passportExpiry: true,
-                            passportIssuedCountry: true
+                            passportIssuedCountry: true,
+                            idCard: true
                         }
                     }
                 }
@@ -554,6 +605,7 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 passportNumber: access.customer.passportNumber,
                 passportExpiry: access.customer.passportExpiry,
                 passportIssuedCountry: access.customer.passportIssuedCountry,
+                idCard: access.customer.idCard,
                 // Enhanced tracking fields
                 guestType: access.guestType,
                 invitationStatus: access.invitationStatus,
@@ -591,6 +643,7 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 passportNumber: customer.passportNumber,
                 passportExpiry: customer.passportExpiry,
                 passportIssuedCountry: customer.passportIssuedCountry,
+                idCard: customer.idCard,
                 gender: customer.gender,
                 placeOfBirth: customer.placeOfBirth,
                 city: customer.city,
@@ -1346,7 +1399,10 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
         city, 
         passportNumber,
         passportExpiryDate,
-        passportIssuedCountry
+        passportIssuedCountry,
+        idCard,
+        relationshipType,
+        saveAsRelation
     } = req.body;
 
     if (!customerId) {
@@ -1395,6 +1451,7 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
                 passportNumber: passportNumber || null,
                 passportExpiry: passportExpiryDate ? new Date(passportExpiryDate) : null,
                 passportIssuedCountry: passportIssuedCountry || null,
+                idCard: idCard || null,
             },
             update: {
                 guestFirstName: firstName,
@@ -1407,6 +1464,7 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
                 passportNumber: passportNumber || null,
                 passportExpiry: passportExpiryDate ? new Date(passportExpiryDate) : null,
                 passportIssuedCountry: passportIssuedCountry || null,
+                idCard: idCard || null,
             }
         });
 
@@ -1419,7 +1477,7 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
 
         // Calculate completion status based on provided data
         const personalDetailsComplete = !!(firstName && lastName && email && dateOfBirth);
-        const identityDetailsComplete = !!(nationality && passportNumber && passportExpiryDate && passportIssuedCountry);
+        const identityDetailsComplete = !!(nationality && ((passportNumber && passportExpiryDate && passportIssuedCountry) || idCard));
         const addressDetailsComplete = !!(city);
         
         let completionStatus = 'INCOMPLETE';
@@ -1464,6 +1522,21 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
             }
         });
 
+        // Create relationship if requested
+        if (saveAsRelation && relationshipType && guestCustomer.id !== customerId) {
+            try {
+                await GuestRelationshipService.createRelationship(
+                    customerId,
+                    guestCustomer.id,
+                    relationshipType as any,
+                    true // Allow booking permissions by default
+                );
+            } catch (relationshipError) {
+                // Log the error but don't fail the guest creation
+                console.error("Error creating relationship:", relationshipError);
+            }
+        }
+
         responseHandler(res, 200, "Guest created successfully", guestCustomer);
 
     } catch (error) {
@@ -1474,7 +1547,7 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
 
 export const inviteBookingGuest = async (req: express.Request, res: express.Response) => {
     const { customerId } = (req as any).user; 
-    const { bookingId, firstName, lastName, email } = req.body;
+    const { bookingId, firstName, lastName, email, relationshipType, saveAsRelation } = req.body;
 
     if (!bookingId || !firstName || !lastName || !email) {
         responseHandler(res, 400, "Missing required fields");
@@ -1597,6 +1670,21 @@ export const inviteBookingGuest = async (req: express.Request, res: express.Resp
                 })
             }
         });
+
+        // Create relationship if requested
+        if (saveAsRelation && relationshipType && guestCustomer.id !== customerId) {
+            try {
+                await GuestRelationshipService.createRelationship(
+                    customerId,
+                    guestCustomer.id,
+                    relationshipType as any,
+                    true // Allow booking permissions by default
+                );
+            } catch (relationshipError) {
+                // Log the error but don't fail the guest creation
+                console.error("Error creating relationship:", relationshipError);
+            }
+        }
 
         responseHandler(res, 200, "Guest invitation sent successfully", {
             guest: {
@@ -1730,6 +1818,7 @@ export const applyGuestToAllBookings = async (req: express.Request, res: express
                         passportNumber: actualGuestData.passportNumber || null,
                         passportExpiry: actualGuestData.passportExpiry ? new Date(actualGuestData.passportExpiry) : null,
                         passportIssuedCountry: actualGuestData.passportIssuedCountry || null,
+                        idCard: actualGuestData.idCard || null,
                     },
                     update: {
                         guestFirstName: actualGuestData.guestFirstName,
@@ -1742,6 +1831,7 @@ export const applyGuestToAllBookings = async (req: express.Request, res: express
                         passportNumber: actualGuestData.passportNumber || null,
                         passportExpiry: actualGuestData.passportExpiry ? new Date(actualGuestData.passportExpiry) : null,
                         passportIssuedCountry: actualGuestData.passportIssuedCountry || null,
+                        idCard: actualGuestData.idCard || null,
                     }
                 });
                 
@@ -1752,7 +1842,7 @@ export const applyGuestToAllBookings = async (req: express.Request, res: express
                 
                 // Calculate completion status based on provided data
                 const personalDetailsComplete = !!(actualGuestData.guestFirstName && actualGuestData.guestLastName && actualGuestData.guestEmail && actualGuestData.dob);
-                const identityDetailsComplete = !!(actualGuestData.guestNationality && actualGuestData.passportNumber && actualGuestData.passportExpiry && actualGuestData.passportIssuedCountry);
+                const identityDetailsComplete = !!(actualGuestData.guestNationality && ((actualGuestData.passportNumber && actualGuestData.passportExpiry && actualGuestData.passportIssuedCountry) || actualGuestData.idCard));
                 const addressDetailsComplete = !!(actualGuestData.city);
                 
                 let completionStatus = 'INCOMPLETE';
@@ -1828,6 +1918,189 @@ export const applyGuestToAllBookings = async (req: express.Request, res: express
         
     } catch (error) {
         console.error("Error applying guest to all bookings:", error);
+        handleError(res, error as Error);
+    }
+};
+
+// Guest Relationship Controllers
+export const createNewRelationships = async (req: express.Request, res: express.Response) => {
+    try {
+        const { relatedCustomerId, relationshipType, canBookFor = true } = req.body;
+        //@ts-ignore
+        const { customerId } = req.user;
+
+        if (!relatedCustomerId || !relationshipType) {
+            return responseHandler(res, 400, "Related customer ID and relationship type are required");
+        }
+
+        const result = await GuestRelationshipService.createRelationship(
+            customerId,
+            relatedCustomerId,
+            relationshipType,
+            canBookFor
+        );
+
+        responseHandler(res, 201, "Relationship created successfully", result);
+    } catch (error) {
+        console.error("Error creating relationship:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const deleteRelationships = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id: relatedCustomerId } = req.params;
+        //@ts-ignore
+        const { customerId } = req.user;
+
+        if (!relatedCustomerId) {
+            return responseHandler(res, 400, "Related customer ID is required");
+        }
+
+        const result = await GuestRelationshipService.removeRelationship(customerId, relatedCustomerId);
+
+        responseHandler(res, 200, "Relationship removed successfully", result);
+    } catch (error) {
+        console.error("Error removing relationship:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const quickAddGuests = async (req: express.Request, res: express.Response) => {
+    try {
+        const { relatedCustomerIds, bookingId } = req.body;
+        //@ts-ignore
+        const { customerId: bookerId } = req.user;
+
+        if (!Array.isArray(relatedCustomerIds) || relatedCustomerIds.length === 0) {
+            return responseHandler(res, 400, "Related customer IDs array is required");
+        }
+
+        if (!bookingId) {
+            return responseHandler(res, 400, "Booking ID is required");
+        }
+
+        const result = await GuestRelationshipService.quickAddRelatedGuests(
+            bookerId,
+            relatedCustomerIds,
+            bookingId
+        );
+
+        responseHandler(res, 200, "Related guests added successfully", result);
+    } catch (error) {
+        console.error("Error quick adding related guests:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const getRelatedGuests = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const { customerId } = req.user ;
+        const includeDetails = req.query.includeDetails !== 'false';
+
+        const result = await GuestRelationshipService.getRelatedGuests(customerId, includeDetails);
+
+        responseHandler(res, 200, "Related guests retrieved successfully", result);
+    } catch (error) {
+        console.error("Error fetching related guests:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const searchCustomersForRelationship = async (req: express.Request, res: express.Response) => {
+    try {
+        const { q: searchTerm, limit = '10' } = req.query;
+        //@ts-ignore
+        const { customerId } = req.user;
+
+        if (!searchTerm || typeof searchTerm !== 'string') {
+            return responseHandler(res, 400, "Search term is required");
+        }
+
+        const result = await GuestRelationshipService.searchCustomersForRelationship(
+            searchTerm,
+            customerId,
+            parseInt(limit as string)
+        );
+
+        responseHandler(res, 200, "Customers retrieved successfully", result);
+    } catch (error) {
+        console.error("Error searching customers:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const getRelationshipStats = async (req: express.Request, res: express.Response) => {
+    try {
+        //@ts-ignore
+        const { customerId } = req.user;
+
+        const result = await GuestRelationshipService.getRelationshipStats(customerId);
+
+        responseHandler(res, 200, "Relationship stats retrieved successfully", result);
+    } catch (error) {
+        console.error("Error fetching relationship stats:", error);
+        handleError(res, error as Error);
+    }
+};
+
+// Admin endpoints for managing customer relationships
+export const getCustomerRelationshipsAdmin = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id: customerId } = req.params;
+
+        if (!customerId) {
+            return responseHandler(res, 400, "Customer ID is required");
+        }
+
+        const relationships = await GuestRelationshipService.getRelatedGuests(customerId, true);
+
+        responseHandler(res, 200, "Customer relationships retrieved successfully", relationships);
+    } catch (error) {
+        console.error("Error fetching customer relationships:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const removeCustomerRelationshipAdmin = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id: customerId, relatedId } = req.params;
+
+        if (!customerId || !relatedId) {
+            return responseHandler(res, 400, "Customer ID and related customer ID are required");
+        }
+
+        const result = await GuestRelationshipService.removeRelationship(customerId, relatedId);
+
+        responseHandler(res, 200, "Relationship removed successfully", result);
+    } catch (error) {
+        console.error("Error removing relationship:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const updateCustomerAdminNotes = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id: customerId } = req.params;
+        const { adminNotes } = req.body;
+
+        if (!customerId) {
+            return responseHandler(res, 400, "Customer ID is required");
+        }
+
+        const updatedCustomer = await prisma.customer.update({
+            where: { id: customerId },
+            data: { adminNotes },
+            select: {
+                id: true,
+                adminNotes: true
+            }
+        });
+
+        responseHandler(res, 200, "Admin notes updated successfully", updatedCustomer);
+    } catch (error) {
+        console.error("Error updating admin notes:", error);
         handleError(res, error as Error);
     }
 };

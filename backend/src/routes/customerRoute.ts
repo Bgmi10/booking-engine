@@ -23,7 +23,11 @@ import {
     createManualGuest,
     inviteBookingGuest,
     deleteGuest,
-    applyGuestToAllBookings
+    applyGuestToAllBookings,
+    createNewRelationships,
+    deleteRelationships,
+    quickAddGuests,
+    getRelatedGuests
 } from "../controllers/customerController";
 import { generateProposalPDF } from '../controllers/proposalController';
 import customerAuthMiddleware from "../middlewares/customerAuthMiddleware";
@@ -56,6 +60,12 @@ customerRouter.get('/products/all', getAllProducts);
 customerRouter.put('/profile/:id', editCustomer);
 customerRouter.post('/online-checkin/verify-token', verifyOnlineCheckInToken);
 customerRouter.get('/online-checkin/guest-details', onlineCheckInMiddleware, getGuestDetails);
+
+// relationships
+customerRouter.get('/relationships', onlineCheckInMiddleware, getRelatedGuests);
+customerRouter.post('/relationships', onlineCheckInMiddleware, createNewRelationships);
+customerRouter.delete('/relationships/:id', onlineCheckInMiddleware, deleteRelationships);
+customerRouter.post('/quick-add-guests', onlineCheckInMiddleware, quickAddGuests);
 
 // Guest Management Routes (Protected by onlineCheckInMiddleware)
 customerRouter.post('/online-checkin/guests/manual', onlineCheckInMiddleware, createManualGuest);

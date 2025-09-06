@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs, sendInvoice, sendGroupInvoice, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup, getCheckInUrlForPaymentIntent, getCheckInUrlForBookingGroup } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs, sendInvoice, sendGroupInvoice, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup } from "../controllers/adminController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
@@ -12,7 +12,7 @@ import { refund, processFutureRefund } from "../controllers/adminController";
 import { bookingRestrictionSchema, bookingRestrictionUpdateSchema } from "../zod/booking.schema";
 import { createVoucher, createVoucherProduct, deleteVoucher, deleteVoucherProduct, editVoucher, editVoucherProduct, getAllVoucherProducts, getAllVouchers, getVouchers } from "../controllers/voucherController";
 import { updateVoucherProductSchema, updateVoucherSchema, voucherProductSchema, voucherSchema } from "../zod/voucher.scheme";
-import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer } from "../controllers/customerController";
+import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer, getCustomerRelationshipsAdmin, removeCustomerRelationshipAdmin, updateCustomerAdminNotes } from "../controllers/customerController";
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { 
@@ -267,6 +267,12 @@ adminRouter.get('/temp-customers/all', authMiddleware, getAllTempCustomers);
 
 adminRouter.get('/customers/:id/charge-payments', authMiddleware, getCustomerChargePayments);
 
+adminRouter.get('/customers/:id/relationships', authMiddleware, getCustomerRelationshipsAdmin);
+
+adminRouter.delete('/customers/:id/relationships/:relatedId', authMiddleware, removeCustomerRelationshipAdmin);
+
+adminRouter.put('/customers/:id/notes', authMiddleware, updateCustomerAdminNotes);
+
 adminRouter.get('/temp-customers/:id/charge-payments', authMiddleware, getTempCustomerChargePayments);
 
 adminRouter.get('/temp-customers/:id/orders', authMiddleware, getTempCustomerOrders);
@@ -428,9 +434,5 @@ adminRouter.delete('/license-plates/:id', authMiddleware, deleteLicensePlateEntr
 adminRouter.post('/bookings/:id/send-checkin', authMiddleware, sendManualCheckInForBooking);
 adminRouter.post('/payment-intents/:id/send-checkin', authMiddleware, sendManualCheckInForPaymentIntent);
 adminRouter.post('/booking-groups/:id/send-checkin', authMiddleware, sendManualCheckInForBookingGroup);
-
-// Admin access to customer check-in portal
-adminRouter.get('/payment-intents/:id/checkin-url', authMiddleware, getCheckInUrlForPaymentIntent);
-adminRouter.get('/booking-groups/:id/checkin-url', authMiddleware, getCheckInUrlForBookingGroup);
 
 export default adminRouter;

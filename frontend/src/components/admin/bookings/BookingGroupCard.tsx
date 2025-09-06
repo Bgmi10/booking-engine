@@ -8,7 +8,9 @@ import {
   ShoppingBag,
   DollarSign,
   Badge,
-  Mail
+  Mail,
+  Users,
+  XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BookingGroup } from '../../../types/types';
@@ -17,10 +19,9 @@ import { baseUrl } from '../../../utils/constants';
 import BookingGroupAuditModal from './BookingGroupAuditModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
-import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
 import PaymentIntentSelectionModal from './PaymentIntentSelectionModal';
 import toast from 'react-hot-toast';
-
+  
 interface BookingGroupCardProps {
   group: BookingGroup | BookingGroup[];
   onViewBookings: (group: BookingGroup) => void;
@@ -87,6 +88,7 @@ function SingleBookingGroupCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
   const [showPaymentIntentSelection, setShowPaymentIntentSelection] = useState(false);
+  const [showGroupGuestsModal, setShowGroupGuestsModal] = useState(false);
 
   const totalBookings = group.paymentIntents.reduce(
     (sum, pi) => sum + pi.bookings.length,
@@ -112,10 +114,6 @@ function SingleBookingGroupCard({
   const { isAvailable: isCheckInAvailable } = useCheckInAvailability(
     hasConfirmedBookings ? 'CONFIRMED' : 'PENDING',
     earliestCheckIn
-  );
-
-  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
-    hasConfirmedBookings ? 'SUCCEEDED' : 'PENDING'
   );
 
   const getStatusColor = (outstandingAmount?: number) => {
@@ -252,6 +250,7 @@ function SingleBookingGroupCard({
             </div>
           </div>
 
+
           {/* Actions */}
           <div className="flex gap-2 flex-wrap">
             <button
@@ -270,6 +269,23 @@ function SingleBookingGroupCard({
               View Details
             </button>
 
+            {/* View Group Guests Button */}
+            <button
+              onClick={() => setShowGroupGuestsModal(true)}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-white border border-green-300 rounded-md hover:bg-green-50 transition-colors"
+            >
+              <Users className="h-4 w-4 mr-1" />
+              View Guests ({(() => {
+                let totalGuests = 0;
+                group.paymentIntents.forEach(pi => {
+                  pi.bookings?.forEach((booking: any) => {
+                    totalGuests += booking.guestCheckInAccess?.length || 0;
+                  });
+                });
+                return totalGuests;
+              })()})
+            </button>
+
             {/* Manual Check-In Button */}
             {isCheckInAvailable && (
               <ManualCheckInButton
@@ -282,16 +298,6 @@ function SingleBookingGroupCard({
               />
             )}
 
-            {/* Admin Access Check-In Portal Button */}
-            {isAdminAccessAvailable && (
-              <button
-                onClick={() => setShowPaymentIntentSelection(true)}
-                disabled={isDeleting || isSendingInvoice}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-white border border-blue-600 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
-              >
-                Access Portal
-              </button>
-            )}
 
             <button
               onClick={() => setShowAuditLogs(true)}
@@ -365,6 +371,117 @@ function SingleBookingGroupCard({
         onClose={() => setShowPaymentIntentSelection(false)}
         bookingGroup={group}
       />
+
+      {/* Group Guests Modal */}
+      {showGroupGuestsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Users className="h-6 w-6 text-blue-500" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  All Guests in {group.groupName || `Group ${group.id.slice(0, 8)}`}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowGroupGuestsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {group.paymentIntents.map((paymentIntent: any, piIndex: number) => (
+                <div key={paymentIntent.id || piIndex} className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm font-medium text-gray-700 mb-3 flex items-center justify-between">
+                    <span>Payment Intent {piIndex + 1}</span>
+                    <span className="text-xs text-gray-500">
+                      {paymentIntent.bookings?.length || 0} room{(paymentIntent.bookings?.length || 0) !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  
+                  {paymentIntent.bookings && paymentIntent.bookings.length > 0 ? (
+                    <div className="space-y-3">
+                      {paymentIntent.bookings.map((booking: any, bookingIndex: number) => (
+                        <div key={booking.id || bookingIndex} className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-gray-600">
+                              Room {bookingIndex + 1}: {booking.room?.name || 'Unknown Room'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {booking.guestCheckInAccess?.length || 0} guest{(booking.guestCheckInAccess?.length || 0) !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          
+                          {booking.guestCheckInAccess && booking.guestCheckInAccess.length > 0 ? (
+                            <div className="space-y-2">
+                              {booking.guestCheckInAccess.map((guestAccess: any, guestIndex: number) => (
+                                <div
+                                  key={guestAccess.id || guestIndex}
+                                  className="flex items-center justify-between p-3 bg-white rounded-lg border"
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                      <Users className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="font-medium text-gray-900">
+                                          {guestAccess.customer.guestFirstName} {guestAccess.customer.guestLastName}
+                                        </span>
+                                        {guestAccess.isMainGuest && (
+                                          <span className="text-sm text-blue-500">👑</span>
+                                        )}
+                                      </div>
+                                      <div className="text-sm text-gray-600">
+                                        {guestAccess.customer.guestEmail}
+                                        {guestAccess.customer.guestPhone && (
+                                          <span> • {guestAccess.customer.guestPhone}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      window.location.href = `/admin/dashboard?sidebar=customers&customerid=${guestAccess.customer.id}`;
+                                    }}
+                                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                                  >
+                                    View Profile
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500">
+                              <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                              <p className="text-sm">No guest check-in details available for this room.</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      <span className="text-sm italic">No bookings in this payment intent</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowGroupGuestsModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

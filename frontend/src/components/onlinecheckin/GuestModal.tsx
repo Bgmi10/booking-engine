@@ -3,6 +3,8 @@ import { X, ChevronDown, Search, Calendar } from "lucide-react"
 import { baseUrl } from "../../utils/constants"
 import { countries } from "../../utils/constants"
 import toast from 'react-hot-toast'
+import { RelationshipDropdown } from "./RelationshipDropdown"
+import { SavedGuests } from "./SavedGuests"
 
 interface GuestModalProps {
   isOpen: boolean
@@ -19,7 +21,7 @@ export const GuestModal: React.FC<GuestModalProps> = ({
   roomName,
   onGuestAdded
 }) => {
-  const [activeTab, setActiveTab] = useState<'enter' | 'invite'>('enter')
+  const [activeTab, setActiveTab] = useState<'saved' | 'enter' | 'invite'>('saved')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Enter Details Form State
@@ -48,14 +50,20 @@ export const GuestModal: React.FC<GuestModalProps> = ({
     passportNumber: '',
     passportExpiryDate: '',
     passportExpiryDisplay: '',
-    passportIssuedCountry: ''
+    passportIssuedCountry: '',
+    idCard: '',
+    documentType: 'passport' as 'passport' | 'idCard',
+    relationshipType: '',
+    saveAsRelation: true
   })
 
   // Invite Guest Form State
   const [inviteData, setInviteData] = useState({
     firstName: '',
     lastName: '',
-    email: ''
+    email: '',
+    relationshipType: '',
+    saveAsRelation: true
   })
 
   const handleEnterDetailsSubmit = async () => {
@@ -88,9 +96,12 @@ export const GuestModal: React.FC<GuestModalProps> = ({
           nationality: enterDetailsData.nationality,
           dateOfBirth: enterDetailsData.dateOfBirth,
           city: enterDetailsData.city,
-          passportNumber: enterDetailsData.passportNumber,
-          passportExpiryDate: enterDetailsData.passportExpiryDate,
-          passportIssuedCountry: enterDetailsData.passportIssuedCountry
+          passportNumber: enterDetailsData.documentType === 'passport' ? enterDetailsData.passportNumber : undefined,
+          passportExpiryDate: enterDetailsData.documentType === 'passport' ? enterDetailsData.passportExpiryDate : undefined,
+          passportIssuedCountry: enterDetailsData.documentType === 'passport' ? enterDetailsData.passportIssuedCountry : undefined,
+          idCard: enterDetailsData.documentType === 'idCard' ? enterDetailsData.idCard : undefined,
+          relationshipType: enterDetailsData.saveAsRelation ? enterDetailsData.relationshipType : undefined,
+          saveAsRelation: enterDetailsData.saveAsRelation
         })
       })
 
@@ -118,7 +129,11 @@ export const GuestModal: React.FC<GuestModalProps> = ({
         passportNumber: '',
         passportExpiryDate: '',
         passportExpiryDisplay: '',
-        passportIssuedCountry: ''
+        passportIssuedCountry: '',
+        idCard: '',
+        documentType: 'passport',
+        relationshipType: '',
+        saveAsRelation: true
       })
       setEnterDetailsStep('personal')
       
@@ -148,7 +163,9 @@ export const GuestModal: React.FC<GuestModalProps> = ({
           bookingId: bookingId,
           firstName: inviteData.firstName,
           lastName: inviteData.lastName,
-          email: inviteData.email
+          email: inviteData.email,
+          relationshipType: inviteData.saveAsRelation ? inviteData.relationshipType : undefined,
+          saveAsRelation: inviteData.saveAsRelation
         })
       })
 
@@ -166,7 +183,9 @@ export const GuestModal: React.FC<GuestModalProps> = ({
       setInviteData({
         firstName: '',
         lastName: '',
-        email: ''
+        email: '',
+        relationshipType: '',
+        saveAsRelation: true
       })
       
     } catch (error) {
@@ -545,6 +564,11 @@ export const GuestModal: React.FC<GuestModalProps> = ({
       newErrors.email = 'Please enter a valid email address'
     }
 
+    // Relationship validation
+    if (enterDetailsData.saveAsRelation && !enterDetailsData.relationshipType) {
+      newErrors.relationshipType = 'Please select a relationship type'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -561,6 +585,11 @@ export const GuestModal: React.FC<GuestModalProps> = ({
       newErrors.email = 'Please enter a valid email address'
     }
 
+    // Relationship validation
+    if (inviteData.saveAsRelation && !inviteData.relationshipType) {
+      newErrors.relationshipType = 'Please select a relationship type'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -573,7 +602,53 @@ export const GuestModal: React.FC<GuestModalProps> = ({
     }
   }
 
-  const handleTabChange = (tab: 'enter' | 'invite') => {
+  const handleSavedGuestSelected = async (savedGuests: any[]) => {
+    setIsSubmitting(true)
+    try {
+      const guestIds = savedGuests.map(guest => guest.customer.id)
+      
+      const response = await fetch(`${baseUrl}/customers/quick-add-guests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          relatedCustomerIds: guestIds,
+          bookingId: bookingId
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to add guests')
+      }
+
+      const data = await response.json()
+      
+      // Notify parent of added guests
+      savedGuests.forEach(guest => {
+        onGuestAdded({ 
+          type: 'saved', 
+          data: {
+            ...guest.customer,
+            relationshipType: guest.relationshipType
+          }
+        })
+      })
+      
+      toast.success(`${savedGuests.length} guest${savedGuests.length !== 1 ? 's' : ''} added successfully!`)
+      onClose()
+      
+    } catch (error) {
+      console.error('Error adding saved guests:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to add guests. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleTabChange = (tab: 'saved' | 'enter' | 'invite') => {
     setActiveTab(tab)
     setErrors({}) // Clear all errors when switching tabs
   }
@@ -614,6 +689,16 @@ export const GuestModal: React.FC<GuestModalProps> = ({
         <div className="border-b border-gray-200">
           <div className="flex">
             <button
+              onClick={() => handleTabChange('saved')}
+              className={`flex-1 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'saved'
+                  ? 'border-gray-900 text-gray-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Saved Guests
+            </button>
+            <button
               onClick={() => handleTabChange('enter')}
               className={`flex-1 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'enter'
@@ -638,7 +723,12 @@ export const GuestModal: React.FC<GuestModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {activeTab === 'enter' ? (
+          {activeTab === 'saved' ? (
+            <SavedGuests
+              onGuestSelected={handleSavedGuestSelected}
+              onClose={onClose}
+            />
+          ) : activeTab === 'enter' ? (
             <div>
               {enterDetailsStep === 'personal' ? (
                 <div className="space-y-6">
@@ -873,11 +963,84 @@ export const GuestModal: React.FC<GuestModalProps> = ({
                     />
                     {errors.city && <p className="mt-1 text-sm text-red-600">{errors.city}</p>}
                   </div>
+
+                  {/* Save as Relationship */}
+                  <div className="border-t border-gray-200 pt-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <input
+                        type="checkbox"
+                        id="saveAsRelation"
+                        checked={enterDetailsData.saveAsRelation}
+                        onChange={(e) => setEnterDetailsData(prev => ({ ...prev, saveAsRelation: e.target.checked }))}
+                        className="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2"
+                      />
+                      <label htmlFor="saveAsRelation" className="text-sm font-medium text-gray-700">
+                        Save this guest for future bookings
+                      </label>
+                    </div>
+                    
+                    {enterDetailsData.saveAsRelation && (
+                      <RelationshipDropdown
+                        value={enterDetailsData.relationshipType}
+                        onChange={(value) => handleInputChange('relationshipType', value)}
+                        error={errors.relationshipType}
+                        required={enterDetailsData.saveAsRelation}
+                      />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Passport Information</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Identity Document</h3>
                   
+                  {/* Document Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Document Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEnterDetailsData(prev => ({ ...prev, documentType: 'passport' }))}
+                        className={`px-4 py-3 border rounded-xl text-center font-medium transition-all duration-300 ${
+                          enterDetailsData.documentType === 'passport'
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        Passport
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnterDetailsData(prev => ({ ...prev, documentType: 'idCard' }))}
+                        className={`px-4 py-3 border rounded-xl text-center font-medium transition-all duration-300 ${
+                          enterDetailsData.documentType === 'idCard'
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        ID Card
+                      </button>
+                    </div>
+                  </div>
+
+                  {enterDetailsData.documentType === 'idCard' ? (
+                    /* ID Card Number */
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ID Card Number
+                      </label>
+                      <input
+                        type="text"
+                        value={enterDetailsData.idCard}
+                        onChange={(e) => setEnterDetailsData(prev => ({ ...prev, idCard: e.target.value }))}
+                        className="w-full px-4 py-3.5 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 transition-all duration-300 hover:border-gray-300"
+                        placeholder="Enter ID card number"
+                        maxLength={30}
+                      />
+                    </div>
+                  ) : (
+                    <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Passport number
@@ -970,6 +1133,8 @@ export const GuestModal: React.FC<GuestModalProps> = ({
                     </div>
                     {errors.passportIssuedCountry && <p className="mt-1 text-sm text-red-600">{errors.passportIssuedCountry}</p>}
                   </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1023,6 +1188,31 @@ export const GuestModal: React.FC<GuestModalProps> = ({
                   placeholder="Enter email address"
                 />
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+              </div>
+
+              {/* Save as Relationship */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="checkbox"
+                    id="inviteSaveAsRelation"
+                    checked={inviteData.saveAsRelation}
+                    onChange={(e) => setInviteData(prev => ({ ...prev, saveAsRelation: e.target.checked }))}
+                    className="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2"
+                  />
+                  <label htmlFor="inviteSaveAsRelation" className="text-sm font-medium text-gray-700">
+                    Save this guest for future bookings
+                  </label>
+                </div>
+                
+                {inviteData.saveAsRelation && (
+                  <RelationshipDropdown
+                    value={inviteData.relationshipType}
+                    onChange={(value) => handleInviteInputChange('relationshipType', value)}
+                    error={errors.relationshipType}
+                    required={inviteData.saveAsRelation}
+                  />
+                )}
               </div>
             </div>
           )}

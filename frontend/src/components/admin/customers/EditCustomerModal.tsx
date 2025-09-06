@@ -1,8 +1,7 @@
 import { X } from "lucide-react";
 import { useState, useEffect } from "react";
-import { baseUrl } from "../../../utils/constants";
-import countryList from "country-list-with-dial-code-and-flag";
-import { RiErrorWarningLine, RiCheckLine } from "react-icons/ri";
+import { baseUrl, countries } from "../../../utils/constants";
+import toast from "react-hot-toast";
 
 interface EditCustomerModalProps {
   customer: any;
@@ -11,10 +10,8 @@ interface EditCustomerModalProps {
 }
 
 export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers }: EditCustomerModalProps) {
-  const countries = countryList.getAll();
   const [loading, setLoading] = useState(false);
-  const [localError, setLocalError] = useState("");
-  const [localSuccess, setLocalSuccess] = useState("");
+  const [documentType, setDocumentType] = useState<'passport' | 'idCard'>('passport');
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -28,7 +25,16 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
     anniversaryDate: "",
     vipStatus: false,
     totalNigthsStayed: 0,
-    totalMoneySpent: 0
+    totalMoneySpent: 0,
+    passportIssuedCountry: "",
+    idCard: "",
+    gender: "",
+    placeOfBirth: "",
+    city: "",
+    carNumberPlate: "",
+    tcAgreed: true,
+    receiveMarketingEmail: true,
+    adminNotes: ""
   });
 
   useEffect(() => {
@@ -46,14 +52,28 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
       anniversaryDate: customer.anniversaryDate ? new Date(customer.anniversaryDate).toISOString().split('T')[0] : "",
       vipStatus: customer.vipStatus || false,
       totalNigthsStayed: customer.totalNightStayed || 0,
-      totalMoneySpent: customer.totalMoneySpent || 0
+      totalMoneySpent: customer.totalMoneySpent || 0,
+      passportIssuedCountry: customer.passportIssuedCountry,
+      idCard: customer.idCard || "",
+      gender: customer.gender ?? "MALE",
+      placeOfBirth: customer.placeOfBirth,
+      city: customer.city,
+      carNumberPlate: customer.carNumberPlate,
+      tcAgreed: customer.tcAgreed,
+      receiveMarketingEmail: customer.receiveMarketingEmail,
+      adminNotes: customer.adminNotes || ""
     });
+    // Set document type based on existing data
+    if (customer.idCard) {
+      setDocumentType('idCard');
+    } else if (customer.passportNumber) {
+      setDocumentType('passport');
+    }
   }, [customer]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setLocalError("");
     try {
       const response = await fetch(`${baseUrl}/admin/customers/${customer.id}`, {
         method: "PUT",
@@ -61,21 +81,25 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          passportNumber: documentType === 'passport' ? formData.passportNumber : null,
+          passportExpiry: documentType === 'passport' ? formData.passportExpiry : null,
+          passportIssuedCountry: documentType === 'passport' ? formData.passportIssuedCountry : null,
+          idCard: documentType === 'idCard' ? formData.idCard : null
+        }),
       });
 
-      const data = await response.json();
       if (response.ok) {
-        setLocalSuccess("Customer updated successfully!");
-        setTimeout(() => {
-          fetchCustomers();
-          setIsEditModalOpen(false);
-        }, 500);
+        toast.success("Updated successfully")
+        fetchCustomers();
+        setIsEditModalOpen(false);
+
       } else {
-        setLocalError(data.message || "Failed to update customer");
+        toast.error("error occurrs try again later")
       }
     } catch (error) {
-      setLocalError("Failed to update customer");
+      toast.error("error occurrs try again later")
     } finally {
       setLoading(false);
     }
@@ -91,12 +115,15 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
     }));
   };
 
-  const handleNationalityChange = (countryCode: string) => {
-    setFormData(prev => ({
-      ...prev,
-      nationality: countryCode,
-      phone: !prev.phone || prev.phone.startsWith('+') ? countries.find(c => c.code === countryCode)?.dial_code || '' : prev.phone
-    }));
+  const handleNationalityChange = (countryName: string) => {
+    const country = countries.find(c => c.name === countryName);
+    if (country) {
+      setFormData(prev => ({
+        ...prev,
+        nationality: countryName,
+        phone: !prev.phone || prev.phone.startsWith('+') ? country.dial_code || '' : prev.phone,
+      }));
+    }
   };
 
   return (
@@ -109,34 +136,7 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
           <X className="h-6 w-6" />
         </button>
         
-        <h2 className="text-2xl font-bold mb-6">Edit Customer</h2>
-
-        {localError && (
-          <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{localError}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {localSuccess && (
-          <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <RiCheckLine className="h-5 w-5 text-green-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-green-700">{localSuccess}</p>
-              </div>
-            </div>
-          </div>
-        )}
-        
+        <h2 className="text-2xl font-bold mb-6">Edit Customer</h2>        
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Basic Information */}
@@ -212,7 +212,7 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
                 <option value="">Select nationality</option>
                 {countries.map((country, index) => (
                   <option key={index} value={country.name}>
-                    {country.flag} {country.name}
+                    {country.name}
                   </option>
                 ))}
               </select>
@@ -236,12 +236,53 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
               </div>
               {formData.nationality && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Country code: {countries.find(c => c.code === formData.nationality)?.dial_code}
+                  Country code: {countries.find(c => c.name === formData.nationality)?.dial_code}
                 </p>
               )}
             </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Place Of Birth
+              </label>
+              <input
+                type="text"
+                name="placeOfBirth"
+                value={formData.placeOfBirth}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
 
-            {/* Additional Information */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+               Car License Plate
+              </label>
+              <input
+                type="text"
+                name="carNumberPlate"
+                value={formData.carNumberPlate}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date of Birth
@@ -258,22 +299,82 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Passport Number
+                Gender
               </label>
-              <input
-                type="text"
-                name="passportNumber"
-                value={formData.passportNumber}
-                onChange={handleChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                disabled={loading}
-              />
-            </div>
+             <select name="gender" id="" onChange={(e) => handleChange(e)}  value={formData.gender} className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+               <option value="MALE">Male</option>
+               <option value="FEMALE">Female</option>
+               <option value="OTHERS">Others</option>
+             </select>
+            </div>  
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Passport Expiry
+                Document Type
               </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('passport')}
+                  className={`px-3 py-2 border rounded-md text-sm font-medium transition-all ${
+                    documentType === 'passport'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  disabled={loading}
+                >
+                  Passport
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('idCard')}
+                  className={`px-3 py-2 border rounded-md text-sm font-medium transition-all ${
+                    documentType === 'idCard'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  disabled={loading}
+                >
+                  ID Card
+                </button>
+              </div>
+            </div>
+
+            {documentType === 'idCard' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID Card Number
+                </label>
+                <input
+                  type="text"
+                  name="idCard"
+                  value={formData.idCard}
+                  onChange={handleChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled={loading}
+                  maxLength={30}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Passport Number
+                  </label>
+                  <input
+                    type="text"
+                    name="passportNumber"
+                    value={formData.passportNumber}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Passport Expiry
+                  </label>
               <input
                 type="date"
                 name="passportExpiry"
@@ -283,6 +384,28 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
                 disabled={loading}
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Passport Issued Country 
+              </label>
+              <select
+                value={formData.passportIssuedCountry}
+                name="passportIssuedCountry"
+                onChange={(e) => handleChange(e)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              >
+                <option value="">Select nationality</option>
+                {countries.map((country, index) => (
+                  <option key={index} value={country.name}>
+                      {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -311,6 +434,47 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
                 disabled={loading}
               />
             </div>
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-gray-700 mr-3">
+                Terms & Condition
+              </label>
+              <input
+                type="checkbox"
+                name="tcAgreed"
+                checked={formData.tcAgreed}
+                onChange={handleChange}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-gray-700 mr-3">
+                Marketing Email
+              </label>
+              <input
+                type="checkbox"
+                name="receiveMarketingEmail"
+                checked={formData.receiveMarketingEmail}
+                onChange={handleChange}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                disabled={loading}  
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Admin Notes
+            </label>
+            <textarea
+              name="adminNotes"
+              value={formData.adminNotes}
+              onChange={(e) => setFormData(prev => ({ ...prev, adminNotes: e.target.value }))}
+              rows={4}
+              placeholder="Internal notes for administrative use..."
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-vertical"
+              disabled={loading}
+            />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">

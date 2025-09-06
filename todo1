@@ -111,4 +111,7 @@ non refund automatically
 
 [] => check in feature need to ahve ability to check whether the user as a any outstanding balance if it has/ this restriction is optional like checking hte outstanding amount is purely optional if the manager or admin wants to allow hte user they can its a optional based restriction and then keep in mind check in and check out feature is purely exist one of them if hte user checked then only they can able to checkout vice versa. 
 
+
+[] => on the tc page there is a marketing email check box exist. in backend we need check if it was true then save hte user in brevo list else if it was false then remove hte user from brevo.
+
 [] => in groups we need ability to  

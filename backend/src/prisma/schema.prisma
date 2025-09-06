@@ -35,27 +35,27 @@ model User {
 }            
 
 model Room {
-  id                String           @id @default(uuid())
-  name              String        
-  description       String        
-  amenities         String[]        
-  price             Float        
-  capacity          Int        
-  maxCapacityWithExtraBed Int?      // Maximum capacity with extra bed
-  extraBedPrice     Float?           // Price for extra bed per night
-  allowsExtraBed    Boolean          @default(false) // Whether room allows extra bed
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  needsChannelSync      Boolean      @default(false)
-  lastChannelSyncAt     DateTime?
-  channelSyncFailCount  Int          @default(0)
-  images            RoomImage[]
-  bookings          Booking[]
-  holds             TemporaryHold[]
-  RoomRate          RoomRate[]
-  rateDatePrices    RateDatePrice[]
-  notifications     Notification[]
-  beds24Mapping     Beds24RoomMapping?
+  id                        String           @id @default(uuid())
+  name                      String        
+  description               String        
+  amenities                 String[]        
+  price                     Float        
+  capacity                  Int        
+  maxCapacityWithExtraBed   Int?      // Maximum capacity with extra bed
+  extraBedPrice             Float?           // Price for extra bed per night
+  allowsExtraBed            Boolean          @default(false) // Whether room allows extra bed
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  needsChannelSync          Boolean      @default(false)
+  lastChannelSyncAt         DateTime?
+  channelSyncFailCount      Int          @default(0)
+  images                    RoomImage[]
+  bookings                  Booking[]
+  holds                     TemporaryHold[]
+  RoomRate                  RoomRate[]
+  rateDatePrices            RateDatePrice[]
+  notifications             Notification[]
+  beds24Mapping             Beds24RoomMapping?
   
   @@index([needsChannelSync])
 }
@@ -110,7 +110,9 @@ model Customer {
   guestEmail                 String              @unique
   guestPhone                 String       
   guestNationality           String?      
-  dob                        DateTime?      
+  adminNotes                 String?
+  dob                        DateTime?   
+  idCard                     String?   
   passportNumber             String?      
   vipStatus                  Boolean             @default(false)
   anniversaryDate            DateTime?      
@@ -142,7 +144,38 @@ model Customer {
   orders                     Order[]
   weddingProposals           WeddingProposal[]
   guestCheckIns              GuestCheckInAccess[]
+  relationships              GuestRelationShip[]  @relation("CustomerRelationships")
+  relatedTo                  GuestRelationShip[]  @relation("RelatedToCustomer")
   @@index([guestEmail, guestFirstName])
+}
+
+model GuestRelationShip {
+  id                                        String             @id @default(uuid())
+  customerId                                String   
+  customer                                  Customer           @relation("CustomerRelationships", fields: [customerId], references: [id], onDelete: Cascade)
+  relatedCustomerId                         String   
+  relatedCustomer                           Customer           @relation("RelatedToCustomer", fields: [relatedCustomerId], references: [id], onDelete: Cascade)
+  relationshipType                          RelationshipType        
+  reverseRelationshipType                   RelationshipType  
+  canBookFor                                Boolean            @default(true)
+  createdAt                                 DateTime           @default(now())
+  updatedAt                                 DateTime           @updatedAt
+
+  @@unique([customerId, relatedCustomerId])
+  @@index([customerId])
+  @@index([relatedCustomerId])
+}
+
+enum RelationshipType {
+  HUSBAND
+  WIFE
+  PARTNER
+  DAUGHTER
+  SON
+  FATHER
+  MOTHER
+  OTHER_RELATIVE
+  FRIEND
 }
 
 enum GENDER {
@@ -401,51 +434,44 @@ model Payment {
     auditLogs             BookingAuditLog[]
   }
 
-model RatePolicy {
-  id                    String   @id @default(uuid())
-  name                  String
-  description           String
-  isActive              Boolean  @default(true)
-  refundable            Boolean? @default(false)
-  prepayPercentage      Int?     // For deposits (not currently used with new split structure)
-  fullPaymentDays       Int?     // Days before arrival when remaining payment is due
-  changeAllowedDays     Int?     // Days before arrival when changes are allowed
-  rebookValidityDays    Int?     // Days to rebook if cancelled
-  adjustmentPercentage  Int?
-  basePrice             Float?               // Base price for this rate policy
-  paymentStructure      PaymentStructure     @default(FULL_PAYMENT)
-  cancellationPolicy    CancellationPolicy   @default(FLEXIBLE)
-  
-  // Channel sync tracking
-  needsChannelSync      Boolean      @default(false)
-  lastChannelSyncAt     DateTime?
-  channelSyncFailCount  Int          @default(0)
-  
-  bulkOverRideLogs      BulkOverRideLogs[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  roomRates             RoomRate[]
-  rateDatePrices        RateDatePrice[]
+model RatePolicy {             
+  id                       String                @id @default(uuid())
+  name                     String             
+  description              String             
+  isActive                 Boolean               @default(true)
+  refundable               Boolean?              @default(false)
+  prepayPercentage         Int?    
+  fullPaymentDays          Int?    
+  changeAllowedDays        Int?    
+  rebookValidityDays       Int?     
+  adjustmentPercentage     Int?
+  basePrice                Float?        
+  paymentStructure         PaymentStructure      @default(FULL_PAYMENT)
+  cancellationPolicy       CancellationPolicy    @default(FLEXIBLE)
+  needsChannelSync         Boolean               @default(false)
+  lastChannelSyncAt        DateTime?         
+  channelSyncFailCount     Int                   @default(0)
+  bulkOverRideLogs         BulkOverRideLogs[]
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  roomRates                RoomRate[]
+  rateDatePrices           RateDatePrice[]
   beds24RatePolicyMappings Beds24RatePolicyMapping[]
   
   @@index([needsChannelSync])
 }
 
 model RoomRate {
-  id              String     @id @default(uuid())
-  room            Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId          String
-  ratePolicy      RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
-  ratePolicyId    String
-  percentageAdjustment Float? // Percentage adjustment from rate policy base price (can be positive or negative)
-  isActive        Boolean    @default(true) // Can deactivate specific room-policy combinations
-  validFrom       DateTime?  // When this rate becomes valid
-  validTo         DateTime?  // When this rate expires
-  priority        Int        @default(0)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id                             String     @id @default(uuid())
+  isActive                       Boolean    @default(true)
+  room                           Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId                         String
+  ratePolicy                     RatePolicy @relation(fields: [ratePolicyId], references: [id], onDelete: Cascade)
+  ratePolicyId                   String
+  percentageAdjustment           Float?
+  createdAt                      DateTime   @default(now())
+  updatedAt                      DateTime   @updatedAt
   @@index([roomId, ratePolicyId])
-  @@index([roomId, isActive])
   @@unique([roomId, ratePolicyId])
 }
 

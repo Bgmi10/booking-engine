@@ -20,6 +20,7 @@ interface OnlineCheckInFormProps {
             passportNumber?: string
             passportExpiry?: string
             passportIssuedCountry?: string
+            idCard?: string
             gender?: string
             placeOfBirth?: string
             city?: string
@@ -55,10 +56,12 @@ export const OnlineCheckInForm = ({ customer }: OnlineCheckInFormProps) => {
         gender: customer.customer.gender || '',
         placeOfBirth: customer.customer.placeOfBirth || '',
         city: customer.customer.city || '',
-        // Passport details
+        // Passport/ID Card details
         passportNumber: customer.customer.passportNumber || '',
         passportIssuedCountry: customer.customer.passportIssuedCountry || '',
         passportExpiry: customer.customer.passportExpiry ? new Date(customer.customer.passportExpiry).toISOString().split('T')[0] : '',
+        idCard: customer.customer.idCard || '',
+        documentType: customer.customer.idCard ? 'idCard' : 'passport',
         // Terms
         tcAgreed: customer.customer.tcAgreed || false,
         receiveMarketingEmail: customer.customer.receiveMarketingEmail !== undefined ? customer.customer.receiveMarketingEmail : true,
@@ -69,7 +72,7 @@ export const OnlineCheckInForm = ({ customer }: OnlineCheckInFormProps) => {
 
     const steps = [
         { id: 1, title: "Personal details", component: PersonalDetailsStep },
-        { id: 2, title: "Passport", component: PassportStep },
+        { id: 2, title: "Identity Document", component: PassportStep },
         { id: 3, title: "Terms and conditions", component: TermsStep }
     ]
 
@@ -112,9 +115,10 @@ export const OnlineCheckInForm = ({ customer }: OnlineCheckInFormProps) => {
                     gender: formData.gender,
                     placeOfBirth: formData.placeOfBirth,
                     city: formData.city,
-                    passportNumber: formData.passportNumber,
-                    passportIssuedCountry: formData.passportIssuedCountry,
-                    passportExpiry: formData.passportExpiry,
+                    passportNumber: formData.documentType === 'passport' ? formData.passportNumber : undefined,
+                    passportIssuedCountry: formData.documentType === 'passport' ? formData.passportIssuedCountry : undefined,
+                    passportExpiry: formData.documentType === 'passport' ? formData.passportExpiry : undefined,
+                    idCard: formData.documentType === 'idCard' ? formData.idCard : undefined,
                     tcAgreed: formData.tcAgreed,
                     receiveMarketingEmail: formData.receiveMarketingEmail,
                     carNumberPlate: formData.carNumberPlate

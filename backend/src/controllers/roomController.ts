@@ -291,9 +291,6 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       include: {
         images: true,
         RoomRate: {
-          where: {
-            isActive: true
-          },
           include: {
             ratePolicy: {
               include: {

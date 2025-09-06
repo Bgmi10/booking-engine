@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink, User, CreditCard, Calendar } from 'lucide-react';
+import { X, User, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import toast from 'react-hot-toast';
-import { baseUrl } from '../../../utils/constants';
 
 interface PaymentIntent {
   id: string;
@@ -46,8 +44,6 @@ export default function PaymentIntentSelectionModal({
   bookingGroup
 }: PaymentIntentSelectionModalProps) {
   const [selectedPaymentIntentId, setSelectedPaymentIntentId] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-
   // Filter only confirmed payment intents
   const confirmedPaymentIntents = bookingGroup.paymentIntents.filter(
     pi => pi.status === 'SUCCEEDED'
@@ -59,41 +55,6 @@ export default function PaymentIntentSelectionModal({
       setSelectedPaymentIntentId(confirmedPaymentIntents[0].id);
     }
   }, [confirmedPaymentIntents]);
-
-  const handleAccessPortal = async () => {
-    if (!selectedPaymentIntentId) {
-      toast.error('Please select a booking');
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      const response = await fetch(`${baseUrl}/admin/payment-intents/${selectedPaymentIntentId}/checkin-url`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.data?.checkinUrl) {
-        // Open check-in portal in new tab
-        window.open(data.data.checkinUrl, '_blank');
-        toast.success('Check-in portal opened in new tab');
-        onClose();
-      } else {
-        toast.error(data.message || 'Failed to get check-in URL');
-      }
-    } catch (error) {
-      console.error('Error accessing check-in portal:', error);
-      toast.error('Failed to access check-in portal');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -227,26 +188,6 @@ export default function PaymentIntentSelectionModal({
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           >
             Cancel
-          </button>
-          <button
-            onClick={handleAccessPortal}
-            disabled={!selectedPaymentIntentId || isLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
-          >
-            {isLoading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                </svg>
-                Loading...
-              </span>
-            ) : (
-              <>
-                Access Selected Portal
-                <ExternalLink className="h-3 w-3 ml-2" />
-              </>
-            )}
           </button>
         </div>
       </div>

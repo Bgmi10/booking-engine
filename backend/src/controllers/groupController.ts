@@ -146,6 +146,19 @@ export const getAllBookingGroups = async (req: express.Request, res: express.Res
                         bookings: {
                             include: {
                                 room: true,
+                                guestCheckInAccess: {
+                                    include: {
+                                        customer: {
+                                            select: {
+                                                id: true,
+                                                guestFirstName: true,
+                                                guestLastName: true,
+                                                guestEmail: true,
+                                                guestPhone: true
+                                            }
+                                        }
+                                    }
+                                }
                             },
                         },
                         customer: true,

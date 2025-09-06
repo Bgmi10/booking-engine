@@ -12,7 +12,6 @@ import {
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
-import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
 
 interface Booking {
   bookingId: any;
@@ -36,6 +35,17 @@ interface Booking {
     guestEmail: string;
   };
   paymentIntentId: string;
+  guestCheckInAccess?: Array<{
+    id: string;
+    isMainGuest: boolean;
+    customer: {
+      id: string;
+      guestFirstName: string;
+      guestLastName: string;
+      guestEmail: string;
+      guestPhone?: string;
+    };
+  }>;
 }
 
 interface IndividualBookingCardProps {
@@ -54,6 +64,7 @@ export default function IndividualBookingCard({
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [loadingRefund, setLoadingRefund] = useState(false);
   const [refundReason, setRefundReason] = useState('');
+  const [showGuestsModal, setShowGuestsModal] = useState(false);
 
   const getStatusInfo = () => {
     switch (booking.status) {
@@ -145,10 +156,8 @@ export default function IndividualBookingCard({
     booking.checkIn
   );
 
-  // Check if admin access should be available
-  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
-    booking.status
-  );
+  console.log(booking)
+
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
@@ -182,7 +191,26 @@ export default function IndividualBookingCard({
       <div className="flex items-center space-x-2 mb-3">
         <Calendar className="h-4 w-4 text-gray-400" />
         <span className="text-sm text-gray-700">
-          {format(new Date(booking.checkIn), 'MMM dd')} → {format(new Date(booking.checkOut), 'MMM dd, yyyy')}
+          {(() => {
+            try {
+              if (booking.checkIn && booking.checkOut) {
+                const checkInDate = new Date(booking.checkIn);
+                const checkOutDate = new Date(booking.checkOut);
+                
+                // Check if dates are valid
+                if (!isNaN(checkInDate.getTime()) && !isNaN(checkOutDate.getTime())) {
+                  return (
+                    <>
+                      {format(checkInDate, 'MMM dd')} → {format(checkOutDate, 'MMM dd, yyyy')}
+                    </>
+                  );
+                }
+              }
+              return <span className="text-gray-500 italic">Dates not available</span>;
+            } catch (error) {
+              return <span className="text-gray-500 italic">Dates not available</span>;
+            }
+          })()}
         </span>
       </div>
 
@@ -211,6 +239,14 @@ export default function IndividualBookingCard({
             View Details
           </button>
 
+          {/* View Guests Button */}
+          <button
+            onClick={() => setShowGuestsModal(true)}
+            className="text-sm text-green-600 hover:text-green-800 font-medium"
+          >
+            View Guests ({booking.guestCheckInAccess?.length || 0})
+          </button>
+
           {/* Manual Check-In Button */}
           {isCheckInAvailable && (
             <ManualCheckInButton
@@ -220,19 +256,6 @@ export default function IndividualBookingCard({
               variant="outline"
               size="sm"
               className="text-xs"
-            />
-          )}
-
-          {/* Admin Access Check-In Portal Button */}
-          {isAdminAccessAvailable && booking.paymentIntentId && (
-            <AdminCheckInAccessButton
-              type="paymentIntent"
-              id={booking.paymentIntentId}
-              disabled={loadingRefund}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              label="Access Portal"
             />
           )}
         </div>
@@ -293,6 +316,112 @@ export default function IndividualBookingCard({
               >
                 {loadingRefund && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
                 Confirm Refund
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Guests Modal */}
+      {showGuestsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Users className="h-6 w-6 text-blue-500" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Guests in {booking.room.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowGuestsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <div className="text-sm text-gray-600 mb-3">
+                {(() => {
+                  try {
+                    if (booking.checkIn && booking.checkOut) {
+                      const checkInDate = new Date(booking.checkIn);
+                      const checkOutDate = new Date(booking.checkOut);
+                      
+                      // Check if dates are valid
+                      if (!isNaN(checkInDate.getTime()) && !isNaN(checkOutDate.getTime())) {
+                        return (
+                          <>
+                            <strong>Check-in:</strong> {format(checkInDate, 'MMM dd, yyyy')} → {' '}
+                            <strong>Check-out:</strong> {format(checkOutDate, 'MMM dd, yyyy')}
+                          </>
+                        );
+                      }
+                    }
+                    return <span className="text-gray-500 italic">Dates not available</span>;
+                  } catch (error) {
+                    return <span className="text-gray-500 italic">Dates not available</span>;
+                  }
+                })()}
+              </div>
+            </div>
+
+            {booking.guestCheckInAccess && booking.guestCheckInAccess.length > 0 ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Guests ({booking.guestCheckInAccess.length}):</h4>
+                <div className="space-y-2">
+                  {booking.guestCheckInAccess.map((guestAccess, index) => (
+                    <div
+                      key={guestAccess.id || index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Users className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-gray-900">
+                              {guestAccess.customer.guestFirstName} {guestAccess.customer.guestLastName}
+                            </span>
+                            {guestAccess.isMainGuest && (
+                              <span className="text-sm text-blue-500">👑</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {guestAccess.customer.guestEmail}
+                            {guestAccess.customer.guestPhone && (
+                              <span> • {guestAccess.customer.guestPhone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          window.location.href = `/admin/dashboard?sidebar=customers&customerid=${guestAccess.customer.id}`;
+                        }}
+                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        View Profile
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No guest check-in details available for this room.</p>
+              </div>
+            )}
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowGuestsModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

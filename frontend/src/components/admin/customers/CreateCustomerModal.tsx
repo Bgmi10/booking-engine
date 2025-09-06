@@ -2,9 +2,9 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { baseUrl } from "../../../utils/constants";
 import countryList from "country-list-with-dial-code-and-flag";
-import { RiErrorWarningLine, RiCheckLine } from "react-icons/ri";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
+import toast from "react-hot-toast";
 
 interface CreateCustomerModalProps {
   setIsCreateModalOpen: (open: boolean) => void;
@@ -14,9 +14,7 @@ interface CreateCustomerModalProps {
 export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: CreateCustomerModalProps) {
   const countries = countryList.getAll();
   const [loading, setLoading] = useState(false);
-  const [selectedCountryCode, setSelectedCountryCode] = useState("");
-  const [localError, setLocalError] = useState("");
-  const [localSuccess, setLocalSuccess] = useState("");
+  const [documentType, setDocumentType] = useState<'passport' | 'idCard'>('passport');
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -30,23 +28,36 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
     anniversaryDate: "",
     vipStatus: false,
     totalNigthsStayed: 0,
-    totalMoneySpent: 0
+    totalMoneySpent: 0,
+    passportIssuedCountry: "",
+    idCard: "",
+    gender: "MALE",
+    placeOfBirth: "",
+    city: "",
+    carNumberPlate: "",
+    tcAgreed: true,
+    receiveMarketingEmail: true,
+    adminNotes: ""
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setLocalError("");
     try {
       // Transform empty strings to null before sending
       const submitData = {
         ...formData,
         dob: formData.dob || null,
-        passportExpiry: formData.passportExpiry || null,
+        passportExpiry: documentType === 'passport' ? (formData.passportExpiry || null) : null,
         anniversaryDate: formData.anniversaryDate || null,
         middleName: formData.middleName || null,
         nationality: formData.nationality || null,
-        passportNumber: formData.passportNumber || null
+        passportNumber: documentType === 'passport' ? (formData.passportNumber || null) : null,
+        passportIssuedCountry: documentType === 'passport' ? (formData.passportIssuedCountry || null) : null,
+        idCard: documentType === 'idCard' ? (formData.idCard || null) : null,
+        placeOfBirth: formData.placeOfBirth || null,
+        city: formData.city || null,
+        carNumberPlate: formData.carNumberPlate || null
       };
 
       const response = await fetch(`${baseUrl}/admin/customers`, {
@@ -58,18 +69,15 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
         body: JSON.stringify(submitData),
       });
 
-      const data = await response.json();
       if (response.ok) {
-        setLocalSuccess("Customer created successfully!");
-        setTimeout(() => {
+          toast.success("Created Successfully")
           fetchCustomers();
           setIsCreateModalOpen(false);
-        }, 500);
       } else {
-        setLocalError(data.message || "Failed to create customer");
+        toast.error("Failed to create try again later")
       }
     } catch (error) {
-      setLocalError("Failed to create customer");
+      toast.error("Failed to create try again later")
     } finally {
       setLoading(false);
     }
@@ -85,13 +93,12 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
     }));
   };
 
-  const handleNationalityChange = (code: string) => {
-    const country = countries.find(c => c.code === code);
+  const handleNationalityChange = (countryName: string) => {
+    const country = countries.find(c => c.name === countryName);
     if (country) {
-      setSelectedCountryCode(code);
       setFormData(prev => ({
         ...prev,
-        nationality: country.name,
+        nationality: countryName,
         phone: !prev.phone || prev.phone.startsWith('+') ? country.dial_code : prev.phone
       }));
     }
@@ -108,32 +115,6 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
         </button>
         
         <h2 className="text-2xl font-bold mb-6">Create New Customer</h2>
-
-        {localError && (
-          <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{localError}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {localSuccess && (
-          <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <RiCheckLine className="h-5 w-5 text-green-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-green-700">{localSuccess}</p>
-              </div>
-            </div>
-          </div>
-        )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -202,14 +183,14 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
                 Nationality
               </label>
               <select
-                value={selectedCountryCode}
+                value={formData.nationality}
                 onChange={(e) => handleNationalityChange(e.target.value)}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 disabled={loading}
               >
                 <option value="">Select nationality</option>
                 {countries.map((country, index) => (
-                  <option key={index} value={country.code}>
+                  <option key={index} value={country.name}>
                     {country.flag} {country.name}
                   </option>
                 ))}
@@ -227,16 +208,58 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder={selectedCountryCode ? countries.find(c => c.code === selectedCountryCode)?.dial_code : "Enter phone number"}
+                  placeholder={formData.nationality ? countries.find(c => c.name === formData.nationality)?.dial_code : "Enter phone number"}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   disabled={loading}
                 />
               </div>
-              {selectedCountryCode && (
+              {formData.nationality && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Country code: {countries.find(c => c.code === selectedCountryCode)?.dial_code}
+                  Country code: {countries.find(c => c.name === formData.nationality)?.dial_code}
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Place Of Birth
+              </label>
+              <input
+                type="text"
+                name="placeOfBirth"
+                value={formData.placeOfBirth}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+               Car License Plate
+              </label>
+              <input
+                type="text"
+                name="carNumberPlate"
+                value={formData.carNumberPlate}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              />
             </div>
 
             {/* Additional Information */}
@@ -260,22 +283,82 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Passport Number
+                Gender
               </label>
-              <input
-                type="text"
-                name="passportNumber"
-                value={formData.passportNumber}
-                onChange={handleChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                disabled={loading}
-              />
+             <select name="gender" id="" onChange={(e) => handleChange(e)} value={formData.gender} className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+               <option value="MALE">Male</option>
+               <option value="FEMALE">Female</option>
+               <option value="OTHERS">Others</option>
+             </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Passport Expiry
+                Document Type
               </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('passport')}
+                  className={`px-3 py-2 border rounded-md text-sm font-medium transition-all ${
+                    documentType === 'passport'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  disabled={loading}
+                >
+                  Passport
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('idCard')}
+                  className={`px-3 py-2 border rounded-md text-sm font-medium transition-all ${
+                    documentType === 'idCard'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  disabled={loading}
+                >
+                  ID Card
+                </button>
+              </div>
+            </div>
+
+            {documentType === 'idCard' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID Card Number
+                </label>
+                <input
+                  type="text"
+                  name="idCard"
+                  value={formData.idCard}
+                  onChange={handleChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled={loading}
+                  maxLength={30}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Passport Number
+                  </label>
+                  <input
+                    type="text"
+                    name="passportNumber"
+                    value={formData.passportNumber}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Passport Expiry
+                  </label>
               <DatePicker
                 selected={formData.passportExpiry ? new Date(formData.passportExpiry) : null}
                 onChange={(date: Date | null) => {
@@ -290,6 +373,28 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Passport Issued Country 
+              </label>
+              <select
+                value={formData.passportIssuedCountry}
+                name="passportIssuedCountry"
+                onChange={(e) => handleChange(e)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                disabled={loading}
+              >
+                <option value="">Select country</option>
+                {countries.map((country, index) => (
+                  <option key={index} value={country.name}>
+                      {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -322,6 +427,49 @@ export function CreateCustomerModal({ setIsCreateModalOpen, fetchCustomers }: Cr
                 disabled={loading}
               />
             </div>
+            
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-gray-700 mr-3">
+                Terms & Condition
+              </label>
+              <input
+                type="checkbox"
+                name="tcAgreed"
+                checked={formData.tcAgreed}
+                onChange={handleChange}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-gray-700 mr-3">
+                Marketing Email
+              </label>
+              <input
+                type="checkbox"
+                name="receiveMarketingEmail"
+                checked={formData.receiveMarketingEmail}
+                onChange={handleChange}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                disabled={loading}  
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Admin Notes
+            </label>
+            <textarea
+              name="adminNotes"
+              value={formData.adminNotes}
+              onChange={(e) => setFormData(prev => ({ ...prev, adminNotes: e.target.value }))}
+              rows={4}
+              placeholder="Internal notes for administrative use..."
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-vertical"
+              disabled={loading}
+            />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">

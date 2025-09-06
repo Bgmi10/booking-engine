@@ -12,13 +12,13 @@ import {
   Building2,
   Coins,
   RefreshCw,
+  Users,
 } from "lucide-react"
 import { getStatusColor, generateMergedBookingId } from "../../../utils/helper"
 import type { PaymentIntentCardProps } from "../../../types/types"
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants"
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
-import AdminCheckInAccessButton, { useAdminCheckInAccess } from './AdminCheckInAccessButton';
 
 // Add a simple spinner component
 const Spinner = () => (
@@ -76,9 +76,6 @@ export default function PaymentIntentCard({
     earliestCheckIn
   );
 
-  const { isAvailable: isAdminAccessAvailable } = useAdminCheckInAccess(
-    paymentIntent.status
-  );
 
   // Get payment method display info
   const getPaymentMethodInfo = () => {
@@ -281,42 +278,6 @@ export default function PaymentIntentCard({
           </div>
         </div>
 
-        {/* Bookings Summary */}
-        {/* <div className="mb-4">
-          <h4 className="font-medium text-gray-900 mb-2">Bookings ({totalBookings})</h4>
-          <div className="grid gap-2">
-            {displayData.bookingData.map((booking, index) => (
-              <div key={index} className="bg-gray-50 rounded-lg p-3 flex items-center">
-                {selectionMode && (
-                  <input
-                    type="checkbox"
-                    className="mr-3"
-                    checked={selectedBookingIds.includes(booking.id)}
-                    onChange={e => onBookingSelect(booking.id, e.target.checked)}
-                  />
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">{booking.roomDetails?.name || "Room"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {format(new Date(booking.checkIn), "MMM dd")} - {format(new Date(booking.checkOut), "MMM dd")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {booking.adults} adult{booking.adults !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div> */}
 
         {/* Actions */}
         <div className="flex gap-2 flex-wrap">
@@ -360,18 +321,7 @@ export default function PaymentIntentCard({
                 />
               )}
 
-              {/* Admin Access Check-In Portal Button */}
-              {isAdminAccessAvailable && (
-                <AdminCheckInAccessButton
-                  type="paymentIntent"
-                  id={paymentIntent.id}
-                  disabled={loadingAction}
-                  variant="outline"
-                  size="sm"
-                  label="Access Portal"
-                />
-              )}
-
+             
               {/* Send Email with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
                 <>

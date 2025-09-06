@@ -1,5 +1,6 @@
-import { Plus, RefreshCw, MoreHorizontal, Edit, Trash2, Calendar, CreditCard, Eye, History, User, Users, ListOrdered } from "lucide-react";
+import { Plus, RefreshCw, MoreHorizontal, Edit, Trash2, Calendar, CreditCard, Eye, History, User, Users, ListOrdered, UserCheck } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCustomers } from "../../../hooks/useCustomers";
 import type { Customer as CustomerType } from "../../../hooks/useCustomers";
 import CustomerBookings from "./CustomerBookings";
@@ -9,6 +10,7 @@ import { baseUrl } from "../../../utils/constants";
 import ChargeModal from "./ChargeModal";
 import PaymentHistoryModal from "./PaymentHistoryModal";
 import TempCustomerOrdersModal from "./TempCustomerOrdersModal";
+import { CustomerRelationshipManager } from "./CustomerRelationshipManager";
 
 interface TempCustomer {
     id: string;
@@ -37,6 +39,30 @@ const CustomerTypeSwitch = ({ activeTab, setActiveTab }: { activeTab: string, se
 );
 
 export default function Customer() {
+    const [searchParams] = useSearchParams();
+    const customerId = searchParams.get('customerid');
+    const focus = searchParams.get('focus');
+    
+    // If focus is relationships, show relationship management
+    if (customerId && focus === 'relationships') {
+        return (
+            <div className="container mx-auto p-6 space-y-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h1 className="text-2xl font-bold text-gray-900">Customer Relationships</h1>
+                        <button 
+                            onClick={() => window.history.back()}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                        >
+                            Back to Customers
+                        </button>
+                    </div>
+                    <CustomerRelationshipManager customerId={customerId} />
+                </div>
+            </div>
+        );
+    }
+    
     // Regular customer state
     const { customers, loading, refetch } = useCustomers();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -60,6 +86,18 @@ export default function Customer() {
 
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
     const [selectedTempCustomer, setSelectedTempCustomer] = useState<TempCustomer | null>(null);
+    const [isRelationshipsModalOpen, setIsRelationshipsModalOpen] = useState(false);
+    const [selectedCustomerForRelationships, setSelectedCustomerForRelationships] = useState<CustomerType | null>(null);
+
+    // Auto-populate search if customerId is provided
+    useEffect(() => {
+        if (customerId && customers.length > 0) {
+            const customer = customers.find(c => c.id === customerId);
+            if (customer) {
+                setSearch(`${customer.guestFirstName} ${customer.guestLastName}`);
+            }
+        }
+    }, [customerId, customers]);
 
     const fetchTempCustomers = async () => {
         setIsTempLoading(true);
@@ -149,6 +187,12 @@ export default function Customer() {
         setOpenDropdown(null);
     }
 
+    const handleViewRelationships = (customer: CustomerType) => {
+        setSelectedCustomerForRelationships(customer);
+        setIsRelationshipsModalOpen(true);
+        setOpenDropdown(null);
+    };
+
     const handleViewDetails = (customer: CustomerType) => {
         setViewUserModal({ open: true, user: customer });
         setOpenDropdown(null);
@@ -202,7 +246,12 @@ export default function Customer() {
               ) : (
                 customers
                                 .filter(c => (vipFilter === "ALL" || (vipFilter === "VIP" && c.vipStatus) || (vipFilter === "NON_VIP" && !c.vipStatus)))
-                                .filter(c => [c.guestFirstName, c.guestLastName, c.guestEmail, c.guestPhone].some(field => field?.toLowerCase().includes(search.toLowerCase())))
+                                .filter(c => {
+                                    const searchLower = search.toLowerCase();
+                                    const fullName = `${c.guestFirstName} ${c.guestLastName}`.toLowerCase();
+                                    return [c.guestFirstName, c.guestLastName, c.guestEmail, c.guestPhone].some(field => field?.toLowerCase().includes(searchLower)) ||
+                                           fullName.includes(searchLower);
+                                })
                   .map((customer) => (
                     <tr key={customer.id}>
                       <td className="px-6 py-4 whitespace-nowrap">{customer.guestFirstName} {customer.guestLastName}</td>
@@ -224,6 +273,7 @@ export default function Customer() {
                                                             <button onClick={() => handleCharge(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><CreditCard className="h-4 w-4 mr-3 text-purple-600" />Charge</button>
                                                             <button onClick={() => handlePaymentHistory(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><History className="h-4 w-4 mr-3 text-green-600" />History</button>
                                                             <button onClick={() => handleViewDetails(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Eye className="h-4 w-4 mr-3 text-gray-600" />Details</button>
+                                                            <button onClick={() => handleViewRelationships(customer)} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><UserCheck className="h-4 w-4 mr-3 text-indigo-600" />Relationships</button>
                                                             <hr className="my-1" />
                                                             <button onClick={() => handleDelete(customer)} className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4 mr-3" />Delete</button>
                                                         </div>
@@ -355,6 +405,27 @@ export default function Customer() {
                     }}
                 />
         )}
+            {isRelationshipsModalOpen && selectedCustomerForRelationships && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-semibold text-gray-900">
+                                Relationships for {selectedCustomerForRelationships.guestFirstName} {selectedCustomerForRelationships.guestLastName}
+                            </h2>
+                            <button 
+                                onClick={() => {
+                                    setIsRelationshipsModalOpen(false);
+                                    setSelectedCustomerForRelationships(null);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <CustomerRelationshipManager customer={selectedCustomerForRelationships} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1901,7 +1901,23 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
           bookings: {
             select: {
               id: true,
-              request: true
+              request: true,
+              checkIn: true,
+              checkOut: true,
+              room: true,
+              guestCheckInAccess: {
+                include: {
+                  customer: {
+                    select: {
+                      id: true,
+                      guestFirstName: true,
+                      guestLastName: true,
+                      guestEmail: true,
+                      guestPhone: true
+                    }
+                  }
+                }
+              }
             }
           },
           orders: true,
@@ -3722,248 +3738,6 @@ const sendManualCheckInForBookingGroup = async (req: express.Request, res: expre
   }
 };
 
-// Admin Access to Customer Check-In Portal
-const getCheckInUrlForPaymentIntent = async (req: express.Request, res: express.Response) => {
-  const { id: paymentIntentId } = req.params;
-  //@ts-ignore
-  const { id: userId } = req.user;
-
-  if (!paymentIntentId) {
-    responseHandler(res, 400, "Payment Intent ID is required");
-    return;
-  }
-
-  try {
-    // Get the first confirmed booking for this payment intent
-    const booking = await prisma.booking.findFirst({
-      where: {
-        paymentIntentId: paymentIntentId,
-        status: "CONFIRMED"
-      },
-      include: {
-        customer: true,
-        paymentIntent: {
-          include: {
-            bookingGroup: {
-              include: {
-                mainGuest: true
-              }
-            }
-          }
-        }
-      },
-      orderBy: {
-        checkIn: 'asc'
-      }
-    });
-
-    if (!booking) {
-      responseHandler(res, 404, "No confirmed bookings found for this payment intent");
-      return;
-    }
-
-    // Determine the customer ID (either direct customer or main guest)
-    let customerId: string;
-    if (booking.customer) {
-      customerId = booking.customer.id;
-    } else if (booking.paymentIntent?.bookingGroup?.mainGuest) {
-      customerId = booking.paymentIntent.bookingGroup.mainGuest.id;
-    } else {
-      responseHandler(res, 404, "No customer found for this booking");
-      return;
-    }
-
-    // Get or create the guest access token
-    let guestAccess = await prisma.guestCheckInAccess.findFirst({
-      where: {
-        bookingId: booking.id,
-        customerId: customerId,
-        tokenExpiresAt: {
-          gt: new Date()
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    if (!guestAccess) {
-      // Create a new access token if none exists
-      const bookingToken = require('crypto').randomBytes(32).toString('hex');
-      const tokenExpiresAt = new Date(booking.checkIn);
-      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1); // Day after check-in
-      tokenExpiresAt.setHours(23, 59, 59, 999); // End of day
-
-      guestAccess = await prisma.guestCheckInAccess.create({
-        data: {
-          customerId: customerId,
-          bookingId: booking.id,
-          accessToken: bookingToken,
-          tokenExpiresAt: tokenExpiresAt,
-          isMainGuest: true,
-          guestType: 'MAIN_GUEST',
-          invitationStatus: 'NOT_APPLICABLE',
-          completionStatus: 'INCOMPLETE'
-        }
-      });
-    }
-
-    // Generate the check-in URL
-    const baseUrl = process.env.NODE_ENV === 'local' ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL;
-    const checkinUrl = `${baseUrl}/online-checkin/${guestAccess.accessToken}`;
-
-    // Log audit entry for admin access
-    await AuditService.createAuditLog(null, {
-      entityType: 'PAYMENT_INTENT',
-      entityId: paymentIntentId,
-      actionType: 'ADMIN_CHECKIN_ACCESS',
-      userId: userId,
-      reason: 'Admin accessed customer check-in portal',
-      notes: `Admin accessed check-in portal for payment intent ${paymentIntentId}`,
-      newValues: {
-        checkinUrl,
-        accessedAt: new Date()
-      },
-      paymentIntentId: paymentIntentId,
-      bookingId: booking.id
-    });
-
-    responseHandler(res, 200, "Check-in URL retrieved successfully", {
-      checkinUrl,
-      accessToken: guestAccess.accessToken,
-      expiresAt: guestAccess.tokenExpiresAt
-    });
-
-  } catch (error) {
-    console.error("Error getting check-in URL for payment intent:", error);
-    handleError(res, error as Error);
-  }
-};
-
-const getCheckInUrlForBookingGroup = async (req: express.Request, res: express.Response) => {
-  const { id: bookingGroupId } = req.params;
-  //@ts-ignore
-  const { id: userId } = req.user;
-
-  if (!bookingGroupId) {
-    responseHandler(res, 400, "Booking Group ID is required");
-    return;
-  }
-
-  try {
-    // Get the first payment intent with confirmed bookings in this group
-    const paymentIntent = await prisma.paymentIntent.findFirst({
-      where: {
-        bookingGroupId: bookingGroupId,
-        status: 'SUCCEEDED'
-      },
-      include: {
-        bookings: {
-          where: {
-            status: 'CONFIRMED'
-          },
-          take: 1,
-          orderBy: {
-            checkIn: 'asc'
-          },
-          include: {
-            customer: true
-          }
-        },
-        bookingGroup: {
-          include: {
-            mainGuest: true
-          }
-        }
-      }
-    });
-
-    if (!paymentIntent || paymentIntent.bookings.length === 0) {
-      responseHandler(res, 404, "No confirmed bookings found in this booking group");
-      return;
-    }
-
-    const booking = paymentIntent.bookings[0];
-    
-    // Determine the customer ID (prefer main guest for group bookings)
-    let customerId: string;
-    if (paymentIntent.bookingGroup?.mainGuest) {
-      customerId = paymentIntent.bookingGroup.mainGuest.id;
-    } else if (booking.customer) {
-      customerId = booking.customer.id;
-    } else {
-      responseHandler(res, 404, "No customer found for this booking group");
-      return;
-    }
-
-    // Get or create the guest access token
-    let guestAccess = await prisma.guestCheckInAccess.findFirst({
-      where: {
-        bookingId: booking.id,
-        customerId: customerId,
-        tokenExpiresAt: {
-          gt: new Date()
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    if (!guestAccess) {
-      // Create a new access token if none exists
-      const bookingToken = require('crypto').randomBytes(32).toString('hex');
-      const tokenExpiresAt = new Date(booking.checkIn);
-      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 1); // Day after check-in
-      tokenExpiresAt.setHours(23, 59, 59, 999); // End of day
-
-      guestAccess = await prisma.guestCheckInAccess.create({
-        data: {
-          customerId: customerId,
-          bookingId: booking.id,
-          accessToken: bookingToken,
-          tokenExpiresAt: tokenExpiresAt,
-          isMainGuest: true,
-          guestType: 'MAIN_GUEST',
-          invitationStatus: 'NOT_APPLICABLE',
-          completionStatus: 'INCOMPLETE'
-        }
-      });
-    }
-
-    // Generate the check-in URL
-    const baseUrl = process.env.NODE_ENV === 'local' ? process.env.FRONTEND_DEV_URL : process.env.FRONTEND_PROD_URL;
-    const checkinUrl = `${baseUrl}/online-checkin/${guestAccess.accessToken}`;
-
-    // Log audit entry for admin access
-    await AuditService.createAuditLog(null, {
-      entityType: 'BOOKING_GROUP',
-      entityId: bookingGroupId,
-      actionType: 'ADMIN_CHECKIN_ACCESS',
-      userId: userId,
-      reason: 'Admin accessed customer check-in portal',
-      notes: `Admin accessed check-in portal for booking group ${bookingGroupId}`,
-      newValues: {
-        checkinUrl,
-        accessedAt: new Date()
-      },
-      bookingGroupId: bookingGroupId,
-      paymentIntentId: paymentIntent.id,
-      bookingId: booking.id
-    });
-
-    responseHandler(res, 200, "Check-in URL retrieved successfully", {
-      checkinUrl,
-      accessToken: guestAccess.accessToken,
-      expiresAt: guestAccess.tokenExpiresAt
-    });
-
-  } catch (error) {
-    console.error("Error getting check-in URL for booking group:", error);
-    handleError(res, error as Error);
-  }
-};
-
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings, login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup, getCheckInUrlForPaymentIntent, getCheckInUrlForBookingGroup };
+export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings, login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup };
 
 
