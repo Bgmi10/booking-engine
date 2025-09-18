@@ -217,6 +217,7 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
             availabilityData={availabilityData}
             isLoadingAvailability={isLoadingAvailability}
             onFetchAvailability={fetchCalendarAvailability || (() => Promise.resolve())}
+            isHide={true}
           />
         </div>
       </div>

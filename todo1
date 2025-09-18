@@ -12,7 +12,7 @@
 
 [C] => change every date field to eur format ui only
 
-[] => fix the on date on voucher feature and also do mid night of starting data and it should be in italian time  && [put the time to choose input can be collected from user]
+[C] => fix the on date on voucher feature and also do mid night of starting data and it should be in italian time  && [put the time to choose input can be collected from user]
  
 [C] => voucher need to add in /booking/success && change the ui modification succeded to completed
 
@@ -39,15 +39,15 @@ non refund automatically
 
 [C] => based on the percentage price the room price should adapt and this value should +, - 
 
-[] => admin can able to change/edit the booked rooms. ideally we should track the all changes for a particular booking./ reason should be collectable from the admin side. 
+[C] => admin can able to change/edit the booked rooms. ideally we should track the all changes for a particular booking./ reason should be collectable from the admin side. 
 
-[] => in the booking admin able to see all the outstanding payments for every booking
+[C] => in the booking admin able to see all the outstanding payments for every booking
 
-[] => we have to refactor the entire model of multiple booking. ideally this should be in seprate booking whatever the csutomer adds. we have to treat it as seprate under the bookings tab. and we have to group the bookings based on admin side logic creation and ideally we should automatically consider the booking have more then 3 on the same date but diff room. then that as considered to be one booking or group booking.
+[C] => we have to refactor the entire model of multiple booking. ideally this should be in seprate booking whatever the csutomer adds. we have to treat it as seprate under the bookings tab. and we have to group the bookings based on admin side logic creation and ideally we should automatically consider the booking have more then 3 on the same date but diff room. then that as considered to be one booking or group booking.
 
-[] => we want able assign all the charges to a single group/booking. 
+[C] => we want able assign all the charges to a single group/booking. 
 
-[] => current booking admin page list is taking the payment intent that need to 
+[C] => current booking admin page list is taking the payment intent that need to 
 
 [C] => Instead of returning guest change to sign to room  or pay the waiter
 
@@ -114,4 +114,4 @@ non refund automatically
 
 [] => on the tc page there is a marketing email check box exist. in backend we need check if it was true then save hte user in brevo list else if it was false then remove hte user from brevo.
 
-[] => in groups we need ability to  
+[] => in groups we need ability to      

@@ -24,7 +24,7 @@ import { OnlineCheckIn } from "./components/onlinecheckin/OnlineCheckIn";
 import { CheckInSuccess } from "./components/onlinecheckin/CheckInSuccess";
 import { OnlineCheckInHome } from "./components/onlinecheckin/OnlineCheckInHome";
 import { ManageGuests } from "./components/onlinecheckin/ManageGuests";
-import { OnlineCheckInProtectedRoutes } from "./components/onlinecheckin/OnlineCheckInProtectedRoutes";
+import EventInvitation from "./components/events/EventInvitation";
 
 function App() {
   const [showLoader, setShowLoader] = useState(true);
@@ -59,6 +59,11 @@ function App() {
            <Route path="/online-checkin" element={<OnlineCheckIn />} />
            <Route path="/online-checkin/manage-guests" element={<ManageGuests />} />
            <Route path="/online-checkin/success" element={<CheckInSuccess />} />
+          
+          {/* Event Invitation Routes */}
+          <Route path="/event-invitation/:token" element={<EventInvitation />} />
+          <Route path="/event-invitation/:token/:action" element={<EventInvitation />} />
+          
           <Route path="/wedding-portal/login" element={<WeddingPortalLogin />} />
           <Route path="/wedding-portal/activate-account" element={<WeddingPortalActivation />} />
           <Route path="/wedding-portal/reset-password" element={<WeddingPortalPasswordReset />} />

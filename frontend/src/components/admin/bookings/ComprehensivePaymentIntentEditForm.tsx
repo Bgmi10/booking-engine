@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Save, Plus, Minus, Calendar, Users, Building2, X } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import { useRooms } from '../../../hooks/useRooms';
+import { useCalendarAvailability } from '../../../hooks/useCalendarAvailability';
+import { useGeneralSettings } from '../../../hooks/useGeneralSettings';
+import DateSelector from '../../DateSelector';``
 import toast from 'react-hot-toast';
 
 interface BookingEditData {
@@ -40,9 +43,27 @@ export default function ComprehensivePaymentIntentEditForm({
   const [showCancellationFeeDialog, setShowCancellationFeeDialog] = useState(false);
   const [pendingRemovalIndex, setPendingRemovalIndex] = useState<number | null>(null);
   const [keepCancellationFee, setKeepCancellationFee] = useState(false);
+  const [calendarOpenStates, setCalendarOpenStates] = useState<{[key: string]: boolean}>({});
   
   // Use rooms hook
   const { rooms: availableRooms, loadingRooms, fetchRoomsAndPricing } = useRooms();
+  
+  // Use calendar availability hook
+  const { fetchCalendarAvailability, loading: isLoadingAvailability } = useCalendarAvailability();
+  
+  // Use general settings hook
+  const { settings } = useGeneralSettings();
+  
+  // Availability data state
+  const [availabilityData, setAvailabilityData] = useState({
+    fullyBookedDates: [],
+    partiallyBookedDates: [],
+    availableDates: [],
+    minStayDays: 0,
+    taxPercentage: 0.1,
+    restrictedDates: [],
+    dateRestrictions: {}
+  });
   
   // Parse booking data
   const [bookings, setBookings] = useState<BookingEditData[]>(() => {
@@ -73,6 +94,38 @@ export default function ComprehensivePaymentIntentEditForm({
     fetchRoomsAndPricing();
   }, [fetchRoomsAndPricing]);
 
+  // Fetch calendar availability data
+  const fetchAvailability = async (startDate: string, endDate: string) => {
+    try {
+      const calendarData = await fetchCalendarAvailability({
+        startDate,
+        endDate,
+        showError: true,
+        cacheEnabled: false // Disable cache for admin panel
+      });
+      
+      if (calendarData) {
+        setAvailabilityData(prev => ({
+          ...prev,
+          ...calendarData,
+          minStayDays: calendarData.generalSettings?.[0]?.minStayDays || 2,
+          taxPercentage: calendarData.generalSettings?.[0]?.taxPercentage || 0.1,
+        }));
+      }
+    } catch (e) {
+      console.error('Error fetching availability:', e);
+      setAvailabilityData({
+        fullyBookedDates: [],
+        partiallyBookedDates: [],
+        availableDates: [],
+        minStayDays: 0,
+        taxPercentage: 0.1,
+        restrictedDates: [],
+        dateRestrictions: {}
+      });
+    }
+  };
+
   // Helper function to check if a field was changed
   const isFieldChanged = (fieldName: string) => {
     return changedFields.includes(fieldName);
@@ -84,6 +137,17 @@ export default function ComprehensivePaymentIntentEditForm({
       ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-400' 
       : '';
     return `${baseClasses} ${changedClasses}`;
+  };
+
+  // Helper function to format date for display
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
   };
 
   const updateBooking = (index: number, field: keyof BookingEditData, value: any) => {
@@ -99,6 +163,60 @@ export default function ComprehensivePaymentIntentEditForm({
     }
     
     setBookings(updatedBookings);
+  };
+
+  // Handler for date selection from DateSelector
+  const handleDateSelect = (index: number, dates: { startDate: Date | null; endDate: Date | null }) => {
+    // The DateSelector will call this with the new dates
+    // We accept any dates that are passed, including when user clicks Confirm
+    const checkIn = dates.startDate ? dates.startDate.toISOString().split('T')[0] : bookings[index].checkIn;
+    const checkOut = dates.endDate ? dates.endDate.toISOString().split('T')[0] : bookings[index].checkOut;
+    
+    // Update the bookings state directly with the new dates
+    setBookings(prev => prev.map((booking, i) => {
+      if (i === index) {
+        return {
+          ...booking,
+          checkIn: checkIn,
+          checkOut: checkOut
+        };
+      }
+      return booking;
+    }));
+    
+    // Close the calendar for this booking
+    setCalendarOpenStates(prev => ({ ...prev, [index]: false }));
+  };
+
+  // Handler to open calendar and fetch availability
+  const handleOpenCalendar = (index: number) => {
+    setCalendarOpenStates(prev => ({ ...prev, [index]: true }));
+    
+    // Determine which months to fetch based on existing booking dates or current date
+    const booking = bookings[index];
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (booking.checkIn) {
+      // If booking has dates, fetch the month of check-in and next month
+      const checkInDate = new Date(booking.checkIn);
+      startDate = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), 1);
+      endDate = new Date(checkInDate.getFullYear(), checkInDate.getMonth() + 2, 0);
+    } else {
+      // Otherwise use current month
+      const today = new Date();
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      endDate = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    }
+    
+    const formatDateForAPI = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    fetchAvailability(formatDateForAPI(startDate), formatDateForAPI(endDate));
   };
 
   const addBooking = () => {
@@ -318,130 +436,185 @@ export default function ComprehensivePaymentIntentEditForm({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {/* Room Selection */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      <Building2 className="inline h-3 w-3 mr-0.5" />
-                      Room <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={booking.roomId}
-                      onChange={(e) => !isReadOnly && updateBooking(index, 'roomId', e.target.value)}
-                      className={getFieldStyling('roomId', `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`)}
-                      required={!isReadOnly}
-                      disabled={isReadOnly}
-                    >
-                      <option value="">Select a room</option>
-                      {availableRooms.map((room) => (
-                        <option key={room.id} value={room.id}>
-                          {room.name} (Capacity: {room.capacity})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Check-in Date */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      <Calendar className="inline h-3 w-3 mr-0.5" />
-                      Check-in <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={booking.checkIn}
-                      onChange={(e) => !isReadOnly && updateBooking(index, 'checkIn', e.target.value)}
-                      className={getFieldStyling('checkIn', `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`)}
-                      required={!isReadOnly}
-                      disabled={isReadOnly}
-                    />
-                  </div>
-
-                  {/* Check-out Date */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      <Calendar className="inline h-3 w-3 mr-0.5" />
-                      Check-out <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={booking.checkOut}
-                      onChange={(e) => !isReadOnly && updateBooking(index, 'checkOut', e.target.value)}
-                      className={getFieldStyling('checkOut', `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`)}
-                      required={!isReadOnly}
-                      disabled={isReadOnly}
-                    />
-                  </div>
-
-                  {/* Total Guests */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      <Users className="inline h-3 w-3 mr-0.5" />
-                      Total Guests <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={booking.totalGuests}
-                      onChange={(e) => !isReadOnly && updateBooking(index, 'totalGuests', parseInt(e.target.value) || 1)}
-                      className={getFieldStyling('totalGuests', `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`)}
-                      required={!isReadOnly}
-                      disabled={isReadOnly}
-                    />
-                  </div>
-
-                  {/* Extra Bed */}
-                  {availableRooms.find(r => r.id === booking.roomId)?.allowsExtraBed && (
-                    <>
-                      <div>
-                        <label className="flex items-center text-xs font-medium text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={booking.hasExtraBed}
-                            onChange={(e) => updateBooking(index, 'hasExtraBed', e.target.checked)}
-                            className="mr-1.5"
-                          />
-                          Extra Bed
-                        </label>
-                      </div>
-                      
-                      {booking.hasExtraBed && (
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Extra Bed Count
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="2"
-                            value={booking.extraBedCount}
-                            onChange={(e) => updateBooking(index, 'extraBedCount', parseInt(e.target.value) || 1)}
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Total Amount */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Total Amount (€)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={booking.totalAmount}
-                      onChange={(e) => updateBooking(index, 'totalAmount', parseFloat(e.target.value) || 0)}
-                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
+      {/* Grid for fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {/* Room Selection */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            <Building2 className="inline h-3 w-3 mr-0.5" />
+            Room <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={booking.roomId}
+            onChange={(e) =>
+              !isReadOnly && updateBooking(index, "roomId", e.target.value)
+            }
+            className={getFieldStyling(
+              "roomId",
+              `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+              }`
+            )}
+            required={!isReadOnly}
+            disabled={isReadOnly}
+          >
+            <option value="">Select a room</option>
+            {availableRooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name} (Capacity: {room.capacity})
+              </option>
             ))}
-          </div>
+          </select>
+        </div>
+
+        {/* Dates */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            <Calendar className="inline h-3 w-3 mr-0.5" />
+            Check-in / Check-out <span className="text-red-500">*</span>
+          </label>
+          {!isReadOnly ? (
+            <>
+              <button
+                type="button"
+                className={getFieldStyling(
+                  "checkIn",
+                  `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between`
+                )}
+                onClick={() => handleOpenCalendar(index)}
+              >
+                <span>
+                  {booking.checkIn && booking.checkOut
+                    ? `${formatDateDisplay(booking.checkIn)} - ${formatDateDisplay(
+                        booking.checkOut
+                      )}`
+                    : "Select dates"}
+                </span>
+                <Calendar className="h-3 w-3 text-gray-500" />
+              </button>
+              <DateSelector
+                minStayDays={availabilityData.minStayDays || 2}
+                dailyBookingStartTime={settings?.dailyBookingStartTime}
+                calenderOpen={calendarOpenStates[index] || false}
+                setCalenderOpen={(open) =>
+                  setCalendarOpenStates((prev) => ({ ...prev, [index]: open }))
+                }
+                onSelect={(dates) => handleDateSelect(index, dates)}
+                availabilityData={availabilityData}
+                isLoadingAvailability={isLoadingAvailability}
+                onFetchAvailability={fetchAvailability}
+                selectedRoomId={booking.roomId}
+                isHide={true}
+              />
+            </>
+          ) : (
+            <div
+              className={getFieldStyling(
+                "checkIn",
+                `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm bg-gray-50 flex items-center justify-between`
+              )}
+            >
+              <span>
+                {booking.checkIn && booking.checkOut
+                  ? `${formatDateDisplay(booking.checkIn)} - ${formatDateDisplay(
+                      booking.checkOut
+                    )}`
+                  : "No dates selected"}
+              </span>
+              <Calendar className="h-3 w-3 text-gray-400" />
+            </div>
+          )}
+        </div>
+
+        {/* Total Guests */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            <Users className="inline h-3 w-3 mr-0.5" />
+            Total Guests <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            value={booking.totalGuests}
+            onChange={(e) =>
+              !isReadOnly &&
+              updateBooking(index, "totalGuests", parseInt(e.target.value) || 1)
+            }
+            className={getFieldStyling(
+              "totalGuests",
+              `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+              }`
+            )}
+            required={!isReadOnly}
+            disabled={isReadOnly}
+          />
+        </div>
+
+        {/* Extra Bed */}
+        {availableRooms.find((r) => r.id === booking.roomId)?.allowsExtraBed && (
+          <>
+            <div>
+              <label className="flex items-center text-xs font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={booking.hasExtraBed}
+                  onChange={(e) =>
+                    updateBooking(index, "hasExtraBed", e.target.checked)
+                  }
+                  className="mr-1.5"
+                  disabled={isReadOnly}
+                />
+                Extra Bed
+              </label>
+            </div>
+            
+            {booking.hasExtraBed && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Extra Bed Count
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="2"
+                  value={booking.extraBedCount}
+                  onChange={(e) =>
+                    updateBooking(
+                      index,
+                      "extraBedCount",
+                      parseInt(e.target.value) || 1
+                    )
+                  }
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isReadOnly}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Total Amount */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Total Amount (€)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={booking.totalAmount}
+            onChange={(e) =>
+              updateBooking(index, "totalAmount", parseFloat(e.target.value) || 0)
+            }
+            className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            disabled={isReadOnly}
+          />
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
         </div>
 
         {/* Total Summary */}

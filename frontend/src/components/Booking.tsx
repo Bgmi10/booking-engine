@@ -203,6 +203,7 @@ export default function Booking() {
                         availabilityData={availabilityData}
                         isLoadingAvailability={isLoadingAvailability}
                         dailyBookingStartTime={availabilityData.dailyBookingStartTime}
+                        isHide={false}
                         //@ts-ignore
                         onFetchAvailability={fetchCalendarAvailabilityWrapper}
                       />

@@ -119,13 +119,13 @@ export default function AuditLogModal({
                         <span className="text-xs text-gray-500">
                           {format(new Date(log.createdAt), 'MMM dd, HH:mm')}
                         </span>
-                        {log.userId && (
+                        {log.user && (
                           <button
                             onClick={() => setSelectedUserId(log.userId)}
                             className="inline-flex items-center text-xs text-blue-600 hover:text-blue-700 font-medium"
                           >
                             <User className="h-3 w-3 mr-1" />
-                            View User
+                            {log.user.name}
                           </button>
                         )}
                       </div>

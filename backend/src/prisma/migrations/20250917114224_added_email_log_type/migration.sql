@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AuditActionType" ADD VALUE 'ENHANCEMENT_EVENT_EMAIL_SENT';

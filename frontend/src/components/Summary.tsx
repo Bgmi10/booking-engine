@@ -307,7 +307,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 min-h-screen">
       <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Summary</h1>
+        <h1 className="summary-title">Summary</h1>
       </div>
 
       {/* Conflict Warning */}
@@ -333,7 +333,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
           const enhancementsPrice = calculateItemEnhancementsPrice(item);
           const itemTotal = calculateItemTotal(item);
           const isConflicting = isItemConflicting(item.id);
-          
+          console.log(item)
           return (
             <div key={item.id || index} className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${isConflicting ? 'ring-2 ring-yellow-200' : ''}`}>
               <div className="p-4 sm:p-6">
@@ -368,7 +368,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                   {/* Room Info */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
-                      <h3 className="text-lg font-semibold text-gray-800 pr-2">
+                      <h3 className="summary-room-title pr-2">
                         {getRoomName(item)}
                       </h3>
                       <span className="text-lg font-semibold text-right">€{itemTotal.toFixed(2)}</span>
@@ -392,7 +392,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                           {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
                             <div className="mt-1">
                               <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                                Split Payment (30% + 70%)
+                                Split Payment ({item.selectedRateOption.prepayPercentage}% + {100 - item.selectedRateOption.prepayPercentage}%)
                               </span>
                             </div>
                           )}
@@ -434,7 +434,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                   
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-lg font-semibold text-gray-800">
+                      <h3 className="summary-room-title">
                         {getRoomName(item)}
                       </h3>
                       <div className="flex items-center gap-3">
@@ -458,7 +458,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                         <span>Rate: {item.selectedRateOption?.name || 'Standard Rate'}</span>
                         {item.selectedPaymentStructure === 'SPLIT_PAYMENT' && (
                           <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                            Split Payment (30% + 70%)
+                           Split Payment ({item.selectedRateOption.prepayPercentage}% + {100 - item.selectedRateOption.prepayPercentage}%)
                           </span>
                         )}
                       </div>

@@ -310,6 +310,13 @@ export class AuditService {
     return prisma.bookingAuditLog.findMany({
       where: { paymentIntentId },
       orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            name: true,
+          }
+        } 
+      }
     });
   }
 

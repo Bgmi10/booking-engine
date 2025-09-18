@@ -16,7 +16,6 @@ import {
   X,
   Edit,
   History,
-  Users,
 } from "lucide-react";
 import { getStatusColor, generateMergedBookingId } from "../../../utils/helper";
 import IndividualBookingCard from "./IndividualBookingCard";
@@ -50,7 +49,6 @@ export default function EnhancedPaymentIntentCard({
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
-  console.log(individualBookings)
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
@@ -135,7 +133,22 @@ export default function EnhancedPaymentIntentCard({
             guestEmail: displayData.customerData.email
           },
           paymentIntentId: paymentIntent.id,
-          guestCheckInAccess: booking.guestCheckInAccess || []
+          guestCheckInAccess: booking.guestCheckInAccess || [],
+          checkedInAt: booking.checkedInAt,
+          checkedOutAt: booking.checkedOutAt,
+          adminCheckInNotes: booking.adminCheckInNotes,
+          adminCheckOutNotes: booking.adminCheckOutNotes,
+          refundAmount: paymentIntent.refundAmount,
+          outstandingAmount: paymentIntent.outstandingAmount,
+          // Include paymentIntent data for split payment display
+          paymentIntent: {
+            paymentStructure: paymentIntent.paymentStructure,
+            prepaidAmount: paymentIntent.prepaidAmount,
+            remainingAmount: paymentIntent.remainingAmount,
+            outstandingAmount: paymentIntent.outstandingAmount,
+            totalAmount: paymentIntent.totalAmount,
+            status: paymentIntent.status
+          }
         };
       });
       
@@ -556,7 +569,7 @@ export default function EnhancedPaymentIntentCard({
               )}
 
               {/* Payment Link Expiry */}
-              {paymentIntent.expiresAt && (
+              {paymentIntent.expiresAt && paymentIntent.paymentMethod !== "CASH" && (
                 <div className="flex items-center justify-end">
                   <span>
                     Payment link expires {formatDistanceToNow(new Date(paymentIntent.expiresAt), { addSuffix: true })}
@@ -643,6 +656,7 @@ export default function EnhancedPaymentIntentCard({
                     }}
                     onRefund={handleBookingRefund}
                     onViewDetails={onViewDetails}
+                    onRefresh={onRefresh}
                     showRefundButton={paymentIntent.status === 'SUCCEEDED'}
                   />
                 ))}

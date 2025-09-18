@@ -1,10 +1,21 @@
 import { Router } from "express";
-import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, deleteEnhancement, updateEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs, sendInvoice, sendGroupInvoice, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup } from "../controllers/adminController";
+import { login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, updateGeneralSettings, getGeneralSettings, createAdminPaymentLink, getAllPaymentIntent, softDeletePaymentIntent, hardDeletePaymentIntent, restorePaymentIntent, sendConfirmationEmail, getAllBookingsRestriction, createBookingsRestriction, deleteBookingsRestriction, editBookingRestriction, getUserByID, getNotificationAssignableUsers, createBankTransfer, collectCash, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, getAllSoftDeletedPaymentIntent, updatePaymentIntent, getPaymentIntentAuditLogs, sendInvoice, sendGroupInvoice, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup, checkIn, checkOut, checkInPaymentIntentGroup, checkOutPaymentIntentGroup, checkInBookingGroup, checkOutBookingGroup, validatePoliceData, reportToPolicePortal, getPoliceReportingStatus, retryFailedPoliceReports, getCustomerAnalytics } from "../controllers/adminController";
+import { 
+  createEnhancement, 
+  deleteEnhancement, 
+  updateEnhancement, 
+  getAllEnhancements, 
+  createEnhancementRule, 
+  updateEnhancementRule, 
+  deleteEnhancementRule, 
+  getAllEnhancementRules, 
+  getEnhancementRulesByEnhancementId 
+} from "../controllers/enhancementsController";
 import { createUserSchema, loginSchema } from "../zod/admin.auth.schema";
 import validateMiddleware from "../middlewares/validateMiddleware";
 import { createRoomSchema, updateRoomImageSchema, updateRoomSchema  } from "../zod/admin.room.schema";
 import { deleteTempHold, getAllRooms, getAllTempHolds } from "../controllers/roomController";
-import { createEnhancementSchema, updateEnhancementSchema } from "../zod/enhancement.schema";
+import { createEnhancementSchema, updateEnhancementSchema, createEnhancementRuleSchema, updateEnhancementRuleSchema } from "../zod/enhancement.schema";
 import authMiddleware from "../middlewares/authMiddlware";
 import { createRatePolicySchema, updateRatePolicySchema } from "../zod/ratepolicy.schema";
 import { getTemplateById, getTemplates, getTemplateVariables, createTemplate, updateTemplate, deleteTemplate, deleteBulkEmailTemplates } from "../controllers/emailTemplateController";
@@ -67,6 +78,26 @@ import {
     addPaymentIntentsSchema, 
     removePaymentIntentsSchema 
 } from '../zod/bookingGroup.schema';
+import z from "zod";
+import { 
+    createEvent, 
+    deleteEvent, 
+    editEvent, 
+    getAllEvents, 
+    sendEventInvite,
+    searchCustomersForEvent,
+    addEventParticipant,
+    removeEventParticipant,
+    getEventBookingsWithGuests
+} from "../controllers/eventController";
+import { createEventSchema, updateEventSchema } from "../zod/event.schema";
+
+const userInput = z.object({
+  username: z.string(),
+  password: z.string()
+})
+
+export type UserType = z.infer<typeof userInput>;
 
 const adminRouter = Router();
 
@@ -131,6 +162,17 @@ adminRouter.put("/enhancements/:id", authMiddleware, validateMiddleware(updateEn
 
 adminRouter.delete("/enhancements/:id", authMiddleware, deleteEnhancement);
 
+// Enhancement Rules
+adminRouter.get("/enhancement-rules/all", authMiddleware, getAllEnhancementRules);
+
+adminRouter.get("/enhancement-rules/by-enhancement/:enhancementId", authMiddleware, getEnhancementRulesByEnhancementId);
+
+adminRouter.post("/enhancement-rules", authMiddleware, validateMiddleware(createEnhancementRuleSchema), createEnhancementRule);
+
+adminRouter.put("/enhancement-rules/:id", authMiddleware, validateMiddleware(updateEnhancementRuleSchema), updateEnhancementRule);
+
+adminRouter.delete("/enhancement-rules/:id", authMiddleware, deleteEnhancementRule);
+
 adminRouter.get("/rate-policies/all", authMiddleware, getAllRatePolicies);
 
 adminRouter.post("/rate-policies", authMiddleware, validateMiddleware(createRatePolicySchema), createRatePolicy);
@@ -186,11 +228,24 @@ adminRouter.get('/email-templates/:type/variables', authMiddleware, getTemplateV
 adminRouter.post('/email-templates', authMiddleware, createTemplate);
 
 adminRouter.put('/email-templates/:id', authMiddleware, updateTemplate);
-
+  
 adminRouter.delete('/email-templates/:id', authMiddleware, deleteTemplate); 
 
 adminRouter.post("/bookings/refund", authMiddleware, refund);
 adminRouter.post("/bookings/future-refund", authMiddleware, processFutureRefund);
+
+adminRouter.post("/bookings/check-in", authMiddleware, checkIn);
+
+adminRouter.post("/bookings/check-out", authMiddleware, checkOut);
+
+// Group-level check-in/checkout endpoints
+adminRouter.post("/payment-intents/check-in", authMiddleware, checkInPaymentIntentGroup);
+
+adminRouter.post("/payment-intents/check-out", authMiddleware, checkOutPaymentIntentGroup);
+
+adminRouter.post("/booking-groups/check-in", authMiddleware, checkInBookingGroup);
+
+adminRouter.post("/booking-groups/check-out", authMiddleware, checkOutBookingGroup);
 
 // Partial refund endpoints
 adminRouter.post("/bookings/partial-refund", authMiddleware, processPartialRefund);
@@ -434,5 +489,28 @@ adminRouter.delete('/license-plates/:id', authMiddleware, deleteLicensePlateEntr
 adminRouter.post('/bookings/:id/send-checkin', authMiddleware, sendManualCheckInForBooking);
 adminRouter.post('/payment-intents/:id/send-checkin', authMiddleware, sendManualCheckInForPaymentIntent);
 adminRouter.post('/booking-groups/:id/send-checkin', authMiddleware, sendManualCheckInForBookingGroup);
+
+// Police Portal Routes
+adminRouter.get('/bookings/:bookingId/police-validation', authMiddleware, validatePoliceData);
+adminRouter.post('/bookings/:bookingId/police-report', authMiddleware, reportToPolicePortal);
+adminRouter.get('/police-reporting/status', authMiddleware, getPoliceReportingStatus);
+adminRouter.post('/police-reporting/retry', authMiddleware, retryFailedPoliceReports);
+
+// Customer Analytics Route
+adminRouter.get('/customers/:customerId/analytics', authMiddleware, getCustomerAnalytics);
+
+
+adminRouter.post('/events', authMiddleware, validateMiddleware(createEventSchema), createEvent);
+adminRouter.delete('/events/:id', authMiddleware, deleteEvent);
+adminRouter.put('/events/:id', authMiddleware, validateMiddleware(updateEventSchema),  editEvent);
+adminRouter.get('/events', authMiddleware, getAllEvents);
+
+adminRouter.post('/events/send-invite/:eventId', authMiddleware, sendEventInvite);
+
+// Event participant management routes
+adminRouter.get('/events/:eventId/bookings', authMiddleware, getEventBookingsWithGuests);
+adminRouter.get('/events/:eventId/search-customers', authMiddleware, searchCustomersForEvent);
+adminRouter.post('/events/:eventId/participants', authMiddleware, addEventParticipant);
+adminRouter.delete('/events/:eventId/participants/:participantId', authMiddleware, removeEventParticipant);
 
 export default adminRouter;

@@ -5,29 +5,12 @@ import toast from 'react-hot-toast'
 import { PersonalDetailsStep } from "./steps/PersonalDetailsStep"
 import { PassportStep } from "./steps/PassportStep"
 import { TermsStep } from "./steps/TermsStep"
+import type { CustomerData, Enhancement } from "../../types/types"
 
 interface OnlineCheckInFormProps {
     customer: {
-        customer: {
-            id: string
-            firstName: string
-            middleName?: string
-            lastName: string
-            email: string
-            phone: string
-            nationality: string
-            dateOfBirth?: string
-            passportNumber?: string
-            passportExpiry?: string
-            passportIssuedCountry?: string
-            idCard?: string
-            gender?: string
-            placeOfBirth?: string
-            city?: string
-            tcAgreed?: boolean
-            receiveMarketingEmail?: boolean
-            carNumberPlate?: string
-        }
+        customer: CustomerData,
+        isMainGuest: boolean;
         booking: {
             id: string
             checkIn: string
@@ -39,20 +22,21 @@ interface OnlineCheckInFormProps {
                 description: string
             }
         }
-    }
+    };
+    selectedEnhancements?: Enhancement[];
+    primaryBooking?: any;
 }
 
-export const OnlineCheckInForm = ({ customer }: OnlineCheckInFormProps) => {
-  
+export const OnlineCheckInForm = ({ customer, selectedEnhancements = [], primaryBooking }: OnlineCheckInFormProps) => {
     const [currentStep, setCurrentStep] = useState(1)
     const [formData, setFormData] = useState({
         // Personal details
-        nationality: customer.customer.nationality || '',
-        firstName: customer.customer.firstName || '',
-        middleName: customer.customer.middleName || '',
-        lastName: customer.customer.lastName || '',
-        phone: customer.customer.phone || '',
-        dateOfBirth: customer.customer.dateOfBirth ? new Date(customer.customer.dateOfBirth).toISOString().split('T')[0] : '',
+        nationality: customer.customer.guestNationality || '',
+        firstName: customer.customer.guestFirstName || '',
+        middleName: customer.customer.guestMiddleName|| '',
+        lastName: customer.customer.guestLastName || '',
+        phone: customer.customer.guestPhone || '',
+        dateOfBirth: customer.customer.dob ? new Date(customer.customer.dob).toISOString().split('T')[0] : '',
         gender: customer.customer.gender || '',
         placeOfBirth: customer.customer.placeOfBirth || '',
         city: customer.customer.city || '',
@@ -121,7 +105,16 @@ export const OnlineCheckInForm = ({ customer }: OnlineCheckInFormProps) => {
                     idCard: formData.documentType === 'idCard' ? formData.idCard : undefined,
                     tcAgreed: formData.tcAgreed,
                     receiveMarketingEmail: formData.receiveMarketingEmail,
-                    carNumberPlate: formData.carNumberPlate
+                    carNumberPlate: formData.carNumberPlate,
+                    // Include selected enhancements and booking ID
+                    selectedEnhancements: selectedEnhancements.map(e => ({
+                        id: e.id,
+                        quantity: e.pricingType === 'PER_GUEST' && primaryBooking 
+                            ? primaryBooking.totalGuests 
+                            : 1,
+                        notes: null
+                    })),
+                    bookingId: primaryBooking?.id // Pass the primary booking ID
                 })
             });
 

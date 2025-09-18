@@ -1,13 +1,32 @@
 import { useOnlineCheckIn } from "../../context/OnlineCheckInContext"
+import { useOnlineCheckInEnhancements } from "../../hooks/useEnhancements"
 import { OnlineCheckInForm } from "./OnlineCheckInForm"
+import { OutstandingAmount } from "./OutstandingAmount"
+import { EnhancementsSection } from "./EnhancementsSection"
 import Header from "../Header"
 import Loader from "../Loader"
 
 export const OnlineCheckIn = () => {
     const { customer, loader } = useOnlineCheckIn();
+    
+    // Get primary booking for enhancement calculations
+    const bookings = customer?.bookings || [];
+    const primaryBooking = bookings.find(b => b.id === customer?.primaryBookingId) || bookings[0];
+    
+    // Use enhancement hook at parent level
+    const enhancementState = useOnlineCheckInEnhancements(
+        customer?.availableEnhancements || [],
+        primaryBooking ? {
+            checkIn: primaryBooking.checkIn,
+            checkOut: primaryBooking.checkOut
+        } : undefined
+    );
+    
     if (loader) {
         return <Loader />
     }
+
+    console.log(customer)
 
     if (!customer) {
         return (
@@ -27,9 +46,6 @@ export const OnlineCheckIn = () => {
         )
     }
 
-    const bookings = customer.bookings || [];
-    
-    const primaryBooking = bookings.find(b => b.id === customer.primaryBookingId) || bookings[0];
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -37,9 +53,17 @@ export const OnlineCheckIn = () => {
             {/* Content Container */}
             <div className="relative z-10"> 
                 <Header />  
+                
                 <div className="px-6 pb-6 mt-8">
                     <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                        
                         <div className="p-6">
+                        
+                            <OutstandingAmount 
+                                bookings={customer.bookings || []} 
+                                isMainGuest={customer.isMainGuest || false} 
+                            />
+                        
                             {primaryBooking && (
                                 <div className="grid grid-cols-2 gap-4 mb-6">
                                     <div className="bg-gray-100 rounded-xl p-4">
@@ -76,7 +100,6 @@ export const OnlineCheckIn = () => {
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-gray-500">Status</p>
                                         <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                                             Confirmed
                                         </div>
@@ -84,8 +107,25 @@ export const OnlineCheckIn = () => {
                                 </div>
                             </div>
                         </div>
+                        
+                        {/* Outstanding Amount Section - Only for main guests */}
+                      
+                        {/* Enhancements Section - Only for main guests */}
                         <div className="px-6">
-                            <OnlineCheckInForm customer={customer} />
+
+                            <EnhancementsSection 
+                                isMainGuest={customer.isMainGuest || false}
+                                totalGuests={primaryBooking?.totalGuests || 1}
+                                enhancementState={enhancementState}
+                            />
+                        </div>
+                        
+                        <div className="px-6">
+                            <OnlineCheckInForm 
+                                customer={customer} 
+                                selectedEnhancements={enhancementState.selectedEnhancements}
+                                primaryBooking={primaryBooking}
+                            />
                         </div>
                     </div>
                 </div>

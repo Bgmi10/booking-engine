@@ -8,7 +8,6 @@ import {
  } from "lucide-react"
 import { baseUrl } from "../../../utils/constants"
 import { CreateBookingModal } from "./CreateBookingModal"
-import Occupancy from "./Occupancy" 
 import BookingGroups from "./BookingGroups"
 import type { BookingGroup, PaymentDetails, PaymentIntent } from "../../../types/types"
 import PaymentIntentsList from "./PaymenItentList"
@@ -53,6 +52,7 @@ export default function BookingManagement() {
   const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, OUTSTANDING, PAID
   const [selectedGroup, setSelectedGroup] = useState<BookingGroup | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [urlPaymentIntentId, setUrlPaymentIntentId] = useState<string | null>(null);
   const {
     bookingGroups,
     refetch,
@@ -77,6 +77,64 @@ export default function BookingManagement() {
   // Determine current data based on active tab
   const currentPaymentIntents = activeTab === "deleted" ? deletedPaymentIntents : activePaymentIntents;
   const currentLoading = activeTab === "deleted" ? deletedLoading : activeLoading;
+
+  // Check for URL parameters on mount and when data loads
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentIntentId = params.get('paymentIntentId');
+    
+    if (paymentIntentId && !urlPaymentIntentId) {
+      setUrlPaymentIntentId(paymentIntentId);
+    }
+  }, []);
+
+  // Handle opening the appropriate modal when payment intent is found
+  useEffect(() => {
+    if (!urlPaymentIntentId || activeLoading || deletedLoading) return;
+    
+    // First try to find in active payment intents
+    let foundPaymentIntent = activePaymentIntents.find(pi => pi.id === urlPaymentIntentId);
+    let isInDeleted = false;
+    
+    // If not found in active, check deleted
+    if (!foundPaymentIntent) {
+      foundPaymentIntent = deletedPaymentIntents.find(pi => pi.id === urlPaymentIntentId);
+      isInDeleted = true;
+    }
+    
+    if (foundPaymentIntent) {
+      // Switch to the appropriate tab
+      if (isInDeleted) {
+        setActiveTab("deleted");
+      }
+      
+      // Check if it belongs to a booking group
+      if (foundPaymentIntent.bookingGroupId) {
+        // Find the booking group
+        const group = bookingGroups.find(g => g.id === foundPaymentIntent.bookingGroupId);
+        if (group) {
+          // Switch to groups tab and open the modal
+          setActiveTab("groups");
+          setTimeout(() => {
+            setSelectedGroup(group);
+            setShowGroupModal(true);
+          }, 100);
+        } else {
+          // Group not found, just show the payment intent
+          setSelectedPaymentIntent(foundPaymentIntent);
+        }
+      } else {
+        // No group, just show the payment intent details
+        setSelectedPaymentIntent(foundPaymentIntent);
+      }
+      
+      // Clear the URL parameter after handling
+      setUrlPaymentIntentId(null);
+      // Clean up URL without reload
+      const newUrl = window.location.pathname + '?sidebar=bookings';
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [urlPaymentIntentId, activePaymentIntents, deletedPaymentIntents, bookingGroups, activeLoading, deletedLoading]);
 
   const onSendInvoice = async (id: string) => {
     setLoadingAction(true);
@@ -560,19 +618,7 @@ export default function BookingManagement() {
           >
             Groups
           </button>
-          <button
-            onClick={() => {
-              setActiveTab("occupancy");
-              setSelectedPaymentIntent(null);
-            }}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "occupancy"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            Occupancy
-          </button>
+        
           <button
             onClick={() => {
               setActiveTab("temp-holds");
@@ -657,8 +703,6 @@ export default function BookingManagement() {
             ) 
           }
         </div>
-      ) : activeTab === "occupancy" ? (
-        <Occupancy bookings={activePaymentIntents} />
       ) : activeTab === "groups" ? (
         <BookingGroups  selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} setShowEditModal={setShowEditModal} showEditModal={showEditModal} showGroupModal={showGroupModal}  setShowGroupModal={setShowGroupModal} handleEditGroup={handleEditGroup} handleViewBookings={handleViewBookings}  filteredGroups={filteredGroups} filterType={filterType} setFilterStatus={setFilterStatus} setFilterType={setFilterType} filterStatus={filterStatus} searchTerm={groupSearchTerm} setSearchTerm={setGroupSearchTerm} />
       ) : (

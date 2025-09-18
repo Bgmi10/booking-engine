@@ -5,6 +5,7 @@ import { baseUrl } from "../../utils/constants"
 import { useOnlineCheckIn } from "../../context/OnlineCheckInContext"
 import Header from "../Header"
 import { GuestModal } from "./GuestModal"
+import type { Booking, CustomerData } from "../../types/types"
 
 export const ManageGuests: React.FC = () => {
     const { customer, primaryBookingId } = useOnlineCheckIn()   
@@ -12,7 +13,7 @@ export const ManageGuests: React.FC = () => {
     const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set())
     const [showApplyToAll, setShowApplyToAll] = useState(false)
     const [lastAddedGuest, setLastAddedGuest] = useState<any>(null)
-    console.log(lastAddedGuest)
+
     const [guestModal, setGuestModal] = useState<{
         isOpen: boolean;
         bookingId: string;
@@ -37,8 +38,8 @@ export const ManageGuests: React.FC = () => {
     const guestData = customer.customer
     
     // Separate primary booking from other bookings
-    const primaryBooking = primaryBookingId ? bookings.find(b => b.id === primaryBookingId) : bookings[0]
-    const otherBookings = bookings.filter(b => b.id !== (primaryBooking?.id))
+    const primaryBooking = primaryBookingId ? bookings.find((b: Booking) => b.id === primaryBookingId) : bookings[0]
+    const otherBookings = bookings.filter((b: Booking) => b.id !== (primaryBooking?.id))
     
     const toggleBookingExpansion = (bookingId: string) => {
         setExpandedBookings(prev => {
@@ -53,7 +54,7 @@ export const ManageGuests: React.FC = () => {
     }
     
     const openGuestModal = (bookingId: string) => {
-        const booking = bookings.find(b => b.id === bookingId)
+        const booking = bookings.find((b: Booking) => b.id === bookingId)
         setGuestModal({
             isOpen: true,
             bookingId,
@@ -148,7 +149,7 @@ export const ManageGuests: React.FC = () => {
     // Component for rendering guest list
     const GuestList = ({ booking, canDelete = true }: { booking: any, canDelete?: boolean }) => {
         const allGuests = booking.guests || []
-        const bookingGuests = allGuests.filter(guest => 
+        const bookingGuests = allGuests.filter((guest: CustomerData) => 
             guest.guestType !== 'MAIN_GUEST' && !guest.isMainGuest
         )
         const maxGuests = booking.totalGuests
@@ -163,7 +164,7 @@ export const ManageGuests: React.FC = () => {
                         No additional guests added yet
                     </div>
                 )}
-                {bookingGuests.map((guest, guestIndex) => {
+                {bookingGuests.map((guest: any, guestIndex: number) => {
                     const completionFields = [
                         guest.personalDetailsComplete,
                         guest.identityDetailsComplete,
@@ -285,12 +286,12 @@ export const ManageGuests: React.FC = () => {
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                                         <span className="text-sm font-medium text-gray-700">
-                                            {guestData.firstName.charAt(0)}{guestData.lastName.charAt(0)}
+                                            {guestData.guestFirstName.charAt(0)}{guestData.guestLastName.charAt(0)}
                                         </span>
                                     </div>
                                     <div>
                                         <p className="font-medium text-gray-900">
-                                            {guestData.firstName} {guestData.lastName}
+                                            {guestData.guestFirstName} {guestData.guestLastName}
                                         </p>
                                         <p className="text-sm text-gray-500">Reservation owner</p>
                                     </div>

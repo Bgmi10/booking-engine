@@ -11,7 +11,6 @@ import { PartialRefundService } from "../services/partialRefundService";
 import { sendPaymentLinkEmail, routeGroupEmail } from "../services/emailTemplate";
 import { stripe } from "../config/stripeConfig";
 import { baseUrl } from "../utils/constants";
-import { dahuaService } from '../services/dahuaService';
 import { findOrCreatePrice } from "../config/stripeConfig"; 
 import { generateOTP } from "../utils/helper";
 import { EmailService } from "../services/emailService";
@@ -21,7 +20,9 @@ import { BookingGroupService } from "../services/bookingGroupService";
 import { InvoiceService } from "../services/invoiceService";
 import { GroupInvoiceService } from "../services/groupInvoiceService";
 import { CheckInReminderService } from "../services/checkInReminderService";
+import { policePortalService } from "../services/policePortalService";
 import { Booking } from "@prisma/client";
+import moment from "moment";
 
 dotenv.config();
 
@@ -383,6 +384,7 @@ const getAllBookings = async (req: express.Request, res: express.Response) => {
   try {
     const bookings = await prisma.booking.findMany({
       include: {
+        customer: true,
         room: true,
         paymentIntent: {
           include: {
@@ -602,75 +604,6 @@ const deleteBooking = async (req: express.Request, res: express.Response) => {
   }
 };
 
-const createEnhancement = async (req: express.Request, res: express.Response) => {
-  const { name, price, description, image, isActive, availableDays, pricingType, seasonal, seasonEnd, seasonStart } = req.body;
-
-  let seasonEndDate = seasonEnd;
-  let seasonStartDate = seasonStart;
-  if (seasonEnd === "" && seasonStart === "") {
-    seasonEndDate = null;
-    seasonStartDate = null;
-  }
-  
-  try {
-    const enhancement = await prisma.enhancement.create({ data: { price, description, image, isActive, title: name, availableDays, pricingType, seasonal, seasonEnd: new Date(seasonEndDate), seasonStart: new Date(seasonStartDate) } });
-    responseHandler(res, 200, "Enhancement created successfully", enhancement);
-  } catch (e) {
-    handleError(res, e as Error);
-  }
-}
-
-const updateEnhancement = async (req: express.Request, res: express.Response) => {
-  const { id } = req.params;
-  const { name, price, description, image, isActive, availableDays, pricingType, seasonal, seasonEnd, seasonStart } = req.body;
-
-  const updateData: any = {};
-
-  let seasonEndDate = seasonEnd;
-  let seasonStartDate = seasonStart;
-  if (seasonEnd === "" && seasonStart === "") {
-    seasonEndDate = null;
-    seasonStartDate = null;
-  }
-
-  if (name !== undefined) updateData.title = name;
-  if (price !== undefined) updateData.price = price;
-  if (description !== undefined) updateData.description = description;
-  if (image !== undefined) updateData.image = image;
-  if (isActive !== undefined) updateData.isActive = isActive;
-  if (availableDays !== undefined) updateData.availableDays = availableDays;
-  if (pricingType !== undefined) updateData.pricingType = pricingType;
-  if (seasonal !== undefined) updateData.seasonal = seasonal;
-  if (seasonEnd !== undefined) updateData.seasonEnd = new Date(seasonEndDate);
-  if (seasonStart !== undefined) updateData.seasonStart = new Date(seasonStartDate);
-
-  try {
-    const enhancement = await prisma.enhancement.update({ where: { id }, data: updateData });
-    responseHandler(res, 200, "Enhancement updated successfully", enhancement);
-  } catch (e) {
-    handleError(res, e as Error);
-  }
-}
-
-const deleteEnhancement = async (req: express.Request, res: express.Response) => {
-  const { id } = req.params;
-
-  try {
-    await prisma.enhancement.delete({ where: { id } });
-    responseHandler(res, 200, "Enhancement deleted successfully");
-  } catch (e) {
-    handleError(res, e as Error);
-  }
-}
-
-const getAllEnhancements = async (req: express.Request, res: express.Response) => {
-  try {
-    const enhancements = await prisma.enhancement.findMany();
-    responseHandler(res, 200, "All enhancements", enhancements);
-  } catch (e) {
-    handleError(res, e as Error);
-  }
-}
 
 const createRatePolicy = async (req: express.Request, res: express.Response) => {
   const { 
@@ -1905,6 +1838,12 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
               checkIn: true,
               checkOut: true,
               room: true,
+              checkedIn: true,
+              checkedOut: true,
+              checkedInAt: true,
+              checkedOutAt: true,
+              adminCheckInNotes: true,
+              adminCheckOutNotes: true,
               guestCheckInAccess: {
                 include: {
                   customer: {
@@ -2299,40 +2238,6 @@ export const getUserByID =  async (req: express.Request, res: express.Response) 
   }
 }
 
-// Dahua Camera Management Endpoints
-
-export const testDahuaConnection = async (req: express.Request, res: express.Response) => {
-  try {
-    const success = await dahuaService.testConnection();
-    
-    if (success) {
-      responseHandler(res, 200, "Dahua camera connection successful");
-    } else {
-      responseHandler(res, 400, "Dahua camera connection failed");
-    }
-  } catch (error: any) {
-    console.error("Dahua connection test error:", error);
-    responseHandler(res, 500, `Connection test failed: ${error.message}`);
-  }
-};
-
-export const getLicensePlateStatus = async (req: express.Request, res: express.Response) => {
-  const { plateNumber } = req.params;
-  
-  if (!plateNumber) {
-    responseHandler(res, 400, "License plate number is required");
-    return;
-  }
-
-  try {
-    const status = await dahuaService.getLicensePlateStatus(plateNumber);
-    responseHandler(res, 200, "License plate status retrieved", status);
-  } catch (error: any) {
-    console.error("License plate status error:", error);
-    responseHandler(res, 500, `Failed to get license plate status: ${error.message}`);
-  }
-};
-
 const getNotificationAssignableUsers = async (req: express.Request, res: express.Response) => {
   const { role } = req.query;
   try {
@@ -2497,8 +2402,24 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
         });
         createdBookings.push(booking);
 
-        // Note: GuestCheckInAccess records will be created by the cron job when sending check-in reminder emails
-        // This ensures tokens are only created when actually needed for customer communication
+        // Create enhancement bookings if any
+        if (bookingItem.selectedEnhancements?.length) {
+          try {
+            const enhancementData = bookingItem.selectedEnhancements.map((enhancement: any) => ({
+              bookingId: booking.id,
+              enhancementId: enhancement.id,
+              quantity: enhancement.quantity || (enhancement.pricingType === "PER_GUEST" ? bookingItem.adults : 1),
+              notes: enhancement.notes || null
+            }));
+
+            await tx.enhancementBooking.createMany({ data: enhancementData });
+            console.log(`Created ${enhancementData.length} enhancement bookings for booking ${booking.id}`);
+          } catch (enhancementError) {
+            console.error(`Failed to create enhancement bookings for booking ${booking.id}:`, enhancementError);
+            // Don't fail the booking creation if enhancement creation fails
+          }
+        }
+
       }
   
       // Remove temporary holds
@@ -2629,26 +2550,107 @@ const resendBankTransferInstructions = async (req: express.Request, res: express
 const confirmPaymentMethod = async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
   const { actualPaymentMethod } = req.body;
+  //@ts-ignore
+  const adminUserId = req.user?.id;
 
   if (!id || !actualPaymentMethod) {
     responseHandler(res, 400, "Payment Intent ID and actualPaymentMethod are required");
     return;
   }
 
+  if (!adminUserId) {
+    responseHandler(res, 401, "Unauthorized: Admin user ID not found");
+    return;
+  }
+
   try {
     // Start a transaction
     const result = await prisma.$transaction(async (tx: any) => {
-      // Update the payment intent with the actual payment method and mark as succeeded
+      // Get the current payment intent first
+      const currentPaymentIntent = await tx.paymentIntent.findUnique({
+        where: { id },
+        include: {
+          bookingGroup: true
+        }
+      });
+
+      if (!currentPaymentIntent) {
+        throw new Error("Payment Intent not found");
+      }
+
+      // Update the payment intent with the actual payment method, mark as succeeded, and set outstanding amount to 0
       const updatedPaymentIntent = await tx.paymentIntent.update({
         where: { id },
         data: {
           actualPaymentMethod,
-          status: "SUCCEEDED"
+          status: "SUCCEEDED",
+          outstandingAmount: 0,  // Set outstanding amount to 0 when payment is confirmed
+          paidAt: new Date()
         }
       });
 
       // Remove temporary holds
       await tx.temporaryHold.deleteMany({ where: { paymentIntentId: id } });
+
+      // Create audit log for payment confirmation
+      await AuditService.createAuditLog(tx, {
+        entityType: "PAYMENT_INTENT",
+        entityId: id,
+        actionType: "BANK_TRANSFER_CONFIRM",
+        userId: adminUserId,
+        reason: `Payment confirmed via ${actualPaymentMethod} by admin`,
+        previousValues: {
+          status: currentPaymentIntent.status,
+          actualPaymentMethod: currentPaymentIntent.actualPaymentMethod,
+          outstandingAmount: currentPaymentIntent.outstandingAmount
+        },
+        newValues: {
+          status: "SUCCEEDED",
+          actualPaymentMethod: actualPaymentMethod,
+          outstandingAmount: 0
+        },
+        changedFields: ["status", "actualPaymentMethod", "outstandingAmount", "paidAt"],
+        paymentIntentId: id,
+        bookingGroupId: currentPaymentIntent.bookingGroupId || undefined
+      });
+
+      // If part of a booking group, update the group's outstanding amount
+      if (currentPaymentIntent.bookingGroupId) {
+        const otherPaymentIntents = await tx.paymentIntent.findMany({
+          where: {
+            bookingGroupId: currentPaymentIntent.bookingGroupId,
+            id: { not: id }
+          },
+          select: { outstandingAmount: true }
+        });
+
+        const totalOutstanding = otherPaymentIntents.reduce(
+          (sum: number, pi: any) => sum + (pi.outstandingAmount || 0),
+          0
+        );
+
+        await tx.bookingGroup.update({
+          where: { id: currentPaymentIntent.bookingGroupId },
+          data: { outstandingAmount: totalOutstanding }
+        });
+
+        // Log the group outstanding amount update
+        await AuditService.createAuditLog(tx, {
+          entityType: "BOOKING_GROUP",
+          entityId: currentPaymentIntent.bookingGroupId,
+          actionType: "GROUP_UPDATED",
+          userId: adminUserId,
+          reason: `Outstanding amount updated after payment confirmation`,
+          previousValues: {
+            outstandingAmount: currentPaymentIntent.bookingGroup?.outstandingAmount
+          },
+          newValues: {
+            outstandingAmount: totalOutstanding
+          },
+          changedFields: ["outstandingAmount"],
+          bookingGroupId: currentPaymentIntent.bookingGroupId
+        });
+      }
 
       // Check if bookings already exist
       let bookings = await tx.booking.findMany({ where: { paymentIntentId: id } });
@@ -2730,7 +2732,7 @@ const confirmPaymentMethod = async (req: express.Request, res: express.Response)
     handleError(res, e as Error);
   }
 };
-
+  
 // Partial Refund Functions
 const processPartialRefund = async (req: express.Request, res: express.Response) => {
   const { bookingId, reason } = req.body;
@@ -3040,15 +3042,6 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
           throw new Error(`Room not found: ${booking.roomId}`);
         }
 
-        // Check capacity
-        const maxCapacity = booking.hasExtraBed && room.allowsExtraBed && room.maxCapacityWithExtraBed 
-          ? room.maxCapacityWithExtraBed 
-          : room.capacity;
-
-        if (booking.totalGuests > maxCapacity) {
-          throw new Error(`Booking ${i + 1}: Exceeds room capacity (${maxCapacity})`);
-        }
-
         // Prepare booking data for PaymentIntent.bookingData JSON
         const bookingDataEntry = {
           id: booking.id.startsWith('new-') ? undefined : booking.id,
@@ -3319,13 +3312,10 @@ export const sendInvoice = async (req: express.Request, res: express.Response) =
     }
 
     // Generate PDF invoice
-    const { pdfBuffer, paymentIntent} = await invoiceService.generateInvoice(paymentIntentId);
+    const { paymentIntent } = await invoiceService.generateInvoice(paymentIntentId);
     
     const customerData = JSON.parse(paymentIntent.customerData || '{}');
     const bookingData = JSON.parse(paymentIntent.bookingData || '[]');
-
-    // Convert PDF buffer to base64 for email attachment
-    const base64Content = pdfBuffer.toString('base64');
     const invoiceNumber = `INV-${new Date().getFullYear()}-${paymentIntentId.substring(0, 8).toUpperCase()}`;
     
     // Prepare booking overview data for email template
@@ -3384,11 +3374,6 @@ export const sendInvoice = async (req: express.Request, res: express.Response) =
       templateType: 'BOOKING_INVOICE',
       subject: '', // Will be taken from template
       templateData,
-      attachments: [{
-        content: base64Content,
-        name: `${invoiceNumber}.pdf`,
-        type: 'application/pdf'
-      }]
     });
 
     // Create audit log for invoice send
@@ -3424,11 +3409,6 @@ export const sendGroupInvoice = async (req: express.Request, res: express.Respon
       return;
     }
 
-    // Generate PDF invoice for the booking group
-    //@ts-ignore
-    const pdfBuffer = await groupInvoiceService.generateGroupInvoice(bookingGroupId, undefined, req.user?.id);
-    
-    // Get booking group with main guest data
     const bookingGroup = await prisma.bookingGroup.findUnique({
       where: { id: bookingGroupId },
       include: {
@@ -3450,8 +3430,6 @@ export const sendGroupInvoice = async (req: express.Request, res: express.Respon
       return;
     }
 
-    // Convert PDF buffer to base64 for email attachment
-    const base64Content = pdfBuffer.toString('base64');
     const invoiceNumber = `INV-${new Date().getFullYear()}-GROUP-${bookingGroupId.substring(0, 8).toUpperCase()}`;
     
     // Prepare booking overview data for email template using main guest
@@ -3510,11 +3488,6 @@ export const sendGroupInvoice = async (req: express.Request, res: express.Respon
         templateType: 'BOOKING_INVOICE',
         subject: '', // Will be taken from template
         templateData,
-        attachments: [{
-          content: base64Content,
-          name: `${invoiceNumber}.pdf`,
-          type: 'application/pdf'
-        }]
       });
     } else {
       // Send individual emails to each customer in each payment intent
@@ -3543,11 +3516,6 @@ export const sendGroupInvoice = async (req: express.Request, res: express.Respon
             templateType: 'BOOKING_INVOICE',
             subject: '', // Will be taken from template
             templateData: individualTemplateData,
-            attachments: [{
-              content: base64Content,
-              name: `${invoiceNumber}.pdf`,
-              type: 'application/pdf'
-            }]
           });
         }
       }
@@ -3738,6 +3706,1196 @@ const sendManualCheckInForBookingGroup = async (req: express.Request, res: expre
   }
 };
 
-export { getNotificationAssignableUsers, getGeneralSettings, updateGeneralSettings, login, createRoom, updateRoom, deleteRoom, updateRoomImage, deleteRoomImage, getAllBookings, getBookingById, getAdminProfile, forgetPassword, resetPassword, logout, getAllusers, updateUserRole, deleteUser, createUser, updateAdminProfile, updateAdminPassword, uploadUrl, deleteImage, createRoomImage, updateBooking, deleteBooking, createEnhancement, updateEnhancement, deleteEnhancement, getAllEnhancements, getAllRatePolicies, createRatePolicy, updateRatePolicy, deleteRatePolicy, bulkPoliciesUpdate, updateBasePrice, updateRoomPrice, createAdminPaymentLink, collectCash, createBankTransfer, refund, processFutureRefund, getAllPaymentIntent, softDeletePaymentIntent, getAllBankDetails, createBankDetails, updateBankDetails, deleteBankDetails, confirmBooking, resendBankTransferInstructions, confirmPaymentMethod, processPartialRefund, getBookingRefundInfo, getPaymentIntentBookings, processCustomPartialRefund, updatePaymentIntent, getPaymentIntentAuditLogs, sendManualCheckInForBooking, sendManualCheckInForPaymentIntent, sendManualCheckInForBookingGroup };
+export const checkIn = async (req: express.Request, res: express.Response) => {
+  const { bookingId, adminNotes } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking id is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        paymentIntent: true,
+        room: true,
+        customer: true
+      }
+    });
+
+    if (!booking) {
+      responseHandler(res, 404, "Booking not found");
+      return;
+    }
+
+    if (booking.checkedInAt) {
+      responseHandler(res, 400, "Booking already checked in");
+      return;
+    }
+
+    // Perform check-in
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        checkedInAt: new Date(),
+        checkedIn: true,
+        adminCheckInNotes: adminNotes || null
+      }
+    });
+
+    // Create audit log
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'BOOKING',
+        entityId: bookingId,
+        actionType: 'STATUS_CHANGED',
+        userId,
+        reason: 'Check-in processed - Guest arrived at hotel',
+        previousValues: { checkedInAt: null, status: booking.status },
+        newValues: { checkedInAt: new Date(), status: 'CONFIRMED' },
+        changedFields: ['checkedInAt', 'status'],
+        paymentIntentId: booking.paymentIntentId
+      }
+    });
+
+    responseHandler(res, 200, "success", {
+      message: `Room ${booking.room.name} checked in successfully`,
+      processedBookings: 1
+    });
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+export const checkOut = async (req: express.Request, res: express.Response) => {
+  const { bookingId, sendEmailToAll = false, adminNotes } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!bookingId) {
+    responseHandler(res, 400, "Booking id is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        paymentIntent: true,
+        room: true,
+        customer: true
+      }
+    });
+
+    if (!booking) {
+      responseHandler(res, 404, "Booking not found");
+      return;
+    }
+
+    if (!booking.checkedInAt) {
+      responseHandler(res, 400, "Cannot checkout. Guest not checked in");
+      return;
+    }
+
+    if (booking.checkedOutAt) {
+      responseHandler(res, 400, "Booking already checked out");
+      return;
+    }
+
+    // Strictly check outstanding amount
+    if (booking.paymentIntent?.outstandingAmount && booking.paymentIntent.outstandingAmount > 0) {
+      responseHandler(res, 400, `Cannot checkout. Outstanding amount: €${booking.paymentIntent.outstandingAmount}`);
+      return;
+    }
+
+    // Perform checkout
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        checkedOutAt: new Date(),
+        status: 'CONFIRMED',
+        adminCheckOutNotes: adminNotes
+      }
+    });
+
+    // Create audit log
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'BOOKING',
+        entityId: bookingId,
+        actionType: 'CHECKOUT_PROCESSED',
+        userId,
+        reason: 'Checkout completed',
+        previousValues: { checkedOutAt: null },
+        newValues: { checkedOutAt: new Date() },
+        changedFields: ['checkedOutAt'],
+        paymentIntentId: booking.paymentIntentId
+      }
+    });
+
+    // Send thank you emails
+    let emailsSent = 0;
+    try {
+      const bookingWithAccess = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          room: true,
+          customer: true,
+          guestCheckInAccess: {
+            include: {
+              customer: true
+            }
+          }
+        }
+      });
+
+      if (bookingWithAccess && sendEmailToAll) {
+        // Send to all guests who have check-in access
+        for (const guestAccess of bookingWithAccess.guestCheckInAccess) {
+          if (guestAccess.customer.guestEmail) {
+            await EmailService.sendEmail({
+              to: {
+                email: guestAccess.customer.guestEmail,
+                name: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`
+              },
+              templateType: 'THANK_YOU',
+              templateData: {
+                customerName: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`,
+                roomName: bookingWithAccess.room.name,
+                checkIn: bookingWithAccess.checkIn,
+                checkOut: bookingWithAccess.checkOut,
+                nights: Math.ceil((new Date(bookingWithAccess.checkOut).getTime() - new Date(bookingWithAccess.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+              }
+            });
+            emailsSent++;
+          }
+        }
+      } else if (bookingWithAccess) {
+        // Send only to main guest
+        const mainGuestAccess = bookingWithAccess.guestCheckInAccess.find(ga => ga.isMainGuest);
+        if (mainGuestAccess?.customer.guestEmail) {
+          await EmailService.sendEmail({
+            to: {
+              email: mainGuestAccess.customer.guestEmail,
+              name: `${mainGuestAccess.customer.guestFirstName} ${mainGuestAccess.customer.guestLastName}`
+            },
+            templateType: 'THANK_YOU',
+            templateData: {
+              customerName: `${mainGuestAccess.customer.guestFirstName} ${mainGuestAccess.customer.guestLastName}`,
+              roomName: bookingWithAccess.room.name,
+              checkIn: bookingWithAccess.checkIn,
+              checkOut: bookingWithAccess.checkOut,
+              nights: Math.ceil((new Date(bookingWithAccess.checkOut).getTime() - new Date(bookingWithAccess.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+            }
+          });
+          emailsSent = 1;
+        }
+      }
+    } catch (emailError) {
+      console.error('Error sending thank you emails:', emailError);
+    }
+
+    responseHandler(res, 200, "success", {
+      message: `Room ${booking.room.name} checked out successfully`,
+      processedBookings: 1,
+      emailsSent
+    });
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+}
+
+/**
+ * Check-in all bookings in a payment intent group
+ */
+export const checkInPaymentIntentGroup = async (req: express.Request, res: express.Response) => {
+  const { paymentIntentId, adminNotes } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!paymentIntentId) {
+    responseHandler(res, 400, "Payment intent ID is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      include: {
+        bookings: {
+          where: {
+            checkedInAt: null
+          },
+          include: {
+            room: true,
+            customer: true
+          }
+        },
+        customer: true
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+
+    if (paymentIntent.bookings.length === 0) {
+      responseHandler(res, 400, "No bookings available for check-in");
+      return;
+    }
+
+    // Check-in all bookings
+    const bookingIds = paymentIntent.bookings.map(b => b.id);
+    
+    await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds }
+      },
+      data: {
+        checkedInAt: new Date(),
+        status: 'CONFIRMED',
+        adminCheckInNotes: adminNotes
+      }
+    });
+
+    // Create audit log for group check-in
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'PAYMENT_INTENT',
+        entityId: paymentIntentId,
+        actionType: 'GROUP_CHECK_IN',
+        userId,
+        reason: `Group check-in for ${bookingIds.length} bookings`,
+        previousValues: undefined,
+        newValues: { bookingIds, checkedInAt: new Date() },
+        changedFields: ['checkedInAt', 'status'],
+        paymentIntentId: paymentIntentId
+      }
+    });
+
+    responseHandler(res, 200, "success", {
+      message: `${bookingIds.length} bookings checked in successfully`,
+      processedBookings: bookingIds.length
+    });
+
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+
+/**
+ * Checkout all bookings in a payment intent group
+ */
+export const checkOutPaymentIntentGroup = async (req: express.Request, res: express.Response) => {
+  const { paymentIntentId, sendEmailToAll = false } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!paymentIntentId) {
+    responseHandler(res, 400, "Payment intent ID is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const paymentIntent = await prisma.paymentIntent.findUnique({
+      where: { id: paymentIntentId },
+      include: {
+        bookings: {
+          where: {
+            checkedInAt: { not: null },
+            checkedOutAt: null
+          },
+          include: {
+            room: true,
+            customer: true
+          }
+        },
+        customer: true
+      }
+    });
+
+    if (!paymentIntent) {
+      responseHandler(res, 404, "Payment intent not found");
+      return;
+    }
+
+    // Strictly check outstanding amount
+    if (paymentIntent.outstandingAmount && paymentIntent.outstandingAmount > 0) {
+      responseHandler(res, 400, `Cannot checkout. Outstanding amount: €${paymentIntent.outstandingAmount}`);
+      return;
+    }
+
+    if (paymentIntent.bookings.length === 0) {
+      responseHandler(res, 400, "No bookings available for checkout");
+      return;
+    }
+
+    // Checkout all bookings
+    const bookingIds = paymentIntent.bookings.map(b => b.id);
+    
+    await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds }
+      },
+      data: {
+        checkedOutAt: new Date(),
+        status: 'CONFIRMED'
+      }
+    });
+
+    // Create audit log for group checkout
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'PAYMENT_INTENT',
+        entityId: paymentIntentId,
+        actionType: 'GROUP_CHECKOUT',
+        userId,
+        reason: `Group checkout for ${bookingIds.length} bookings`,
+        newValues: { bookingIds, checkedOutAt: new Date() },
+        changedFields: ['checkedOutAt'],
+        paymentIntentId: paymentIntentId
+      }
+    });
+
+    // Send thank you emails
+    let totalEmailsSent = 0;
+    
+    if (sendEmailToAll) {
+      // Send to all guests in all bookings
+      for (const booking of paymentIntent.bookings) {
+        const bookingWithAccess = await prisma.booking.findUnique({
+          where: { id: booking.id },
+          include: {
+            room: true,
+            customer: true,
+            guestCheckInAccess: {
+              include: {
+                customer: true
+              }
+            }
+          }
+        });
+
+        if (bookingWithAccess) {
+          for (const guestAccess of bookingWithAccess.guestCheckInAccess) {
+            if (guestAccess.customer.guestEmail) {
+              try {
+                await EmailService.sendEmail({
+                  to: {
+                    email: guestAccess.customer.guestEmail,
+                    name: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`
+                  },
+                  templateType: 'THANK_YOU',
+                  templateData: {
+                    customerName: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`,
+                    roomName: bookingWithAccess.room.name,
+                    checkIn: bookingWithAccess.checkIn,
+                    checkOut: bookingWithAccess.checkOut,
+                    nights: Math.ceil((new Date(bookingWithAccess.checkOut).getTime() - new Date(bookingWithAccess.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+                  }
+                });
+                totalEmailsSent++;
+              } catch (emailError) {
+                console.error('Error sending thank you email:', emailError);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Send only to main guest
+      if (paymentIntent.customer) {
+        try {
+          await EmailService.sendEmail({
+            to: {
+              email: paymentIntent.customer.guestEmail,
+              name: `${paymentIntent.customer.guestFirstName} ${paymentIntent.customer.guestLastName}`
+            },
+            templateType: 'THANK_YOU',
+            templateData: {
+              customerName: `${paymentIntent.customer.guestFirstName} ${paymentIntent.customer.guestLastName}`,
+              roomName: paymentIntent.bookings.map((b: any) => b.room.name).join(', '),
+              checkIn: paymentIntent.bookings[0]?.checkIn,
+              checkOut: paymentIntent.bookings[0]?.checkOut,
+              nights: paymentIntent.bookings.reduce((total: number, b: any) => total + Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24)), 0)
+            }
+          });
+          totalEmailsSent = 1;
+        } catch (emailError) {
+          console.error('Error sending main guest thank you email:', emailError);
+        }
+      }
+    }
+
+    responseHandler(res, 200, "success", {
+      message: `${bookingIds.length} bookings checked out successfully`,
+      processedBookings: bookingIds.length,
+      emailsSent: totalEmailsSent
+    });
+
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+
+/**
+ * Check-in all bookings in a booking group
+ */
+export const checkInBookingGroup = async (req: express.Request, res: express.Response) => {
+  const { bookingGroupId } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!bookingGroupId) {
+    responseHandler(res, 400, "Booking group ID is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const bookingGroup = await prisma.bookingGroup.findUnique({
+      where: { id: bookingGroupId },
+      include: {
+        paymentIntents: {
+          include: {
+            bookings: {
+              where: {
+                checkedInAt: null
+              },
+              include: {
+                room: true,
+                customer: true
+              }
+            },
+            customer: true
+          }
+        },
+        mainGuest: true
+      }
+    });
+
+    if (!bookingGroup) {
+      responseHandler(res, 404, "Booking group not found");
+      return;
+    }
+
+    const allBookings = bookingGroup.paymentIntents.flatMap(pi => pi.bookings);
+    
+    if (allBookings.length === 0) {
+      responseHandler(res, 400, "No bookings available for check-in");
+      return;
+    }
+
+    // Check-in all bookings
+    const bookingIds = allBookings.map(b => b.id);
+    
+    await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds }
+      },
+      data: {
+        checkedInAt: new Date(),
+        status: 'CONFIRMED'
+      }
+    });
+
+    // Create audit log for group check-in
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'BOOKING_GROUP',
+        entityId: bookingGroupId,
+        actionType: 'GROUP_CHECK_IN',
+        userId,
+        reason: `Booking group check-in for ${bookingIds.length} bookings`,
+        newValues: { bookingIds, checkedInAt: new Date() },
+        changedFields: ['checkedInAt', 'status'],
+        bookingGroupId: bookingGroupId
+      }
+    });
+
+    responseHandler(res, 200, "success", {
+      message: `${bookingIds.length} bookings checked in successfully`,
+      processedBookings: bookingIds.length
+    });
+
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+
+/**
+ * Checkout all bookings in a booking group
+ */
+export const checkOutBookingGroup = async (req: express.Request, res: express.Response) => {
+  const { bookingGroupId, sendEmailToAll = false } = req.body;
+  const userId = (req as any).user?.id;
+
+  if (!bookingGroupId) {
+    responseHandler(res, 400, "Booking group ID is required to perform this action");
+    return;
+  }
+
+  if (!userId) {
+    responseHandler(res, 401, "User ID is required for audit logging");
+    return;
+  }
+
+  try {
+    const bookingGroup = await prisma.bookingGroup.findUnique({
+      where: { id: bookingGroupId },
+      include: {
+        paymentIntents: {
+          include: {
+            bookings: {
+              where: {
+                checkedInAt: { not: null },
+                checkedOutAt: null
+              },
+              include: {
+                room: true,
+                customer: true
+              }
+            },
+            customer: true
+          }
+        },
+        mainGuest: true
+      }
+    });
+
+    if (!bookingGroup) {
+      responseHandler(res, 404, "Booking group not found");
+      return;
+    }
+
+    const allBookings = bookingGroup.paymentIntents.flatMap((pi: any) => pi.bookings);
+    
+    // Check outstanding amounts for all payment intents
+    const hasOutstandingAmount = bookingGroup.paymentIntents.some((pi: any) => 
+      pi.outstandingAmount && pi.outstandingAmount > 0
+    );
+
+    if (hasOutstandingAmount) {
+      const totalOutstanding = bookingGroup.paymentIntents
+        .reduce((sum: number, pi: any) => sum + (pi.outstandingAmount || 0), 0);
+      responseHandler(res, 400, `Cannot checkout. Outstanding amount: €${totalOutstanding}`);
+      return;
+    }
+    
+    if (allBookings.length === 0) {
+      responseHandler(res, 400, "No bookings available for checkout");
+      return;
+    }
+
+    // Checkout all bookings
+    const bookingIds = allBookings.map((b: any) => b.id);
+    
+    await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds }
+      },
+      data: {
+        checkedOutAt: new Date(),
+        status: 'CONFIRMED'
+      }
+    });
+
+    // Create audit log for group checkout
+    await prisma.bookingAuditLog.create({
+      data: {
+        entityType: 'BOOKING_GROUP',
+        entityId: bookingGroupId,
+        actionType: 'GROUP_CHECKOUT',
+        userId,
+        reason: `Booking group checkout for ${bookingIds.length} bookings`,
+        newValues: { bookingIds, checkedOutAt: new Date() },
+        changedFields: ['checkedOutAt'],
+        bookingGroupId: bookingGroupId
+      }
+    });
+
+    // Send thank you emails
+    let totalEmailsSent = 0;
+    
+    if (sendEmailToAll) {
+      // Send to all guests in all bookings
+      for (const paymentIntent of bookingGroup.paymentIntents) {
+        for (const booking of paymentIntent.bookings) {
+          const bookingWithAccess = await prisma.booking.findUnique({
+            where: { id: booking.id },
+            include: {
+              room: true,
+              customer: true,
+              guestCheckInAccess: {
+                include: {
+                  customer: true
+                }
+              }
+            }
+          });
+
+          if (bookingWithAccess) {
+            for (const guestAccess of bookingWithAccess.guestCheckInAccess) {
+              if (guestAccess.customer.guestEmail) {
+                try {
+                  await EmailService.sendEmail({
+                    to: {
+                      email: guestAccess.customer.guestEmail,
+                      name: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`
+                    },
+                    templateType: 'THANK_YOU',
+                    templateData: {
+                      customerName: `${guestAccess.customer.guestFirstName} ${guestAccess.customer.guestLastName}`,
+                      roomName: bookingWithAccess.room.name,
+                      checkIn: bookingWithAccess.checkIn,
+                      checkOut: bookingWithAccess.checkOut,
+                      nights: Math.ceil((new Date(bookingWithAccess.checkOut).getTime() - new Date(bookingWithAccess.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+                    }
+                  });
+                  totalEmailsSent++;
+                } catch (emailError) {
+                  console.error('Error sending thank you email:', emailError);
+                }
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Send only to main guest
+      try {
+        await EmailService.sendEmail({
+          to: {
+            email: bookingGroup.mainGuest.guestEmail,
+            name: `${bookingGroup.mainGuest.guestFirstName} ${bookingGroup.mainGuest.guestLastName}`
+          },
+          templateType: 'THANK_YOU',
+          templateData: {
+            customerName: `${bookingGroup.mainGuest.guestFirstName} ${bookingGroup.mainGuest.guestLastName}`,
+            roomName: allBookings.map((b: any) => b.room.name).join(', '),
+            checkIn: allBookings[0]?.checkIn,
+            checkOut: allBookings[0]?.checkOut,
+            nights: allBookings.reduce((total: number, b: any) => total + Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24)), 0)
+          }
+        });
+        totalEmailsSent = 1;
+      } catch (emailError) {
+        console.error('Error sending main guest thank you email:', emailError);
+      }
+    }
+
+    responseHandler(res, 200, "success", {
+      message: `${bookingIds.length} bookings checked out successfully`,
+      processedBookings: bookingIds.length,
+      emailsSent: totalEmailsSent
+    });
+
+  } catch (e) {
+    console.log(e);
+    handleError(res, e as Error);
+  }
+};
+
+/**
+ * Validate booking data for police portal
+ */
+export const validatePoliceData = async (req: express.Request, res: express.Response) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        customer: true,
+        room: true,
+        guestCheckInAccess: {
+          include: {
+            customer: true
+          }
+        }
+      }
+    });
+    
+    if (!booking) {
+      return responseHandler(res, 404, "error", "Booking not found");
+    }
+    
+    // Prepare guest data for validation
+    const guests = [];
+    const checkIn = moment(booking.checkIn);
+    const checkOut = moment(booking.checkOut);
+    const stayDuration = Math.min(checkOut.diff(checkIn, 'days'), 30);
+    
+    if (booking.guestCheckInAccess && booking.guestCheckInAccess.length > 0) {
+      for (const guestAccess of booking.guestCheckInAccess) {
+        const customer = guestAccess.customer;
+        
+        // Choose document based on priority: Passport > ID Card
+        let documentType = '';
+        let documentNumber = '';
+        
+        if (customer.passportNumber && customer.passportNumber.trim()) {
+          // Use passport if available
+          documentType = 'PASOR';
+          documentNumber = customer.passportNumber.trim();
+        } else if (customer.idCard && customer.idCard.trim()) {
+          // Use ID card if passport not available
+          documentType = 'IDENT';
+          documentNumber = customer.idCard.trim();
+        } else {
+          // Fallback - use empty values if no documents
+          documentType = 'ALTRO';
+          documentNumber = '';
+        }
+        
+        guests.push({
+          tipo_alloggiato: guestAccess.isMainGuest ? '17' : '19',
+          data_arrivo: checkIn.format('DD/MM/YYYY'),
+          giorni_permanenza: stayDuration,
+          cognome: (customer.guestLastName || '').toUpperCase(),
+          nome: (customer.guestFirstName || '').toUpperCase(),
+          sesso: customer.gender === 'MALE' ? '1' : '2',
+          data_nascita: moment(customer.dob).format('DD/MM/YYYY'),
+          comune_nascita: '',
+          provincia_nascita: '',
+          stato_nascita: '100000536',
+          cittadinanza: '100000536',
+          tipo_documento: documentType,
+          numero_documento: documentNumber,
+          luogo_rilascio: '100000536'
+        });
+      }
+    }
+    
+    // Validate all guests
+    const validationResults = guests.map((guest, index) => {
+      const validation = policePortalService.validateGuest(guest);
+      return {
+        guestIndex: index,
+        guestName: `${guest.nome} ${guest.cognome}`,
+        isValid: validation.isValid,
+        errors: validation.errors
+      };
+    });
+    
+    const isValid = validationResults.every(r => r.isValid);
+    
+    responseHandler(res, 200, "success", {
+      bookingId,
+      reportedToPolice: booking.reportedToPolice,
+      isValid,
+      validationResults,
+      totalGuests: guests.length
+    });
+  } catch (error) {
+    console.error("Error validating police data:", error);
+    handleError(res, error as Error);
+  }
+};
+
+/**
+ * Manually report booking to police portal
+ */
+export const reportToPolicePortal = async (req: express.Request, res: express.Response) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const result = await policePortalService.reportBooking(bookingId);
+    
+    if (result.success) {
+      responseHandler(res, 200, "success", {
+        message: "Booking reported to police portal successfully",
+        bookingId
+      });
+    } else {
+      responseHandler(res, 400, "error", {
+        message: "Failed to report to police portal",
+        errors: result.errors
+      });
+    }
+  } catch (error) {
+    console.error("Error reporting to police portal:", error);
+    handleError(res, error as Error);
+  }
+};
+
+/**
+ * Get police reporting status for bookings
+ */
+export const getPoliceReportingStatus = async (req: express.Request, res: express.Response) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Get today's check-ins
+    const todaysBookings = await prisma.booking.findMany({
+      where: {
+        checkIn: {
+          gte: today,
+          lt: tomorrow
+        },
+        status: 'CONFIRMED'
+      },
+      include: {
+        customer: true,
+        room: true,
+        guestCheckInAccess: {
+          include: {
+            customer: true
+          }
+        }
+      }
+    });
+    
+    const reportingStatus = todaysBookings.map(booking => ({
+      bookingId: booking.id,
+      roomName: booking.room.name,
+      customerName: `${booking.customer.guestFirstName} ${booking.customer.guestLastName}`,
+      checkIn: booking.checkIn,
+      checkedInAt: booking.checkedInAt,
+      reportedToPolice: booking.reportedToPolice,
+      policeReportedAt: booking.policeReportedAt,
+      policeReportError: booking.policeReportError,
+      guestCount: booking.guestCheckInAccess?.length || 0,
+      hasRequiredData: booking.guestCheckInAccess?.length > 0
+    }));
+    
+    const stats = {
+      total: todaysBookings.length,
+      checkedIn: todaysBookings.filter(b => b.checkedInAt).length,
+      reported: todaysBookings.filter(b => b.reportedToPolice).length,
+      pending: todaysBookings.filter(b => b.checkedInAt && !b.reportedToPolice).length,
+      errors: todaysBookings.filter(b => b.policeReportError).length
+    };
+    
+    responseHandler(res, 200, "success", {
+      stats,
+      bookings: reportingStatus
+    });
+  } catch (error) {
+    console.error("Error getting police reporting status:", error);
+    handleError(res, error as Error);
+  }
+};
+
+/**
+ * Retry failed police portal reports
+ */
+export const retryFailedPoliceReports = async (req: express.Request, res: express.Response) => {
+  try {
+    const failedBookings = await prisma.booking.findMany({
+      where: {
+        reportedToPolice: false,
+        checkedInAt: { not: null },
+        policeReportError: { not: null },
+        status: 'CONFIRMED'
+      }
+    });
+    
+    const results = {
+      total: failedBookings.length,
+      successful: 0,
+      failed: 0,
+      errors: [] as Array<{ bookingId: string; error: string }>
+    };
+    
+    for (const booking of failedBookings) {
+      const result = await policePortalService.reportBooking(booking.id);
+      if (result.success) {
+        results.successful++;
+      } else {
+        results.failed++;
+        results.errors.push({
+          bookingId: booking.id,
+          error: result.errors.join('; ')
+        });
+      }
+    }
+    
+    responseHandler(res, 200, "success", results);
+  } catch (error) {
+    console.error("Error retrying failed police reports:", error);
+    handleError(res, error as Error);
+  }
+};
+
+/**
+ * Get comprehensive analytics for a specific customer
+ */
+export const getCustomerAnalytics = async (req: express.Request, res: express.Response) => {
+  try {
+    const { customerId } = req.params;
+    
+    // Get customer basic info
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: {
+        id: true,
+        guestFirstName: true,
+        guestLastName: true,
+        guestEmail: true
+      }
+    });
+    
+    if (!customer) {
+      return responseHandler(res, 404, "Customer not found");
+    }
+    
+    // Get all bookings for this customer
+    const bookings = await prisma.booking.findMany({
+      where: { customerId },
+      include: {
+        room: true,
+        paymentIntent: true
+      },
+      orderBy: {
+        checkIn: 'asc'
+      }
+    });
+    
+    if (bookings.length === 0) {
+      return responseHandler(res, 200, "Customer analytics", {
+        customerId,
+        customerName: `${customer.guestFirstName} ${customer.guestLastName}`,
+        email: customer.guestEmail,
+        firstBookingDate: null,
+        lastBookingDate: null,
+        totalSpent: 0,
+        totalBookings: 0,
+        yearsWithUs: 0,
+        avgSpendingPerBooking: 0,
+        yearlySpending: [],
+        relatedCustomers: [],
+        favoriteRooms: [],
+        seasonalPreference: []
+      });
+    }
+    
+    // Calculate basic statistics
+    const totalSpent = bookings.reduce((sum, booking) => sum + (booking.totalAmount || 0), 0);
+    const totalBookings = bookings.length;
+    const avgSpendingPerBooking = totalSpent / totalBookings;
+    
+    const firstBookingDate = bookings[0].checkIn;
+    const lastBookingDate = bookings[bookings.length - 1].checkIn;
+    const yearsWithUs = Math.max(1, new Date().getFullYear() - new Date(firstBookingDate).getFullYear());
+    
+    // Yearly spending analysis
+    const yearlySpendingMap = new Map<number, { amount: number; bookings: number }>();
+    
+    bookings.forEach(booking => {
+      const year = new Date(booking.checkIn).getFullYear();
+      const current = yearlySpendingMap.get(year) || { amount: 0, bookings: 0 };
+      yearlySpendingMap.set(year, {
+        amount: current.amount + (booking.totalAmount || 0),
+        bookings: current.bookings + 1
+      });
+    });
+    
+    const yearlySpending = Array.from(yearlySpendingMap.entries()).map(([year, data]) => ({
+      year,
+      amount: data.amount,
+      bookings: data.bookings
+    })).sort((a, b) => a.year - b.year);
+    
+    // Favorite rooms analysis
+    const roomSpendingMap = new Map<string, { name: string; bookingCount: number; totalSpent: number }>();
+    
+    bookings.forEach(booking => {
+      if (booking.room) {
+        const current = roomSpendingMap.get(booking.room.id) || {
+          name: booking.room.name,
+          bookingCount: 0,
+          totalSpent: 0
+        };
+        roomSpendingMap.set(booking.room.id, {
+          name: current.name,
+          bookingCount: current.bookingCount + 1,
+          totalSpent: current.totalSpent + (booking.totalAmount || 0)
+        });
+      }
+    });
+    
+    const favoriteRooms = Array.from(roomSpendingMap.values())
+      .sort((a, b) => b.bookingCount - a.bookingCount)
+      .map(room => ({
+        roomName: room.name,
+        bookingCount: room.bookingCount,
+        totalSpent: room.totalSpent
+      }));
+    
+    // Seasonal preference analysis
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const monthlyBookings = new Map<string, number>();
+    monthNames.forEach(month => monthlyBookings.set(month, 0));
+    
+    bookings.forEach(booking => {
+      const month = monthNames[new Date(booking.checkIn).getMonth()];
+      monthlyBookings.set(month, (monthlyBookings.get(month) || 0) + 1);
+    });
+    
+    const seasonalPreference = Array.from(monthlyBookings.entries()).map(([month, bookingCount]) => ({
+      month,
+      bookingCount
+    }));
+    
+    // Find related customers (customers who have bookings in the same payment intents)
+    const paymentIntentIds = bookings
+      .map(b => b.paymentIntentId)
+      .filter(id => id) as string[];
+    
+    let relatedCustomers: Array<{
+      id: string;
+      name: string;
+      relationship: string;
+      totalSpent: number;
+    }> = [];
+    
+    if (paymentIntentIds.length > 0) {
+      const relatedBookings = await prisma.booking.findMany({
+        where: {
+          paymentIntentId: { in: paymentIntentIds },
+          customerId: { not: customerId }
+        },
+        include: {
+          customer: true
+        },
+        distinct: ['customerId']
+      });
+      
+      // Get spending data for related customers
+      const relatedCustomerIds = relatedBookings.map(b => b.customerId).filter(id => id) as string[];
+      
+      if (relatedCustomerIds.length > 0) {
+        const relatedSpending = await prisma.booking.groupBy({
+          by: ['customerId'],
+          where: { customerId: { in: relatedCustomerIds } },
+          _sum: { totalAmount: true }
+        });
+        
+        const spendingMap = new Map(relatedSpending.map(s => [s.customerId, s._sum.totalAmount || 0]));
+        
+        relatedCustomers = relatedBookings.map(booking => ({
+          id: booking.customerId!,
+          name: `${booking.customer?.guestFirstName || ''} ${booking.customer?.guestLastName || ''}`.trim(),
+          relationship: 'Travel companion',
+          totalSpent: spendingMap.get(booking.customerId!) || 0
+        })).slice(0, 10); // Limit to top 10 related customers
+      }
+    }
+    
+    const analyticsData = {
+      customerId,
+      customerName: `${customer.guestFirstName} ${customer.guestLastName}`,
+      email: customer.guestEmail,
+      firstBookingDate: firstBookingDate.toISOString(),
+      lastBookingDate: lastBookingDate.toISOString(),
+      totalSpent,
+      totalBookings,
+      yearsWithUs,
+      avgSpendingPerBooking,
+      yearlySpending,
+      relatedCustomers,
+      favoriteRooms,
+      seasonalPreference
+    };
+    
+    responseHandler(res, 200, "Customer analytics retrieved successfully", analyticsData);
+  } catch (error) {
+    console.error("Error getting customer analytics:", error);
+    handleError(res, error as Error);
+  }
+};
+
+export { 
+  getNotificationAssignableUsers, 
+  getGeneralSettings, 
+  updateGeneralSettings, 
+  login, 
+  createRoom, 
+  updateRoom, 
+  deleteRoom, 
+  updateRoomImage, 
+  deleteRoomImage, 
+  getAllBookings, 
+  getBookingById, 
+  getAdminProfile, 
+  forgetPassword, 
+  resetPassword, 
+  logout, 
+  getAllusers, 
+  updateUserRole, 
+  deleteUser, 
+  createUser, 
+  updateAdminProfile, 
+  updateAdminPassword, 
+  uploadUrl, 
+  deleteImage, 
+  createRoomImage, 
+  updateBooking, 
+  deleteBooking, 
+  getAllRatePolicies, 
+  createRatePolicy, 
+  updateRatePolicy, 
+  deleteRatePolicy, 
+  bulkPoliciesUpdate, 
+  updateBasePrice, 
+  updateRoomPrice, 
+  createAdminPaymentLink, 
+  collectCash, 
+  createBankTransfer, 
+  refund, 
+  processFutureRefund, 
+  getAllPaymentIntent, 
+  softDeletePaymentIntent, 
+  getAllBankDetails, 
+  createBankDetails, 
+  updateBankDetails, 
+  deleteBankDetails, 
+  confirmBooking, 
+  resendBankTransferInstructions, 
+  confirmPaymentMethod, 
+  processPartialRefund, 
+  getBookingRefundInfo, 
+  getPaymentIntentBookings, 
+  processCustomPartialRefund, 
+  updatePaymentIntent, 
+  getPaymentIntentAuditLogs, 
+  sendManualCheckInForBooking, 
+  sendManualCheckInForPaymentIntent, 
+  sendManualCheckInForBookingGroup 
+};
 
 

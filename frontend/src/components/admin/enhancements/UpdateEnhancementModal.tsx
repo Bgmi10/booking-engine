@@ -1,122 +1,100 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import { useState } from "react"
-import { RiCloseLine, RiErrorWarningLine, RiCheckLine } from "react-icons/ri"
+import { useState, useEffect, useCallback } from "react"
+import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
-interface Enhancement {
-  id: string
-  title: string
-  description: string
-  price: number
-  image?: string
-  pricingType: "PER_GUEST" | "PER_BOOKING" | "PER_DAY"
-  availableDays: string[]
-  seasonal: boolean
-  seasonStart?: string
-  seasonEnd?: string
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-}
+import { useImageUpload } from "../../../hooks/useImageUpload"
+import toast from "react-hot-toast"
+import type { Enhancement } from "../../../types/types"
 
 interface UpdateEnhancementModalProps {
-  enhancement: Enhancement | any
-  setIsUpdateModalOpen: (isOpen: boolean) => void
-  setEnhancements: React.Dispatch<React.SetStateAction<Enhancement[]>>
-  setError: (error: string) => void
-  setSuccess: (success: string) => void
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  enhancement: Enhancement
 }
 
-export default function UpdateEnhancementModal({
-  setIsUpdateModalOpen,
-  setEnhancements,
-  setError,
-  setSuccess,
-  enhancement,
+export default function UpdateEnhancementModal({ 
+  isOpen, 
+  onClose, 
+  onSuccess, 
+  enhancement 
 }: UpdateEnhancementModalProps) {
-
-  const [title, setTitle] = useState(enhancement.title)
+  // Form states
+  const [name, setName] = useState(enhancement.name)
   const [description, setDescription] = useState(enhancement.description)
   const [price, setPrice] = useState(enhancement.price.toString())
   const [pricingType, setPricingType] = useState<"PER_GUEST" | "PER_BOOKING" | "PER_DAY">(enhancement.pricingType)
-  const [availableDays, setAvailableDays] = useState<string[]>(enhancement.availableDays || [])
-  const [seasonal, setSeasonal] = useState(enhancement.seasonal)
-  const [seasonStart, setSeasonStart] = useState(enhancement.seasonStart || "")
-  const [seasonEnd, setSeasonEnd] = useState(enhancement.seasonEnd || "")
-  const [image, setImage] = useState(enhancement.image || "")
   const [isActive, setIsActive] = useState(enhancement.isActive)
-  const [loadingAction, setLoadingAction] = useState(false)
-  const [localError, setLocalError] = useState("")
-  const [localSuccess, setLocalSuccess] = useState("")
-  console.log(image)
-  const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+  const [tax, setTax] = useState(enhancement.tax || 0)
+  const [showCustomTax, setShowCustomTax] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const {
+    images,
+    uploadingImage,
+    isDragging,
+    uploadImages,
+    handleDragEnter,
+    removeImage,
+    handleDragLeave,
+    handleDragOver,
+    setInitialImages
+  } = useImageUpload();
 
-  // Handle available days change
-  const handleAvailableDaysChange = (day: string) => {
-    setAvailableDays(prev => 
-      prev.includes(day) 
-        ? prev.filter(d => d !== day) 
-        : [...prev, day]
-    );
-  };
+  console.log(images)
 
-  // Update enhancement
-  const updateEnhancement = async () => {
+  useEffect(() => {
+    if (isOpen && enhancement) {
+      setName(enhancement.name)
+      setDescription(enhancement.description)
+      setPrice(enhancement.price.toString())
+      setPricingType(enhancement.pricingType)
+      setIsActive(enhancement.isActive)
+      setTax(enhancement.tax || 0)
+      if (enhancement.image !== null){
+        setInitialImages((p: any) => ([...p, enhancement?.image]))
+      }
+    }
+  }, [isOpen, enhancement])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
     // Validation
-    if (!title.trim()) {
-      setLocalError("Enhancement title is required")
+    if (!name.trim()) {
+      toast.error("Enhancement name is required")
       return
     }
 
     if (!description.trim()) {
-      setLocalError("Description is required")
+      toast.error("Description is required")
       return
     }
 
-    if (!price.trim() || isNaN(Number(price)) || Number(price) <= 0) {
-      setLocalError("Please enter a valid price")
+    if (!price || Number(price) <= 0) {
+      toast.error("Price must be greater than 0")
       return
     }
 
-    if (availableDays.length === 0) {
-      setLocalError("Please select at least one available day")
-      return
-    }
-
-    if (seasonal && (!seasonStart || !seasonEnd)) {
-      setLocalError("Please provide both season start and end dates")
-      return
-    }
-
-    if (seasonal && new Date(seasonStart) >= new Date(seasonEnd)) {
-      setLocalError("Season end date must be after start date")
-      return
-    }
-
-    setLoadingAction(true)
-    setLocalError("")
-    setLocalSuccess("")
+    setLoading(true)
 
     try {
+      const requestBody = {
+        name: name.trim(),
+        description: description.trim(),
+        price: Number(price),
+        pricingType,
+        isActive,
+        tax,
+        image: images[0] || null,
+      }
+
       const res = await fetch(`${baseUrl}/admin/enhancements/${enhancement.id}`, {
         method: "PUT",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title,
-          description,
-          price: Number(price),
-          pricingType,
-          availableDays,
-          seasonal,
-          seasonStart: seasonal ? seasonStart : "",
-          seasonEnd: seasonal ? seasonEnd : "",
-          image: image || "",
-          isActive,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const data = await res.json()
@@ -125,300 +103,350 @@ export default function UpdateEnhancementModal({
         throw new Error(data.message || "Failed to update enhancement")
       }
 
-      setLocalSuccess("Enhancement updated successfully!")
-      setSuccess("Enhancement updated successfully!")
+      toast.success("Enhancement Updated Successfully")
+      onSuccess()
+      onClose()
 
-      // Update enhancements state with the updated enhancement
-      setEnhancements(prev =>
-        prev.map(item => (item.id === enhancement.id ? data.data : item))
-      )
-
-      // Close modal after success
-      setTimeout(() => {
-        setIsUpdateModalOpen(false)
-      }, 2000)
     } catch (error: any) {
-      console.error(error)
-      setLocalError(error.message || "Failed to update enhancement. Please try again.")
-      setError(error.message || "Failed to update enhancement. Please try again.")
+      toast.error(error.message || "Error while updating")
     } finally {
-      setLoadingAction(false)
+      setLoading(false)
     }
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    
+    const files = Array.from(e.target.files)
+    
+    // Check if user is trying to upload more than 1 image
+    if (files.length > 1) {
+      alert("Please select only one image. Multiple images are not allowed for enhancements.")
+      return
+    }
+    
+    // Check if an image is already uploaded
+    if (images.length > 0) {
+      alert("Only one image is allowed per enhancement. Please remove the current image first.")
+      return
+    }
+    
+    await uploadImages(files)
+  }
+
+  // Custom handleDrop with single image restriction
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files)
+      
+      // Check if user is trying to upload more than 1 image
+      if (files.length > 1) {
+        alert("Please select only one image. Multiple images are not allowed for enhancements.")
+        return
+      }
+      
+      // Check if an image is already uploaded
+      if (images.length > 0) {
+        alert("Only one image is allowed per enhancement. Please remove the current image first.")
+        return
+      }
+      
+      uploadImages(files)
+    }
+  }, [images.length, uploadImages])
+
+  if (!isOpen) return null
+
   return (
-    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white">
-          <h3 className="text-xl font-semibold text-gray-900">Update Enhancement</h3>
+    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-50">
+          <h2 className="text-xl font-semibold text-gray-900">Update Enhancement</h2>
           <button
-            onClick={() => setIsUpdateModalOpen(false)}
-            className="text-gray-500 hover:text-gray-700 focus:outline-none"
-            disabled={loadingAction}
+            onClick={onClose}
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-500 focus:outline-none"
           >
             <RiCloseLine size={24} />
           </button>
         </div>
 
-        <div className="p-6">
-          {localError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiErrorWarningLine className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{localError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {localSuccess && (
-            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <RiCheckLine className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{localSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-6">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="space-y-6">
+            {/* Basic Information */}
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Spa Package"
-              />
-            </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                    Enhancement Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-1 p-3 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    placeholder="e.g., Champagne on Arrival"
+                    required
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Description <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Detailed description of the enhancement"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                  Price (USD) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="price"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  min="0"
-                  step="0.01"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="99.99"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="pricingType" className="block text-sm font-medium text-gray-700">
-                  Pricing Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="pricingType"
-                  value={pricingType}
-                  onChange={(e) => setPricingType(e.target.value as "PER_GUEST" | "PER_BOOKING" | "PER_DAY")}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="PER_GUEST">Per Guest</option>
-                  <option value="PER_BOOKING">Per Booking</option>
-                  <option value="PER_DAY">Per Day</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="image" className="block text-sm font-medium text-gray-700">
-                Update Image
-              </label>
-              <input type="file" id="image" onChange={async (e) => {
-                setImage(e.target.files?.[0] || null)
-        
-               if (image) {
-                const deleteRes = await fetch(`${baseUrl}/admin/delete-image`, {
-                  method: "DELETE",
-                  credentials: "include",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    url: image,
-                  }),
-                })
-
-                if (!deleteRes.ok) {
-                  throw new Error("Failed to delete old image")
-                }
-               }
-                const file = e.target.files?.[0]
-
-                const res = await fetch(`${baseUrl}/admin/upload-url`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    url: file?.name,
-                    fileType: file?.type,
-                  }),
-                  credentials: "include",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                })
-
-                const data = await res.json()
-
-                if (!res.ok) {
-                  throw new Error(data.message || "Failed to get upload URL")
-                }
-
-                const uploadUrl = data.data.uploadUrl
-                const finalUrl = data.data.fileUrl
-
-                await fetch(uploadUrl, {
-                    method: "PUT",
-                    body: file,
-                    headers: {
-                        "Content-Type": file?.type || "",
-                    },
-                })
-                setImage(finalUrl)
-              }} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-              {
-                image && (
-                  <div className="mt-2">
-                    <img src={image} alt="Enhancement" className="w-full h-40 object-cover rounded-md" />
-                  </div>
-                )
-              }
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Available Days <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-7 sm:grid-cols-7 gap-2">
-                {weekdays.map(day => (
-                  <div key={day} className="flex items-center">
-                    <input
-                      id={`day-${day}`}
-                      type="checkbox"
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      checked={availableDays.includes(day)}
-                      onChange={() => handleAvailableDaysChange(day)}
-                    />
-                    <label htmlFor={`day-${day}`} className="ml-2 block text-sm text-gray-900 truncate">
-                      {day.slice(0, 3)}
+                <div className="md:col-span-2">
+                  <div className="mb-2">
+                    <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                      Description *
                     </label>
+                    <textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={3}
+                      className="mt-1 p-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      placeholder="Describe the enhancement..."
+                      required
+                    />
                   </div>
-                ))}
+
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Image (Optional)
+                  </label>
+                  
+                  <div 
+                    className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md ${
+                      isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
+                    }`}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <div className="space-y-1 text-center">
+                      <svg
+                        className="mx-auto h-12 w-12 text-gray-400"
+                        stroke="currentColor"
+                        fill="none"
+                        viewBox="0 0 48 48"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <div className="flex text-sm text-gray-600 justify-center">
+                        <label
+                          htmlFor="file-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
+                        >
+                          <span>Upload image</span>
+                          <input
+                            id="file-upload"
+                            name="file-upload"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            disabled={loading || uploadingImage}
+                          />
+                        </label>
+                        <p className="pl-1">or drag and drop</p>
+                      </div>
+                      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB (Max 1 image)</p>
+                      
+                      {uploadingImage && (
+                        <div className="flex items-center justify-center mt-2">
+                          <BiLoader className="animate-spin text-indigo-600 mr-2" />
+                          <span className="text-sm text-gray-500">Uploading...</span>
+                        </div>
+                      )}
+                      
+                      {isDragging && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded-md pointer-events-none">
+                          <div className="bg-white p-4 rounded-md shadow-lg border border-indigo-300">
+                            <p className="text-indigo-600 font-medium">Drop image to upload</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {(images?.length > 0) && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Enhancement Image:</h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        {images?.length > 0 && (
+                          images.map((url: string, index: number) => (
+                            <div key={index} className="relative group">
+                              <div className="max-w-fit overflow-hidden rounded-md bg-gray-200">
+                                <img
+                                  src={url || "/placeholder.svg"}
+                                  alt="Enhancement image"
+                                  className="object-cover h-40 w-40"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeImage(index)}
+                                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                  disabled={loading}
+                                >
+                                  <RiCloseLine size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="seasonal"
-                type="checkbox"
-                checked={seasonal}
-                onChange={(e) => setSeasonal(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <label htmlFor="seasonal" className="ml-2 block text-sm text-gray-900">
-                Seasonal Availability
-              </label>
-            </div>
-
-            {seasonal && (
-              <div className="grid grid-cols-2 gap-4">
+            {/* Pricing */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Pricing</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="seasonStart" className="block text-sm font-medium text-gray-700">
-                    Season Start <span className="text-red-500">*</span>
+                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">
+                    Price (€) *
                   </label>
                   <input
-                    type="date"
-                    id="seasonStart"
-                    value={seasonStart}
-                    onChange={(e) => setSeasonStart(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    type="number"
+                    id="price"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    step="0.01"
+                    min="0"
+                    className="p-2 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    placeholder="0.00"
+                    required
                   />
                 </div>
                 <div>
-                  <label htmlFor="seasonEnd" className="block text-sm font-medium text-gray-700">
-                    Season End <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    VAT Tax (%)
                   </label>
-                  <input
-                    type="date"
-                    id="seasonEnd"
-                    value={seasonEnd}
-                    onChange={(e) => setSeasonEnd(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
+                  <div className="flex gap-2">
+                    <select 
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" 
+                      value={showCustomTax ? 'custom' : tax} 
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'custom') {
+                          setShowCustomTax(true);
+                        } else {
+                          setShowCustomTax(false);
+                          setTax(parseInt(e.target.value) || 0)
+                        }
+                      }}
+                    >
+                      <option value="0">No Tax (0%)</option>
+                      <option value="3">3%</option>
+                      <option value="5">5%</option>
+                      <option value="10">10%</option>
+                      <option value="22">22%</option>
+                      <option value="custom">Custom %</option>
+                    </select>
+                    {showCustomTax && (
+                      <input 
+                        type="number" 
+                        placeholder="%" 
+                        className="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" 
+                        value={tax} 
+                        onChange={(e) => setTax(parseInt(e.target.value) || 0)}
+                        min="0"
+                        max="100"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="pricingType" className="block text-sm font-medium text-gray-700">
+                    Pricing Type *
+                  </label>
+                  <select
+                    id="pricingType"
+                    value={pricingType}
+                    onChange={(e) => setPricingType(e.target.value as any)}
+                    className="p-2 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    required
+                  >
+                    <option value="PER_BOOKING">Per Booking</option>
+                    <option value="PER_GUEST">Per Guest</option>
+                    <option value="PER_DAY">Per Day</option>
+                  </select>
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="flex items-center">
-              <input
-                id="isActive"
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                Active (immediately available for booking)
-              </label>
+            {/* Status */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Status</h3>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                  Active (Enhancement will be available for selection)
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-blue-700">
+                    After updating the enhancement, you can manage availability rules in the Rules tab.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg sticky bottom-0">
-          <button
-            type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
-            onClick={() => setIsUpdateModalOpen(false)}
-            disabled={loadingAction}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
-            onClick={updateEnhancement}
-            disabled={loadingAction}
-          >
-            {loadingAction ? (
-              <span className="flex items-center">
-                <BiLoader className="animate-spin mr-2" />
-                Updating...
-              </span>
-            ) : (
-              "Update Enhancement"
-            )}
-          </button>
-        </div>
+          {/* Form Actions */}
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <BiLoader className="animate-spin mr-2" />
+                  Updating...
+                </span>
+              ) : (
+                "Update Enhancement"
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
-} 
+}

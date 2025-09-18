@@ -1,4 +1,128 @@
+/* Font imports - must be at the top */
+@import url('https://fonts.cdnfonts.com/css/sophia-bella-demo');
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;400&display=swap');
+
 @import "tailwindcss";
+
+/* Global typography styles for booking engine */
+.header-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2.5rem;
+  line-height: 1;
+  color: #2c3e50;
+}
+
+.header-subtitle {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #2c3e50;
+  margin-top: 0.5rem;
+  margin-left: 30px;
+}
+
+/* Date Selector styles */
+.date-selector-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2rem;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.date-selector-subtitle {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 300;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.date-selector-month {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 400;
+  font-size: 1rem;
+  color: #374151;
+}
+
+/* Categories styles */
+.categories-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2.5rem;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.categories-room-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+.categories-section-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: #1f2937;
+}
+
+/* Rates styles */
+.rates-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2.5rem;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.rates-room-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+.rates-section-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+/* Summary styles */
+.summary-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2.5rem;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.summary-room-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: #1f2937;
+}
+
+/* Details styles */
+.details-title {
+  font-family: 'Sophia Bella DEMO', cursive;
+  font-weight: 400;
+  font-size: 2.5rem;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.details-section-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: #1f2937;
+}
 
 /* Unlayer Email Editor Styles */
 .unlayer-editor {

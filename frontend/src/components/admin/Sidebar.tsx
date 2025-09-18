@@ -20,7 +20,7 @@ import {
   RiShareLine
 } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
-import { Ticket, Users2 } from "lucide-react";
+import { Ticket, Users2, BarChart3, TrendingUp } from "lucide-react";
 import DailyActionDrawer from "./notifications/DailyActionDrawer";
 import useWindowSize from "../../hooks/useWindowSize";
 
@@ -51,6 +51,8 @@ export default function Sidebar({
     { id: 18, title: "Channel Manager", path: "channel-manager", icon: <RiShareLine size={20} /> },
     { id: 16, title: "Wedding", path: "wedding-proposals", icon: <RiVipDiamondLine size={20} /> },
     { id: 17, title: "Revenue Management", path: "revenue-management", icon: <RiMoneyEuroCircleLine size={20} /> },
+    { id: 19, title: "Analytics Dashboard", path: "analytics-dashboard", icon: <BarChart3 size={20} /> },
+    { id: 20, title: "Customer Analytics", path: "customer-analytics", icon: <TrendingUp size={20} /> },
     { id: 111, title: "Notifications", path: "notifications", icon: <RiNotification3Line size={20} /> },
     { id: 5, title: "Enhancements", path: "enhancements", icon: <RiShoppingBasketLine size={20} /> },
     { id: 6, title: "Settings", path: "settings", icon: <RiSettings4Line size={20} /> },

@@ -38,17 +38,6 @@ export const OnlineCheckInHome: React.FC = () => {
   // Extract data from context
   const guestData = customer.customer
   const bookings = customer.bookings || []
-console.log(bookings  )
-  // Group bookings by check-in date for display
-  const bookingGroups = bookings.reduce((groups, booking) => {
-    const checkInDate = new Date(booking.checkIn).toISOString().split('T')[0]
-    if (!groups[checkInDate]) {
-      groups[checkInDate] = []
-    }
-    groups[checkInDate].push(booking)
-    return groups
-  }, {} as Record<string, typeof bookings>)
-
   // Get the earliest check-in date for main display
   const earliestBooking = bookings.length > 0 ? bookings.reduce((earliest, current) => {
     return new Date(current.checkIn) < new Date(earliest.checkIn) ? current : earliest
@@ -282,6 +271,8 @@ console.log(bookings  )
                   );
                 }
 
+                console.log(ratePolicy)
+
                 // Calculate cancellation deadline based on policy
                 const checkInDate = new Date(booking.checkIn);
                 const getCancellationDeadline = () => {
@@ -324,31 +315,31 @@ console.log(bookings  )
                       <h5 className="text-sm font-medium text-gray-700 mb-3">Payment Structure</h5>
                       <div className="grid grid-cols-2 gap-3">
                         <div className={`p-3 rounded-xl border-2 ${
-                          ratePolicy.paymentStructure === 'FULL_PAYMENT' 
+                          booking.paymentStructure === "FULL_PAYMENT"
                             ? 'border-blue-500 bg-blue-50' 
                             : 'border-gray-200 bg-white'
                         }`}>
                           <CreditCard className={`h-6 w-6 mx-auto mb-1 ${
-                            ratePolicy.paymentStructure === 'FULL_PAYMENT' ? 'text-blue-600' : 'text-gray-400'
+                            booking.paymentStructure === "FULL_PAYMENT" ? 'text-blue-600' : 'text-gray-400'
                           }`} />
                           <p className="text-xs font-semibold text-center text-gray-900">Full Payment</p>
                           <p className="text-xs text-center text-gray-600">100% paid</p>
                         </div>
                         <div className={`p-3 rounded-xl border-2 ${
-                          ratePolicy.paymentStructure === 'SPLIT_PAYMENT' 
+                          booking.paymentStructure === 'SPLIT_PAYMENT' 
                             ? 'border-blue-500 bg-blue-50' 
                             : 'border-gray-200 bg-white'
                         }`}>
                           <Percent className={`h-6 w-6 mx-auto mb-1 ${
-                            ratePolicy.paymentStructure === 'SPLIT_PAYMENT' ? 'text-blue-600' : 'text-gray-400'
+                            booking.paymentStructure === 'SPLIT_PAYMENT' ? 'text-blue-600' : 'text-gray-400'
                           }`} />
                           <p className="text-xs font-semibold text-center text-gray-900">Split Payment</p>
                           <p className="text-xs text-center text-gray-600">
-                            {ratePolicy.prepayPercentage || 30}% paid
+                            {booking.prepayPercentage || 30}% paid
                           </p>
                         </div>
                       </div>
-                      {ratePolicy.paymentStructure === 'SPLIT_PAYMENT' && (
+                      {booking.paymentStructure === 'SPLIT_PAYMENT' && (
                         <p className="text-xs text-gray-600 mt-2">
                           Remaining {100 - (ratePolicy.prepayPercentage || 30)}% due at check-in
                         </p>

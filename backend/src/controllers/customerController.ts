@@ -3,6 +3,7 @@ import prisma from "../prisma";
 import { handleError, responseHandler } from "../utils/helper";
 import { stripe } from "../config/stripeConfig";
 import { generateToken } from "../utils/jwt";
+import { generateToken as generateTokenForEventGuest } from "../utils/tokenGenerator";
 import dotenv from "dotenv";
 import TelegramService from "../services/telegramService";
 import { CustomerPortalService } from "../services/customerPortalService";
@@ -97,7 +98,9 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
         vipStatus, 
         totalNigthsStayed, 
         totalMoneySpent,
-        adminNotes 
+        adminNotes,
+        selectedEnhancements, // New field for enhancements
+        bookingId // Booking ID to attach enhancements to
     } = req.body; 
 
     const { id } = req.params;
@@ -172,6 +175,37 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
                     })
                 }
             });
+        }
+
+        // Handle enhancement bookings if provided
+        if (selectedEnhancements && selectedEnhancements.length > 0 && bookingId) {
+            try {
+                // First, verify the booking belongs to this customer
+                const booking = await prisma.booking.findFirst({
+                    where: {
+                        id: bookingId,
+                        customerId: id
+                    }
+                });
+
+                if (booking) {
+                    const enhancementBookings = selectedEnhancements.map((enhancement: any) => ({
+                        bookingId: bookingId,
+                        enhancementId: enhancement.id,
+                        quantity: enhancement.quantity || 1,
+                        notes: enhancement.notes || null
+                    }));
+
+                    await prisma.enhancementBooking.createMany({
+                        data: enhancementBookings
+                    });
+
+                    console.log(`Added ${enhancementBookings.length} enhancement bookings for booking ${bookingId}`);
+                }
+            } catch (enhancementError) {
+                console.error('Failed to create enhancement bookings:', enhancementError);
+                // Don't fail the whole request if enhancement creation fails
+            }
         }
 
         responseHandler(res, 200, "Updated customer data success");
@@ -405,10 +439,23 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                 }
                             },
                             
-                        }
+                        },
                     }
                 },
-                // Include all guests for this booking
+                paymentIntent: {
+                    select: {
+                        id: true,
+                        totalAmount: true,
+                        outstandingAmount: true,
+                        paymentStructure: true,
+                        prepaidAmount: true,
+                        remainingAmount: true,
+                        remainingDueDate: true,
+                        secondPaymentStatus: true,
+                        status: true
+                    }
+                },
+                enhancementBookings: true,
                 guestCheckInAccess: {
                     include: {
                         customer: {
@@ -474,6 +521,21 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                     }
                                 }
                                
+                            }
+                        },
+                        enhancementBookings: true,
+                        // Include payment intent information for outstanding amounts
+                        paymentIntent: {
+                            select: {
+                                id: true,
+                                totalAmount: true,
+                                outstandingAmount: true,
+                                paymentStructure: true,
+                                prepaidAmount: true,
+                                remainingAmount: true,
+                                remainingDueDate: true,
+                                secondPaymentStatus: true,
+                                status: true
                             }
                         },
                         // Include all guests for this booking too
@@ -629,31 +691,156 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
             };
         }));
 
-        // Structure the response data for online check-in
+        // Get available enhancements only if this is the main guest
+        let availableEnhancements: any = [];
+        if (isMainGuest && allBookings.length > 0) {
+            try {
+                // Get the first booking's dates for filtering enhancements
+                const firstBooking = allBookings[0];
+                const checkInDate = new Date(firstBooking.checkIn);
+                const checkOutDate = new Date(firstBooking.checkOut);
+                
+                // Calculate days of week that fall within the booking range
+                const daysInRange: string[] = [];
+                const currentDate = new Date(checkInDate);
+                while (currentDate <= checkOutDate) {
+                    const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+                    if (!daysInRange.includes(dayName)) {
+                        daysInRange.push(dayName);
+                    }
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                // Get all active enhancements with their rules
+                const allEnhancements = await prisma.enhancement.findMany({
+                    where: { 
+                        isActive: true,
+                        enhancementRules: {
+                            some: {
+                                isActive: true,
+                                // Check overall validity period
+                                OR: [
+                                    { validFrom: null, validUntil: null },
+                                    { validFrom: { lte: checkOutDate }, validUntil: null },
+                                    { validFrom: null, validUntil: { gte: checkInDate } },
+                                    { validFrom: { lte: checkOutDate }, validUntil: { gte: checkInDate } }
+                                ]
+                            }
+                        }
+                    },
+                    include: {
+                        enhancementRules: {
+                            where: {
+                                isActive: true,
+                                // Check overall validity period
+                                OR: [
+                                    { validFrom: null, validUntil: null },
+                                    { validFrom: { lte: checkOutDate }, validUntil: null },
+                                    { validFrom: null, validUntil: { gte: checkInDate } },
+                                    { validFrom: { lte: checkOutDate }, validUntil: { gte: checkInDate } }
+                                ]
+                            }
+                        }
+                    }
+                });
+                
+                // Filter enhancements based on their rules' availability
+                const filteredEnhancements: any[] = [];
+                
+                allEnhancements.forEach((enhancement: any) => {
+                    // Check if any rule matches the booking criteria
+                    const hasMatchingRule = enhancement.enhancementRules.some((rule: any) => {
+                        switch (rule.availabilityType) {
+                            case 'ALWAYS':
+                                return true;
+                                
+                            case 'WEEKLY':
+                                // Check if any of the days in the booking range match the available days
+                                if (!rule.availableDays || rule.availableDays.length === 0) {
+                                    return false;
+                                }
+                                return rule.availableDays.some((day: string) => daysInRange.includes(day));
+                                
+                            case 'SPECIFIC_DATES':
+                                // Check if any specific dates fall within the booking range
+                                if (!rule.specificDates || rule.specificDates.length === 0) {
+                                    return false;
+                                }
+                                return rule.specificDates.some((date: any) => {
+                                    const specificDate = new Date(date);
+                                    // Set time to start of day for date comparison
+                                    specificDate.setHours(0, 0, 0, 0);
+                                    const checkInDateStart = new Date(checkInDate);
+                                    checkInDateStart.setHours(0, 0, 0, 0);
+                                    const checkOutDateEnd = new Date(checkOutDate);
+                                    checkOutDateEnd.setHours(23, 59, 59, 999);
+                                    
+                                    // Check if the specific date falls within the booking period
+                                    return specificDate >= checkInDateStart && specificDate <= checkOutDateEnd;
+                                });
+                                
+                            case 'SEASONAL':
+                                // Check if booking dates overlap with the season
+                                if (!rule.seasonStart || !rule.seasonEnd) {
+                                    return false;
+                                }
+                                const seasonStart = new Date(rule.seasonStart);
+                                const seasonEnd = new Date(rule.seasonEnd);
+                                
+                                // Check for overlap between booking dates and season dates
+                                return !(checkOutDate < seasonStart || checkInDate > seasonEnd);
+                                
+                            default:
+                                // For backward compatibility, if no availabilityType, check availableDays
+                                if (rule.availableDays && rule.availableDays.length > 0) {
+                                    return rule.availableDays.some((day: string) => daysInRange.includes(day));
+                                }
+                                return true;
+                        }
+                    });
+                    
+                    if (hasMatchingRule) {
+                        // Return enhancement with base properties for frontend
+                        filteredEnhancements.push({
+                            id: enhancement.id,
+                            name: enhancement.name, // Changed from title
+                            description: enhancement.description,
+                            price: enhancement.price,
+                            pricingType: enhancement.pricingType,
+                            image: enhancement.image,
+                            isActive: enhancement.isActive
+                        });
+                    }
+                });
+                
+                // Collect already booked enhancement IDs from the included data (no extra DB calls)
+                const bookedEnhancementIds = new Set<string>();
+                allBookings.forEach(booking => {
+                    if (booking.enhancementBookings) {
+                        booking.enhancementBookings.forEach((eb: any) => {
+                            bookedEnhancementIds.add(eb.enhancementId);
+                        });
+                    }
+                });
+                
+                // Filter out enhancements that are already booked
+                availableEnhancements = filteredEnhancements.filter(
+                    enhancement => !bookedEnhancementIds.has(enhancement.id)
+                );
+                
+                console.log(`Filtered enhancements: ${allEnhancements.length} total, ${filteredEnhancements.length} match availability, ${availableEnhancements.length} available, ${bookedEnhancementIds.size} already booked`);
+            } catch (enhancementError) {
+                console.error('Error fetching enhancements:', enhancementError);
+                // Continue without enhancements if there's an error
+            }
+        }
+
         const checkInData = {
-            customer: {
-                id: customer.id,
-                firstName: customer.guestFirstName,
-                middleName: customer.guestMiddleName,
-                lastName: customer.guestLastName,
-                email: customer.guestEmail,
-                phone: customer.guestPhone,
-                nationality: customer.guestNationality,
-                dateOfBirth: customer.dob,
-                passportNumber: customer.passportNumber,
-                passportExpiry: customer.passportExpiry,
-                passportIssuedCountry: customer.passportIssuedCountry,
-                idCard: customer.idCard,
-                gender: customer.gender,
-                placeOfBirth: customer.placeOfBirth,
-                city: customer.city,
-                tcAgreed: customer.tcAgreed,
-                receiveMarketingEmail: customer.receiveMarketingEmail,
-                carNumberPlate: customer.carNumberPlate
-            },
+            customer,
             bookings: processedBookings, // Send bookings with included guest data
             isMainGuest: isMainGuest,
-            primaryBookingId: primaryBookingId // Indicates which booking triggered the check-in
+            primaryBookingId: primaryBookingId, // Indicates which booking triggered the check-in
+            availableEnhancements: availableEnhancements // Only included for main guests
         };
 
         responseHandler(res, 200, "Guest details retrieved successfully", checkInData);
@@ -2101,6 +2288,805 @@ export const updateCustomerAdminNotes = async (req: express.Request, res: expres
         responseHandler(res, 200, "Admin notes updated successfully", updatedCustomer);
     } catch (error) {
         console.error("Error updating admin notes:", error);
+        handleError(res, error as Error);
+    }
+};
+
+// Event Invitation Controllers
+export const verifyEventInvitation = async (req: express.Request, res: express.Response) => {
+    const { token } = req.params;
+
+    if (!token) {
+        responseHandler(res, 400, "Invitation token is required");
+        return;
+    }
+
+    try {
+        // Find the invitation by token
+        const invitation = await prisma.eventInvitation.findUnique({
+            where: { invitationToken: token },
+            include: {
+                event: {
+                    include: {
+                        eventEnhancements: {
+                            include: {
+                                enhancement: true
+                            }
+                        }
+                    }
+                },
+                customer: {
+                    select: {
+                        id: true,
+                        guestFirstName: true,
+                        guestLastName: true,
+                        guestEmail: true
+                    }
+                },
+                booking: {
+                    include: {
+                        room: true
+                    }
+                }
+            }
+        });
+
+        if (!invitation) {
+            responseHandler(res, 404, "Invalid invitation token");
+            return;
+        }
+
+        // Check if token has expired
+        const now = new Date();
+        if (invitation.tokenExpiresAt < now) {
+            responseHandler(res, 400, "Invitation has expired. Please contact the hotel for assistance.", {
+                status: 'EXPIRED'
+            });
+            return;
+        }
+
+        // Check if already responded
+        if (invitation.invitationStatus === 'ACCEPTED') {
+            responseHandler(res, 200, "You have already accepted this invitation", {
+                status: 'ALREADY_ACCEPTED',
+                invitation: {
+                    id: invitation.id,
+                    isMainGuest: invitation.isMainGuest,
+                    invitationStatus: invitation.invitationStatus
+                },
+                event: invitation.event,
+                booking: invitation.booking
+            });
+            return;
+        }
+
+        if (invitation.invitationStatus === 'DECLINED') {
+            responseHandler(res, 200, "You have already declined this invitation", {
+                status: 'ALREADY_DECLINED',
+                invitation: {
+                    id: invitation.id,
+                    isMainGuest: invitation.isMainGuest,
+                    invitationStatus: invitation.invitationStatus
+                },
+                event: invitation.event,
+                booking: invitation.booking
+            });
+            return;
+        }
+
+        // Return invitation details
+        responseHandler(res, 200, "Invitation verified successfully", {
+            status: 'VALID',
+            invitation: {
+                id: invitation.id,
+                event: invitation.event,
+                customer: invitation.customer,
+                booking: invitation.booking,
+                isMainGuest: invitation.isMainGuest
+            }
+        });
+
+    } catch (error) {
+        console.error("Error verifying event invitation:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const acceptEventInvitation = async (req: express.Request, res: express.Response) => {
+    const { token } = req.params;
+    const { enhancementId } = req.body; // Enhancement selection for the event
+
+    if (!token) {
+        responseHandler(res, 400, "Invitation token is required");
+        return;
+    }
+
+    try {
+        // Find the invitation by token
+        const invitation = await prisma.eventInvitation.findUnique({
+            where: { invitationToken: token },
+            include: {
+                event: {
+                    include: {
+                        eventEnhancements: {
+                            include: {
+                                enhancement: true
+                            }
+                        }
+                    }
+                },
+                customer: true,
+                booking: {
+                    include: {
+                        paymentIntent: true
+                    }
+                }
+            }
+        });
+
+        if (!invitation) {
+            responseHandler(res, 404, "Invalid invitation token");
+            return;
+        }
+
+        // Check if token has expired
+        const now = new Date();
+        if (invitation.tokenExpiresAt < now) {
+            responseHandler(res, 400, "Invitation has expired. Please contact the hotel for assistance.");
+            return;
+        }
+
+        // Check if already responded
+        if (invitation.invitationStatus !== 'PENDING') {
+            responseHandler(res, 400, `You have already ${invitation.invitationStatus.toLowerCase()} this invitation`);
+            return;
+        }
+
+        // Verify the booking has a payment intent
+        if (!invitation.booking.paymentIntent) {
+            responseHandler(res, 400, "No payment information found for this booking");
+            return;
+        }
+
+        // If enhancement is specified, verify it exists in the event
+        let selectedEnhancementId = enhancementId;
+        if (!selectedEnhancementId && invitation.event.eventEnhancements.length > 0) {
+            // Default to first enhancement if none selected
+            selectedEnhancementId = invitation.event.eventEnhancements[0].enhancementId;
+        }
+
+        if (!selectedEnhancementId) {
+            responseHandler(res, 400, "No enhancement available for this event");
+            return;
+        }
+
+        // Find the selected enhancement to get price
+        const selectedEventEnhancement = invitation.event.eventEnhancements.find(
+            ee => ee.enhancementId === selectedEnhancementId
+        );
+        if (!selectedEventEnhancement) {
+            responseHandler(res, 400, "Invalid enhancement selected");
+            return;
+        }
+
+        // Get the price (tax is already included in the price)
+        const totalPrice = selectedEventEnhancement.overridePrice || selectedEventEnhancement.enhancement.price;
+
+            await prisma.$transaction(async (tx) => {
+            // Update invitation status
+            const updatedInvitation = await tx.eventInvitation.update({
+                where: { id: invitation.id },
+                data: {
+                    invitationStatus: 'ACCEPTED',
+                    acceptedAt: new Date()
+                }
+            });
+
+            // Check if participant already exists
+            const existingParticipant = await tx.eventParticipant.findUnique({
+                where: {
+                    eventId_bookingId_customerId_enhancementId: {
+                        eventId: invitation.eventId,
+                        bookingId: invitation.bookingId,
+                        customerId: invitation.customerId,
+                        enhancementId: selectedEnhancementId
+                    }
+                }
+            });
+
+            let participant;
+            if (existingParticipant) {
+                // Update existing participant
+                participant = await tx.eventParticipant.update({
+                    where: { id: existingParticipant.id },
+                    data: {
+                        status: 'COMPLETED',
+                        updatedAt: new Date(),
+                        addedBy: 'GUEST', // Added by the guest themselves via invitation,
+                        participantType: invitation.isMainGuest ? 'MAIN_GUEST' : 'GUEST',
+                    }
+                });
+            } else {
+                // Create event participant record (only created when invitation is ACCEPTED)
+                // EventParticipant tracks actual participation, not invitation responses
+                participant = await tx.eventParticipant.create({
+                    data: {
+                        eventId: invitation.eventId,
+                        customerId: invitation.customerId,
+                        bookingId: invitation.bookingId,
+                        //@ts-ignore
+                        paymentIntentId: invitation.booking.paymentIntent.id,
+                        enhancementId: selectedEnhancementId,
+                        participantType: invitation.isMainGuest ? 'MAIN_GUEST' : 'GUEST',
+                        status: 'COMPLETED', // Will be COMPLETED when they attend the event
+                        addedBy: 'GUEST', // Added by the guest themselves via invitation
+                        notes: 'Accepted event invitation'
+                    }
+                });
+
+                // Update event total guests count and revenue
+                await tx.event.update({
+                    where: { id: invitation.eventId },
+                    data: {
+                        totalGuests: {
+                            increment: 1
+                        },
+                        totalRevenue: {
+                            increment: totalPrice
+                        }
+                    }
+                });
+
+                // Update payment intent outstanding amount
+                if (invitation.booking.paymentIntent) {
+                    const currentOutstanding = invitation.booking.paymentIntent.outstandingAmount || 0;
+                    await tx.paymentIntent.update({
+                        where: { id: invitation.booking.paymentIntent.id },
+                        data: {
+                            outstandingAmount: currentOutstanding + totalPrice
+                        }
+                    });
+                }
+            }
+
+            return { invitation: updatedInvitation, participant };
+        });
+
+        responseHandler(res, 200, "Event invitation accepted successfully", {
+            status: 'SUCCESS',
+            message: "You have successfully confirmed your attendance!",
+            eventName: invitation.event.name,
+            eventDate: invitation.event.eventDate
+        });
+
+    } catch (error) {
+        console.error("Error accepting event invitation:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const declineEventInvitation = async (req: express.Request, res: express.Response) => {
+    const { token } = req.params;
+    const { reason } = req.body; // Optional reason for declining
+
+    if (!token) {
+        responseHandler(res, 400, "Invitation token is required");
+        return;
+    }
+
+    try {
+        // Find the invitation by token
+        const invitation = await prisma.eventInvitation.findUnique({
+            where: { invitationToken: token },
+            include: {
+                event: {
+                    include: {
+                        eventEnhancements: true
+                    }
+                },
+                customer: true
+            }
+        });
+
+        if (!invitation) {
+            responseHandler(res, 404, "Invalid invitation token");
+            return;
+        }
+
+        // Check if token has expired
+        const now = new Date();
+        if (invitation.tokenExpiresAt < now) {
+            responseHandler(res, 400, "Invitation has expired. Please contact the hotel for assistance.");
+            return;
+        }
+
+        // Check if already responded
+        if (invitation.invitationStatus !== 'PENDING') {
+            responseHandler(res, 400, `You have already ${invitation.invitationStatus.toLowerCase()} this invitation`);
+            return;
+        }
+
+        // Check if there's an existing participant record (if they were previously accepted)
+        const existingParticipant = await prisma.eventParticipant.findUnique({
+            where: {
+                eventId_bookingId_customerId_enhancementId: {
+                    eventId: invitation.eventId,
+                    bookingId: invitation.bookingId,
+                    customerId: invitation.customerId,
+                    enhancementId: invitation.event.eventEnhancements[0]?.enhancementId || ''
+                }
+            },
+            include: {
+                enhancement: true
+            }
+        });
+
+        // Transaction to handle decline and cleanup
+        await prisma.$transaction(async (tx) => {
+            // Update invitation status to DECLINED
+            await tx.eventInvitation.update({
+                where: { id: invitation.id },
+                data: {
+                    invitationStatus: 'DECLINED',
+                    declinedAt: new Date()
+                }
+            });
+
+            // If participant exists (they previously accepted), remove them and update counts
+            if (existingParticipant) {
+                const enhancementPrice = existingParticipant.enhancement?.price || 0;
+                
+                // Delete the participant record
+                await tx.eventParticipant.delete({
+                    where: { id: existingParticipant.id }
+                });
+
+                // Update event total guests and revenue
+                await tx.event.update({
+                    where: { id: invitation.eventId },
+                    data: {
+                        totalGuests: {
+                            decrement: 1
+                        },
+                        totalRevenue: {
+                            decrement: enhancementPrice
+                        }
+                    }
+                });
+
+                // Get booking with payment intent
+                const booking = await tx.booking.findUnique({
+                    where: { id: invitation.bookingId },
+                    include: { paymentIntent: true }
+                });
+
+                // Update payment intent outstanding amount
+                if (booking?.paymentIntent && enhancementPrice > 0) {
+                    const currentOutstanding = booking.paymentIntent.outstandingAmount || 0;
+                    await tx.paymentIntent.update({
+                        where: { id: booking.paymentIntent.id },
+                        data: {
+                            outstandingAmount: Math.max(0, currentOutstanding - enhancementPrice)
+                        }
+                    });
+                }
+            }
+        });
+
+        // Log the decline reason if provided (optional - could store in audit log)
+        if (reason) {
+            console.log(`Event invitation declined for ${invitation.event.name} by ${invitation.customer.guestEmail}. Reason: ${reason}`);
+        }
+
+        responseHandler(res, 200, "Event invitation declined", {
+            status: 'SUCCESS',
+            message: "You have declined the event invitation. We hope to see you at future events!",
+            eventName: invitation.event.name
+        });
+
+    } catch (error) {
+        console.error("Error declining event invitation:", error);
+        handleError(res, error as Error);
+    }
+};
+
+export const addGuestToEvent = async (req: express.Request, res: express.Response) => {
+    const { token } = req.params;
+    const { customerId } = req.body;
+     
+    if (!token) {
+        responseHandler(res, 400, "Invitation token is required");
+        return;
+    }
+
+    if (!customerId) {
+        responseHandler(res, 400, "Customer ID is required");
+        return;
+    }
+
+    try {
+        // Find the main guest's invitation by token
+        const mainGuestInvitation = await prisma.eventInvitation.findUnique({
+            where: { invitationToken: token },
+            include: {
+                event: {
+                    include: {
+                        eventEnhancements: {
+                            include: {
+                                enhancement: true
+                            }
+                        }
+                    }
+                },
+                customer: true,
+                booking: {
+                    include: {
+                        paymentIntent: true
+                    }
+                }
+            }
+        });
+
+        if (!mainGuestInvitation) {
+            responseHandler(res, 404, "Invalid invitation token");
+            return;
+        }
+
+        // Check if the requester is the main guest
+        if (!mainGuestInvitation.isMainGuest) {
+            responseHandler(res, 403, "Only the main guest can add additional guests");
+            return;
+        }
+
+        // Check if main guest has accepted the invitation
+        if (mainGuestInvitation.invitationStatus !== 'ACCEPTED') {
+            responseHandler(res, 400, "You must accept the invitation before adding guests");
+            return;
+        }
+
+        // Check if token has expired
+        const now = new Date();
+        if (mainGuestInvitation.tokenExpiresAt < now) {
+            responseHandler(res, 400, "Invitation has expired");
+            return;
+        }
+
+        // Get the customer to add
+        const customer = await prisma.customer.findUnique({
+            where: { id: customerId }
+        });
+
+        if (!customer) {
+            responseHandler(res, 404, "Customer not found");
+            return;
+        }
+
+        // Transaction to update or create invitation and participant
+        const result = await prisma.$transaction(async (tx) => {
+            // Check if invitation already exists for this customer
+            let invitation = await tx.eventInvitation.findUnique({
+                where: {
+                    customerId_bookingId_eventId: {
+                        customerId: customerId,
+                        bookingId: mainGuestInvitation.bookingId,
+                        eventId: mainGuestInvitation.eventId
+                    }
+                }
+            });
+            
+            // Get the first enhancement if available
+            const firstEnhancement = mainGuestInvitation.event.eventEnhancements[0];
+            const selectedEnhancementId = firstEnhancement?.enhancementId;
+            
+            // Get the price (tax is already included)
+            const enhancementPrice = firstEnhancement?.overridePrice || firstEnhancement?.enhancement.price || 0;
+
+            if (invitation) {
+                // If invitation exists and is PENDING or DECLINED, update it to ACCEPTED
+                if (invitation.invitationStatus === 'PENDING' || invitation.invitationStatus === 'DECLINED') {
+                    invitation = await tx.eventInvitation.update({
+                        where: { id: invitation.id },
+                        data: {
+                            invitationStatus: 'ACCEPTED',
+                            acceptedAt: new Date(),
+                        }
+                    });
+
+                    // Create EventParticipant since they're now accepted
+                    await tx.eventParticipant.create({
+                        data: {
+                            eventId: mainGuestInvitation.eventId,
+                            customerId: customerId,
+                            bookingId: mainGuestInvitation.bookingId,
+                            //@ts-ignore
+                            paymentIntentId: mainGuestInvitation.booking.paymentIntent.id,
+                            enhancementId: selectedEnhancementId,
+                            participantType: 'GUEST',
+                            status: 'COMPLETED',
+                            addedBy: 'MAIN_GUEST',
+                            notes: `Added by main guest: ${mainGuestInvitation.customer.guestFirstName} ${mainGuestInvitation.customer.guestLastName}`
+                        }
+                    });
+
+                    // Update event total guests count and revenue
+                    await tx.event.update({
+                        where: { id: mainGuestInvitation.eventId },
+                        data: {
+                            totalGuests: {
+                                increment: 1
+                            },
+                            totalRevenue: {
+                                increment: enhancementPrice
+                            }
+                        }
+                    });
+                    
+                    // Update payment intent outstanding amount
+                    if (enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
+                        const currentOutstanding = mainGuestInvitation.booking.paymentIntent.outstandingAmount || 0;
+                        await tx.paymentIntent.update({
+                            where: { id: mainGuestInvitation.booking.paymentIntent.id },
+                            data: {
+                                outstandingAmount: currentOutstanding + enhancementPrice
+                            }
+                        });
+                    }
+                } else if (invitation.invitationStatus === 'ACCEPTED') {
+                    // Already accepted, nothing to do
+                    return { invitation, customer, alreadyAdded: true };
+                }
+            } else {
+                // Create new invitation in ACCEPTED state
+                invitation = await tx.eventInvitation.create({
+                    data: {
+                        eventId: mainGuestInvitation.eventId,
+                        customerId: customerId,
+                        bookingId: mainGuestInvitation.bookingId,
+                        invitationToken: generateTokenForEventGuest(),
+                        tokenExpiresAt: mainGuestInvitation.tokenExpiresAt,
+                        invitationStatus: 'ACCEPTED',
+                        acceptedAt: new Date(),
+                        isMainGuest: false,
+                        sentAt: new Date()
+                    }
+                });
+
+                // Create EventParticipant
+                await tx.eventParticipant.create({
+                    data: {
+                        eventId: mainGuestInvitation.eventId,
+                        customerId: customerId,
+                        bookingId: mainGuestInvitation.bookingId,
+                        //@ts-ignore
+                        paymentIntentId: mainGuestInvitation.booking.paymentIntent.id,
+                        enhancementId: selectedEnhancementId,
+                        participantType: 'GUEST',
+                        status: 'PENDING',
+                        addedBy: 'MAIN_GUEST',
+                        notes: `Added by main guest: ${mainGuestInvitation.customer.guestFirstName} ${mainGuestInvitation.customer.guestLastName}`
+                    }
+                });
+
+                // Update event total guests count and revenue
+                await tx.event.update({
+                    where: { id: mainGuestInvitation.eventId },
+                    data: {
+                        totalGuests: {
+                            increment: 1
+                        },
+                        totalRevenue: {
+                            increment: enhancementPrice
+                        }
+                    }
+                });
+                
+                // Update payment intent outstanding amount
+                if (enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
+                    const currentOutstanding = mainGuestInvitation.booking.paymentIntent.outstandingAmount || 0;
+                    await tx.paymentIntent.update({
+                        where: { id: mainGuestInvitation.booking.paymentIntent.id },
+                        data: {
+                            outstandingAmount: currentOutstanding + enhancementPrice
+                        }
+                    });
+                }
+            }
+
+            return { invitation, customer, alreadyAdded: false };
+        });
+
+        if (result.alreadyAdded) {
+            responseHandler(res, 200, "Guest is already added to the event", {
+                status: 'ALREADY_ADDED',
+                message: `${customer.guestFirstName} ${customer.guestLastName} is already attending this event`
+            });
+            return;
+        }
+
+        // Send confirmation email to the added guest
+        await EmailService.sendEmail({
+            to: {
+                email: customer.guestEmail,
+                name: `${customer.guestFirstName} ${customer.guestLastName}`
+            },
+            templateType: 'GUEST_ADDED_CONFIRMATION',
+            templateData: {
+                guestName: `${customer.guestFirstName} ${customer.guestLastName}`,
+                eventName: mainGuestInvitation.event.name,
+                eventDate: mainGuestInvitation.event.eventDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                }),
+                eventTime: mainGuestInvitation.event.eventDate.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                mainGuestName: `${mainGuestInvitation.customer.guestFirstName} ${mainGuestInvitation.customer.guestLastName}`,
+            }
+        });
+
+        responseHandler(res, 201, "Guest added to event successfully", {
+            status: 'SUCCESS',
+            message: `${customer.guestFirstName} ${customer.guestLastName} has been added to the event`
+        });
+
+    } catch (error: any) {
+        console.error("Error adding guest to event:", error);
+        handleError(res, error);
+    }
+};
+
+export const getEventGuestsList = async (req: express.Request, res: express.Response) => {
+    const { token } = req.params;
+
+    if (!token) {
+        responseHandler(res, 400, "Invitation token is required");
+        return;
+    }
+
+    try {
+        // Find the main guest's invitation with booking details
+        const mainGuestInvitation = await prisma.eventInvitation.findUnique({
+            where: { invitationToken: token },
+            include: {
+                event: true,
+                customer: true,
+                booking: {
+                    include: {
+                        customer: true,
+                        guestCheckInAccess: {
+                            include: {
+                                customer: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!mainGuestInvitation) {
+            responseHandler(res, 404, "Invalid invitation token");
+            return;
+        }
+
+        // Only main guests can manage the guest list
+        if (!mainGuestInvitation.isMainGuest) {
+            responseHandler(res, 403, "Only the main guest can manage the guest list");
+            return;
+        }
+
+        // Get all guests from the booking
+        const allBookingGuests = [];
+        const addedCustomerIds = new Set();
+        
+        // Get all guests from guestCheckInAccess (this includes the main guest)
+        for (const guestAccess of mainGuestInvitation.booking.guestCheckInAccess) {
+            if (guestAccess.customer && !addedCustomerIds.has(guestAccess.customer.id)) {
+                allBookingGuests.push({
+                    customerId: guestAccess.customer.id,
+                    firstName: guestAccess.customer.guestFirstName,
+                    lastName: guestAccess.customer.guestLastName,
+                    email: guestAccess.customer.guestEmail,
+                    isMainBookingGuest: guestAccess.isMainGuest // Use the isMainGuest flag from guestCheckInAccess
+                });
+                addedCustomerIds.add(guestAccess.customer.id);
+            }
+        }
+        
+        // If no guests in guestCheckInAccess, fall back to booking customer
+        if (allBookingGuests.length === 0 && mainGuestInvitation.booking.customer) {
+            const customerId = mainGuestInvitation.booking.customer.id;
+            allBookingGuests.push({
+                customerId: customerId,
+                firstName: mainGuestInvitation.booking.customer.guestFirstName,
+                lastName: mainGuestInvitation.booking.customer.guestLastName,
+                email: mainGuestInvitation.booking.customer.guestEmail,
+                isMainBookingGuest: true
+            });
+        }
+
+        // Get all event invitations for this event and booking
+        const existingInvitations = await prisma.eventInvitation.findMany({
+            where: {
+                eventId: mainGuestInvitation.eventId,
+                bookingId: mainGuestInvitation.bookingId
+            },
+            include: {
+                customer: true
+            }
+        });
+
+        // Get all EventParticipants to include the addedBy information
+        const eventParticipants = await prisma.eventParticipant.findMany({
+            where: {
+                eventId: mainGuestInvitation.eventId,
+                bookingId: mainGuestInvitation.bookingId
+            }
+        });
+
+        // Categorize guests
+        const invitedGuests = [];
+        const availableToInvite = [];
+
+        for (const guest of allBookingGuests) {
+            const invitation = existingInvitations.find(inv => inv.customerId === guest.customerId);
+            
+            if (invitation) {
+                // Only show as "invited" if they've ACCEPTED
+                // PENDING and DECLINED guests should be available to add
+                if (invitation.invitationStatus === 'ACCEPTED') {
+                    // Find the EventParticipant to get addedBy information
+                    const participant = eventParticipants.find(p => p.customerId === guest.customerId);
+                    invitedGuests.push({
+                        ...guest,
+                        invitationId: invitation.id,
+                        invitationStatus: invitation.invitationStatus,
+                        invitedAt: invitation.createdAt,
+                        acceptedAt: invitation.acceptedAt,
+                        declinedAt: invitation.declinedAt,
+                        addedBy: participant?.addedBy || 'GUEST', // Show who added this guest
+                    });
+                } else {
+                    // PENDING or DECLINED - available for main guest to add
+                    availableToInvite.push({
+                        ...guest,
+                        invitationId: invitation.id,
+                        currentStatus: invitation.invitationStatus // Show current status so UI can display it
+                    });
+                }
+            } else {
+                // No invitation at all - available to add
+                availableToInvite.push(guest);
+            }
+        }
+
+        responseHandler(res, 200, "Booking guests retrieved successfully", {
+            mainGuest: {
+                firstName: mainGuestInvitation.customer.guestFirstName,
+                lastName: mainGuestInvitation.customer.guestLastName,
+                email: mainGuestInvitation.customer.guestEmail
+            },
+            event: {
+                id: mainGuestInvitation.event.id,
+                name: mainGuestInvitation.event.name,
+                date: mainGuestInvitation.event.eventDate
+            },
+            booking: {
+                id: mainGuestInvitation.booking.id,
+                checkIn: mainGuestInvitation.booking.checkIn,
+                checkOut: mainGuestInvitation.booking.checkOut
+            },
+            invitedGuests,
+            availableToInvite,
+            totalBookingGuests: allBookingGuests.length,
+            totalInvited: invitedGuests.length,
+            totalAvailable: availableToInvite.length
+        });
+
+    } catch (error) {
+        console.error("Error fetching guest list:", error);
         handleError(res, error as Error);
     }
 };

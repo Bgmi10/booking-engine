@@ -69,7 +69,7 @@ export function CreateBookingModal({
   // Add admin notes state
   const [adminNotes, setAdminNotes] = useState("");
   // State for send confirmation email checkbox
-  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(false);
+  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
 
   const [availabilityData, setAvailabilityData] = useState({
     fullyBookedDates: [],

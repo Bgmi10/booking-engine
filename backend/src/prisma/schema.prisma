@@ -67,41 +67,153 @@ model RoomImage {
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
-model GuestCheckInAccess {
-  id                String    @id @default(uuid())
-  customerId        String
-  customer          Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  bookingId         String
-  booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  accessToken       String    @unique
-  tokenExpiresAt    DateTime
-  
-  // Guest tracking fields
-  isMainGuest       Boolean   @default(false)
-  guestType         GuestType @default(INVITED)
-  invitationStatus  InvitationStatus @default(PENDING)
-  completionStatus  CompletionStatus @default(INCOMPLETE)
-  
-  // Detailed completion tracking
-  personalDetailsComplete   Boolean @default(false)
-  identityDetailsComplete   Boolean @default(false)
-  addressDetailsComplete    Boolean @default(false)
-  
-  // Invitation tracking
+model GuestCheckInAccess {            
+  id                        String               @id @default(uuid())
+  customerId                String            
+  customer                  Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookingId                 String            
+  booking                   Booking              @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  accessToken               String               @unique
+  tokenExpiresAt            DateTime            
+  isMainGuest               Boolean              @default(false)
+  guestType                 GuestType            @default(INVITED)
+  invitationStatus          InvitationStatus     @default(PENDING)
+  completionStatus          CompletionStatus     @default(INCOMPLETE)
+  personalDetailsComplete   Boolean              @default(false)
+  identityDetailsComplete   Boolean              @default(false)
+  addressDetailsComplete    Boolean              @default(false)
   invitationSentAt          DateTime?
   invitationAcceptedAt      DateTime?
   checkInCompletedAt        DateTime?
-  
-  // Manual entry tracking
   addedManuallyBy           String?
   addedManuallyAt           DateTime?
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+          
   @@unique([customerId, bookingId])
 }
 
+model Event {
+  id                      String              @id     @default(uuid())
+  name                    String
+  description             String?
+  eventDate               DateTime        
+  eventType               EventType
+  status                  EventStatus         @default(IN_PROGRESS)
+  totalRevenue            Float
+  totalGuests             Int                 @default(0)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  eventEnhancements       EventEnhancement[]
+  eventParticipants       EventParticipant[]
+  eventInvitations        EventInvitation[]
+  logs                    BookingAuditLog[]
+
+  @@index([eventDate, status, id])
+}
+
+model EventEnhancement {
+  id                 String        @id           @default(uuid())
+  eventId            String 
+  event              Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  enhancementId      String 
+  enhancement        Enhancement   @relation(fields: [enhancementId], references: [id], onDelete: Cascade)
+  overridePrice      Float?     
+  maxQuantity        Int?
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+
+  @@unique([eventId, enhancementId]) 
+  @@index([eventId, id])
+}
+
+model EventParticipant {
+  // Only created when invitation is ACCEPTED - tracks actual participation            
+  id                 String                          @id           @default(uuid())
+  eventId            String                   
+  event              Event                           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookingId          String                   
+  booking            Booking                         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentIntentId    String               
+  paymentIntent      PaymentIntent                   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  customerId         String               
+  customer           Customer                        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  enhancementId      String              
+  enhancement        Enhancement                     @relation(fields: [enhancementId], references: [id], onDelete: Cascade)
+  participantType    ParticipantType                 @default(GUEST)
+  status             EventParticipantStatus          @default(PENDING)
+  addedBy            AddedBy                         @default(ADMIN)
+  logs               BookingAuditLog[]
+  notes              String?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  @@unique([eventId, bookingId, customerId, enhancementId])
+  @@index([eventId])
+  @@index([bookingId])
+  @@index([customerId])
+  @@index([paymentIntentId])
+
+}
+
+model EventInvitation {
+  // Handles invitation lifecycle - EventParticipant is only created when ACCEPTED
+  id                 String              @id           @default(uuid())
+  eventId            String
+  event              Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookingId          String
+  booking            Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)         
+  customerId         String
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invitationToken    String              @unique    
+  tokenExpiresAt     DateTime            // this is a customer when check out date should be consider to be a expire time
+  isMainGuest        Boolean             @default(false)
+  invitationStatus   InvitationStatus    @default(PENDING)
+  sentAt             DateTime?
+  acceptedAt         DateTime?
+  declinedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([customerId, bookingId, eventId])
+  @@index([invitationToken])
+  @@index([eventId])
+  @@index([bookingId])
+  @@index([customerId])
+}
+
+enum AddedBy {
+  MAIN_GUEST
+  GUEST
+  ADMIN
+}
+
+enum EventParticipantStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+  DECLINED  // Keep for admin manual removal, not for invitation declines
+}
+
+enum ParticipantType {
+  GUEST
+  MAIN_GUEST
+}
+
+enum EventStatus {
+  COMPLETED
+  IN_PROGRESS
+  CANCELLED
+}
+
+enum EventType {
+  ENHANCEMNET
+  PIZZA_NIGHT
+  SPECIAL_DINNER
+  WINE_TASTING
+  COOKING_CLASS
+  OTHERS  
+}
 model Customer {      
   id                         String              @id @default(uuid())
   guestFirstName             String      
@@ -146,6 +258,9 @@ model Customer {
   guestCheckIns              GuestCheckInAccess[]
   relationships              GuestRelationShip[]  @relation("CustomerRelationships")
   relatedTo                  GuestRelationShip[]  @relation("RelatedToCustomer")
+  eventParticipants          EventParticipant[]
+  eventInvitations           EventInvitation[]
+
   @@index([guestEmail, guestFirstName])
 }
 
@@ -181,7 +296,6 @@ enum RelationshipType {
 enum GENDER {
   MALE
   FEMALE
-  OTHERS
 }
 
 enum GuestType {
@@ -193,6 +307,7 @@ enum GuestType {
 enum InvitationStatus {
   PENDING        // Invitation sent but not yet accepted
   ACCEPTED       // Guest accepted invitation and started check-in
+  DECLINED       // Guest declined the invitation
   EXPIRED        // Invitation token expired
   NOT_APPLICABLE // For manually added guests
 }
@@ -233,58 +348,63 @@ model Charge {
 }
         
 model Booking {        
-  id                  String                @id @default(uuid())
-  totalGuests         Int        
-  checkIn             DateTime          
-  status              BookingStatus         @default(PENDING)
-  checkOut            DateTime          
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  room                Room                  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId              String  
-  paymentIntentId     String?
-  paymentIntent       PaymentIntent?        @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
-  metadata            Json?
-  request             String?
-  customerId          String
-  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  enhancementBookings EnhancementBooking[]
-  voucherUsages       VoucherUsage[]
-  BookingPurpose      BookingPurpose?
-  voucherCode         String?         
-  voucherDiscount     Float?           
-  voucherProducts     Json?          
-  groupId             String?  
-  notifications       Notification[]
-  
-  // Extra bed fields
-  hasExtraBed         Boolean               @default(false) // Whether booking includes extra bed
-  extraBedCount       Int                   @default(0) // Number of extra beds
-  extraBedPrice       Float?                // Price charged for extra bed per night
-  
-  // New fields for payment structure tracking
-  paymentStructure    PaymentStructure      @default(FULL_PAYMENT)
-  totalAmount         Float?
-  prepaidAmount       Float?                // 30% paid
-  remainingAmount     Float?                // 70% remaining
-  remainingDueDate    DateTime?             // When 70% is due
-  finalPaymentStatus  PaymentStatus?        // Status of 70% payment
-  ratePolicyId        String?               // Track which rate policy was used
-  refundAmount        Float?                // Amount refunded for this specific booking
-  refundStatus        RefundStatus          @default(NOT_REFUNDED) // Track individual booking refund status
-  
-  // Channel sync tracking
+  id                    String                        @id @default(uuid())
+  checkedIn             Boolean                       @default(false)  // Legacy field for compatibility
+  checkedOut            Boolean                       @default(false)  // Legacy field for compatibility
+  checkedInAt           DateTime?             
+  checkedOutAt          DateTime?
+  totalGuests           Int        
+  checkIn               DateTime          
+  status                BookingStatus                 @default(PENDING)
+  checkOut              DateTime                  
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  room                  Room                          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId                String          
+  paymentIntentId       String?        
+  paymentIntent         PaymentIntent?                @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  metadata              Json?        
+  request               String?         
+  customerId            String         
+  customer              Customer                      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  enhancementBookings   EnhancementBooking[]
+  voucherUsages         VoucherUsage[]
+  BookingPurpose        BookingPurpose?
+  voucherCode           String?         
+  voucherDiscount       Float?           
+  voucherProducts       Json?          
+  groupId               String?  
+  notifications         Notification[]
+  hasExtraBed           Boolean                       @default(false) // Whether booking includes extra bed
+  extraBedCount         Int                           @default(0) // Number of extra beds
+  extraBedPrice         Float?        
+  paymentStructure      PaymentStructure              @default(FULL_PAYMENT)
+  totalAmount           Float?        
+  prepaidAmount         Float?                        // 30% paid
+  remainingAmount       Float?                        // 70% remaining
+  remainingDueDate      DateTime?                     // When 70% is due
+  finalPaymentStatus    PaymentStatus?                // Status of 70% payment
+  ratePolicyId          String?                       // Track which rate policy was used
+  refundAmount          Float?                        // Amount refunded for this specific booking
+  refundStatus          RefundStatus                  @default(NOT_REFUNDED) // Track individual booking refund status
   needsChannelSync      Boolean      @default(false)
   lastChannelSyncAt     DateTime?
   channelSyncFailCount  Int          @default(0)
-  channelBookingId      String?      // Store Beds24 or other channel booking ID
-  
-  auditLogs           BookingAuditLog[]
-  guestCheckInAccess  GuestCheckInAccess[]
-  
+  channelBookingId      String?    
+  auditLogs             BookingAuditLog[]
+  guestCheckInAccess    GuestCheckInAccess[]
+  reportedToPolice      Boolean                       @default(false) // Track if booking has been reported to police portal
+  policeReportedAt      DateTime?                     // When it was reported to police
+  policeReportError     String?                       // Last error if reporting failed
+  adminCheckInNotes     String?                       // Admin notes during check-in
+  adminCheckOutNotes    String?                       // Admin notes during check-out
+  eventParticipants     EventParticipant[]
+  eventInvitations      EventInvitation[]
+
   @@index([roomId, checkIn, checkOut, status])
   @@index([refundStatus])
   @@index([needsChannelSync])
+  @@index([reportedToPolice, checkIn])
 }
 
 enum BookingPurpose {
@@ -292,21 +412,48 @@ enum BookingPurpose {
   LEISURE
   EDUCATION
 }
+
 model Enhancement {
   id                  String                     @id @default(uuid())
-  image               String?
-  title               String
+  name                String
   description         String
+  tax                 Float
+  image               String?
   price               Float
   pricingType         EnhancementPricingType
-  availableDays       String[]
-  seasonal            Boolean                    @default(false)
-  seasonStart         DateTime?
-  seasonEnd           DateTime?
   isActive            Boolean                    @default(true)
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
+  enhancementRules    EnhancementRule[]
   enhancementBookings EnhancementBooking[]
+  events              EventEnhancement[]
+  eventParticipants   EventParticipant[]
+}
+
+
+model EnhancementRule {
+  id                  String                     @id @default(uuid())
+  name                String                     // Rule name for admin reference (e.g., "Champagne - Weekend Special")
+  enhancementId       String
+  enhancement         Enhancement                @relation(fields: [enhancementId], references: [id], onDelete: Cascade)
+  availabilityType    EnhancementAvailabilityType @default(ALWAYS)
+  availableDays       String[]                   // Days of week (Mon-Sun)
+  availableTimeStart  String?                
+  availableTimeEnd    String?                
+  seasonal            Boolean                    @default(false)
+  seasonStart         DateTime?
+  seasonEnd           DateTime?
+  specificDates       DateTime[]               
+  validFrom           DateTime?                  // Start date for when rule becomes active
+  validUntil          DateTime?                  // End date for when rule expires
+  roomScope           EnhancementRoomScope       @default(ALL_ROOMS)
+  roomIds             String[]                   // Specific room IDs when roomScope is SPECIFIC_ROOMS
+  isActive            Boolean                    @default(true)
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  
+  @@index([enhancementId, isActive])
+  @@index([validFrom, validUntil])
 } 
 
 enum EnhancementPricingType {
@@ -315,12 +462,24 @@ enum EnhancementPricingType {
   PER_DAY
 }
 
+enum EnhancementAvailabilityType {
+  ALWAYS              // Always available (like champagne on arrival)
+  WEEKLY              // Recurring weekly (every Monday, Tuesday, etc.)
+  SPECIFIC_DATES      // Only on specific dates
+  SEASONAL            // During a season/date range
+}
+
+enum EnhancementRoomScope {
+  ALL_ROOMS           // Available for all rooms
+  SPECIFIC_ROOMS      // Available for specific rooms only
+}
+
 model EnhancementBooking {
   id             String       @id @default(uuid())
   booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   bookingId      String
   enhancement    Enhancement  @relation(fields: [enhancementId], references: [id], onDelete: Cascade)
-  enhancementId  String
+  enhancementId  String 
   quantity       Int
   dateSelected   DateTime?
   notes          String?
@@ -361,15 +520,13 @@ model PaymentIntent {
   remainingAmount       Float?              // Amount due on checkin (70%)
   remainingDueDate      DateTime?           // When remaining amount is due
   secondPaymentIntentId String?             // Stripe PaymentIntent ID for remaining amount
-  secondPaymentLinkId   String?             // Stripe PaymentLink ID for second payment
+  secondPaymentLinkId   String?             // Stripe PaymentLink ID for second t
   secondPaymentExpiresAt DateTime?          // Expiry time for second payment link
   secondPaymentStatus   PaymentIntentStatus? // Status of second payment (CREATED, SUCCEEDED, etc.)
   createdByAdmin        Boolean             @default(false)
   adminUserId           String?   
   adminNotes            String?   
-  refundStatus          RefundStatus        @default(NOT_REFUNDED) // Tra refund lifecycle
-  
-  // Comprehensive tracking fields
+  refundStatus          RefundStatus        @default(NOT_REFUNDED)
   cancelledBy           String?             // Admin who cancelled
   cancelledAt           DateTime?           // When cancelled
   cancellationReason    String?             // Why cancelled
@@ -392,7 +549,9 @@ model PaymentIntent {
   voucherCode           String?           
   voucherDiscount       Float?            
   voucherUsages         VoucherUsage[]
-  auditLogs             BookingAuditLog[]    
+  auditLogs             BookingAuditLog[]   
+  eventParticipants     EventParticipant[]
+   
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
   @@index([stripeSessionId])
@@ -407,11 +566,8 @@ model Payment {
   amount                Float
   currency              String
   status                PaymentStatus
-  
-  // New fields for payment tracking
   paymentType           PaymentType      @default(FULL_PAYMENT)
-  installmentNumber     Int?             // 1 for first payment, 2 for second
-  
+  installmentNumber     Int?         
   createdAt             DateTime         @default(now())
   paymentIntentId       String?
   paymentIntent         PaymentIntent?   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
@@ -424,7 +580,7 @@ model Payment {
     mainGuestId           String             @default("")
     mainGuest             Customer           @relation(fields: [mainGuestId], references: [id], onDelete: Cascade)
     bookingType           BookingType        @default(DIRECT)
-    emailToMainGuestOnly  Boolean            @default(true)
+    emailToMainGuestOnly  Boolean            @default(true) 
     outstandingAmount     Float?    
     createdAt             DateTime           @default(now())
     updatedAt             DateTime           @updatedAt
@@ -1539,30 +1695,29 @@ model Beds24RatePolicyMapping {
 
 // Comprehensive Audit Logging System
 model BookingAuditLog {
-  id                String         @id @default(uuid())
-  entityType        AuditEntityType // PAYMENT_INTENT, BOOKING, ROOM_CHANGE, etc.
-  entityId          String         // ID of the changed entity
-  actionType        AuditActionType // CREATED, CANCELLED, REFUNDED, ROOM_CHANGED, etc.
-  userId            String         // Admin who made the change
-  user              User           @relation(fields: [userId], references: [id])
-  reason            String?        // User-provided reason
-  notes             String?        // Additional notes
-  
-  // Before/After tracking
-  previousValues    Json?          // Previous state
-  newValues         Json?          // New state
-  changedFields     String[]       // Which fields changed
-  
-  // Context
-  paymentIntentId   String?        // Related PaymentIntent
-  paymentIntent     PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
-  bookingId         String?        // Related Booking
-  booking           Booking?       @relation(fields: [bookingId], references: [id])
-  bookingGroupId    String?        // Related BookingGroup
-  bookingGroup      BookingGroup?  @relation(fields: [bookingGroupId], references: [id])
-  
-  createdAt         DateTime       @default(now())
-  
+  id                      String              @id @default(uuid())
+  entityType              AuditEntityType // PAYMENT_INTENT, BOOKING, ROOM_CHANGE, etc.
+  entityId                String         // ID of the changed entity
+  actionType              AuditActionType
+  userId                  String       
+  user                    User                @relation(fields: [userId], references: [id])
+  reason                  String?      
+  notes                   String?       
+  previousValues          Json?        
+  newValues               Json?        
+  changedFields           String[]      
+  paymentIntentId         String?       
+  paymentIntent           PaymentIntent?      @relation(fields: [paymentIntentId], references: [id])
+  bookingId               String?       
+  booking                 Booking?            @relation(fields: [bookingId], references: [id])
+  bookingGroupId          String?       
+  bookingGroup            BookingGroup?       @relation(fields: [bookingGroupId], references: [id])
+  createdAt               DateTime            @default(now())
+  eventId                 String?    
+  event                   Event?              @relation(fields: [eventId], references: [id])
+  eventParticipantId      String? 
+  eventParticipant        EventParticipant?   @relation(fields: [eventParticipantId], references: [id])
+
   @@index([entityType, entityId])
   @@index([paymentIntentId])
   @@index([bookingId])
@@ -1573,6 +1728,8 @@ model BookingAuditLog {
 }
 
 enum AuditEntityType {
+  ENHANCEMENT_EVENT
+  ENHANCEMENT_EVENT_PARTICIPANT
   PAYMENT_INTENT
   BOOKING
   CHARGE
@@ -1583,6 +1740,9 @@ enum AuditEntityType {
 }
 
 enum AuditActionType {
+  ENHANCEMENT_EVENT_EMAIL_SENT
+  REMOVED
+  GUEST_ADDED
   CREATED
   CANCELLED
   REFUNDED
@@ -1603,4 +1763,8 @@ enum AuditActionType {
   INVOICE_SENT
   CHECKIN_INVITATION_SENT
   ADMIN_CHECKIN_ACCESS
+  GROUP_CHECK_IN
+  GROUP_CHECKOUT
+  CHECKOUT_PROCESSED
+  BANK_TRANSFER_CONFIRM
 }

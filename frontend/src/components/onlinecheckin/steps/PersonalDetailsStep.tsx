@@ -525,18 +525,6 @@ export const PersonalDetailsStep = ({ formData, updateFormData, onNext }: Person
                     >
                         <span className="text-sm font-medium">Female</span>
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => handleInputChange('gender', 'OTHERS')}
-                        className={`flex items-center justify-center px-4 py-3.5 border rounded-xl transition-all duration-300 cursor-pointer ${formData.gender === 'OTHERS'
-                                ? 'border-gray-600 bg-gray-600 text-white'
-                                : errors.gender
-                                ? 'border-red-300'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                    >
-                        <span className="text-sm font-medium">Other</span>
-                    </button>
                 </div>
                 {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
             </div>

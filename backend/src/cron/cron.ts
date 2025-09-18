@@ -8,6 +8,7 @@ import { LicensePlateExportService } from "../services/licensePlateExportService
 import { EmailService } from "../services/emailService";
 import { CheckInReminderService } from "../services/checkInReminderService";
 import beds24Service from "../services/beds24Service";
+import { policePortalService } from "../services/policePortalService";
 
 const now = new Date();
 
@@ -702,6 +703,44 @@ export const getChannelSyncHealth = async () => {
     failedSyncs,
     lastRun: new Date()
   };
+};
+
+// Schedule daily police portal reporting - runs every day at 5 AM Italian time
+export const schedulePolicePortalReporting = () => {
+  // 5 AM Italian time (Europe/Rome timezone)
+  cron.schedule("* * * * *", async () => {
+    try {
+      // Check if it's actually 5 AM Italian time
+      const italianTime = new Date().toLocaleString('en-US', {
+        timeZone: 'Europe/Rome',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      console.log(`[Cron] Starting daily police portal reporting at ${italianTime} Italian time...`);
+      
+      const results = await policePortalService.reportDailyBookings();
+      
+      console.log(`[Cron] Police portal reporting completed:
+        - Total bookings: ${results.total}
+        - Successful: ${results.successful}
+        - Failed: ${results.failed}`);
+      
+      if (results.errors.length > 0) {
+        console.error("[Cron] Police portal errors:", results.errors);
+        
+        // Log individual booking errors for troubleshooting
+        results.errors.forEach((error) => {
+          console.error(`[Cron] Booking ${error.bookingId} failed:`, error.errors);
+        });
+      }
+    } catch (error) {
+      console.error("[Cron] Failed to report to police portal:", error);
+    }
+  }, {
+    timezone: "Europe/Rome"
+  });
 };
 
 export const scheduleCheckinReminder = async () => {

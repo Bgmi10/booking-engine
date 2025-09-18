@@ -10,7 +10,8 @@ import {
   Badge,
   Mail,
   Users,
-  XCircle
+  XCircle,
+  StickyNote
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BookingGroup } from '../../../types/types';
@@ -20,6 +21,7 @@ import BookingGroupAuditModal from './BookingGroupAuditModal';
 import DeleteConfirmationModal from '../../ui/DeleteConfirmationModal';
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
 import PaymentIntentSelectionModal from './PaymentIntentSelectionModal';
+import CheckInCheckOutButtons from './CheckInCheckOutButtons';
 import toast from 'react-hot-toast';
   
 interface BookingGroupCardProps {
@@ -250,6 +252,55 @@ function SingleBookingGroupCard({
             </div>
           </div>
 
+          {/* Admin Notes from Bookings */}
+          {(() => {
+            // Collect all admin notes from all bookings in all payment intents
+            const allNotes: Array<{booking: any, checkInNotes?: string, checkOutNotes?: string}> = [];
+            
+            group.paymentIntents.forEach(pi => {
+              pi.bookings?.forEach((booking: any) => {
+                if (booking.adminCheckInNotes || booking.adminCheckOutNotes) {
+                  allNotes.push({
+                    booking,
+                    checkInNotes: booking.adminCheckInNotes,
+                    checkOutNotes: booking.adminCheckOutNotes
+                  });
+                }
+              });
+            });
+
+            if (allNotes.length === 0) return null;
+
+            return (
+              <div className="mt-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                  <StickyNote className="h-4 w-4 mr-1" />
+                  Admin Notes
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allNotes.map((noteItem, index) => (
+                    <div key={index} className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <p className="text-xs font-medium text-gray-700 mb-1">
+                        Room {noteItem.booking.room?.name} - {noteItem.booking.customer?.guestFirstName} {noteItem.booking.customer?.guestLastName}
+                      </p>
+                      {noteItem.checkInNotes && (
+                        <div className="mb-2">
+                          <span className="text-xs font-semibold text-blue-700">Check-in:</span>
+                          <p className="text-xs text-blue-600">{noteItem.checkInNotes}</p>
+                        </div>
+                      )}
+                      {noteItem.checkOutNotes && (
+                        <div>
+                          <span className="text-xs font-semibold text-gray-700">Check-out:</span>
+                          <p className="text-xs text-gray-600">{noteItem.checkOutNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Actions */}
           <div className="flex gap-2 flex-wrap">
@@ -297,6 +348,17 @@ function SingleBookingGroupCard({
                 label="Send Group Check-In"
               />
             )}
+
+            {/* Check-In/Check-Out Buttons */}
+            <CheckInCheckOutButtons
+              type="bookingGroup"
+              id={group.id}
+              bookings={group.paymentIntents.flatMap(pi => pi.bookings)}
+              outstandingAmount={group.outstandingAmount || 0}
+              disabled={isDeleting || isSendingInvoice}
+              variant="compact"
+              onSuccess={() => onRefresh()}
+            />
 
 
             <button

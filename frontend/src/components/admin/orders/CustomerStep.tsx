@@ -35,6 +35,8 @@ export default function CustomerStep({ onNext, selectedCustomer, setSelectedCust
     c.guestEmail.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  console.log(filteredCustomers);
+  
   return (
     <div className="max-w-2xl mx-auto">
       {/* Customer Type Toggle */}

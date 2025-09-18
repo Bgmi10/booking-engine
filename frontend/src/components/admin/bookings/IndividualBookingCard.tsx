@@ -8,10 +8,14 @@ import {
   CheckCircle,
   XCircle,
   MapPin,
+  StickyNote,
+  CreditCard,
+  Info,
 } from "lucide-react";
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
+import CheckInCheckOutButtons from './CheckInCheckOutButtons';
 
 interface Booking {
   bookingId: any;
@@ -23,6 +27,10 @@ interface Booking {
   totalAmount?: number;
   refundAmount?: number;
   roomName: string;
+  checkedInAt?: string | null;
+  checkedOutAt?: string | null;
+  adminCheckInNotes?: string | null;
+  adminCheckOutNotes?: string | null;
   room: {
     id: string;
     name: string;
@@ -35,6 +43,14 @@ interface Booking {
     guestEmail: string;
   };
   paymentIntentId: string;
+  paymentIntent?: {
+    outstandingAmount?: number;
+    prepaidAmount?: number;
+    remainingAmount?: number;
+    totalAmount?: number;
+    paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT';
+    status?: string;
+  };
   guestCheckInAccess?: Array<{
     id: string;
     isMainGuest: boolean;
@@ -52,6 +68,7 @@ interface IndividualBookingCardProps {
   booking: Booking;
   onRefund?: (bookingId: string) => void;
   onViewDetails?: (bookingId: string) => void;
+  onRefresh?: () => void;
   showRefundButton?: boolean;
 }
 
@@ -59,12 +76,17 @@ export default function IndividualBookingCard({
   booking,
   onRefund,
   onViewDetails,
+  onRefresh,
   showRefundButton = true
 }: IndividualBookingCardProps) {
   const [showConfirmRefund, setShowConfirmRefund] = useState(false);
   const [loadingRefund, setLoadingRefund] = useState(false);
   const [refundReason, setRefundReason] = useState('');
   const [showGuestsModal, setShowGuestsModal] = useState(false);
+
+  // Log booking data to understand structure
+  console.log('Booking data:', booking);
+  console.log('PaymentIntent:', booking.paymentIntent);
 
   const getStatusInfo = () => {
     switch (booking.status) {
@@ -156,8 +178,6 @@ export default function IndividualBookingCard({
     booking.checkIn
   );
 
-  console.log(booking)
-
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
@@ -228,6 +248,35 @@ export default function IndividualBookingCard({
           </div>
         )}
       </div>
+        
+
+      {/* Admin Notes */}
+      {(booking.adminCheckInNotes || booking.adminCheckOutNotes) && (
+        <div className="mb-4 space-y-2">
+          {booking.adminCheckInNotes && (
+            <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+              <div className="flex items-start space-x-2">
+                <StickyNote className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-blue-700 mb-1">Check-in Notes:</p>
+                  <p className="text-xs text-blue-600">{booking.adminCheckInNotes}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {booking.adminCheckOutNotes && (
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+              <div className="flex items-start space-x-2">
+                <StickyNote className="h-4 w-4 text-gray-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-700 mb-1">Check-out Notes:</p>
+                  <p className="text-xs text-gray-600">{booking.adminCheckOutNotes}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex justify-between items-center pt-4 border-t border-gray-200">
@@ -258,6 +307,25 @@ export default function IndividualBookingCard({
               className="text-xs"
             />
           )}
+
+          <CheckInCheckOutButtons
+            type="booking"
+            id={booking.bookingId || booking.id}
+            isCheckedIn={!!booking.checkedInAt}
+            isCheckedOut={!!booking.checkedOutAt}
+            checkInDate={booking.checkIn}
+            checkOutDate={booking.checkOut}
+            outstandingAmount={booking.paymentIntent?.outstandingAmount || 0}
+            paymentStructure={booking.paymentIntent?.paymentStructure}
+            paymentDetails={booking.paymentIntent?.paymentStructure === 'SPLIT_PAYMENT' && booking.paymentIntent ? {
+              totalAmount: booking.paymentIntent.totalAmount || booking.totalAmount || 0,
+              prepaidAmount: booking.paymentIntent.prepaidAmount || 0,
+              remainingAmount: booking.paymentIntent.remainingAmount || 0
+            } : undefined}
+            disabled={loadingRefund}
+            variant="compact"
+            onRefresh={onRefresh}
+          />
         </div>
 
         {showRefundButton && canRefund && (

@@ -172,23 +172,27 @@ export default function ManualCheckInButton({
   );
 }
 
-// Export a convenience hook for checking if check-in should be available
+// Export a convenience hook for checking if send check-in email should be available
 export const useCheckInAvailability = (status: string, checkInDate?: string) => {
-  // Only show check-in for confirmed bookings
+  // Only show send check-in for confirmed bookings (no date restriction for email sending)
   const isConfirmed = status === 'CONFIRMED' || status === 'SUCCEEDED';
   
-  // Check if check-in date is in the future or today
-  let isUpcoming = true;
+  // Check if check-in date is today (for reference, but not used for availability)
+  let isToday = false;
   if (checkInDate) {
     const checkIn = new Date(checkInDate);
     const today = new Date();
+    
+    // Set both dates to start of day for accurate comparison
+    checkIn.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    isUpcoming = checkIn >= today;
+    
+    isToday = checkIn.getTime() === today.getTime();
   }
   
   return {
-    isAvailable: isConfirmed && isUpcoming,
+    isAvailable: isConfirmed, // No date restriction for sending check-in emails
     isConfirmed,
-    isUpcoming
+    isToday
   };
 };

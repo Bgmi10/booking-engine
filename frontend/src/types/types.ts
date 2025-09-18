@@ -42,18 +42,110 @@ export interface BulkOverrideLog {
 
 export interface Enhancement {
   id: string
-  title: string
+  name: string
   description: string
   price: number
+  tax?: number
   image?: string
   pricingType: "PER_GUEST" | "PER_BOOKING" | "PER_DAY"
-  availableDays: string[]
-  seasonal: boolean
-  seasonStart?: string
-  seasonEnd?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
+  enhancementRules?: EnhancementRule[]
+  seasonal: boolean;
+  seasonStart: string;
+  seasonEnd: string;
+}
+
+export interface EnhancementRule {
+  id: string
+  name: string
+  enhancementId: string
+  enhancement?: Enhancement
+  availabilityType: "ALWAYS" | "WEEKLY" | "SPECIFIC_DATES" | "SEASONAL"
+  availableDays: string[]
+  availableTimeStart?: string
+  availableTimeEnd?: string
+  seasonal: boolean
+  seasonStart?: string
+  seasonEnd?: string
+  specificDates?: string[]
+  validFrom?: string
+  validUntil?: string
+  roomScope: "ALL_ROOMS" | "SPECIFIC_ROOMS"
+  roomIds: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Event {
+  id: string
+  name: string
+  description?: string
+  eventDate: string
+  eventType: 'ENHANCEMNET' | 'PIZZA_NIGHT' | 'SPECIAL_DINNER' | 'WINE_TASTING' | 'COOKING_CLASS' | 'OTHERS'
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'CANCELLED'
+  totalRevenue: number
+  totalGuests: number
+  maxCapacity?: number
+  createdAt: string
+  updatedAt: string
+  eventEnhancements?: EventEnhancement[]
+  eventParticipants?: EventParticipant[]
+  eventInvitations?: EventInvitation[]
+  _count?: {
+    eventParticipants: number
+    eventInvitations: number
+  }
+  logs?: any[]
+}
+
+export interface EventEnhancement {
+  id: string
+  eventId: string
+  enhancementId: string
+  enhancement: Enhancement
+  overridePrice?: number
+  maxQuantity?: number
+  isActive: boolean
+  createdAt: string
+}
+
+export interface EventParticipant {
+  id: string
+  eventId: string
+  bookingId: string
+  paymentIntentId: string
+  customerId: string
+  enhancementId: string
+  participantType: 'GUEST' | 'MAIN_GUEST'
+  status: 'COMPLETED' | 'PENDING' | 'CANCELLED' | 'DECLINED'
+  addedBy: 'MAIN_GUEST' | 'GUEST' | 'ADMIN'
+  notes?: string
+  createdAt: string
+  updatedAt: string
+  booking?: any
+  enhancement?: Enhancement
+  customer?: Customer
+}
+
+export interface EventInvitation {
+  id: string
+  eventId: string
+  bookingId: string
+  customerId: string
+  invitationToken?: string
+  tokenExpiresAt: string
+  isMainGuest: boolean
+  invitationStatus: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'NOT_APPLICABLE'
+  sentAt?: string
+  acceptedAt?: string
+  declinedAt?: string
+  createdAt: string
+  updatedAt: string
+  booking?: any
+  customer?: Customer
 }
 
 export interface Beds24Booking {
@@ -219,6 +311,10 @@ export interface Booking {
   paymentIntent?: PaymentIntent
   specialrequest?: string;
   request?: string;
+  checkedInAt?: string;
+  checkedOutAt?: string;
+  adminCheckInNotes?: string;
+  adminCheckOutNotes?: string;
 
 }
 
@@ -261,20 +357,29 @@ export interface PaymentIntentCardProps {
   isDeletedTab?: boolean;
 }
 
+type GENDER = 'MALE' | 'FEMALE';
+
 export interface CustomerData {
   id?: string;
+  isMainGuest?: boolean;
+  guestType?: string;
   surname?: string;
   email: string
+  gender?: GENDER;
+  placeOfBirth?: string;
+  city?: string;
+  passportIssuedCountry?: string;
+  idCard?: string;
   guestPhone?: string;
   guestFirstName?: string;
+  guestNationality?: string;
+  tcAgreed?: boolean;
+  guestMiddleName?: string;
+  carNumberPlate?: string;
   guestLastName?: string;
   guestEmail?: string | undefined | any;
-  firstName: string
-  lastName: string
-  middleName?: string
-  nationality?: string
-  phone: string
   receiveMarketing: boolean
+  receiveMarketingEmail?: boolean
   specialRequests?: string
   dob: string,
   passportNumber: string,

@@ -1,4 +1,5 @@
 import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye, FileText } from "lucide-react"
+import CheckInCheckOutButtons from './CheckInCheckOutButtons';
 import type { BookingData, PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
 import { getStatusColor } from "../../../utils/helper"
@@ -334,11 +335,11 @@ import { useState, useEffect } from "react"
                       <>
                         <div>
                           <label className="text-sm font-medium text-blue-600">Prepaid Amount</label>
-                          <div className="font-medium text-blue-900">€{paymentIntent.prepaidAmount || 0}</div>
+                          <div className="font-medium text-blue-900">€{paymentIntent.prepaidAmount?.toFixed(2) || 0}</div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-blue-600">Remaining Amount</label>
-                          <div className="font-medium text-blue-900">€{paymentIntent.remainingAmount || 0}</div>
+                          <div className="font-medium text-blue-900">€{paymentIntent.remainingAmount?.toFixed(2) || 0}</div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-blue-600">Remaining Due Date</label>
@@ -360,7 +361,7 @@ import { useState, useEffect } from "react"
                     <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-yellow-800">
-                          Remaining payment of €{paymentIntent.remainingAmount} required
+                          Remaining payment of €{paymentIntent.remainingAmount?.toFixed(2)} required
                         </span>
                         {paymentIntent.remainingDueDate && new Date() > new Date(paymentIntent.remainingDueDate) && (
                           <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-md">
@@ -567,6 +568,21 @@ import { useState, useEffect } from "react"
             <h3 className="text-lg font-medium text-gray-900">Actions</h3>
           </div>
           <div className="p-6">
+            {/* Check-In/Check-Out Actions */}
+            {paymentIntent.status === "SUCCEEDED" && (
+              <div className="mb-6">
+                <CheckInCheckOutButtons
+                  type="paymentIntent"
+                  id={paymentIntent.id}
+                  bookings={paymentIntent.bookings || []}
+                  outstandingAmount={paymentIntent.outstandingAmount || 0}
+                  disabled={loadingAction}
+                  variant="full"
+                  onSuccess={() => window.location.reload()}
+                />
+              </div>
+            )}
+            
             <div className="flex gap-2 flex-wrap">
              {paymentIntent.status === "SUCCEEDED"  && <button
                 onClick={() => onSendInvoice(paymentIntent.id)}

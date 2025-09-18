@@ -304,7 +304,6 @@ export function EditCustomerModal({ customer, setIsEditModalOpen, fetchCustomers
              <select name="gender" id="" onChange={(e) => handleChange(e)}  value={formData.gender} className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                <option value="MALE">Male</option>
                <option value="FEMALE">Female</option>
-               <option value="OTHERS">Others</option>
              </select>
             </div>  
 

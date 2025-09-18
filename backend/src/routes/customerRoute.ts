@@ -27,7 +27,12 @@ import {
     createNewRelationships,
     deleteRelationships,
     quickAddGuests,
-    getRelatedGuests
+    getRelatedGuests,
+    verifyEventInvitation,
+    acceptEventInvitation,
+    declineEventInvitation,
+    addGuestToEvent,
+    getEventGuestsList
 } from "../controllers/customerController";
 import { generateProposalPDF } from '../controllers/proposalController';
 import customerAuthMiddleware from "../middlewares/customerAuthMiddleware";
@@ -67,7 +72,7 @@ customerRouter.post('/relationships', onlineCheckInMiddleware, createNewRelation
 customerRouter.delete('/relationships/:id', onlineCheckInMiddleware, deleteRelationships);
 customerRouter.post('/quick-add-guests', onlineCheckInMiddleware, quickAddGuests);
 
-// Guest Management Routes (Protected by onlineCheckInMiddleware)
+//   Routes (Protected by onlineCheckInMiddleware)
 customerRouter.post('/online-checkin/guests/manual', onlineCheckInMiddleware, createManualGuest);
 customerRouter.post('/online-checkin/guests/invite', onlineCheckInMiddleware, inviteBookingGuest);
 customerRouter.delete('/online-checkin/bookings/:bookingId/guests/:guestId', onlineCheckInMiddleware, deleteGuest);
@@ -99,5 +104,12 @@ customerRouter.get('/proposals/:proposalId/service-requests/:requestId', custome
 customerRouter.post('/service-requests/:requestId/messages', customerAuthMiddleware, addServiceRequestMessage);
 customerRouter.post('/service-requests/:requestId/accept', customerAuthMiddleware, acceptServiceRequestQuote);
 customerRouter.post('/service-requests/:requestId/reject', customerAuthMiddleware, rejectServiceRequestQuote);
+
+// Event Invitation Routes (Public - no auth required as token is the auth)
+customerRouter.get('/event-invitation/:token/verify', verifyEventInvitation);
+customerRouter.post('/event-invitation/:token/accept', acceptEventInvitation);
+customerRouter.post('/event-invitation/:token/decline', declineEventInvitation);
+customerRouter.post('/event-invitation/:token/add-guest', addGuestToEvent);
+customerRouter.get('/event-invitation/:token/guests', getEventGuestsList);
 
 export default customerRouter;

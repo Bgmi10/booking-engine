@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { baseUrl } from "../utils/constants";
 
-export const OnlineCheckInContext = createContext<{ customer: any, loader: boolean, refetchCustomer: () => void, primaryBookingId: string | null }>({
+interface OnlineCheckInContextType {
+    customer: any;
+    loader: boolean;
+    refetchCustomer: () => void;
+    primaryBookingId: string | null;
+}
+
+export const OnlineCheckInContext = createContext<OnlineCheckInContextType>({
     customer: null,
     loader: true,
     refetchCustomer: () => {},

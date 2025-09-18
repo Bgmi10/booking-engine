@@ -31,6 +31,7 @@ interface DateSelectorProps {
   selectedRoomId?: string
   selectedRatePolicyId?: string
   dailyBookingStartTime?: string
+  isHide: boolean
 }
 
 const DateSelector = ({ 
@@ -42,12 +43,13 @@ const DateSelector = ({
   setCalenderOpen,
   minStayDays = 2,
   dailyBookingStartTime = '00:00',
+  isHide
 }: DateSelectorProps) => {
   
   const [selectedDates, setSelectedDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
     startDate: null,
     endDate: null,
-  })
+  });
   const [selectionStage, setSelectionStage] = useState("arrival")
   const [currentMonths, setCurrentMonths] = useState([
     new Date(2025, 4), // May 2025
@@ -588,6 +590,7 @@ const DateSelector = ({
 
   return (
     <div className="relative">
+      <div className={isHide ? "hidden" : ""}>
       <button
         className="cursor-pointer w-full px-4 py-3 border border-gray-300 rounded-md flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
         onClick={() => setCalenderOpen(true)}
@@ -605,11 +608,11 @@ const DateSelector = ({
           />
         </svg>
       </button>
-
+      </div>
       <AnimatePresence>
         {calenderOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <motion.div 
+            <motion.div
               className="absolute inset-0 bg-black/50"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -626,11 +629,11 @@ const DateSelector = ({
             >
               <div className="flex justify-between items-center p-5 border-b border-gray-200">
                 <div className="flex items-center">
-                  <h3 className="text-xl font-semibold text-gray-800">
+                  <h3 className="date-selector-title">
                     {selectionStage === "arrival" ? "Arrival" : "Departure"}
                   </h3>
                   {selectedDates.startDate && !selectedDates.endDate && (
-                    <span className="ml-4 text-sm text-gray-500">
+                    <span className="date-selector-subtitle ml-4">
                       Arrival: {formatDate(selectedDates.startDate)} | Min stay: {getCurrentMinStay()} days
                     </span>
                   )}
@@ -715,7 +718,7 @@ const DateSelector = ({
                             <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         </button>
-                        <h4 className="text-md font-medium flex-1 text-center">
+                        <h4 className="date-selector-month flex-1 text-center">
                           {month.toLocaleString("default", { month: "long", year: "numeric" })}
                         </h4>
                         <button

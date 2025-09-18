@@ -16,10 +16,12 @@ import KitchenOrders from "./kitchen/KitchenOrders";
 import WaiterOrders from "./waiter/WaiterOrders";
 import { initAdminWebSocket } from "../../utils/websocket";
 import { useAuth } from "../../context/AuthContext";
-import CreateOrderModal from "./orders/CreateOrderModal";
+import QuickOrderModal from "./orders/QuickOrderModal";
 import WeddingProposals from "./wedding-proposals/WeddingProposals";
 import RevenueManagement from "./revenue/RevenueManagement";
 import Beds24Manager from "./beds24/Beds24Manager";
+import AnalyticsDashboard from "./analytics/AnalyticsDashboard";
+import CustomerAnalytics from "./analytics/CustomerAnalytics";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -86,6 +88,10 @@ export default function AdminDashboard() {
         return <RevenueManagement />;
       case "channel-manager":
         return <Beds24Manager />;
+      case "analytics-dashboard":
+        return <AnalyticsDashboard />;
+      case "customer-analytics":
+        return <CustomerAnalytics />;
       default:
         if (user?.role === 'WAITER') return <WaiterOrders />;
         if (user?.role === 'KITCHEN') return <KitchenOrders />;
@@ -118,7 +124,7 @@ export default function AdminDashboard() {
           {renderActiveView()}
         </main>
       </div>
-      {isCreateOrderModalOpen && <CreateOrderModal onClose={() => setIsCreateOrderModalOpen(false)} />}
+      {isCreateOrderModalOpen && <QuickOrderModal onClose={() => setIsCreateOrderModalOpen(false)} />}
     </div>
   );
 }

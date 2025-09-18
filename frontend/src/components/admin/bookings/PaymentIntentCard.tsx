@@ -19,6 +19,7 @@ import type { PaymentIntentCardProps } from "../../../types/types"
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants"
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
+import CheckInCheckOutButtons from './CheckInCheckOutButtons';
 
 // Add a simple spinner component
 const Spinner = () => (
@@ -321,6 +322,19 @@ export default function PaymentIntentCard({
                 />
               )}
 
+              {/* Check-In/Check-Out Buttons */}
+              {paymentIntent.status === "SUCCEEDED" && (
+                <CheckInCheckOutButtons
+                  type="paymentIntent"
+                  id={paymentIntent.id}
+                  bookings={paymentIntent.bookings || []}
+                  outstandingAmount={paymentIntent.outstandingAmount || 0}
+                  disabled={loadingAction}
+                  variant="compact"
+                  onSuccess={() => window.location.reload()}
+                />
+              )}
+
              
               {/* Send Email with Confirmation */}
               {paymentIntent.status === "SUCCEEDED" && (
@@ -461,12 +475,12 @@ export default function PaymentIntentCard({
               )}
 
               {/* Payment Link Expiry */}
-              {paymentIntent.expiresAt && (
+              {paymentIntent.expiresAt && paymentIntent.paymentMethod !== "CASH" && (
                 <div className="flex items-center justify-end">
                   <span>
                     Payment link expires {formatDistanceToNow(new Date(paymentIntent.expiresAt), { addSuffix: true })}
                   </span>
-                </div>
+                </div> 
               )}
 
               {/* Resend Bank Transfer Instructions */}

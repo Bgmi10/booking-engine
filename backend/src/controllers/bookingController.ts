@@ -16,6 +16,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
     customerDetails, 
     taxAmount, 
     totalAmount,
+    currentChargeAmount, // Add this to receive the calculated amount from frontend
     voucherCode,
     voucherDiscount,
     originalAmount,
@@ -70,15 +71,17 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
     const firstBooking = bookingItems[0];
     const selectedPaymentStructure = firstBooking?.selectedPaymentStructure || 'FULL_PAYMENT';
     const issSplitPayment = selectedPaymentStructure === 'SPLIT_PAYMENT';
+    const prepayPercentage = firstBooking?.selectedRateOption?.prepayPercentage || 30;
     
     // Calculate payment amounts based on structure
-    let paymentAmount = totalAmount;
+    let paymentAmount = currentChargeAmount || totalAmount; // Use frontend-calculated amount
     let remainingAmount = null;
     let remainingDueDate = null;
     
     if (issSplitPayment) {
-      paymentAmount = Math.round(totalAmount * 0.3 * 100) / 100; // 30% now
-      remainingAmount = Math.round(totalAmount * 0.7 * 100) / 100; // 70% later
+      // Use the prepayPercentage from rate option
+      paymentAmount = currentChargeAmount || Math.round(totalAmount * (prepayPercentage / 100) * 100) / 100;
+      remainingAmount = Math.round(totalAmount * (1 - prepayPercentage / 100) * 100) / 100;
       
       // Calculate due date based on rate policy or default to 30 days before check-in
       const checkInDate = new Date(firstBooking.checkIn);
@@ -153,14 +156,15 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
       
       const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
       let totalRoomPrice = roomRatePerNight * numberOfNights;
+      const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || prepayPercentage;
       
-      // Adjust price for split payment (30% now)
+      // Adjust price for split payment based on actual prepay percentage
       if (issSplitPayment) {
-        totalRoomPrice = Math.round(totalRoomPrice * 0.3 * 100) / 100;
+        totalRoomPrice = Math.round(totalRoomPrice * (bookingPrepayPercentage / 100) * 100) / 100;
       }
       
       const paymentDescription = issSplitPayment 
-        ? `${booking.selectedRateOption?.name || 'Standard Rate'} - 30% Payment (€${Math.round((roomRatePerNight * numberOfNights) * 0.7 * 100) / 100} due later)`
+        ? `${booking.selectedRateOption?.name || 'Standard Rate'} - ${bookingPrepayPercentage}% Payment (€${Math.round((roomRatePerNight * numberOfNights) * (1 - bookingPrepayPercentage / 100) * 100) / 100} due later)`
         : `${booking.selectedRateOption?.name || 'Standard Rate'} - Full Payment`;
       
       const roomLineItem = {
@@ -196,14 +200,15 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           enhancementQuantity = 1;
         }
 
-        // Adjust enhancement price for split payment (30% now)
+        // Adjust enhancement price for split payment based on actual prepay percentage
         let enhancementPrice = enhancement.price;
+        const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || prepayPercentage;
         if (issSplitPayment) {
-          enhancementPrice = Math.round(enhancement.price * 0.3 * 100) / 100;
+          enhancementPrice = Math.round(enhancement.price * (bookingPrepayPercentage / 100) * 100) / 100;
         }
         
         const enhancementDescription = issSplitPayment
-          ? `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} - 30% Payment | ${enhancement.description} | Taxes included`
+          ? `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} - ${bookingPrepayPercentage}% Payment | ${enhancement.description} | Taxes included`
           : `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`;
 
         return {
@@ -249,7 +254,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         pendingBookingId: pendingBooking.id,
         customerEmail: customerDetails.email,
         taxAmount: taxAmount.toString(),
-        totalAmount: paymentAmount.toString(), // Current payment amount (30% for split)
+        totalAmount: paymentAmount.toString(), // Current payment amount (prepayPercentage for split)
         paymentStructure: selectedPaymentStructure,
         paymentType: issSplitPayment ? 'FIRST_INSTALLMENT' : 'FULL_PAYMENT',
         ...(remainingAmount && { remainingAmount: remainingAmount.toString() }),
@@ -404,14 +409,16 @@ export const createSecondPaymentSession = async (req: express.Request, res: expr
     const line_items = bookingData.flatMap((booking: any) => {
       const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
       const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
-      const remainingRoomPrice = Math.round((roomRatePerNight * numberOfNights) * 0.7 * 100) / 100; // 70% remaining
+      const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || 30;
+      const remainingPercentage = 100 - bookingPrepayPercentage;
+      const remainingRoomPrice = Math.round((roomRatePerNight * numberOfNights) * (remainingPercentage / 100) * 100) / 100;
 
       const roomLineItem = {
         price_data: {
           currency: "eur",
           product_data: {
             name: `${booking.roomDetails.name} - Final Payment`,
-            description: `Remaining 70% payment for ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | ${booking.selectedRateOption?.name || 'Standard Rate'}`,
+            description: `Remaining ${remainingPercentage}% payment for ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | ${booking.selectedRateOption?.name || 'Standard Rate'}`,
           },
           unit_amount: Math.round(remainingRoomPrice * 100),
         },
@@ -431,14 +438,16 @@ export const createSecondPaymentSession = async (req: express.Request, res: expr
           enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
         }
 
-        const remainingEnhancementPrice = Math.round(enhancement.price * 0.7 * 100) / 100; // 70% remaining
+        const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || 30;
+        const remainingPercentage = 100 - bookingPrepayPercentage;
+        const remainingEnhancementPrice = Math.round(enhancement.price * (remainingPercentage / 100) * 100) / 100;
 
         return {
           price_data: {
             currency: "eur",
             product_data: {
               name: `${enhancement.title} - Final Payment`,
-              description: `Remaining 70% payment for ${enhancement.title}`,
+              description: `Remaining ${remainingPercentage}% payment for ${enhancement.title}`,
             },
             unit_amount: Math.round(remainingEnhancementPrice * 100),
           },

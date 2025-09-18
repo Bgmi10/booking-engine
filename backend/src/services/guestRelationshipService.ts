@@ -335,6 +335,9 @@ export class GuestRelationshipService {
               personalDetailsComplete: true,
               identityDetailsComplete: !!customer.passportNumber,
               addressDetailsComplete: !!customer.city
+            },
+            include: {
+              customer: true
             }
           })
         })

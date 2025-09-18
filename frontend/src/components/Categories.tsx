@@ -418,7 +418,7 @@ export default function Categories({
   return (
     <div>
       <div className="py-6">
-        <h2 className="text-2xl font-semibold text-center text-gray-800">Select Your Room</h2>
+        <h2 className="categories-title text-center">Select Your Room</h2>
       </div>
       <BookingSummary bookingData={bookingData} setCurrentStep={setCurrentStep} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mx-4 mb-8">
@@ -465,7 +465,7 @@ export default function Categories({
 
             {/* Room title */}
             <div className="p-5 -mb-6">
-              <h3 className="text-xl font-semibold text-gray-800">{room.name}</h3>
+              <h3 className="categories-room-title">{room.name}</h3>
             </div>
 
             {/* Room details */}
@@ -699,7 +699,7 @@ export default function Categories({
       {/* Unavailable Rooms */}
       {unavailableRooms && unavailableRooms.length > 0 && (
         <div className="mx-4 mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Unavailable Rooms</h3>
+          <h3 className="categories-section-title mb-4">Unavailable Rooms</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {unavailableRooms.map((room: any) => (
               <div key={room.id} className="relative bg-white rounded-lg shadow-sm overflow-hidden">
@@ -723,7 +723,7 @@ export default function Categories({
 
                 {/* Room title */}
                 <div className="p-5 border-b">
-                  <h3 className="text-xl font-semibold text-gray-800">{room.name}</h3>
+                  <h3 className="categories-room-title">{room.name}</h3>
                 </div>
 
                 {/* Room details */}

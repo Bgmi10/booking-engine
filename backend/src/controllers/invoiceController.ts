@@ -12,7 +12,7 @@ export const generateCustomerInvoice = async (req: express.Request, res: express
   
   try {
     // Generate the invoice PDF
-    const pdfBuffer = await invoiceService.generateInvoice(id);
+    const { pdfBuffer } = await invoiceService.generateInvoice(id);
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);

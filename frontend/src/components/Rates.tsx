@@ -228,7 +228,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
         const res = await fetch(baseUrl + `/enhancements`, {
             method: "POST",
             body: JSON.stringify({
-                days: daysInRange
+                days: daysInRange,
+                checkIn: formattedCheckIn,
+                checkOut: formattedCheckOut
             }),
             credentials: "include",
             headers: {
@@ -236,7 +238,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             }
         })
         const data = await res.json();
-        setEnhancements(data.data);
+        setEnhancements(data.data || []);
     } catch (error) {
         console.log(error);
     }
@@ -360,7 +362,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       <div className="container mx-auto px-2 sm:px-4">
         <div className="rounded-lg">
           <div className="py-6">
-          <h2 className="text-2xl font-semibold text-center text-gray-800">Rates</h2>
+          <h2 className="rates-title text-center">Rates</h2>
         </div>
         <BookingSummary bookingData={bookingData} setCurrentStep={setCurrentStep} />
         
@@ -406,7 +408,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             
             <div className="flex-1">
               <div className="p-3 sm:p-5 -mb-3 sm:-mb-6">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800">{selectedRoom.name}</h3>
+                <h3 className="rates-room-title">{selectedRoom.name}</h3>
               </div>
 
               <div className="p-3 sm:p-5">
@@ -454,7 +456,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 p-2 sm:p-4">
           {/* Left Side - Enhancements (Original Large Screen Design) */}
           <div className={`${enhancements.length > 0 ? 'lg:flex-1' : 'hidden'} order-2 lg:order-1`}>
-           {enhancements.length > 0 && <h3 className="text-lg sm:text-xl font-semibold mb-4 text-gray-800 hidden lg:block">Enhance your stay</h3>}
+           {enhancements.length > 0 && <h3 className="rates-section-title mb-4 hidden lg:block">Enhance your stay</h3>}
            
           
 
@@ -479,15 +481,40 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                               <div className="bg-gray-50 rounded-lg p-3 mb-3">
                                 <p className="text-xs sm:text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
                               </div>
-                              <div className="flex flex-wrap gap-1 sm:gap-2">
-                                   {enhancement.availableDays.map((item: string, index: number) => 
-                                      (
-                                        <span key={index} className="text-gray-600 text-xs sm:text-sm">
-                                            {item}{index < enhancement.availableDays.length - 1 ? ',' : ''}
-                                        </span>
-                                      )
-                                    )}   
-                              </div>
+                              {/* Show availability details based on type */}
+                              {enhancement.availabilityType === 'WEEKLY' && enhancement.availableDays && (
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
+                                  <span className="text-xs text-gray-500">Available on:</span>
+                                  {enhancement.availableDays.map((item: string, index: number) => (
+                                    <span key={index} className="text-gray-600 text-xs sm:text-sm">
+                                      {item}{index < enhancement.availableDays.length - 1 ? ',' : ''}
+                                    </span>
+                                  ))}
+                                  {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
+                                    <span className="text-xs text-gray-500 ml-2">
+                                      ({enhancement.availableTimeStart} - {enhancement.availableTimeEnd})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {enhancement.availabilityType === 'SPECIFIC_DATES' && (
+                                <div className="text-xs sm:text-sm text-gray-600">
+                                  <span className="text-gray-500">Special event during your stay</span>
+                                  {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
+                                    <span className="ml-2">({enhancement.availableTimeStart} - {enhancement.availableTimeEnd})</span>
+                                  )}
+                                </div>
+                              )}
+                              {enhancement.availabilityType === 'SEASONAL' && (
+                                <div className="text-xs sm:text-sm text-gray-600">
+                                  <span className="text-gray-500">Seasonal offering available during your visit</span>
+                                </div>
+                              )}
+                              {enhancement.availabilityType === 'ALWAYS' && (
+                                <div className="text-xs sm:text-sm text-gray-600">
+                                  <span className="text-gray-500">Available throughout your stay</span>
+                                </div>
+                              )}
                             </div>
                         )}
                         
@@ -551,7 +578,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           <div className="lg:w-1/2 space-y-4 sm:space-y-6 order-1 lg:order-2">
             {/* Occupancy Section */}
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
-              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-center text-gray-800">Occupancy</h3>
+              <h3 className="rates-section-title mb-4 text-center">Occupancy</h3>
               
               <div className="space-y-4">
                 <div>
@@ -617,7 +644,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
             {/* Room Alternatives Section */}
             {showRoomAlternatives && alternativeRooms.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-amber-200">
-                <h3 className="text-lg sm:text-xl font-semibold mb-4 text-amber-800">Alternative Rooms Available</h3>
+                <h3 className="rates-section-title mb-4 text-amber-800">Alternative Rooms Available</h3>
                 <p className="text-sm text-amber-700 mb-4">
                   {extraBedConfig.useExtraBed 
                     ? `Your current room "${selectedRoom.name}" can accommodate ${adults} guests with extra beds. Here are other room options:`
@@ -664,7 +691,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                             </div>
                           </div>
                           <button
-                            onClick={() => handleSwitchToAlternativeRoom(room.id)}
+                            onClick={() => handleSwitchToAlternativeRoom(room.id) }
                             className="ml-4 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
                           >
                             Select Room
@@ -690,7 +717,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
  {/* Mobile Compact Enhancement Design */}
  {enhancements.length > 0 && (
             <div className="lg:hidden bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-4">
-              <h3 className="text-lg font-semibold mb-3 text-gray-800">Add-ons</h3>
+              <h3 className="rates-section-title mb-3">Add-ons</h3>
               <p className="text-sm text-gray-600 mb-4">Enhance your stay with these optional services</p>
               
               <div className="space-y-3">
@@ -740,13 +767,35 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                               <div className="bg-gray-50 rounded-md p-2 mb-2">
                                 <p className="text-xs text-gray-700">Available during your {nights} night stay</p>
                               </div>
-                              <div className="flex flex-wrap gap-1">
-                                {enhancement.availableDays.map((item: string, index: number) => (
-                                  <span key={index} className="text-xs text-gray-600 bg-gray-100 px-1 py-0.5 rounded">
-                                    {item}
-                                  </span>
-                                ))}   
-                              </div>
+                              {/* Show availability details based on type */}
+                              {enhancement.availabilityType === 'WEEKLY' && enhancement.availableDays && (
+                                <div className="flex flex-wrap gap-1">
+                                  {enhancement.availableDays.map((item: string, index: number) => (
+                                    <span key={index} className="text-xs text-gray-600 bg-gray-100 px-1 py-0.5 rounded">
+                                      {item}
+                                    </span>
+                                  ))}
+                                  {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
+                                    <span className="text-xs text-gray-500 ml-1">
+                                      {enhancement.availableTimeStart}-{enhancement.availableTimeEnd}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {enhancement.availabilityType === 'SPECIFIC_DATES' && (
+                                <p className="text-xs text-gray-600">
+                                  Special event
+                                  {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
+                                    <span className="ml-1">({enhancement.availableTimeStart}-{enhancement.availableTimeEnd})</span>
+                                  )}
+                                </p>
+                              )}
+                              {enhancement.availabilityType === 'SEASONAL' && (
+                                <p className="text-xs text-gray-600">Seasonal offering</p>
+                              )}
+                              {enhancement.availabilityType === 'ALWAYS' && (
+                                <p className="text-xs text-gray-600">Always available</p>
+                              )}
                             </div>
                           )}
                           
@@ -785,7 +834,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
            )}
             {/* All Rate Options */}
             <div className="space-y-4">
-              <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Available Rates</h3>
+              <h3 className="rates-section-title">Available Rates</h3>
             
             {rateOptions.map((rateOption: any) => {
               // Calculate price breakdown for all nights

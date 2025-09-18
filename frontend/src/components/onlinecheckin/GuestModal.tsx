@@ -135,7 +135,8 @@ export const GuestModal: React.FC<GuestModalProps> = ({
         relationshipType: '',
         saveAsRelation: true
       })
-      setEnterDetailsStep('personal')
+      setEnterDetailsStep('personal');
+      window.location.reload()
       
     } catch (error) {
       console.error('Error creating guest:', error)
@@ -188,6 +189,7 @@ export const GuestModal: React.FC<GuestModalProps> = ({
         saveAsRelation: true
       })
       
+      window.location.reload()
     } catch (error) {
       console.error('Error sending invitation:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to send invitation. Please try again.')
@@ -623,10 +625,9 @@ export const GuestModal: React.FC<GuestModalProps> = ({
         const errorData = await response.json()
         throw new Error(errorData.message || 'Failed to add guests')
       }
-
-      const data = await response.json()
       
-      // Notify parent of added guests
+      window.location.reload()
+      
       savedGuests.forEach(guest => {
         onGuestAdded({ 
           type: 'saved', 

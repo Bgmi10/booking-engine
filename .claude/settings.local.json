@@ -19,7 +19,10 @@
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "Bash(sed:*)",
-      "Read(/mnt/c/Users/Administrator/Downloads/**)"
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "Read(/mnt/c/Users/Administrator/Downloads/**)",
+      "WebFetch(domain:www.latorre.farm)"
     ],
     "deny": []
   }

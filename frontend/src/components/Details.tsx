@@ -407,7 +407,8 @@ const validateForm = () => {
             // Calculate current charge amount for split payments
             const currentChargeAmount = allItems.reduce((sum, item) => {
                 const itemTotal = calculateItemTotal(item);
-                return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                const prepayPercentage = item.selectedRateOption?.prepayPercentage || 30;
+                return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * (prepayPercentage / 100) : itemTotal);
             }, 0);
             
             const bookingPayload = {
@@ -473,14 +474,10 @@ const validateForm = () => {
     return (
         <div className="max-w-4xl mx-auto p-3 sm:p-6 min-h-screen">
             <div className="text-center mb-6 sm:mb-8">
-                <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Contact Details</h1>
+                <h1 className="details-title">Contact Details</h1>
             </div>
 
             <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 sm:p-6 text-center">
-                    <span className="text-base sm:text-lg font-semibold text-gray-800">Your details</span>
-                </div>
-                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 sm:p-6">
                     <div className="text-left lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
@@ -672,7 +669,7 @@ const validateForm = () => {
             <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
                 <div className="p-4 sm:p-6">
                     <div className="flex items-center gap-2 mb-4">
-                        <h3 className="text-base sm:text-lg font-semibold text-gray-800">Promotional Code</h3>
+                        <h3 className="details-section-title">Promotional Code</h3>
                         <Sparkles className="w-5 h-5 text-yellow-500" />
                     </div>
                     
@@ -774,14 +771,15 @@ const validateForm = () => {
             {allItems.length > 0 && (
                 <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
                     <div className="p-4 sm:p-6">
-                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Booking Summary</h3>
+                        <h3 className="details-section-title mb-4">Booking Summary</h3>
                         
                         {allItems.map((item, index) => {
                             const nights = calculateNights(item.checkIn, item.checkOut);
                             const roomBasePrice = calculateItemBasePrice(item);
                             const enhancementsPrice = calculateItemEnhancementsPrice(item);
-                            const itemTotal = roomBasePrice + enhancementsPrice;
+                            const itemTotal = roomBasePrice + enhancementsPrice;    
                             const rooms = item.rooms || 1;
+                            console.log(item)
                             
                             return (
                                 <div key={item.id || index} className="mb-6 pb-4 border-b border-gray-100 last:border-b-0">
@@ -817,12 +815,12 @@ const validateForm = () => {
                                                 <h5 className="text-sm font-semibold text-blue-800 mb-2">Payment Structure</h5>
                                                 <div className="space-y-1 text-sm">
                                                     <div className="flex justify-between text-blue-700">
-                                                        <span>• Current charge (30%):</span>
-                                                        <span className="font-medium">€{(itemTotal * 0.3).toFixed(2)}</span>
+                                                        <span>• Current charge ({item.selectedRateOption.prepayPercentage}%):</span>
+                                                        <span className="font-medium">€{(itemTotal * (item.selectedRateOption.prepayPercentage / 100)).toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex justify-between text-blue-600">
-                                                        <span>• Remaining balance (70%):</span>
-                                                        <span>€{(itemTotal * 0.7).toFixed(2)}</span>
+                                                        <span>• Remaining balance ({100 - item.selectedRateOption.prepayPercentage}%):</span>
+                                                        <span>€{(itemTotal * (1 - item.selectedRateOption.prepayPercentage / 100)).toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                                 {item.selectedRateOption?.fullPaymentDays && (
@@ -890,7 +888,8 @@ const validateForm = () => {
                                     <span className="text-lg font-semibold text-blue-800">
                                         €{allItems.reduce((sum, item) => {
                                             const itemTotal = calculateItemTotal(item);
-                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                                            const prepayPercentage = item.selectedRateOption?.prepayPercentage || 30;
+                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * (prepayPercentage / 100) : itemTotal);
                                         }, 0).toFixed(2)}
                                     </span>
                                 </div>
@@ -970,7 +969,8 @@ const validateForm = () => {
                                     allItems.some(item => item.selectedPaymentStructure === 'SPLIT_PAYMENT') 
                                         ? `Pay Now - €${allItems.reduce((sum, item) => {
                                             const itemTotal = calculateItemTotal(item);
-                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * 0.3 : itemTotal);
+                                            const prepayPercentage = item.selectedRateOption?.prepayPercentage || 30;
+                                            return sum + (item.selectedPaymentStructure === 'SPLIT_PAYMENT' ? itemTotal * (prepayPercentage / 100) : itemTotal);
                                         }, 0).toFixed(2)}`
                                         : 'Confirm & pay now'
                                 )}

@@ -4650,6 +4650,564 @@ async function main() {
         checkOutDate: { type: 'string', required: true, description: 'Formatted check-out date', example: 'Wednesday, January 17, 2024' },
         checkinUrl: { type: 'string', required: true, description: 'Secure URL for guest online check-in with token', example: 'https://latorre.farm/online-checkin/xyz789token123' }
       }
+    },
+    {
+      name: 'Thank You for Staying',
+      type: 'THANK_YOU',
+      subject: 'Thank you for staying at La Torre! 🙏',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Thank You - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+    
+          <!-- Thank You Hero -->
+          <div style="background: linear-gradient(135deg, ${emailStyles.accentColor} 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🙏</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Thank You!</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              We hope you enjoyed your stay at La Torre
+            </p>
+          </div>
+    
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                Thank you for choosing La Torre sulla via Francigena for your stay. It was our pleasure to host you, and we hope you had a wonderful experience.
+              </p>
+            </div>
+    
+            <!-- Stay Summary -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🏠 Your Stay Summary</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Room:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{roomName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-In:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkIn}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-Out:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkOut}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Duration:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{nights}} night{{#if (gt nights 1)}}s{{/if}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+    
+            <!-- Appreciation Message -->
+            <div style="background: #fef7ed; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.warningColor}; margin: 0 0 20px 0; font-size: 20px;">💖 We Appreciate You</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  Your stay with us helps support our mission to provide exceptional hospitality along the historic Via Francigena. We're grateful for your choice to stay with us.
+                </p>
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                  We would love to welcome you back again in the future. Until then, safe travels and warm regards from all of us at La Torre!
+                </p>
+              </div>
+            </div>
+            
+            <!-- Feedback Request -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.infoColor}; margin: 0 0 20px 0; font-size: 20px;">⭐ Share Your Experience</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  Your feedback helps us continue to improve our service. If you have a moment, we'd love to hear about your experience.
+                </p>
+                <ul style="color: ${emailStyles.infoColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Leave us a review on TripAdvisor or Google</li>
+                  <li>Share your experience on social media</li>
+                  <li>Send us your feedback directly</li>
+                </ul>
+              </div>
+            </div>
+            
+            <!-- Contact Information -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📞 Stay In Touch</h3>
+              <div style="background: white; padding: 20px; border-radius: 8px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                  We're always here if you need anything or want to plan your next visit:
+                </p>
+                <ul style="color: ${emailStyles.primaryColor}; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li><strong>Email:</strong> info@latorresullaviafrancigena.com</li>
+                  <li><strong>Phone:</strong> +39 0577 123456</li>
+                  <li><strong>Website:</strong> www.latorresullaviafrancigena.com</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+    
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', required: true, description: 'Customer full name', example: 'John Doe' },
+        roomName: { type: 'string', required: true, description: 'Name of the room', example: 'Deluxe Suite' },
+        checkIn: { type: 'string', required: true, description: 'Check-in date', example: '2024-01-15' },
+        checkOut: { type: 'string', required: true, description: 'Check-out date', example: '2024-01-17' },
+        nights: { type: 'number', required: true, description: 'Number of nights', example: 2 }
+      }
+    },
+    {
+      id: 'POLICE_PORTAL_FAILURE',
+      name: 'POLICE_PORTAL_FAILURE',
+      type: 'POLICE_PORTAL_FAILURE',
+      subject: '⚠️ Police Portal Reporting Failure - Immediate Action Required',
+      html: `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6;">
+        <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; margin-top: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%); padding: 40px 30px; text-align: center;">
+            <h1 style="color: white; font-size: 32px; margin: 0; font-weight: 700; letter-spacing: -0.5px;">
+              La Torre Hotel
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.9); font-size: 14px; margin-top: 8px;">
+              Police Portal Alert System
+            </p>
+          </div>
+    
+          <div style="padding: 40px 30px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <div style="background-color: #FEE2E2; width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 40px;">⚠️</span>
+              </div>
+              <h1 style="color: #DC2626; font-size: 28px; margin: 0 0 10px 0; font-weight: 700;">
+                Police Portal Reporting Failed
+              </h1>
+              <p style="color: #7F1D1D; font-size: 16px; margin: 0;">
+                Automatic reporting to Italian Police Portal encountered errors
+              </p>
+            </div>
+    
+            <div style="background-color: #FEF2F2; border-left: 4px solid #DC2626; padding: 20px; margin: 30px 0; border-radius: 8px;">
+              <h2 style="color: #991B1B; font-size: 18px; margin: 0 0 15px 0;">
+                Summary
+              </h2>
+              <div style="color: #7F1D1D; line-height: 1.8;">
+                <p style="margin: 5px 0;"><strong>Date:</strong> {{reportDate}}</p>
+                <p style="margin: 5px 0;"><strong>Total Bookings:</strong> {{totalBookings}}</p>
+                <p style="margin: 5px 0;"><strong>Successful:</strong> <span style="color: #059669;">{{successfulReports}}</span></p>
+                <p style="margin: 5px 0;"><strong>Failed:</strong> <span style="color: #DC2626;">{{failedReports}}</span></p>
+              </div>
+            </div>
+    
+            {{#if failedBookings}}
+            <div style="background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 20px; margin: 30px 0;">
+              <h3 style="color: #991B1B; font-size: 18px; margin: 0 0 15px 0;">
+                Failed Bookings Details
+              </h3>
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                      <th style="padding: 12px; text-align: left; color: #374151; font-weight: 600;">Booking ID</th>
+                      <th style="padding: 12px; text-align: left; color: #374151; font-weight: 600;">Room</th>
+                      <th style="padding: 12px; text-align: left; color: #374151; font-weight: 600;">Guest</th>
+                      <th style="padding: 12px; text-align: left; color: #374151; font-weight: 600;">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {{#each failedBookings}}
+                    <tr style="border-bottom: 1px solid #E5E7EB;">
+                      <td style="padding: 12px; color: #6B7280; font-size: 14px;">{{this.bookingId}}</td>
+                      <td style="padding: 12px; color: #6B7280; font-size: 14px;">{{this.roomName}}</td>
+                      <td style="padding: 12px; color: #6B7280; font-size: 14px;">{{this.guestName}}</td>
+                      <td style="padding: 12px; color: #DC2626; font-size: 14px;">{{this.error}}</td>
+                    </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {{/if}}
+    
+            <div style="background-color: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px; padding: 20px; margin: 30px 0;">
+              <h3 style="color: #EA580C; font-size: 16px; margin: 0 0 10px 0;">
+                ⚡ Required Actions
+              </h3>
+              <ol style="color: #9A3412; margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                <li>Review the failed bookings in the admin panel</li>
+                <li>Ensure all guest data is complete (passport/ID, nationality, etc.)</li>
+                <li>Manually retry the police portal submission</li>
+                <li>Contact support if the issue persists</li>
+              </ol>
+            </div>
+    
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="https://bookings.latorre.farm/admin?sidebar=bookings" 
+                 style="display: inline-block; background-color: #DC2626; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                Review Failed Bookings
+              </a>
+            </div>
+    
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+              <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0;">
+                This is an automated alert from the La Torre booking system. Police portal reporting is mandatory for all checked-in guests within 24 hours of arrival.
+              </p>
+            </div>
+          </div>
+    
+          <!-- Footer -->
+          <div style="background-color: #1f2937; padding: 30px; text-align: center;">
+            <p style="color: #9ca3af; font-size: 14px; margin: 0;">
+              © 2024 La Torre Hotel. All rights reserved.
+            </p>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 10px;">
+              Via della Torre, 12345 Siena, Italy | +39 0577 123456
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        reportDate: { type: 'string', required: true, description: 'Date of the report', example: '2024-01-15' },
+        totalBookings: { type: 'number', required: true, description: 'Total bookings processed', example: 5 },
+        successfulReports: { type: 'number', required: true, description: 'Number of successful reports', example: 3 },
+        failedReports: { type: 'number', required: true, description: 'Number of failed reports', example: 2 },
+        failedBookings: { 
+          type: 'array', 
+          required: false, 
+          description: 'Array of failed booking details',
+          example: [
+            {
+              bookingId: '1ec6b9cc-28f2-4982-81c2-0f68cdd8923e',
+              roomName: 'Deluxe Suite',
+              guestName: 'John Doe',
+              error: 'Missing passport number'
+            }
+          ]
+        }
+      }
+    },
+    {
+      name: 'Enhancement Invitation',
+      type: 'ENHANCEMENT_INVITATION',
+      subject: 'Enhance Your Stay at La Torre - Special Offers Inside',
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Enhancement Invitation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Enhancement Hero -->
+          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">✨</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">Enhance Your Experience</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              Special offers available for your upcoming stay
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{customerName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0; font-size: 16px; line-height: 1.7;">
+                {{#if isMainGuest}}
+                Your stay at La Torre sulla via Francigena is just around the corner! We have some exclusive enhancements available to make your experience even more memorable.
+                {{else}}
+                You're part of an upcoming stay at La Torre sulla via Francigena! The main guest has invited you to add special enhancements to your experience.
+                {{/if}}
+              </p>
+            </div>
+
+            <!-- Booking Details -->
+            <div style="background: ${emailStyles.backgroundColor}; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">📅 Your Stay Details</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <div style="display: grid; gap: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Booking Reference:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-family: monospace; background: ${emailStyles.backgroundColor}; padding: 6px 12px; border-radius: 6px;">{{bookingReference}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Room:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{roomName}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-in:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkInDate}}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Check-out:</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{checkOutDate}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Available Enhancements Preview -->
+            <div style="background: #f3f4f6; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 20px;">🎁 Available Enhancements</h3>
+              <div style="background: white; border-radius: 8px; padding: 20px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 15px; line-height: 1.7;">
+                  We have carefully selected special services and amenities to enhance your stay:
+                </p>
+                {{{enhancementsPreview}}}
+              </div>
+            </div>
+
+            {{#if isMainGuest}}
+            <!-- Main Guest Portal Access -->
+            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 24px; margin-bottom: 32px; border-left: 4px solid #f59e0b;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><path d="M12 2v10l3-3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                Manage Your Group's Enhancements
+              </h3>
+              <div style="background: white; padding: 16px; border-radius: 8px;">
+                <p style="color: #92400e; margin: 0 0 16px 0; font-size: 15px; line-height: 1.7;">
+                  As the main guest, you can manage enhancements for your entire group. View available options and add them for yourself and your guests.
+                </p>
+                <div style="text-align: center; margin-top: 24px;">
+                  <a href="{{portalUrl}}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
+                    Manage Enhancements
+                  </a>
+                </div>
+                <p style="color: #a16207; margin: 16px 0 0 0; font-size: 13px; text-align: center;">
+                  This secure link is unique to you and expires on {{expirationDate}}
+                </p>
+              </div>
+            </div>
+            {{else}}
+            <!-- Regular Guest Enhancement Options -->
+            <div style="background: #f0f9ff; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #075985; margin: 0 0 20px 0; font-size: 20px;">🎯 Quick Selection</h3>
+              <div style="background: white; border-radius: 8px; padding: 24px;">
+                <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 24px 0; font-size: 15px; line-height: 1.7;">
+                  Would you like to add any enhancements to your stay? Choose an option below:
+                </p>
+                
+                <!-- Enhancement Selection Buttons -->
+                <div style="text-align: center;">
+                  <a href="{{acceptUrl}}" style="display: inline-block; background: ${emailStyles.successColor}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 0 8px 16px 8px;">
+                    ✅ Yes, Add Enhancements
+                  </a>
+                  <a href="{{declineUrl}}" style="display: inline-block; background: #e5e7eb; color: #6b7280; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 0 8px 16px 8px;">
+                    No Thanks
+                  </a>
+                </div>
+                
+                <p style="color: #9ca3af; margin: 16px 0 0 0; font-size: 13px; text-align: center; font-style: italic;">
+                  Note: This is a one-time decision. Once confirmed, changes can only be made by contacting our staff.
+                </p>
+              </div>
+            </div>
+            {{/if}}
+
+            <!-- Important Notes -->
+            <div style="background: #fff7ed; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #9a3412; margin: 0 0 16px 0; font-size: 18px;">📌 Important Information</h3>
+              <ul style="color: #9a3412; margin: 0; padding-left: 20px; line-height: 1.8; font-size: 14px;">
+                <li>Enhancements are subject to availability</li>
+                <li>Prices shown include all applicable taxes</li>
+                <li>{{#if isMainGuest}}You can manage enhancements for all guests in your group{{else}}Once you make your selection, it cannot be changed online{{/if}}</li>
+                <li>Payment will be processed with your stay charges</li>
+                <li>For assistance, contact our reception team</li>
+              </ul>
+            </div>
+
+            <!-- Contact Support -->
+            <div style="text-align: center; padding: 24px; background: ${emailStyles.backgroundColor}; border-radius: 12px;">
+              <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 12px 0; font-size: 18px;">Need Help?</h4>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 14px;">
+                Our team is here to assist you with any questions
+              </p>
+              <div style="font-size: 14px; color: ${emailStyles.secondaryColor};">
+                📧 info@latorresullaviafrancigena.com<br>
+                📞 +39 123 456 7890
+              </div>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        customerName: { type: 'string', description: 'Customer full name', example: 'John Doe' },
+        isMainGuest: { type: 'boolean', description: 'Whether this is the main guest', example: true },
+        bookingReference: { type: 'string', description: 'Booking reference ID', example: 'BK-123456' },
+        roomName: { type: 'string', description: 'Room name', example: 'Deluxe Suite' },
+        checkInDate: { type: 'string', description: 'Check-in date', example: 'March 15, 2024' },
+        checkOutDate: { type: 'string', description: 'Check-out date', example: 'March 20, 2024' },
+        enhancementsPreview: { type: 'string', description: 'HTML preview of available enhancements', example: '<ul><li>Spa Package</li></ul>' },
+        portalUrl: { type: 'string', description: 'Main guest portal URL with token', example: 'https://domain.com/enhancements/token123' },
+        acceptUrl: { type: 'string', description: 'URL to accept enhancements (regular guests)', example: 'https://domain.com/accept/token456' },
+        declineUrl: { type: 'string', description: 'URL to decline enhancements (regular guests)', example: 'https://domain.com/decline/token789' },
+        expirationDate: { type: 'string', description: 'Token expiration date', example: 'March 14, 2024' },
+        // Event-specific variables (optional - used when template is for events)
+        eventName: { type: 'string', description: 'Event name (for event invitations)', example: 'Wine Tasting Evening' },
+        eventDescription: { type: 'string', description: 'Event description', example: 'Join us for an exclusive wine tasting' },
+        eventDate: { type: 'string', description: 'Event date', example: 'Saturday, March 15, 2024' },
+        eventTime: { type: 'string', description: 'Event time', example: '7:00 PM - 10:00 PM' },
+        eventLocation: { type: 'string', description: 'Event location', example: 'Garden Terrace' },
+        eventPrice: { type: 'number', description: 'Event price per person', example: 45 },
+        isEventInvitation: { type: 'boolean', description: 'Whether this is an event invitation', example: true }
+      }
+    },
+    {
+      name: 'Guest Added Confirmation',
+      type: 'GUEST_ADDED_CONFIRMATION',
+      subject: "You've been added to {{eventName}} at La Torre",
+      html: `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Event Invitation - La Torre</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: ${emailStyles.fontFamily}; background-color: #f1f5f9;">
+        <div style="max-width: 700px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <!-- Logo -->
+          <div style="text-align: center; padding: 32px;">
+            <img src="https://booking-engine-seven.vercel.app/assets/logo.png" alt="La Torre Logo" style="width: 70px; margin-bottom: 24px;" />
+          </div>
+
+          <!-- Event Hero -->
+          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-align: center; padding: 32px; margin-bottom: 32px;">
+            <div style="font-size: 44px; margin-bottom: 16px;">🎉</div>
+            <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">You're Invited!</h2>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">
+              You've been added to an exclusive event
+            </p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding: 0 32px 32px;">
+            <!-- Personal Greeting -->
+            <div style="margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; font-size: 24px; margin: 0 0 12px 0;">Dear {{guestName}},</h3>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 20px 0; font-size: 15px; line-height: 1.7;">
+                Great news! <strong>{{mainGuestName}}</strong> has added you as a guest to an upcoming event at La Torre sulla via Francigena.
+              </p>
+            </div>
+
+            <!-- Event Details Card -->
+            <div style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%); border-radius: 16px; padding: 28px; margin-bottom: 32px;">
+              <h3 style="color: ${emailStyles.primaryColor}; margin: 0 0 20px 0; font-size: 22px; font-weight: 600;">📅 Event Details</h3>
+              
+              <div style="background: white; border-radius: 12px; padding: 24px;">
+                <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 16px 0; font-size: 20px;">{{eventName}}</h4>
+                
+                <div style="margin-bottom: 16px;">
+                  <div style="display: inline-block; margin-right: 32px;">
+                    <span style="color: ${emailStyles.secondaryColor}; font-size: 13px; display: block; margin-bottom: 4px;">Date</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-size: 15px; font-weight: 600;">📅 {{eventDate}}</span>
+                  </div>
+                  <div style="display: inline-block;">
+                    <span style="color: ${emailStyles.secondaryColor}; font-size: 13px; display: block; margin-bottom: 4px;">Time</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-size: 15px; font-weight: 600;">🕐 {{eventTime}}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <span style="color: ${emailStyles.secondaryColor}; font-size: 13px; display: block; margin-bottom: 4px;">Location</span>
+                  <span style="color: ${emailStyles.primaryColor}; font-size: 15px; font-weight: 600;">📍 {{location}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confirmation Notice -->
+            <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+              <div style="display: flex; align-items: center;">
+                <div style="font-size: 24px; margin-right: 12px;">✅</div>
+                <div>
+                  <h4 style="color: #16a34a; margin: 0 0 4px 0; font-size: 16px;">Your Attendance is Confirmed</h4>
+                  <p style="color: #15803d; margin: 0; font-size: 14px;">
+                    {{mainGuestName}} has confirmed your attendance for this event. No further action is required.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Important Information -->
+            <div style="background: #fef3c7; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+              <h3 style="color: #92400e; margin: 0 0 16px 0; font-size: 18px;">📋 What You Need to Know</h3>
+              <ul style="color: #92400e; margin: 0; padding-left: 20px; line-height: 1.8; font-size: 14px;">
+                <li>Your spot has been reserved by {{mainGuestName}}</li>
+                <li>Event details and any updates will be communicated via email</li>
+                <li>If you cannot attend, please contact the hotel reception immediately</li>
+                <li>Any special dietary requirements should be communicated in advance</li>
+              </ul>
+            </div>
+
+            <!-- Contact Information -->
+            <div style="text-align: center; padding: 24px; background: ${emailStyles.backgroundColor}; border-radius: 12px;">
+              <h4 style="color: ${emailStyles.primaryColor}; margin: 0 0 12px 0; font-size: 18px;">Need to Make Changes?</h4>
+              <p style="color: ${emailStyles.secondaryColor}; margin: 0 0 16px 0; font-size: 14px;">
+                To modify or cancel your attendance, please contact us directly:
+              </p>
+              <div style="font-size: 14px; color: ${emailStyles.secondaryColor};">
+                📧 {{hotelEmail}}<br>
+                📞 {{hotelPhone}}
+              </div>
+              <p style="color: #9ca3af; margin: 16px 0 0 0; font-size: 12px; font-style: italic;">
+                Note: Changes cannot be made online once you've been added by the main guest.
+              </p>
+            </div>
+          </div>
+
+          ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        guestName: { type: 'string', description: 'Guest full name', example: 'Jane Smith' },
+        eventName: { type: 'string', description: 'Event name', example: 'Wine Tasting Evening' },
+        eventDate: { type: 'string', description: 'Event date', example: 'Saturday, March 15, 2024' },
+        eventTime: { type: 'string', description: 'Event time', example: '7:00 PM' },
+        location: { type: 'string', description: 'Event location', example: 'La Torre sulla via Francigena' },
+        mainGuestName: { type: 'string', description: 'Name of main guest who added this person', example: 'John Doe' },
+        hotelPhone: { type: 'string', description: 'Hotel contact phone', example: '+39 123 456 7890' },
+        hotelEmail: { type: 'string', description: 'Hotel contact email', example: 'info@latorresullaviafrancigena.com' }
+      }
     }
   ]
 
@@ -4659,6 +5217,7 @@ async function main() {
         id: template.type, // Use type as the ID since it's unique
       },
       update: template,
+      //@ts-ignore
       create: template
     });
   }

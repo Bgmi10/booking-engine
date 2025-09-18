@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { User, Mail, MapPin, Calendar, Plus, Trash2 } from "lucide-react"
+import { User, Mail, MapPin, Calendar, Trash2 } from "lucide-react"
 import { baseUrl } from "../../utils/constants"
 import toast from 'react-hot-toast'
 
@@ -28,12 +28,11 @@ interface SavedGuestsProps {
 
 export const SavedGuests: React.FC<SavedGuestsProps> = ({
   onGuestSelected,
-  onClose
 }) => {
   const [savedGuests, setSavedGuests] = useState<SavedGuest[]>([])
   const [selectedGuests, setSelectedGuests] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [isAddingGuests, setIsAddingGuests] = useState(false)
+  // const [isAddingGuests, setIsAddingGuests] = useState(false)
 
   useEffect(() => {
     fetchSavedGuests()
@@ -221,7 +220,7 @@ export const SavedGuests: React.FC<SavedGuestsProps> = ({
         ))}
       </div>
 
-      {selectedGuests.size > 0 && (
+      {/* {selectedGuests.size > 0 && (
         <div className="flex items-center justify-between pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600">
             {selectedGuests.size} guest{selectedGuests.size !== 1 ? 's' : ''} selected
@@ -244,7 +243,7 @@ export const SavedGuests: React.FC<SavedGuestsProps> = ({
             )}
           </button>
         </div>
-      )}
+      )} */}
     </div>
   )
 }
