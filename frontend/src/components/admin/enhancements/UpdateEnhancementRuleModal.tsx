@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-
 import { useState, useEffect } from "react"
 import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
@@ -37,7 +34,6 @@ export default function UpdateEnhancementRuleModal({
   const [specificDates, setSpecificDates] = useState<string[]>(
     rule.specificDates?.map(date => new Date(date).toISOString().split('T')[0]) || []
   )
-  const [seasonal, setSeasonal] = useState(rule.seasonal || false)
   const [seasonStart, setSeasonStart] = useState<Date | null>(
     rule.seasonStart ? new Date(rule.seasonStart) : null
   )
@@ -61,7 +57,6 @@ export default function UpdateEnhancementRuleModal({
   const { 
     enhancements, 
     loading: loadingEnhancements, 
-    error: enhancementsError 
   } = useEnhancements({ enabled: isOpen })
   
   const { 
@@ -92,7 +87,6 @@ export default function UpdateEnhancementRuleModal({
       setSpecificDates(
         rule.specificDates?.map(date => new Date(date).toISOString().split('T')[0]) || []
       )
-      setSeasonal(rule.seasonal || false)
       setSeasonStart(
         rule.seasonStart ? new Date(rule.seasonStart) : null
       )
@@ -186,7 +180,9 @@ export default function UpdateEnhancementRuleModal({
 
       if (availabilityType === "SEASONAL") {
         requestBody.seasonal = true
+        //@ts-ignore
         requestBody.seasonStart = seasonStart.toISOString()
+        //@ts-ignore
         requestBody.seasonEnd = seasonEnd.toISOString()
       }
 

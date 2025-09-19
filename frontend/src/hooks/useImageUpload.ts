@@ -12,7 +12,7 @@ interface UseImageUploadReturn {
   handleDragOver: (e: React.DragEvent<HTMLDivElement>) => void
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void
   resetImages: () => void
-  setInitialImages: (urls: string[]) => void
+  setInitialImages: (urls: string[] | ((prev: string[]) => string[])) => void
 }
 
 export const useImageUpload = (): UseImageUploadReturn => {
@@ -142,9 +142,13 @@ export const useImageUpload = (): UseImageUploadReturn => {
     setImages([])
   }, [])
 
-  const setInitialImages = useCallback((urls: string[]) => {
-    setImages(urls)
-  }, [])
+  const setInitialImages = useCallback(
+    (urls: string[] | ((prev: string[]) => string[])) => {
+      setImages(urls)
+    },
+    []
+  )
+  
 
   return {
     images,

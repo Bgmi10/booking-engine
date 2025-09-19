@@ -30,8 +30,8 @@ export default function BookingGroupCreateModal({ onClose, onSuccess }: BookingG
     if (!searchTerm) return true;
     const customer = pi.customer || pi.customerData;
     return (
-      customer?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer?.guestFirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer?.guestLastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer?.guestFirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer?.guestLastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||

@@ -63,7 +63,7 @@ export default function DeleteConfirmationModal({
           <p className="text-gray-600 text-sm mb-4">
             You are about to delete booking for{' '}
             <span className="font-medium">
-              {paymentIntent.customerData.firstName} {paymentIntent.customerData.lastName}
+              {paymentIntent.customerData.guestFirstName} {paymentIntent.customerData.guestLastName}
             </span>
           </p>
 

@@ -5,13 +5,14 @@ import { OutstandingAmount } from "./OutstandingAmount"
 import { EnhancementsSection } from "./EnhancementsSection"
 import Header from "../Header"
 import Loader from "../Loader"
+import type { Booking } from "../../types/types"
 
 export const OnlineCheckIn = () => {
     const { customer, loader } = useOnlineCheckIn();
     
     // Get primary booking for enhancement calculations
     const bookings = customer?.bookings || [];
-    const primaryBooking = bookings.find(b => b.id === customer?.primaryBookingId) || bookings[0];
+    const primaryBooking = bookings.find((b: Booking) => b.id === customer?.primaryBookingId) || bookings[0];
     
     // Use enhancement hook at parent level
     const enhancementState = useOnlineCheckInEnhancements(
@@ -96,7 +97,7 @@ export const OnlineCheckIn = () => {
                                         <p className="text-sm font-medium text-gray-900">Your Reservation</p>
                                         <p className="text-xs text-gray-600">
                                             {bookings.length} Room{bookings.length > 1 ? 's' : ''} • {' '}
-                                            {bookings.reduce((total, booking) => total + booking.totalGuests, 0)} Guest{bookings.reduce((total, booking) => total + booking.totalGuests, 0) > 1 ? 's' : ''}
+                                            {bookings.reduce((total: any, booking: any) => total + booking.totalGuests, 0)} Guest{bookings.reduce((total: any, booking: any) => total + booking.totalGuests, 0) > 1 ? 's' : ''}
                                         </p>
                                     </div>
                                     <div className="text-right">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RiSave3Line, RiErrorWarningLine, RiCheckLine, RiSettings3Line, RiUploadLine, RiDeleteBinLine } from 'react-icons/ri';
+import { RiSave3Line, RiSettings3Line, RiUploadLine, RiDeleteBinLine } from 'react-icons/ri';
 import { BiLoader } from 'react-icons/bi';
 import { baseUrl, paymentMethods } from '../../../utils/constants';
 import { Template as TemplateComponent } from './templates/Template';

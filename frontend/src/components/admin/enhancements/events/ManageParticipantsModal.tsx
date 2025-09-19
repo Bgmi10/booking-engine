@@ -67,7 +67,7 @@ export default function ManageParticipantsModal({
   useEffect(() => {
     if (isOpen && event) {
       // Set default enhancement if available
-      if (event.eventEnhancements?.length > 0) {
+      if (event.eventEnhancements && event.eventEnhancements?.length > 0) {
         setSelectedEnhancement(event.eventEnhancements[0].enhancementId);
       }
       // Load all bookings with their guests
@@ -107,7 +107,7 @@ export default function ManageParticipantsModal({
     setShowReasonModal(true);
   };
 
-  const handleRemoveClick = (participantId: string, customerId: string) => {
+  const handleRemoveClick = (participantId: string | undefined, customerId: string) => {
     setActionType('remove');
     setSelectedGuestData({ bookingId: '', customerId, participantId });
     setReason('');
@@ -286,7 +286,7 @@ export default function ManageParticipantsModal({
                     </div>
 
                     {/* Guests List */}
-                    <div className="divide-y divide-gray-200">{booking.guests.map((guest) => (
+                    <div className="divide-y divide-gray-200">{booking.guests.map((guest: BookingGuest) => (
                       <div key={guest.customerId} className="px-4 py-3 hover:bg-gray-50">
                         <div className="flex justify-between items-center">
                           <div className="flex-1">

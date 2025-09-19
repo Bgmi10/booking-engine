@@ -360,10 +360,10 @@ export const ManageGuests: React.FC = () => {
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Other Upcoming Stays</h2>
                                 <div className="space-y-3">
-                                    {otherBookings.map((booking) => {
+                                    {otherBookings.map((booking: any) => {
                                         const isExpanded = expandedBookings.has(booking.id)
                                         const allGuests = booking.guests || []
-                                        const bookingGuests = allGuests.filter(guest => 
+                                        const bookingGuests = allGuests.filter((guest: any) => 
                                             guest.guestType !== 'MAIN_GUEST' && !guest.isMainGuest
                                         )
                                         

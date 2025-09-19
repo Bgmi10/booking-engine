@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogIn, Send } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../../utils/constants';
 
@@ -173,7 +173,7 @@ export default function ManualCheckInButton({
 }
 
 // Export a convenience hook for checking if send check-in email should be available
-export const useCheckInAvailability = (status: string, checkInDate?: string) => {
+export const useCheckInAvailability = (status: string, checkInDate?: string | null) => {
   // Only show send check-in for confirmed bookings (no date restriction for email sending)
   const isConfirmed = status === 'CONFIRMED' || status === 'SUCCEEDED';
   

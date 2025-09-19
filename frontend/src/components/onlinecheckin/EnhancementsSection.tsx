@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Star, Plus, Minus, ChevronDown, ChevronUp, ShoppingBag, Euro } from 'lucide-react';
+import { Star, Plus, Minus, ShoppingBag, Euro } from 'lucide-react';
 import type { Enhancement } from '../../types/types';
 
 interface EnhancementsSectionProps {
@@ -20,7 +19,6 @@ export const EnhancementsSection = ({
     totalGuests,
     enhancementState
 }: EnhancementsSectionProps) => {
-    const [expandedEnhancement, setExpandedEnhancement] = useState<string | null>(null);
     
     const {
         enhancements,
@@ -96,7 +94,6 @@ export const EnhancementsSection = ({
                 <div className="space-y-4">
                     {enhancements.map((enhancement) => {
                         const isSelected = selectedEnhancements.some(e => e.id === enhancement.id);
-                        const isExpanded = expandedEnhancement === enhancement.id;
                         const enhancementPrice = getEnhancementPrice(enhancement);
                         
                         return (
@@ -115,7 +112,7 @@ export const EnhancementsSection = ({
                                             <div className="flex-shrink-0">
                                                 <img 
                                                     src={enhancement.image} 
-                                                    alt={enhancement.title}
+                                                    alt={enhancement.name}
                                                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover"
                                                 />
                                             </div>
@@ -126,7 +123,7 @@ export const EnhancementsSection = ({
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="flex-1">
                                                     <h4 className="font-semibold text-gray-900 mb-1">
-                                                        {enhancement.title}
+                                                        {enhancement.name}
                                                     </h4>
                                                     <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                                                         {enhancement.description}
@@ -146,25 +143,6 @@ export const EnhancementsSection = ({
                                                             </span>
                                                         )}
                                                     </div>
-
-                                                    {/* Available Days Preview */}
-                                                    {enhancement.availableDays && enhancement.availableDays.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mb-2">
-                                                            {enhancement.availableDays.slice(0, 3).map((day, index) => (
-                                                                <span 
-                                                                    key={index}
-                                                                    className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
-                                                                >
-                                                                    {day}
-                                                                </span>
-                                                            ))}
-                                                            {enhancement.availableDays.length > 3 && (
-                                                                <span className="text-xs text-gray-500">
-                                                                    +{enhancement.availableDays.length - 3} more
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 
                                                 {/* Action Button */}
@@ -189,62 +167,9 @@ export const EnhancementsSection = ({
                                                 </div>
                                             </div>
 
-                                            {/* Expandable Details */}
-                                            <button
-                                                onClick={() => setExpandedEnhancement(isExpanded ? null : enhancement.id)}
-                                                className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 mt-2"
-                                            >
-                                                {isExpanded ? (
-                                                    <>
-                                                        <span>Show less</span>
-                                                        <ChevronUp className="h-4 w-4" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span>Show details</span>
-                                                        <ChevronDown className="h-4 w-4" />
-                                                    </>
-                                                )}
-                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Expanded Details */}
-                                    {isExpanded && (
-                                        <div className="mt-4 pt-4 border-t border-gray-200">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                                {enhancement.availableDays && enhancement.availableDays.length > 0 && (
-                                                    <div>
-                                                        <h5 className="font-medium text-gray-900 mb-2">Available Days</h5>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {enhancement.availableDays.map((day, index) => (
-                                                                <span 
-                                                                    key={index}
-                                                                    className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
-                                                                >
-                                                                    {day}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {enhancement.seasonal && (
-                                                    <div>
-                                                        <h5 className="font-medium text-gray-900 mb-2">Seasonal Availability</h5>
-                                                        <div className="text-gray-600">
-                                                            {enhancement.seasonStart && enhancement.seasonEnd && (
-                                                                <p>
-                                                                    {new Date(enhancement.seasonStart).toLocaleDateString()} - {' '}
-                                                                    {new Date(enhancement.seasonEnd).toLocaleDateString()}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         );
@@ -274,7 +199,7 @@ export const EnhancementsSection = ({
                                     return (
                                         <div key={enhancement.id} className="flex justify-between items-center text-sm">
                                             <div>
-                                                <span className="font-medium text-purple-900">{enhancement.title}</span>
+                                                <span className="font-medium text-purple-900">{enhancement.name}</span>
                                                 <span className="text-purple-700 ml-2">({getPricingTypeLabel(enhancement.pricingType)})</span>
                                             </div>
                                             <span className="font-semibold text-purple-900">

@@ -1116,6 +1116,7 @@ export default function BookingGroupModal({ group, onClose, onRefresh, onDelete 
             
             <div className="p-6">
               <PaymentIntentDetailView
+                onSendInvoice={() => {}}
                 paymentIntent={selectedPaymentIntent}
                 paymentDetails={null}
                 loadingPayment={false}

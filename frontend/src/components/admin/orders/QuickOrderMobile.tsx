@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { BsPlus, BsDash, BsX, BsCheckCircleFill, BsSearch, BsCart3, BsPerson, BsChevronUp } from 'react-icons/bs';
-import { FaCreditCard, FaMoneyBillWave } from 'react-icons/fa';
-import { MdTableRestaurant } from 'react-icons/md';
+import { BsPlus, BsDash, BsX, BsSearch, BsCart3, BsPerson } from 'react-icons/bs';
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../../utils/constants';
 import { useOrderCategories } from "../../../hooks/useOrderCategories";

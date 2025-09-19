@@ -271,6 +271,7 @@ export interface PaymentIntent {
   customerId?: string;
   adminNotes?: string
   refundStatus?: RefundStatus
+  refundAmount?: number
   bookingGroupId?: string;
   stripePaymentIntentId?: string
   stripeSessionId?: string
@@ -295,6 +296,7 @@ export interface PaymentIntent {
 export interface Booking {
   id: string
   roomId: string
+  paymentIntentId: string;
   checkIn: string
   checkOut: string
   guestEmail: string

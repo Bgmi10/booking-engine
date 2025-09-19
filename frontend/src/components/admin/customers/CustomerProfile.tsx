@@ -1,30 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, CreditCard, Car, Trash2, Plus, Link2, UserPlus } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, CreditCard, Car, Trash2, Link2 } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import toast from 'react-hot-toast';
+import type { Customer } from '../../../hooks/useCustomers';
 
-interface Customer {
-  id: string;
-  guestFirstName: string;
-  guestLastName: string;
-  guestMiddleName?: string;
-  guestEmail: string;
-  guestPhone?: string;
-  guestNationality?: string;
-  dob?: string;
-  city?: string;
-  passportNumber?: string;
-  passportExpiry?: string;
-  passportIssuedCountry?: string;
-  carNumberPlate?: string;
-  vipStatus?: boolean;
-  totalNightStayed?: number;
-  totalMoneySpent?: number;
-  adminNotes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface RelatedGuest {
   id: string;

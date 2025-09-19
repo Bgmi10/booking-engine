@@ -39,7 +39,7 @@ export const OnlineCheckInHome: React.FC = () => {
   const guestData = customer.customer
   const bookings = customer.bookings || []
   // Get the earliest check-in date for main display
-  const earliestBooking = bookings.length > 0 ? bookings.reduce((earliest, current) => {
+  const earliestBooking = bookings.length > 0 ? bookings.reduce((earliest: any, current: any) => {
     return new Date(current.checkIn) < new Date(earliest.checkIn) ? current : earliest
   }) : null
 
@@ -151,7 +151,7 @@ export const OnlineCheckInHome: React.FC = () => {
               
               {/* All bookings in a single flex container */}
               <div className="flex flex-wrap gap-4">
-                {bookings.map((booking) => (
+                {bookings.map((booking: any) => (
                   <div key={booking.id} className="bg-white rounded-2xl overflow-hidden shadow-sm w-[calc(50%-8px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)]">
                     {/* Room Image */}
                     <div className="h-40 bg-gray-200 flex items-center justify-center">
@@ -259,7 +259,7 @@ export const OnlineCheckInHome: React.FC = () => {
             <div className="p-6 border-t border-gray-200">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Policy Details</h3>
               
-              {bookings.map((booking) => {
+              {bookings.map((booking: any) => {
                 const ratePolicy = booking.room?.RoomRate?.[0]?.ratePolicy;
                 
                 if (!ratePolicy) {

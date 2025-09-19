@@ -191,7 +191,7 @@ const CustomPartialRefundModal: React.FC<CustomPartialRefundModalProps> = ({
               <div>
                 <span className="text-gray-600">Customer:</span>
                 <span className="ml-2 font-medium">
-                  {`${paymentIntent.customerData.firstName} ${paymentIntent.customerData.middleName || ''} ${paymentIntent.customerData.lastName}`.trim()}
+                  {`${paymentIntent.customerData.guestFirstName} ${paymentIntent.customerData.guestLastName}`.trim()}
                 </span>
               </div>
               <div>

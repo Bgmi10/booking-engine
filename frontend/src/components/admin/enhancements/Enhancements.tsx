@@ -4,7 +4,6 @@ import {
   RiRefreshLine, 
   RiSearchLine,
   RiDeleteBin6Line,
-  RiEyeLine,
   RiCheckLine,
   RiErrorWarningLine,
   RiEdit2Line,
@@ -14,7 +13,6 @@ import { BiLoader } from "react-icons/bi"
 import { baseUrl } from "../../../utils/constants"
 import { CreateEnhancementModal } from "./CreateEnhancementModal"
 import UpdateEnhancementModal from "./UpdateEnhancementModal"  
-import ViewEnhancementModal from "./ViewEnhancementModal"
 import CreateEnhancementRuleModal from "./CreateEnhancementRuleModal"
 import UpdateEnhancementRuleModal from "./UpdateEnhancementRuleModal"
 import Events from "./events/Events"
@@ -38,7 +36,6 @@ export default function Enhancements() {
   // Modal states
   const [isCreateEnhancementModalOpen, setIsCreateEnhancementModalOpen] = useState(false)
   const [isUpdateEnhancementModalOpen, setIsUpdateEnhancementModalOpen] = useState(false)
-  const [isViewEnhancementModalOpen, setIsViewEnhancementModalOpen] = useState(false)
   const [isDeleteEnhancementModalOpen, setIsDeleteEnhancementModalOpen] = useState(false)
   const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false)
   const [isUpdateRuleModalOpen, setIsUpdateRuleModalOpen] = useState(false)
@@ -550,16 +547,6 @@ export default function Enhancements() {
                           <button
                             onClick={() => {
                               setSelectedEnhancement(enhancement)
-                              setIsViewEnhancementModalOpen(true)
-                            }}
-                            className="text-indigo-600 hover:text-indigo-900"
-                            title="View"
-                          >
-                            <RiEyeLine className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedEnhancement(enhancement)
                               setIsUpdateEnhancementModalOpen(true)
                             }}
                             className="text-blue-600 hover:text-blue-900"
@@ -745,14 +732,6 @@ export default function Enhancements() {
             setIsUpdateEnhancementModalOpen(false)
             fetchEnhancements()
           }}
-          enhancement={selectedEnhancement}
-        />
-      )}
-
-      {isViewEnhancementModalOpen && selectedEnhancement && (
-        <ViewEnhancementModal
-          isOpen={isViewEnhancementModalOpen}
-          onClose={() => setIsViewEnhancementModalOpen(false)}
           enhancement={selectedEnhancement}
         />
       )}

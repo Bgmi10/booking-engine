@@ -12,7 +12,6 @@ import {
   Building2,
   Coins,
   RefreshCw,
-  Users,
 } from "lucide-react"
 import { getStatusColor, generateMergedBookingId } from "../../../utils/helper"
 import type { PaymentIntentCardProps } from "../../../types/types"
@@ -174,14 +173,14 @@ export default function PaymentIntentCard({
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={displayData.customerData.firstName}
+                    value={displayData.customerData.guestFirstName}
                     onChange={(e) => onUpdateEditFormData("customerData.firstName", e.target.value)}
                     className="px-2 py-1 border border-gray-300 rounded text-lg font-semibold"
                     placeholder="First Name"
                   />
                   <input
                     type="text"
-                    value={displayData.customerData.lastName}
+                    value={displayData.customerData.guestLastName}
                     onChange={(e) => onUpdateEditFormData("customerData.lastName", e.target.value)}
                     className="px-2 py-1 border border-gray-300 rounded text-lg font-semibold"
                     placeholder="Last Name"
@@ -190,7 +189,7 @@ export default function PaymentIntentCard({
               ) : (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {displayData.customerData.firstName} {displayData.customerData.lastName}
+                    {displayData.customerData.guestFirstName} {displayData.customerData.guestLastName}
                   </h3>
                   <p className="text-sm text-gray-600">
                     {paymentIntent.bookings.length > 0 

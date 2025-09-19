@@ -42,6 +42,8 @@ export default function Customer() {
     const [searchParams] = useSearchParams();
     const customerId = searchParams.get('customerid');
     const focus = searchParams.get('focus');
+
+    console.log(customerId)
     
     // If focus is relationships, show relationship management
     if (customerId && focus === 'relationships') {
@@ -57,7 +59,6 @@ export default function Customer() {
                             Back to Customers
                         </button>
                     </div>
-                    <CustomerRelationshipManager customerId={customerId} />
                 </div>
             </div>
         );

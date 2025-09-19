@@ -8,9 +8,7 @@ import {
   CheckCircle,
   XCircle,
   MapPin,
-  StickyNote,
-  CreditCard,
-  Info,
+  StickyNote
 } from "lucide-react";
 import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";

@@ -36,7 +36,7 @@ export default function RestoreConfirmationModal({
           <p className="text-gray-600 text-sm mb-4">
             Are you sure you want to restore this booking for{' '}
             <span className="font-medium">
-              {paymentIntent.customerData.firstName} {paymentIntent.customerData.lastName}
+              {paymentIntent.customerData.guestFirstName} {paymentIntent.customerData.guestLastName}
             </span>?
           </p>
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { format, startOfYear, endOfYear, differenceInYears } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { 
   TrendingUp, 
   Calendar, 
@@ -7,9 +7,6 @@ import {
   Users, 
   Heart,
   Award,
-  BarChart3,
-  PieChart,
-  Filter
 } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 

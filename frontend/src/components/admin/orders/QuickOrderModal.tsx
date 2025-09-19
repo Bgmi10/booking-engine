@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { BsPlus, BsDash, BsX, BsCheckCircleFill, BsSearch, BsCart3, BsPerson, BsPersonPlus } from 'react-icons/bs';
-import { FaUser, FaCreditCard, FaMoneyBillWave } from 'react-icons/fa';
-import { MdTableRestaurant, MdCategory, MdEdit } from 'react-icons/md';
+import { BsPlus, BsDash, BsX, BsCheckCircleFill, BsSearch, BsCart3, BsPerson } from 'react-icons/bs';
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../../utils/constants';
 import { useOrderCategories } from "../../../hooks/useOrderCategories";
@@ -28,7 +26,7 @@ interface CartItem extends OrderItemType {
 
 export default function QuickOrderModal({ onClose }: { onClose: () => void }) {
   // All hooks must be called before any conditional returns
-  const { categories: allCategories, loading: categoriesLoading } = useOrderCategories();
+  const { categories: allCategories } = useOrderCategories();
   
   // State management
   const [cart, setCart] = useState<CartItem[]>([]);

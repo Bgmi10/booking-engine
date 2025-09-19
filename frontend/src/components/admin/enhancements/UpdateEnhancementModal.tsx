@@ -40,8 +40,6 @@ export default function UpdateEnhancementModal({
     setInitialImages
   } = useImageUpload();
 
-  console.log(images)
-
   useEffect(() => {
     if (isOpen && enhancement) {
       setName(enhancement.name)
@@ -50,9 +48,10 @@ export default function UpdateEnhancementModal({
       setPricingType(enhancement.pricingType)
       setIsActive(enhancement.isActive)
       setTax(enhancement.tax || 0)
-      if (enhancement.image !== null){
-        setInitialImages((p: any) => ([...p, enhancement?.image]))
+      if (enhancement.image) {
+        setInitialImages(prev => [...prev, enhancement.image!])
       }
+
     }
   }, [isOpen, enhancement])
 

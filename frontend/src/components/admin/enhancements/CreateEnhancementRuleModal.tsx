@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { RiCloseLine, RiCheckLine, RiErrorWarningLine } from "react-icons/ri"
+import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
@@ -28,7 +28,6 @@ export default function CreateEnhancementRuleModal({
   const [availableTimeStart, setAvailableTimeStart] = useState("")
   const [availableTimeEnd, setAvailableTimeEnd] = useState("")
   const [specificDates, setSpecificDates] = useState<string[]>([])
-  const [seasonal, setSeasonal] = useState(false)
   const [seasonStart, setSeasonStart] = useState<Date | null>(null)
   const [seasonEnd, setSeasonEnd] = useState<Date | null>(null)
   const [validFrom, setValidFrom] = useState<Date | null>(null)
@@ -84,7 +83,6 @@ export default function CreateEnhancementRuleModal({
     setAvailableTimeStart("")
     setAvailableTimeEnd("")
     setSpecificDates([])
-    setSeasonal(false)
     setSeasonStart(null)
     setSeasonEnd(null)
     setValidFrom(null)
@@ -174,7 +172,9 @@ export default function CreateEnhancementRuleModal({
 
       if (availabilityType === "SEASONAL") {
         requestBody.seasonal = true
+        //@ts-ignore
         requestBody.seasonStart = seasonStart.toISOString()
+        //@ts-ignore
         requestBody.seasonEnd = seasonEnd.toISOString()
       }
 

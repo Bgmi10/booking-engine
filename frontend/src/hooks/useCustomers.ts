@@ -14,6 +14,15 @@ export interface Customer {
   totalNightStayed?: number;
   totalMoneySpent?: number;
   paymentIntents?: PaymentIntentData[];
+  dob?: string;
+  city?: string;
+  passportNumber?: string;
+  passportExpiry?: string;
+  passportIssuedCountry?: string;
+  carNumberPlate?: string;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function useCustomers() {

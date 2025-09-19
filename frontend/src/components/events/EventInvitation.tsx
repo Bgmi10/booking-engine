@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Loader2, Users, UserPlus, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Loader2, Users, UserPlus } from 'lucide-react';
 import { baseUrl } from '../../utils/constants';
 import Header from '../Header';
 
@@ -45,8 +45,6 @@ interface InvitationData {
     };
     isMainGuest: boolean;
   };
-  event?: EventData;
-  booking?: BookingData;
 }
 
 interface BookingGuest {
@@ -69,7 +67,6 @@ export default function EventInvitation() {
   const [processing, setProcessing] = useState(false);
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const [invitedGuests, setInvitedGuests] = useState<BookingGuest[]>([]);
   const [availableGuests, setAvailableGuests] = useState<BookingGuest[]>([]);
   const [addingGuest, setAddingGuest] = useState(false);
@@ -92,7 +89,7 @@ export default function EventInvitation() {
   useEffect(() => {
     // Load guests list if main guest has accepted
     if (invitationData?.invitation?.isMainGuest && 
-        (invitationData?.status === 'ALREADY_ACCEPTED' || invitationData?.invitation?.invitationStatus === 'ACCEPTED')) {
+        (invitationData?.status === 'ALREADY_ACCEPTED')) {
       loadBookingGuests();
     }
   }, [invitationData, token]);
@@ -155,7 +152,6 @@ export default function EventInvitation() {
         ...prev!,
         status: response === 'accept' ? 'ALREADY_ACCEPTED' : 'ALREADY_DECLINED'
       }));
-      setResponseMessage(data.data.message);
       setProcessing(false);
     } catch (err) {
       console.error(`Error ${response}ing invitation:`, err);
@@ -261,8 +257,8 @@ export default function EventInvitation() {
 
 
   const { invitation } = invitationData || {};
-  const event = invitation?.event || invitationData?.event;
-  const booking = invitation?.booking || invitationData?.booking;
+  const event = invitation?.event;
+  const booking = invitation?.booking;
 
   // Handle different invitation statuses
   if (invitationData?.status === 'EXPIRED') {

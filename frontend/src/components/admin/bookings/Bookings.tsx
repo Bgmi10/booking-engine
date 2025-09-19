@@ -184,8 +184,8 @@ export default function BookingManagement() {
       const term = searchTerm.toLowerCase();
       
       // Search by customer name
-      const nameMatch = pi.customerData?.firstName?.toLowerCase().includes(term) ||
-        pi.customerData?.lastName?.toLowerCase().includes(term);
+      const nameMatch = pi.customerData?.guestFirstName?.toLowerCase().includes(term) ||
+        pi.customerData?.guestLastName?.toLowerCase().includes(term);
       
       // Search by email
       const emailMatch = pi.customerData?.email?.toLowerCase().includes(term);

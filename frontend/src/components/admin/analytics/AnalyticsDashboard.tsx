@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format, addDays, isValid, isSameDay } from 'date-fns';
-import { Calendar, TrendingUp, DollarSign, AlertTriangle, CheckCircle, Clock, Search, Filter } from 'lucide-react';
+import { Calendar, TrendingUp, DollarSign, AlertTriangle, CheckCircle, Search } from 'lucide-react';
 import { baseUrl } from '../../../utils/constants';
 import { useRooms } from '../../../hooks/useRooms';
 import type { Room, Booking } from '../../../types/types';
@@ -19,7 +19,6 @@ interface AnalyticsBooking extends Booking {
   policeReportError?: string;
   totalAmount?: number;
   customerId?: string;
-  paymentIntentId?: string;
   customer?: {
     id: string;
     guestFirstName: string;
@@ -324,7 +323,6 @@ export default function AnalyticsDashboard() {
       );
 
       if (response.ok) {
-        const result = await response.json();
         toast.success('Booking reported to police portal successfully!');
         
         // Refresh the data

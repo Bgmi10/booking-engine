@@ -23,9 +23,9 @@ import { baseUrl } from "../../../utils/constants";
 import toast from 'react-hot-toast';
 import AuditLogModal from './AuditLogModal';
 import type { 
+  Booking,
   EnhancedPaymentIntentCardProps, 
   PaymentMethodInfo,
-  Booking
 } from "../../../types/types";
 
 export default function EnhancedPaymentIntentCard({
@@ -33,7 +33,6 @@ export default function EnhancedPaymentIntentCard({
   onViewDetails,
   onSendEmail,
   onRefund,
-  onViewPayment,
   onEdit,
   onDelete,
   onRestore,
@@ -48,7 +47,7 @@ export default function EnhancedPaymentIntentCard({
   isDeletedTab = false
 }: EnhancedPaymentIntentCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [individualBookings, setIndividualBookings] = useState<Booking[]>([]);
+  const [individualBookings, setIndividualBookings] = useState<any>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [showConfirmEmail, setShowConfirmEmail] = useState(false);
   const [showConfirmBooking, setShowConfirmBooking] = useState(false);
@@ -258,8 +257,8 @@ export default function EnhancedPaymentIntentCard({
   const paymentMethodInfo = getPaymentMethodInfo();
   const statusColor = getStatusColor(displayData.status);
 
-  const confirmedBookings = individualBookings.filter(b => b.status === 'CONFIRMED').length;
-  const refundedBookings = individualBookings.filter(b => b.status === 'REFUNDED').length;
+  const confirmedBookings = individualBookings.filter((b: Booking) => b.status === 'CONFIRMED').length;
+  const refundedBookings = individualBookings.filter((b : Booking)=> b.status === 'REFUNDED').length;
 
   // Check if booking can be confirmed (cash or bank transfer with PENDING status)
   const canConfirmBooking = (paymentIntent.paymentMethod === 'CASH' || paymentIntent.paymentMethod === 'BANK_TRANSFER') && paymentIntent.status === 'PENDING';
@@ -646,7 +645,7 @@ export default function EnhancedPaymentIntentCard({
               </div>
             ) : (
               <div className="space-y-4">
-                {individualBookings.map((booking, index) => (
+                {individualBookings.map((booking: Booking, index: number) => (
                   <IndividualBookingCard
                     key={index}
                     //@ts-ignore

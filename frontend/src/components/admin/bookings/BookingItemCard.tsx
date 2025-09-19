@@ -284,7 +284,7 @@ const BookingItemCard: React.FC<BookingItemCardProps> = ({
                   disabled={loadingAction}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900">{enhancement.title}</div>
+                  <div className="text-sm font-medium text-gray-900">{enhancement.name}</div>
                   <div className="text-sm text-gray-500">
                     €{enhancement.price} {enhancement.pricingType.toLowerCase().replace("_", " ")}
                   </div>

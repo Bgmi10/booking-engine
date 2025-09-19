@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { RiCloseLine, RiCalendarLine, RiGroupLine, RiMoneyEuroCircleLine, RiMailLine, RiUserLine, RiUserAddLine } from "react-icons/ri"
+import { RiCloseLine, RiCalendarLine, RiGroupLine, RiMoneyEuroCircleLine, RiMailLine, RiUserAddLine } from "react-icons/ri"
 import type { Event } from "../../../../types/types"
 import ManageParticipantsModal from "./ManageParticipantsModal"
 
