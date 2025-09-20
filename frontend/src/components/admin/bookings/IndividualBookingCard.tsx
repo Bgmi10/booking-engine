@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { baseUrl } from "../../../utils/constants";
 import ManualCheckInButton, { useCheckInAvailability } from './ManualCheckInButton';
 import CheckInCheckOutButtons from './CheckInCheckOutButtons';
+import type { Customer } from "../../../hooks/useCustomers";
 
 interface Booking {
   bookingId: any;
@@ -34,12 +35,7 @@ interface Booking {
     name: string;
     description: string;
   };
-  customer: {
-    id: string;
-    guestFirstName: string;
-    guestLastName: string;
-    guestEmail: string;
-  };
+  customer: Customer;
   paymentIntentId: string;
   paymentIntent?: {
     outstandingAmount?: number;
@@ -309,7 +305,9 @@ export default function IndividualBookingCard({
           <CheckInCheckOutButtons
             type="booking"
             id={booking.bookingId || booking.id}
+            customer={booking.customer}
             isCheckedIn={!!booking.checkedInAt}
+            paymentIntentId={booking.paymentIntentId}
             isCheckedOut={!!booking.checkedOutAt}
             checkInDate={booking.checkIn}
             checkOutDate={booking.checkOut}

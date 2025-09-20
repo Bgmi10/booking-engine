@@ -324,6 +324,9 @@ export default function PaymentIntentCard({
               {/* Check-In/Check-Out Buttons */}
               {paymentIntent.status === "SUCCEEDED" && (
                 <CheckInCheckOutButtons
+                //@ts-ignore
+                  customer={paymentIntent.customer}
+                  paymentIntentId={paymentIntent.id}
                   type="paymentIntent"
                   id={paymentIntent.id}
                   bookings={paymentIntent.bookings || []}

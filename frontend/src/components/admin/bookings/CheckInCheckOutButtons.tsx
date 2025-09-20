@@ -2,17 +2,21 @@ import { useState } from 'react';
 import { LogIn, LogOut, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../../utils/constants';
+import ChargeModal from '../customers/ChargeModal';
+import type { Customer } from '../../../hooks/useCustomers';
 
 interface CheckInCheckOutButtonsProps {
   type: 'booking' | 'paymentIntent' | 'bookingGroup';
   id: string;
   bookings?: any[];
   isCheckedIn?: boolean;
+  customer: Customer;
   isCheckedOut?: boolean;
   checkInDate?: string;
   checkOutDate?: string;
   outstandingAmount?: number;
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT';
+  paymentIntentId: string;
   paymentDetails?: {
     totalAmount: number;
     prepaidAmount: number;
@@ -40,6 +44,8 @@ const Spinner = () => (
 );
 
 export default function CheckInCheckOutButtons({
+  customer,
+  paymentIntentId,
   type,
   id,
   bookings = [],
@@ -64,7 +70,7 @@ export default function CheckInCheckOutButtons({
   const [showOutstandingWarning, setShowOutstandingWarning] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
-
+  const [showChargeModal, setShowChargeModal] = useState(false);
 
   // Check if today matches a given date
   const isToday = (dateString?: string) => {
@@ -94,7 +100,7 @@ export default function CheckInCheckOutButtons({
   // Determine if check-out should be available
   const canCheckOut = () => {
     if (type === 'booking') {
-      return isCheckedIn && !isCheckedOut && outstandingAmount === 0 && isToday(checkOutDate);
+      return isCheckedIn && !isCheckedOut && isToday(checkOutDate);
     }
     if (type === 'paymentIntent' || type === 'bookingGroup') {
       return bookings.some(booking => booking.checkedInAt && !booking.checkedOutAt && isToday(booking.checkOut)) && outstandingAmount === 0;
@@ -223,9 +229,12 @@ export default function CheckInCheckOutButtons({
   // Outstanding amount warning for checkout
   const hasOutstanding = outstandingAmount > 0;
 
+
+
   if (variant === 'compact') {
     return (
       <>
+      
         <div className={`flex gap-2 ${className}`}>
           {showCheckIn && (
             <button
@@ -241,9 +250,8 @@ export default function CheckInCheckOutButtons({
           {showCheckOut && (
             <button
               onClick={() => showEmailOptionsModal('checkout')}
-              disabled={disabled || isLoading || hasOutstanding}
+              disabled={disabled || isLoading}
               className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              title={hasOutstanding ? `Cannot checkout. Outstanding amount: €${outstandingAmount}` : ''}
             >
               {isCheckingOut ? <Spinner /> : <LogOut className="h-3 w-3 mr-1" />}
               Check Out
@@ -252,12 +260,30 @@ export default function CheckInCheckOutButtons({
         </div>
 
         {/* Email Options Modal */}
-        {showEmailOptions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        {showChargeModal  && (
+        <ChargeModal
+         step='create_payment'
+          customer={customer}
+          paymentIntentId={paymentIntentId}
+          onClose={async () => {
+            setShowChargeModal(false);
+          }}
+        />
+      )}
+      
+        {!showChargeModal && showEmailOptions && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Check-Out Options
-              </h3>
+              <div className='flex justify-between'>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Check-Out
+                </h3>
+               {hasOutstanding && <span className=''>
+                  Oustanding Amount: <span className='text-red-500 font-bold'>{hasOutstanding ? outstandingAmount : ""}€</span>
+                  <aside className='mt-2 mb-2 text-end'>{ outstandingAmount && <button onClick={() => setShowChargeModal(true)} className='bg-blue-500 p-2 cursor-pointer text-white rounded-md'>Collect Amount</button>}</aside>
+                </span>}
+              </div>
+             
               
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
@@ -277,7 +303,7 @@ export default function CheckInCheckOutButtons({
                         ? 'Will send thank you email to all guests in this booking'
                         : 'Will send thank you email only to the main guest'
                       }
-                    </p>
+                    </p>  
                   </div>
                 </div>
                 
@@ -298,7 +324,7 @@ export default function CheckInCheckOutButtons({
                     value={adminNotes}
                     onChange={(e) => setAdminNotes(e.target.value)}
                     placeholder="Add any notes about this checkout..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none text-sm"
                   />
                 </div>
               </div>
@@ -306,8 +332,8 @@ export default function CheckInCheckOutButtons({
               <div className="mt-6 flex space-x-3">
                 <button
                   onClick={handleConfirmAction}
-                  disabled={isLoading}
-                  className="flex-1 inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  disabled={isLoading || hasOutstanding}
+                  className={`${hasOutstanding ? "cursor-not-allowed" : "cursor-pointer"} flex-1 inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50`}
                 >
                   {isLoading ? <Spinner /> : null}
                   Confirm Check Out
@@ -315,7 +341,7 @@ export default function CheckInCheckOutButtons({
                 <button
                   onClick={() => setShowEmailOptions(false)}
                   disabled={isLoading}
-                  className="flex-1 inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="cursor-pointer flex-1 inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cancel
                 </button>

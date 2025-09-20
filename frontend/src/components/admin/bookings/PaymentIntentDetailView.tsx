@@ -572,6 +572,8 @@ import { useState, useEffect } from "react"
             {paymentIntent.status === "SUCCEEDED" && (
               <div className="mb-6">
                 <CheckInCheckOutButtons
+                  paymentIntentId={paymentIntent.id}
+                  customer={customerData}
                   type="paymentIntent"
                   id={paymentIntent.id}
                   bookings={paymentIntent.bookings || []}

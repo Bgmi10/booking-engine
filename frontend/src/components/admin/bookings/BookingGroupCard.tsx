@@ -349,7 +349,7 @@ function SingleBookingGroupCard({
               />
             )}
 
-            {/* Check-In/Check-Out Buttons */}
+            {/* @ts-ignore */}
             <CheckInCheckOutButtons
               type="bookingGroup"
               id={group.id}
