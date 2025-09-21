@@ -906,7 +906,7 @@ export const loginCustomer = async (req: express.Request, res: express.Response)
 
             // Find the booking with matching surname
             const activeBooking = activeBookings.find(booking => 
-                booking.customer.guestLastName.toLowerCase() === surname.toLowerCase()
+                booking.customer.guestLastName && booking.customer.guestLastName.toLowerCase() === surname.toLowerCase()
             );
 
             if (activeBooking) {

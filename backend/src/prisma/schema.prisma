@@ -214,13 +214,14 @@ enum EventType {
   COOKING_CLASS
   OTHERS  
 }
+
 model Customer {      
   id                         String              @id @default(uuid())
-  guestFirstName             String      
+  guestFirstName             String?     
   guestMiddleName            String?      
-  guestLastName              String      
+  guestLastName              String?     
   guestEmail                 String              @unique
-  guestPhone                 String       
+  guestPhone                 String?      
   guestNationality           String?      
   adminNotes                 String?
   dob                        DateTime?   
@@ -233,6 +234,14 @@ model Customer {
   passportIssuedCountry      String?
   gender                     GENDER?
   placeOfBirth               String?
+  partnerName1               String?
+  partnerName2               String?
+  partnerTitle1              String?
+  partnerTitle2              String?
+  totalNights                Int?
+  expectedGuests             Int?
+  prefferedMonth             Int?
+  prefferedYear              Int?
   city                       String?
   tcAgreed                   Boolean?            @default(false)    
   receiveMarketingEmail      Boolean?            @default(true)
