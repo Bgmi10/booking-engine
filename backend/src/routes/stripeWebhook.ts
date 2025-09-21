@@ -89,6 +89,9 @@ async function handleRefundCreated(event: Stripe.Event) {
             });
             
             if (charge.customer) {
+                if (charge.customer) {
+                    return
+                }
                 await sendChargeRefundConfirmationEmail(
                     charge.customer,
                     {

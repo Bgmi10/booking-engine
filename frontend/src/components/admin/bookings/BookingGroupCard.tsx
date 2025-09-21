@@ -30,7 +30,7 @@ interface BookingGroupCardProps {
   onEdit: (group: BookingGroup) => void;
   onRefresh: () => void;
   isMergedView?: boolean;
-  onViewPaymentIntent?: (paymentIntent: any) => void;
+  onViewPaymentIntent?: (paymentIntent: any) => void
 }
 
 /**

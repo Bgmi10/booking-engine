@@ -27,6 +27,7 @@ import {
   speedLimiter,
   aggressiveSpeedLimiter
 } from "./middlewares/rateLimiter";
+import { weddingMainRoute } from "./routes/wedding";
 
 dotenv.config();
 
@@ -59,17 +60,18 @@ app.use("/api/v1/sessions", publicLimiter, sessionRouter);
 app.use("/api/v1/vouchers", publicLimiter, voucherRouter);
 app.use("/api/v1/customers", publicLimiter, customerRouter);
 app.use("/api/v1/beds24/webhook", webhookLimiter, beds24WebhookRouter);
+app.use('/api/v1/wedding-portal', weddingMainRoute);
 
-cleanExpiredTempHolds();
-makeExpiredSessionToInactive();
-triggerAutomatedTasks();
-schedulePaymentReminders();
-scheduleWeddingReminders();
-updateExpiredLicensePlates();
-scheduleLicensePlateExport(); // Dynamic cron for license plate export emails
-startChannelSync(); // Start channel manager sync cron job
-scheduleCheckinReminder();
-schedulePolicePortalReporting(); // Daily police portal reporting
+// cleanExpiredTempHolds();
+// makeExpiredSessionToInactive();
+// triggerAutomatedTasks();
+// schedulePaymentReminders();
+// scheduleWeddingReminders();
+// updateExpiredLicensePlates();
+// scheduleLicensePlateExport(); // Dynamic cron for license plate export emails
+// startChannelSync(); // Start channel manager sync cron job
+// scheduleCheckinReminder();
+// //schedulePolicePortalReporting(); // Daily police portal reporting
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

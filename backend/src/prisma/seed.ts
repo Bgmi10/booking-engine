@@ -4912,6 +4912,68 @@ async function main() {
       }
     },
     {
+      name: 'WEDDING_PORTAL_USER_SIGNUP_PASSWORD',
+      type: 'WEDDING_PORTAL_USER_SIGNUP_PASSWORD',  
+      subject: '🎉 WELCOME TO LA TORRE - YOUR ACCOUNT CREDENTIALS',
+      isActive: true,
+      html: `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6;">
+        <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; margin-top: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    
+          <!-- HEADER -->
+          <div style="background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); padding: 40px 30px; text-align: center;">
+            <h1 style="color: white; font-size: 32px; margin: 0; font-weight: 700; letter-spacing: -0.5px;">
+              LA TORRE HOTEL
+            </h1>
+          </div>
+    
+          <!-- BODY -->
+          <div style="padding: 40px 30px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <div style="background-color: #E0E7FF; width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 40px;">🎉</span>
+              </div>
+              <h1 style="color: #4F46E5; font-size: 24px; margin: 0 0 10px 0; font-weight: 700;">
+                YOUR ACCOUNT IS READY!
+              </h1>
+            <p style="color: #4B5563; font-size: 16px; margin: 0; line-height: 1.6;">
+              We've successfully created an account for you. Please use the credentials below for future logins.
+            </p>
+            <p style="color: #4B5563; font-size: 14px; margin-top: 8px; line-height: 1.6;">
+              You may update your password at any time after logging in for enhanced security.
+            </p>
+
+            </div>
+    
+            <div style="background-color: #F3F4F6; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
+              <p style="font-size: 16px; margin-bottom: 10px;"><strong>EMAIL:</strong> {{email}}</p>
+              <p style="font-size: 16px; margin-bottom: 0;"><strong>PASSWORD:</strong> <span style="color: #4F46E5; font-weight: 600;">{{password}}</span></p>
+            </div>
+    
+            <p style="color: #6B7280; font-size: 12px; line-height: 1.6; text-align: center; margin-top: 20px;">
+              THIS IS AN AUTOMATED EMAIL. PLEASE DO NOT REPLY.
+            </p>
+          </div>
+    
+          <!-- FOOTER -->
+           ${generateEmailFooter()}
+        </div>
+      </body>
+      </html>`,
+      isActive: true,
+      version: 1,
+      variables: {
+        email: { type: 'string', required: true, description: 'User email', example: 'user@example.com' },
+        password: { type: 'string', required: true, description: 'Generated password', example: 'Abc123!@#' },
+      }
+    }
+,    
+    {
       name: 'Enhancement Invitation',
       type: 'ENHANCEMENT_INVITATION',
       subject: 'Enhance Your Stay at La Torre - Special Offers Inside',
