@@ -46,7 +46,7 @@ jobs:
              --name la-torre-staging \
              --network la-torre-net \
              -v /home/ubuntu/env/la-torre-staging.env:/app/.env \
-             -p 5001:5000 \
+             -p 5000:5000 \
              ${{ secrets.DOCKER_USERNAME }}/la-torre:staging
 
            sudo docker exec la-torre-staging npx prisma migrate deploy --schema=src/prisma/schema.prisma
