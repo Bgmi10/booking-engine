@@ -85,3 +85,31 @@ export function generateMergedBookingId(
 
   return `BK-${normalizedIds.join("")}`;
 }
+
+export function generateRandomPassword(length = 12): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+  // Ensure at least one character from each s
+  const allChars = upper + lower + numbers + symbols;
+
+  const getRandomChar = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+
+  // Start with one character from each category
+  let password = getRandomChar(upper) + getRandomChar(lower) + getRandomChar(numbers) + getRandomChar(symbols);
+
+  // Fill the rest of the password
+  for (let i = password.length; i < length; i++) {
+    password += getRandomChar(allChars);
+  }
+
+  // Shuffle password to avoid predictable pattern
+  password = password
+    .split('')
+    .sort(() => Math.random() - 0.5)
+    .join('');
+
+  return password;
+}
