@@ -4965,7 +4965,6 @@ async function main() {
         </div>
       </body>
       </html>`,
-      isActive: true,
       version: 1,
       variables: {
         email: { type: 'string', required: true, description: 'User email', example: 'user@example.com' },
