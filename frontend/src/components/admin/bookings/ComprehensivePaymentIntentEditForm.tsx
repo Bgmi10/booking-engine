@@ -467,11 +467,11 @@ export default function ComprehensivePaymentIntentEditForm({
           </select>
         </div>
 
-        {/* Dates */}
+        {/* Dates - Calendar Selector */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             <Calendar className="inline h-3 w-3 mr-0.5" />
-            Check-in / Check-out <span className="text-red-500">*</span>
+            Check-in / Check-out (Calendar) <span className="text-red-500">*</span>
           </label>
           {!isReadOnly ? (
             <>
@@ -524,6 +524,50 @@ export default function ComprehensivePaymentIntentEditForm({
               <Calendar className="h-3 w-3 text-gray-400" />
             </div>
           )}
+        </div>
+
+        {/* Raw Check-in Date Field for Testing */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            <Calendar className="inline h-3 w-3 mr-0.5" />
+            Check-in (Raw Input - Testing)
+          </label>
+          <input
+            type="date"
+            value={booking.checkIn}
+            onChange={(e) =>
+              !isReadOnly && updateBooking(index, "checkIn", e.target.value)
+            }
+            className={getFieldStyling(
+              "checkIn",
+              `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+              }`
+            )}
+            disabled={isReadOnly}
+          />
+        </div>
+
+        {/* Raw Check-out Date Field for Testing */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            <Calendar className="inline h-3 w-3 mr-0.5" />
+            Check-out (Raw Input - Testing)
+          </label>
+          <input
+            type="date"
+            value={booking.checkOut}
+            onChange={(e) =>
+              !isReadOnly && updateBooking(index, "checkOut", e.target.value)
+            }
+            className={getFieldStyling(
+              "checkOut",
+              `w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+              }`
+            )}
+            disabled={isReadOnly}
+          />
         </div>
 
         {/* Total Guests */}
