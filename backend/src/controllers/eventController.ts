@@ -473,15 +473,25 @@ export const sendEventInvite = async (req: express.Request, res: express.Respons
             return;
         }
 
-        // Get all bookings that are checked in or upcoming (not checked out)
-        const eligibleBookings = await prisma.booking.findMany({
+        // Get general settings for check-in/out times
+        const generalSettings = await prisma.generalSettings.findFirst();
+        const defaultCheckInTime = generalSettings?.standardCheckInTime || '14:00';
+        const defaultCheckOutTime = generalSettings?.standardCheckOutTime || '10:00';
+
+        // Get all bookings (including future bookings) where guests will be present during the event
+        const allBookings = await prisma.booking.findMany({
             where: {
                 status: {
                     in: ['CONFIRMED', 'PENDING']
-                }
+                },
             },
             include: {
                 customer: true,
+                paymentIntent: {
+                    select: {
+                        bookingData : true
+                    }
+                },
                 guestCheckInAccess: {
                     include: {
                         customer: true
@@ -490,8 +500,40 @@ export const sendEventInvite = async (req: express.Request, res: express.Respons
             }
         });
 
-        if (!eligibleBookings) {
-            responseHandler(res, 400, "No bookings Available to Send Invites");
+        // Filter bookings where guests will actually be present during the event
+        const eligibleBookings = allBookings.filter(booking => {
+            const checkInDate = new Date(booking.checkIn);
+            const checkOutDate = new Date(booking.checkOut);
+            const eventDate = new Date(event.eventDate);
+            
+            const d = JSON.parse(booking?.paymentIntent?.bookingData || "");
+            //const isExistingEvent = d.selectedEventsDetails.eventId === event.id;
+
+            console.log(d)
+            
+            // Get the actual check-in and check-out times
+            const checkInTime = booking.checkInTime || defaultCheckInTime
+            const checkOutTime = booking.checkOutTime || defaultCheckOutTime;
+            
+            // Create DateTime objects with proper times
+            const [checkInHour, checkInMinute] = checkInTime.split(':').map(Number);
+            const [checkOutHour, checkOutMinute] = checkOutTime.split(':').map(Number);
+            
+            const actualCheckInDateTime = new Date(checkInDate);
+            actualCheckInDateTime.setHours(checkInHour, checkInMinute, 0, 0);
+            
+            const actualCheckOutDateTime = new Date(checkOutDate);
+            actualCheckOutDateTime.setHours(checkOutHour, checkOutMinute, 0, 0);
+            
+            // Guest is eligible if event is after their actual check-in time and before their actual check-out time
+            const isEligible = eventDate >= actualCheckInDateTime && eventDate < actualCheckOutDateTime;
+        
+            return isEligible;
+        });
+
+        if (!eligibleBookings || eligibleBookings.length === 0) {
+            console.log(`No eligible bookings for event on ${event.eventDate}. Checked ${allBookings.length} total bookings.`);
+            responseHandler(res, 400, `No bookings found for the event date (${new Date(event.eventDate).toLocaleDateString()}). Checked ${allBookings.length} total bookings. Invitations can only be sent to guests who have confirmed bookings that overlap with the event date.`);
             return;
         }
 
@@ -527,10 +569,27 @@ export const sendEventInvite = async (req: express.Request, res: express.Respons
 
         let successCount = 0;
         let failedCount = 0;
+        let skippedCount = 0;
 
         // Send invitations to all eligible guests
         for (const [customerId, guestData] of guestsToInvite) {
             try {
+                // Check if this customer is already a participant in the event
+                const existingParticipant = await prisma.eventParticipant.findFirst({
+                    where: {
+                        eventId: eventId,
+                        customerId: customerId,
+                        status: { not: 'CANCELLED' }
+                    }
+                });
+
+                // Skip if they're already a registered participant
+                if (existingParticipant) {
+                    console.log(`Skipping invitation for ${guestData.customer.guestEmail} - already registered as participant`);
+                    skippedCount++;
+                    continue;
+                }
+
                 // Get the booking details to get checkout date
                 const bookingToGetCheckoutData = await prisma.booking.findUnique({
                     where: { id: guestData.bookingId },
@@ -690,20 +749,24 @@ export const sendEventInvite = async (req: express.Request, res: express.Respons
                 entityId: eventId,
                 userId,
                 eventId,
-                notes: `Sent invitations to ${successCount} guests. ${failedCount > 0 ? `Failed to send to ${failedCount} guests.` : ''}`,
+                notes: `Sent invitations to ${successCount} guests. ${skippedCount > 0 ? `Skipped ${skippedCount} already registered participants.` : ''} ${failedCount > 0 ? `Failed to send to ${failedCount} guests.` : ''}`,
                 newValues: {
                     invitationsSent: successCount,
-                    invitationsFailed: failedCount
+                    invitationsFailed: failedCount,
+                    invitationsSkipped: skippedCount
                 },
                 changedFields: ["invitations"]
             }
         });
 
-        responseHandler(res, 200, "Event invitations sent", {
+        responseHandler(res, 200, `Event invitations sent to guests staying during the event date`, {
             eventId,
             totalGuests: guestsToInvite.size,
             successCount,
-            failedCount
+            failedCount,
+            skippedCount,
+            eligibleBookings: eligibleBookings.length,
+            eventDate: event.eventDate
         });
 
     } catch (error) {
@@ -1087,9 +1150,55 @@ export const addEventParticipant = async (req: express.Request, res: express.Res
             if (existingParticipant) {
                 throw new Error("Participant already exists for this event");
             }
+
+            // Check if we have an EventGuestRegistry with prepaid attendees
+            const eventRegistry = await tx.eventGuestRegistry.findFirst({
+                where: {
+                    bookingId: bookingId,
+                    status: { in: ['PROVISIONAL', 'CONFIRMED'] }
+                }
+            });
+
+            let shouldCharge = true;
+            let createOrderAndCharge = true;
+
+            // If we have a registry with prepaid events, check limits
+            if (eventRegistry && eventRegistry.selectedEvents) {
+                const selectedEvents = typeof eventRegistry.selectedEvents === 'string' 
+                    ? JSON.parse(eventRegistry.selectedEvents as string) 
+                    : eventRegistry.selectedEvents;
+
+                // Handle both array and object formats
+                const eventsArray = Array.isArray(selectedEvents) ? selectedEvents : Object.values(selectedEvents);
+                
+                // Find the event data that matches this enhancement
+                const eventData = eventsArray.find((e: any) => e.id === selectedEnhancementId);
+                
+                if (eventData && eventData.plannedAttendees) {
+                    // Count existing participants for this event from this registry
+                    const existingParticipantCount = await tx.eventParticipant.count({
+                        where: {
+                            enhancementId: selectedEnhancementId,
+                            registryId: eventRegistry.id,
+                            status: { not: 'CANCELLED' }
+                        }
+                    });
+
+                    console.log(`[Admin Add] Event ${selectedEnhancementId}: ${existingParticipantCount}/${eventData.plannedAttendees} participants exist`);
+
+                    // If within prepaid limit, don't charge
+                    if (existingParticipantCount < eventData.plannedAttendees) {
+                        shouldCharge = false;
+                        createOrderAndCharge = false;
+                        console.log(`[Admin Add] Within prepaid limit - no charge needed`);
+                    } else {
+                        console.log(`[Admin Add] Exceeds prepaid limit - charging for additional guest`);
+                    }
+                }
+            }
             
             // Create or update invitation
-            const invitation = await tx.eventInvitation.upsert({
+            await tx.eventInvitation.upsert({
                 where: {
                     customerId_bookingId_eventId: {
                         customerId,
@@ -1125,34 +1234,66 @@ export const addEventParticipant = async (req: express.Request, res: express.Res
                     participantType: 'GUEST',
                     status: 'COMPLETED',
                     addedBy: 'ADMIN',
-                    notes: notes || `Added by admin: ${reason}`
+                    notes: notes || `Added by admin: ${reason}`,
+                    registryId: eventRegistry?.id || null
                 },
                 include: {
                     customer: true,
-                    enhancement: true
+                    enhancement: true,
+                    event: true
                 }
             });
-            
-            // Update event total guests and revenue
-            await tx.event.update({
-                where: { id: eventId },
-                data: {
-                    totalGuests: {
-                        increment: 1
-                    },
-                    totalRevenue: {
-                        increment: enhancementPrice
+
+            // Only update revenue and create order if charging
+            if (shouldCharge && enhancementPrice > 0) {
+                await tx.event.update({
+                    where: { id: eventId },
+                    data: {
+                        totalGuests: {
+                            increment: 1
+                        },
+                        totalRevenue: {
+                            increment: enhancementPrice
+                        }
                     }
-                }
-            });
-            
-            // Update payment intent outstanding amount
-            if (enhancementPrice > 0 && booking.paymentIntent) {
-                const currentOutstanding = booking.paymentIntent.outstandingAmount || 0;
+                });
+
+                // Create order following stripeWebhook pattern
+                const enhancement = selectedEnhancement?.enhancement;
+                await tx.order.create({
+                    data: {
+                        customer: { connect: { id: customerId } },
+                        paymentIntent: { connect: { id: booking?.paymentIntent?.id } },
+                        items: [{
+                            name: `${event.name} - Additional Guest`,
+                            description: enhancement?.description || event.description,
+                            imageUrl: enhancement?.image || null,
+                            price: enhancementPrice,
+                            tax: enhancement?.tax ?? 0,
+                            pricingType: enhancement?.pricingType || 'PER_GUEST',
+                            quantity: 1
+                        }],
+                        total: enhancementPrice,
+                        status: 'DELIVERED'
+                    }
+                });
+
+                // Update payment intent outstanding amount
+                const currentOutstanding = booking?.paymentIntent?.outstandingAmount || 0;
                 await tx.paymentIntent.update({
-                    where: { id: booking.paymentIntent.id },
+                    where: { id: booking?.paymentIntent?.id },
                     data: {
                         outstandingAmount: currentOutstanding + enhancementPrice
+                    }
+                });
+            } else {
+                // Just update guest count, no revenue change for prepaid guests
+                await tx.event.update({
+                    where: { id: eventId },
+                    data: {
+                        totalGuests: {
+                            increment: 1
+                        }
                     }
                 });
             }
@@ -1185,12 +1326,6 @@ export const addEventParticipant = async (req: express.Request, res: express.Res
             return { participant, event, customer, booking };
         });
         
-        // Send confirmation email to the added guest
-        const baseUrl = process.env.NODE_ENV === 'local' 
-            ? process.env.FRONTEND_DEV_URL 
-            : process.env.FRONTEND_PROD_URL;
-
-        // Format event date and time
         const eventDateTime = new Date(result.event.eventDate);
         const formattedDate = eventDateTime.toLocaleDateString('en-US', {
             weekday: 'long',
@@ -1243,6 +1378,11 @@ export const removeEventParticipant = async (req: express.Request, res: express.
             include: {
                 customer: true,
                 enhancement: true,
+                event: {
+                    include: {
+                        eventEnhancements: true
+                    }
+                },
                 booking: {
                     include: {
                         paymentIntent: true
@@ -1256,8 +1396,11 @@ export const removeEventParticipant = async (req: express.Request, res: express.
             return;
         }
         
-        // Calculate refund amount if needed
-        const enhancementPrice = participant.enhancement.price;
+        // Get the correct price from EventEnhancement or use default enhancement price
+        const eventEnhancement = participant.event.eventEnhancements.find(
+            ee => ee.enhancementId === participant.enhancementId
+        );
+        const enhancementPrice = eventEnhancement?.overridePrice ?? participant.enhancement.price;
         
         // Start transaction
         await prisma.$transaction(async (tx) => {
@@ -1266,13 +1409,14 @@ export const removeEventParticipant = async (req: express.Request, res: express.
                 where: {
                     eventId,
                     customerId: participant.customerId,
-                    bookingId: participant.bookingId
+                    bookingId: participant?.bookingId || ""
                 },
                 data: {
                     invitationStatus: 'DECLINED',
                     declinedAt: new Date()
                 }
             });
+            
             
             // Delete participant
             await tx.eventParticipant.delete({
@@ -1293,10 +1437,10 @@ export const removeEventParticipant = async (req: express.Request, res: express.
             });
             
             // Update payment intent outstanding amount
-            if (enhancementPrice > 0 && participant.booking.paymentIntent) {
-                const currentOutstanding = participant.booking.paymentIntent.outstandingAmount || 0;
+            if (enhancementPrice > 0 && participant?.booking?.paymentIntent) {
+                const currentOutstanding = participant?.booking?.paymentIntent.outstandingAmount || 0;
                 await tx.paymentIntent.update({
-                    where: { id: participant.booking.paymentIntent.id },
+                    where: { id: participant?.booking?.paymentIntent.id },
                     data: {
                         outstandingAmount: Math.max(0, currentOutstanding - enhancementPrice)
                     }
@@ -1312,7 +1456,7 @@ export const removeEventParticipant = async (req: express.Request, res: express.
                     userId,
                     eventId,
                     bookingId: participant.bookingId,
-                    paymentIntentId: participant.booking.paymentIntent?.id,
+                    paymentIntentId: participant?.booking?.paymentIntent?.id,
                     reason: reason || 'Removed by admin',
                     notes: notes || `Admin removed ${participant.customer.guestFirstName} ${participant.customer.guestLastName} from event`,
                     previousValues: {
@@ -1335,3 +1479,36 @@ export const removeEventParticipant = async (req: express.Request, res: express.
         handleError(res, error as Error);
     }
 }
+
+
+export const getEventsByPaymentIntent = async (req: express.Request, res: express.Response) => {
+    const { eventregistryId } = req.params;
+
+    try {
+        const eventGuestRegistry = await prisma.eventGuestRegistry.findUnique({
+            where: { id: eventregistryId },
+            include: {
+                eventParticipants: {
+                    include: {
+                        customer: true,
+                        event: true,
+                        enhancement: true
+                    }
+                },
+                booking: true,
+                paymentIntent: true
+            }
+        })
+
+        if (!eventGuestRegistry) {
+            responseHandler(res, 404, "Event guest registry not found");
+            return;
+        }
+
+        responseHandler(res, 200, "Events retrieved successfully", eventGuestRegistry);
+        
+    } catch (error) {
+        console.error("Error getting events by payment intent:", error);
+        handleError(res, error as Error);
+    }
+};

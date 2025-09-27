@@ -3,12 +3,32 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, X, AlertTriangle } from 'lucide-react';
 import { calculateNights } from '../utils/format';
 
-export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number }) {
+export default function Summary({ bookingData, bookingItems, setBookingItems, setBookingData, setCurrentStep, availabilityData }: { bookingData: any, bookingItems: any, setBookingItems: any, setBookingData: any, setCurrentStep: any, availabilityData: any, taxPercentage?: number}) {
   const [expandedItems, setExpandedItems] = useState<any>({});
   const [conflicts, setConflicts] = useState<any[]>([]);
   
   const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
-
+  // Update existing bookingItems when bookingData changes (especially selectedEventsDetails)
+  useEffect(() => {
+    if (bookingData.selectedEventsDetails && bookingItems.length > 0) {
+      setBookingItems((prev: any) => {
+        return prev.map((item: any) => {
+          // Update the item if it matches the current booking
+          if (item.selectedRoom === bookingData.selectedRoom && 
+              item.checkIn === bookingData.checkIn && 
+              item.checkOut === bookingData.checkOut) {
+            return {
+              ...item,
+              selectedEventsDetails: bookingData.selectedEventsDetails,
+              selectedEvents: bookingData.selectedEvents
+            };
+          }
+          return item;
+        });
+      });
+    }
+  }, [bookingData.selectedEventsDetails, bookingData.selectedEvents]);
+  
   useEffect(() => {
     const checkConflicts = () => {
       const allItems = getAllItems();
@@ -87,6 +107,8 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
               adults: 2,
               selectedRoom: null,
               selectedEnhancements: [],
+              selectedEvents: {},
+              selectedEventsDetails: [],
               selectedRateOption: null,
               totalPrice: 0,
               rooms: 1
@@ -123,12 +145,43 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   };
 
   const calculateItemEnhancementsPrice = (item: any) => {
-    if (!item.selectedEnhancements || item.selectedEnhancements.length === 0) {
-      return 0;
+    let total = 0;
+    const nights = calculateNights(item.checkIn, item.checkOut);
+    
+    if (item.selectedEnhancements && item.selectedEnhancements.length > 0) {
+      total += item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
+        let price = enhancement.price;
+        
+        // Handle different pricing types
+        if (enhancement.pricingType === 'PER_GUEST') {
+          // For per-guest pricing, multiply by quantity (if specified) or adults
+          const quantity = enhancement.quantity || item.adults;
+          price = enhancement.price * quantity;
+        } else if (enhancement.pricingType === 'PER_DAY') {
+          // For per-day pricing, multiply by nights
+          price = enhancement.price * nights;
+        } else if (enhancement.pricingType === 'PER_BOOKING') {
+          // For PER_BOOKING, price is fixed
+          price = enhancement.price;
+        } else {
+          // Fallback for old data without pricingType - treat as PER_GUEST
+          price = enhancement.price * item.adults;
+        }
+        
+        return sum + price;
+      }, 0);
     }
-    return item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
-      return sum + (enhancement.price * item.adults);
-    }, 0);
+    
+    // Calculate events price separately using selectedEventsDetails
+    if (item.selectedEventsDetails && item.selectedEventsDetails.length > 0) {
+      total += item.selectedEventsDetails.reduce((sum: number, event: any) => {
+        const eventPrice = event.price || 0;
+        const attendees = event.plannedAttendees || 1;
+        return sum + (eventPrice * attendees);
+      }, 0);
+    }
+    
+    return total;
   };
 
   const calculateItemTotal = (item: any) => {
@@ -139,17 +192,22 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
 
   const handleRemoveItem = (itemId: string) => {
     if (itemId === 'current') {
-      // Reset current booking data
+      // Reset current unsaved booking data
       setBookingData((prev: any) => ({
-        checkIn: null,
-        checkOut: null,
-        ...prev,
+        checkIn: prev.checkIn,
+        checkOut: prev.checkOut,
         adults: 2,
+        promotionCode: prev.promotionCode,
         selectedRoom: null,
         selectedEnhancements: [],
+        selectedEvents: {},
+        selectedEventsDetails: [],
         selectedRateOption: null,
         totalPrice: 0,
-        rooms: 1
+        rooms: 1,
+        hasExtraBed: false,
+        extraBedCount: 0,
+        extraBedPrice: 0
       }));
     } else {
       // Remove from booking items
@@ -158,31 +216,17 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   };
 
   const handleAddAnotherItem = () => {
-    // Only add if current booking is complete
     if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
       const bookingCopy = {
         ...bookingData,
         id: Date.now().toString(), // Use timestamp as unique ID
         roomDetails: selectedRoom
       };
-  
+      
       setBookingItems((prev: any) => [...prev, bookingCopy]);
+      
+      setCurrentStep(1);
     }
-  
-    // Reset booking data for new item
-    setBookingData((prev: any) => ({
-      checkIn: null,
-      checkOut: null,
-      ...prev,
-      adults: 2,
-      selectedRoom: null,
-      selectedEnhancements: [],
-      selectedRateOption: null,
-      totalPrice: 0,
-      rooms: 1
-    }));
-  
-    setCurrentStep(1);
   };
 
   const getRoomName = (item: any) => {
@@ -207,84 +251,27 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     return "Fenicottero - Vineyard View";
   };
 
-  // Prepare all items for display
+  // Prepare all items for display - bookingItems is the source of truth
   const getAllItems = () => {
     const items = [...bookingItems];
     
-    // Only add current booking data if it's complete (has a selected room and rate)
+    // Only add current booking data if it's complete and not yet saved
     const isCurrentBookingComplete = bookingData.selectedRoom && 
       (bookingData.selectedRateOption || bookingData.totalPrice > 0);
     
     if (isCurrentBookingComplete) {
-      // Check if current booking is already in bookingItems
-      const isAlreadyAdded = bookingItems.some((item: any) => 
-        item.id === 'current' || 
-        (item.selectedRoom === bookingData.selectedRoom && 
-         item.checkIn === bookingData.checkIn && 
-         item.checkOut === bookingData.checkOut));
-      
-      if (!isAlreadyAdded) {
-        items.push({ 
-          ...bookingData, 
-          id: 'current',
-          roomDetails: selectedRoom
-        });
-      }
+      // Add current unsaved booking for preview
+      items.push({ 
+        ...bookingData, 
+        id: 'current',
+        roomDetails: selectedRoom
+      });
     }
     
     return items;
   };
 
   const allItems = getAllItems();
-
-   useEffect(() => {
-    const allItems = getAllItems();
-    
-    // Only update if there are items and they're different from current bookingItems
-    if (allItems.length > 0) {
-      // Filter out items that are already in bookingItems to avoid duplicates
-      const newItems = allItems.filter(item => {
-        // Don't add items that already exist in bookingItems
-        if (item.id === 'current') {
-          // For current booking, check if there's already a similar item
-          return !bookingItems.some((existingItem: any) => 
-            existingItem.selectedRoom === item.selectedRoom && 
-            existingItem.checkIn === item.checkIn && 
-            existingItem.checkOut === item.checkOut
-          );
-        }
-        // For other items, check by ID
-        return !bookingItems.some((existingItem: any) => existingItem.id === item.id);
-      });
-
-      // If we have new items to add, update the state
-      if (newItems.length > 0) {
-        const itemsToAdd = newItems.map(item => {
-          if (item.id === 'current') {
-            return {
-              ...item,
-              id: Date.now().toString(), // Convert current to permanent ID
-              roomDetails: selectedRoom
-            };
-          }
-          return item;
-        });
-
-        setBookingItems((prev: any) => {
-          // Double check for duplicates before adding
-          const filtered = itemsToAdd.filter(newItem => 
-            !prev.some((existingItem: any) => 
-              existingItem.id === newItem.id ||
-              (existingItem.selectedRoom === newItem.selectedRoom && 
-               existingItem.checkIn === newItem.checkIn && 
-               existingItem.checkOut === newItem.checkOut)
-            )
-          );
-          return [...prev, ...filtered];
-        });
-      }
-    }
-   }, []);
 
   useEffect(() => {
    if (allItems.length === 0) {
@@ -333,7 +320,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
           const enhancementsPrice = calculateItemEnhancementsPrice(item);
           const itemTotal = calculateItemTotal(item);
           const isConflicting = isItemConflicting(item.id);
-          console.log(item)
           return (
             <div key={item.id || index} className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${isConflicting ? 'ring-2 ring-yellow-200' : ''}`}>
               <div className="p-4 sm:p-6">
@@ -408,7 +394,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       </div>
                       {enhancementsPrice > 0 && (
                         <div className="flex justify-between text-gray-600">
-                          <span className="text-xs">Enhancements ({item.adults} adults)</span>
+                          <span className="text-xs">Enhancements & Events</span>
                           <span className="text-xs">€{enhancementsPrice.toFixed(2)}</span>
                         </div>
                       )}
@@ -472,7 +458,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       </div>
                       {enhancementsPrice > 0 && (
                         <div className="flex justify-between text-gray-600">
-                          <span>Enhancements ({item.adults} adults)</span>
+                          <span>Enhancements & Events</span>
                           <span>€{enhancementsPrice.toFixed(2)}</span>
                         </div>
                       )}
@@ -480,21 +466,25 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                   </div>
                 </div>
 
-                {/* Enhancements Section - Common for both layouts */}
-                {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
+                {/* Enhancements & Events Section - Common for both layouts */}
+                {((item.selectedEnhancements && item.selectedEnhancements.length > 0) || 
+                  (item.selectedEventsDetails && item.selectedEventsDetails.length > 0)) && (
                   <div className="mt-4 sm:mt-3">
                     <button
                       onClick={() => toggleExpanded(index)}
                       className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
                     >
                       {expandedItems[index] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      View enhancements ({item.selectedEnhancements.length})
+                      View enhancements & events ({(item.selectedEnhancements?.length || 0) + (item.selectedEventsDetails?.length || 0)})
                     </button>
                     
                     {expandedItems[index] && (
                       <div className="mt-2 pl-4 border-l-2 border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Enhancements:</h4>
-                        {item.selectedEnhancements.map((enhancement: any) => (
+                        {/* Products/Enhancements */}
+                        {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
+                          <>
+                            <h4 className="text-sm font-medium text-gray-700 mb-2">Products & Enhancements:</h4>
+                            {item.selectedEnhancements.map((enhancement: any) => (
                           <div key={enhancement.id} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-b-0 gap-2">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               <img 
@@ -506,15 +496,73 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                                 <span className="text-sm font-medium block">{enhancement.title}</span>
                                 <p className="text-xs text-gray-500 break-words">{enhancement.description}</p>
                                 <p className="text-xs text-gray-400">
-                                  €{enhancement.price} × {item.adults} adults
+                                  {enhancement.pricingType === 'PER_GUEST' && `€${enhancement.price} × ${enhancement.quantity || item.adults} guests`}
+                                  {enhancement.pricingType === 'PER_DAY' && `€${enhancement.price} × ${calculateNights(item.checkIn, item.checkOut)} days`}
+                                  {enhancement.pricingType === 'PER_BOOKING' && `€${enhancement.price} per booking`}
+                                  {!enhancement.pricingType && `€${enhancement.price} × ${item.adults} adults`}
                                 </p>
                               </div>
                             </div>
                             <span className="text-sm font-medium flex-shrink-0">
-                              €{(enhancement.price * item.adults).toFixed(2)}
+                              €{(() => {
+                                const nights = calculateNights(item.checkIn, item.checkOut);
+                                if (enhancement.pricingType === 'PER_GUEST') {
+                                  return ((enhancement.price * (enhancement.quantity || item.adults)).toFixed(2));
+                                } else if (enhancement.pricingType === 'PER_DAY') {
+                                  return ((enhancement.price * nights).toFixed(2));
+                                } else if (enhancement.pricingType === 'PER_BOOKING') {
+                                  return enhancement.price.toFixed(2);
+                                } else {
+                                  // Fallback for old data without pricingType
+                                  return (enhancement.price * item.adults).toFixed(2);
+                                }
+                              })()}
                             </span>
                           </div>
                         ))}
+                          </>
+                        )}
+                        
+                        {/* Events */}
+                        {item.selectedEventsDetails && item.selectedEventsDetails.length > 0 && (
+                          <>
+                            <h4 className="text-sm font-medium text-gray-700 mb-2 mt-3">Events:</h4>
+                            {item.selectedEventsDetails.map((event: any) => {
+                              const attendees = event.plannedAttendees || 1;
+                              const price = event.price || 0;
+                              
+                              return (
+                                <div key={event.id} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-b-0 gap-2">
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    {event.image && (
+                                      <img 
+                                        src={event.image} 
+                                        alt={event.name || event.title || 'Event'}
+                                        className="w-8 h-8 rounded object-cover flex-shrink-0"
+                                      />
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-sm font-medium block">
+                                        {event.name || event.title}
+                                      </span>
+                                      {event.description && (
+                                        <p className="text-xs text-gray-500 break-words">
+                                          {event.description}
+                                        </p>
+                                      )}
+                                      <p className="text-xs text-gray-400">
+                                        {attendees} attendee{attendees !== 1 ? 's' : ''} × €{price}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className="text-sm font-medium flex-shrink-0">
+                                    €{(price * attendees).toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -580,24 +628,37 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
             <div className="mt-6">
               <button
                 onClick={() => {
-                  // If we have a current booking that's not in bookingItems yet, add it
+                  // Save current booking if not already saved
                   if (bookingData.selectedRoom && (bookingData.selectedRateOption || bookingData.totalPrice > 0)) {
-                    const isAlreadyAdded = bookingItems.some((item: any) => 
-                      item.id === 'current' || 
-                      (item.selectedRoom === bookingData.selectedRoom && 
-                       item.checkIn === bookingData.checkIn && 
-                       item.checkOut === bookingData.checkOut));
+                    const bookingCopy = {
+                      ...bookingData,
+                      id: Date.now().toString(),
+                      roomDetails: selectedRoom
+                    };
                     
-                    if (!isAlreadyAdded) {
-                      setBookingItems((prev: any) => [
-                        ...prev, 
-                        {
-                          ...bookingData,
-                          id: Date.now().toString(),
-                          roomDetails: selectedRoom
-                        }
-                      ]);
-                    }
+                    setBookingItems((prev: any) => {
+                      // Remove any 'current' placeholder and add the actual item
+                      const filtered = prev.filter((item: any) => item.id !== 'current');
+                      return [...filtered, bookingCopy];
+                    });
+                    
+                    // Clear bookingData as it's now saved
+                    setBookingData((prev: any) => ({
+                      checkIn: prev.checkIn,
+                      checkOut: prev.checkOut,
+                      adults: 2,
+                      promotionCode: prev.promotionCode,
+                      selectedRoom: null,
+                      selectedEnhancements: [],
+                      selectedEvents: {},
+                      selectedEventsDetails: [],
+                      selectedRateOption: null,
+                      totalPrice: 0,
+                      rooms: 1,
+                      hasExtraBed: false,
+                      extraBedCount: 0,
+                      extraBedPrice: 0
+                    }));
                   }
                   setCurrentStep(5);
                 }}

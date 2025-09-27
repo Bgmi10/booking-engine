@@ -14,6 +14,390 @@ import { GuestRelationshipService } from "../services/guestRelationshipService";
 
 dotenv.config();
 
+// Helper function to update EventGuestRegistry when sub-guests are added
+async function updateRegistryWithSubGuest(bookingId: string, guestCustomerId: string, guestDetails: any) {
+    try {
+        // Find the registry associated with this booking
+        const booking = await prisma.booking.findUnique({
+            where: { id: bookingId },
+            include: {
+                paymentIntent: {
+                    include: {
+                        eventGuestRegistries: true
+                    }
+                }
+            }
+        });
+
+        if (!booking?.paymentIntent?.eventGuestRegistries?.[0]) {
+            return; // No registry to update
+        }
+
+        const registry = booking.paymentIntent.eventGuestRegistries[0];
+        const paymentIntentId = booking.paymentIntent.id;
+        
+        // Get current sub-guests
+        let currentSubGuests = [];
+        if (registry.subGuests) {
+            currentSubGuests = typeof registry.subGuests === 'string' 
+                ? JSON.parse(registry.subGuests as string) 
+                : registry.subGuests as any[];
+        }
+
+        // Check if guest already exists in sub-guests
+        const existingIndex = currentSubGuests.findIndex((g: any) => g.customerId === guestCustomerId);
+        
+        const newGuestInfo = {
+            customerId: guestCustomerId,
+            email: guestDetails.email,
+            name: `${guestDetails.firstName} ${guestDetails.lastName}`,
+            phone: guestDetails.phone || null,
+            addedAt: new Date().toISOString()
+        };
+
+        let isNewGuest = false;
+        if (existingIndex === -1) {
+            // Add new sub-guest
+            currentSubGuests.push(newGuestInfo);
+            isNewGuest = true;
+        } else {
+            // Update existing sub-guest info
+            currentSubGuests[existingIndex] = newGuestInfo;
+        }
+
+        // Update registry
+        await prisma.eventGuestRegistry.update({
+            where: { id: registry.id },
+            data: {
+                subGuests: currentSubGuests,
+                confirmedGuests: Math.min(currentSubGuests.length + 1, registry.totalGuestCount) // +1 for main guest
+            }
+        });
+
+        // If this is a new sub-guest and there are selected events, create participants ONLY (no orders/charges)
+        // These events were already paid for during booking
+        if (isNewGuest && registry.selectedEvents) {
+            const selectedEvents = typeof registry.selectedEvents === 'string' 
+                ? JSON.parse(registry.selectedEvents as string) 
+                : registry.selectedEvents;
+
+            console.log(`[EventRegistry] Processing events for new sub-guest ${guestCustomerId}. Selected events:`, selectedEvents);
+
+            // Handle both array and object formats
+            const eventsToProcess = Array.isArray(selectedEvents) ? selectedEvents : Object.values(selectedEvents);
+
+            for (const eventData of eventsToProcess) {
+                const enhancementId = eventData.id; // Get enhancement ID from event data
+                const plannedAttendees = eventData.plannedAttendees || 1;
+                
+                // Count existing participants for this event from this booking/registry
+                // Note: We count actual participant records, not guestCount since each person gets their own participant record
+                const existingParticipants = await prisma.eventParticipant.findMany({
+                    where: {
+                        enhancementId: enhancementId,
+                        registryId: registry.id,
+                        status: { not: 'CANCELLED' }
+                    }
+                });
+                
+                const existingParticipantCount = existingParticipants.length;
+
+                console.log(`[EventRegistry] Event ${enhancementId}: ${existingParticipantCount}/${plannedAttendees} participants exist`);
+
+                // Check if we've reached the planned attendee limit
+                if (existingParticipantCount >= plannedAttendees) {
+                    console.log(`[EventRegistry] Skipping event ${enhancementId} - already have ${existingParticipantCount}/${plannedAttendees} planned attendees`);
+                    continue; // Skip this event, we've reached the planned limit
+                }
+                // Find the actual event that uses this enhancement
+                const event = await prisma.event.findFirst({
+                    where: {
+                        eventEnhancements: {
+                            some: {
+                                enhancementId: enhancementId
+                            }
+                        },
+                        status: {
+                            in: ["IN_PROGRESS"]
+                        }
+                    },
+                    include: {
+                        eventEnhancements: {
+                            where: {
+                                enhancementId: enhancementId
+                            },
+                            include: {
+                                enhancement: true
+                            }
+                        }
+                    }
+                });
+
+                if (!event) continue;
+
+                // Check if participant already exists
+                const existingParticipant = await prisma.eventParticipant.findFirst({
+                    where: {
+                        eventId: event.id,
+                        customerId: guestCustomerId,
+                        enhancementId: enhancementId
+                    }
+                });
+
+                if (!existingParticipant) {
+                    // Create participant for sub-guest (NO CHARGE - already paid during booking)
+                    await prisma.eventParticipant.create({
+                        data: {
+                            eventId: event.id,
+                            customerId: guestCustomerId,
+                            bookingId: bookingId,
+                            paymentIntentId: paymentIntentId,
+                            enhancementId: enhancementId,
+                            status: "COMPLETED", // Set to COMPLETED since check-in is complete
+                            addedBy: "MAIN_GUEST", // Added during check-in process
+                            registryId: registry.id,
+                            participantType: "GUEST",
+                            notes: `Sub-guest from pre-paid booking (check-in sync)`
+                        }
+                    });
+
+                    // Update event guest count only (NO revenue update - already paid)
+                    await prisma.event.update({
+                        where: { id: event.id },
+                        data: {
+                            totalGuests: {
+                                increment: 1
+                            }
+                            // NO totalRevenue increment - already paid during booking
+                        }
+                    });
+
+                    // Create event invitation record (marked as pre-accepted since they're part of the booking)
+                    const invitationToken = generateTokenForEventGuest();
+                    await prisma.eventInvitation.upsert({
+                        where: {
+                            customerId_bookingId_eventId: {
+                                customerId: guestCustomerId,
+                                bookingId: bookingId,
+                                eventId: event.id
+                            }
+                        },
+                        create: {
+                            customerId: guestCustomerId,
+                            bookingId: bookingId,
+                            eventId: event.id,
+                            invitationToken: invitationToken,
+                            tokenExpiresAt: new Date(event.eventDate),
+                            isMainGuest: false,
+                            invitationStatus: "ACCEPTED", // Auto-accepted since part of booking
+                            acceptedAt: new Date(),
+                            sentAt: new Date()
+                        },
+                        update: {
+                            invitationStatus: "ACCEPTED",
+                            acceptedAt: new Date()
+                        }
+                    });
+
+                    console.log(`[EventRegistry] Created participant for sub-guest ${guestCustomerId} in event ${event.id} (pre-paid)`);
+                }
+            }
+
+            // NO outstanding amount update - these events were already paid for during booking
+        }
+
+        console.log(`[EventRegistry] Updated registry ${registry.id} with sub-guest ${guestCustomerId}`);
+    } catch (error) {
+        console.error("[EventRegistry] Error updating with sub-guest:", error);
+        // Non-critical operation, don't throw
+    }
+}
+
+// Helper function to sync EventGuestRegistry with check-in data
+async function syncEventRegistryWithCheckIn(customerId: string) {
+    try {
+        // Find all EventGuestRegistries associated with this customer
+        const registries = await prisma.eventGuestRegistry.findMany({
+            where: {
+                customerId: customerId,
+                status: "PROVISIONAL"
+            },
+            include: {
+                paymentIntent: {
+                    include: {
+                        bookings: true
+                    }
+                }
+            }
+        });
+
+        for (const registry of registries) {
+            // Get all guests who have checked in for bookings in this payment intent
+            const checkedInGuests = await prisma.guestCheckInAccess.findMany({
+                where: {
+                    bookingId: {
+                        in: registry.paymentIntent?.bookings.map(b => b.id) || []
+                    },
+                    completionStatus: "COMPLETE"
+                },
+                include: {
+                    customer: true
+                }
+            });
+
+            // Collect sub-guest information from checked-in guests
+            const subGuests = checkedInGuests
+                .filter(g => g.customerId !== customerId) // Exclude main guest
+                .map(g => ({
+                    customerId: g.customerId,
+                    email: g.customer.guestEmail,
+                    name: `${g.customer.guestFirstName} ${g.customer.guestLastName}`,
+                    phone: g.customer.guestPhone
+                }));
+
+            // Parse selected events to create EventParticipants if needed
+            if (registry.selectedEvents) {
+                const selectedEvents = typeof registry.selectedEvents === 'string' 
+                    ? JSON.parse(registry.selectedEvents as string) 
+                    : registry.selectedEvents;
+
+                // Handle both array and object formats
+                const eventsToProcess = Array.isArray(selectedEvents) ? selectedEvents : Object.values(selectedEvents);
+
+                // For each selected event/enhancement, create participants if not already created
+                for (const eventData of eventsToProcess) {
+                    const enhancementId = eventData.id; // Get enhancement ID from event data
+                    // Find the actual event that uses this enhancement
+                    const event = await prisma.event.findFirst({
+                        where: {
+                            eventEnhancements: {
+                                some: {
+                                    enhancementId: enhancementId
+                                }
+                            },
+                            status: {
+                                in: ["IN_PROGRESS"]
+                            }
+                        },
+                        include: {
+                            eventEnhancements: {
+                                where: {
+                                    enhancementId: enhancementId
+                                },
+                                include: {
+                                    enhancement: true
+                                }
+                            }
+                        }
+                    });
+
+                    if (!event) continue;
+
+                    const eventEnhancement = event.eventEnhancements[0];
+                    const enhancementPrice = eventEnhancement.overridePrice ?? eventEnhancement.enhancement.price;
+                    
+                    // Check if participant already exists
+                    const existingParticipant = await prisma.eventParticipant.findFirst({
+                        where: {
+                            eventId: event.id,
+                            customerId: customerId,
+                            enhancementId: enhancementId
+                        }
+                    });
+
+                    if (!existingParticipant) {
+                        const booking = registry.paymentIntent?.bookings[0];
+                        
+                        if (booking) {
+                            // Create participant
+                            await prisma.eventParticipant.create({
+                                data: {
+                                    eventId: event.id,
+                                    customerId: customerId,
+                                    bookingId: booking.id,
+                                    paymentIntentId: registry.paymentIntentId,
+                                    enhancementId: enhancementId,
+                                    status: "COMPLETED", // Set to CONFIRMED since check-in is complete
+                                    addedBy: "GUEST",
+                                    participantType: "MAIN_GUEST",
+                                    registryId: registry.id,
+                                    guestCount: eventData.plannedAttendees,
+                                    notes: `Auto-created from check-in (${eventData.plannedAttendees} planned attendees)`
+                                }
+                            });
+
+                            // Create/update EventInvitation
+                            const invitationToken = generateTokenForEventGuest();
+                            await prisma.eventInvitation.upsert({
+                                where: {
+                                    customerId_bookingId_eventId: {
+                                        customerId: customerId,
+                                        bookingId: booking.id,
+                                        eventId: event.id
+                                    }
+                                },
+                                create: {
+                                    customerId: customerId,
+                                    bookingId: booking.id,
+                                    eventId: event.id,
+                                    invitationToken: invitationToken,
+                                    tokenExpiresAt: new Date(event.eventDate), // Expires at event date
+                                    isMainGuest: true,
+                                    invitationStatus: "ACCEPTED",
+                                    acceptedAt: new Date(),
+                                    sentAt: new Date()
+                                },
+                                update: {
+                                    invitationStatus: "ACCEPTED",
+                                    acceptedAt: new Date()
+                                }
+                            });
+
+                            // Update event guest count only (NO revenue - already paid during booking)
+                            await prisma.event.update({
+                                where: { id: event.id },
+                                data: {
+                                    totalGuests: {
+                                        increment: 1
+                                    }
+                                    // NO totalRevenue increment - these events were paid during booking
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Update registry status
+            await prisma.eventGuestRegistry.update({
+                where: { id: registry.id },
+                data: {
+                    status: "CONFIRMED",
+                    syncedWithCheckIn: true,
+                    confirmedGuests: checkedInGuests.length,
+                    subGuests: subGuests.length > 0 ? subGuests : undefined
+                }
+            });
+            
+            // Update all EventParticipants for this registry to CONFIRMED status
+            await prisma.eventParticipant.updateMany({
+                where: {
+                    registryId: registry.id,
+                    status: "PENDING"
+                },
+                data: {
+                    status: "COMPLETED"
+                }
+            });
+        }
+
+        console.log(`[EventRegistry] Synced ${registries.length} registries for customer ${customerId}`);
+    } catch (error) {
+        console.error("[EventRegistry] Error syncing with check-in:", error);
+        // Don't throw - this is a non-critical operation
+    }
+}
+
 export const createCustomer = async (req: express.Request, res: express.Response) => {
     const { firstName, lastName, middleName, nationality, email, phone, dob, passportExpiry, passportNumber, idCard, vipStatus, totalNigthsStayed, totalMoneySpent, gender, city, placeOfBirth, passportIssuedCountry, receiveMarketingEmail, carNumberPlate, adminNotes } = req.body; 
 
@@ -81,14 +465,14 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
         firstName, 
         lastName, 
         middleName, 
-        nationality, 
-        email, 
+        nationality,
         phone, 
         dob, 
         passportExpiry, 
         passportNumber, 
         passportIssuedCountry,
         idCard,
+        email,
         gender,
         placeOfBirth,
         city,
@@ -147,18 +531,17 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
 
         if (guestAccessRecords.length > 0) {
             // Calculate completion status based on updated data
-            const personalDetailsComplete = !!(firstName && lastName && email && dob);
+            const personalDetailsComplete = !!(firstName && lastName && dob);
             const identityDetailsComplete = !!(nationality && ((passportNumber && passportExpiry && passportIssuedCountry) || idCard));
             const addressDetailsComplete = !!(city);
-            
+
             let completionStatus = 'INCOMPLETE';
             if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
                 completionStatus = 'COMPLETE';
             } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
                 completionStatus = 'PARTIAL';
             }
-
-            // Update all GuestCheckInAccess records for this customer
+            
             await prisma.guestCheckInAccess.updateMany({
                 where: {
                     customerId: id
@@ -169,12 +552,15 @@ export const editCustomer =  async (req: express.Request, res: express.Response)
                     addressDetailsComplete,
                     completionStatus: completionStatus as any,
                     checkInCompletedAt: completionStatus === 'COMPLETE' ? new Date() : null,
-                    // Update invitation status if they were invited and now completing
                     ...(completionStatus === 'COMPLETE' && {
                         invitationAcceptedAt: new Date()
                     })
                 }
             });
+            
+            if (completionStatus === 'COMPLETE') {
+                await syncEventRegistryWithCheckIn(id);
+            }
         }
 
         // Handle enhancement bookings if provided
@@ -414,16 +800,7 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
             },
             include: {
                 room: {
-                    select: {
-                        id: true,
-                        name: true,
-                        description: true,
-                        images: {
-                            select: {
-                                id: true,
-                                url: true
-                            }
-                        },
+                    include: {
                         RoomRate: {
                             select: {
                                 percentageAdjustment: true,
@@ -455,7 +832,20 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                         status: true
                     }
                 },
-                enhancementBookings: true,
+                enhancementBookings: {
+                    include: {
+                        enhancement: {
+                            select: {
+                                id: true,
+                                name: true,
+                                description: true,
+                                price: true,
+                                type: true,
+                                pricingType: true
+                            }
+                        }
+                    }
+                },
                 guestCheckInAccess: {
                     include: {
                         customer: {
@@ -495,16 +885,7 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                 booking: {
                     include: {
                         room: {
-                            select: {
-                                id: true,
-                                name: true,
-                                description: true,
-                                images: {
-                                    select: {
-                                        id: true,
-                                        url: true
-                                    }
-                                },
+                            include: {
                                 RoomRate: {
                                     select: {
                                         percentageAdjustment: true,
@@ -523,7 +904,20 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                                
                             }
                         },
-                        enhancementBookings: true,
+                        enhancementBookings: {
+                            include: {
+                                enhancement: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        description: true,
+                                        price: true,
+                                        type: true,
+                                        pricingType: true
+                                    }
+                                }
+                            }
+                        },
                         // Include payment intent information for outstanding amounts
                         paymentIntent: {
                             select: {
@@ -808,7 +1202,9 @@ export const getGuestDetails = async (req: express.Request, res: express.Respons
                             price: enhancement.price,
                             pricingType: enhancement.pricingType,
                             image: enhancement.image,
-                            isActive: enhancement.isActive
+                            isActive: enhancement.isActive,
+                            type: enhancement.type, // Include type field for EVENT vs PRODUCT distinction
+                            applicableRules: enhancement.enhancementRules // Include rules for frontend filtering
                         });
                     }
                 });
@@ -1666,8 +2062,9 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
         const personalDetailsComplete = !!(firstName && lastName && email && dateOfBirth);
         const identityDetailsComplete = !!(nationality && ((passportNumber && passportExpiryDate && passportIssuedCountry) || idCard));
         const addressDetailsComplete = !!(city);
-        
+      
         let completionStatus = 'INCOMPLETE';
+        
         if (personalDetailsComplete && identityDetailsComplete && addressDetailsComplete) {
             completionStatus = 'COMPLETE';
         } else if (personalDetailsComplete || identityDetailsComplete || addressDetailsComplete) {
@@ -1722,6 +2119,19 @@ export const createManualGuest = async (req: express.Request, res: express.Respo
                 // Log the error but don't fail the guest creation
                 console.error("Error creating relationship:", relationshipError);
             }
+        }
+
+        // Update EventGuestRegistry with the new sub-guest
+        await updateRegistryWithSubGuest(bookingId, guestCustomer.id, {
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+            phone: telephone
+        });
+
+        // If guest details are complete, sync with check-in
+        if (completionStatus === 'COMPLETE') {
+            await syncEventRegistryWithCheckIn(guestCustomer.id);
         }
 
         responseHandler(res, 200, "Guest created successfully", guestCustomer);
@@ -2524,7 +2934,6 @@ export const acceptEventInvitation = async (req: express.Request, res: express.R
                     }
                 });
 
-                // Update event total guests count and revenue
                 await tx.event.update({
                     where: { id: invitation.eventId },
                     data: {
@@ -2534,6 +2943,24 @@ export const acceptEventInvitation = async (req: express.Request, res: express.R
                         totalRevenue: {
                             increment: totalPrice
                         }
+                    }
+                });
+                
+                await tx.order.create({
+                    data: {
+                        paymentIntentId: invitation.booking.paymentIntent!.id,
+                        customerId: invitation.customerId,
+                        items: [{
+                            name: `${invitation.event.name} - ${selectedEventEnhancement.enhancement.name}`,
+                            description: selectedEventEnhancement.enhancement.description || `Event participation for ${invitation.event.name}`,
+                            imageUrl: selectedEventEnhancement.enhancement.image || null,
+                            price: selectedEventEnhancement.enhancement.price,
+                            tax: selectedEventEnhancement.enhancement.tax,
+                            pricingType: 'PER_GUEST',
+                            quantity: 1,
+                        }],
+                        total: totalPrice,
+                        status: "DELIVERED" // Will be DELIVERED when event occurs
                     }
                 });
 
@@ -2781,6 +3208,42 @@ export const addGuestToEvent = async (req: express.Request, res: express.Respons
             // Get the price (tax is already included)
             const enhancementPrice = firstEnhancement?.overridePrice || firstEnhancement?.enhancement.price || 0;
 
+            // Check if we have an EventGuestRegistry with prepaid attendees
+            const eventRegistry = await tx.eventGuestRegistry.findFirst({
+                where: {
+                    bookingId: mainGuestInvitation.bookingId,
+                    status: { in: ['PROVISIONAL', 'CONFIRMED'] }
+                }
+            });
+
+            // If we have prepaid event attendees, check limits
+            if (eventRegistry && eventRegistry.selectedEvents) {
+                // Parse selectedEvents if it's a string
+                const selectedEvents = typeof eventRegistry.selectedEvents === 'string' 
+                    ? JSON.parse(eventRegistry.selectedEvents) 
+                    : eventRegistry.selectedEvents;
+
+                // Find the event details for this enhancement
+                const eventDetails = selectedEvents[selectedEnhancementId] || 
+                                   Object.values(selectedEvents).find((e: any) => e.id === selectedEnhancementId);
+
+                if (eventDetails && eventDetails.plannedAttendees) {
+                    // Count existing participants for this event
+                    const existingParticipantCount = await tx.eventParticipant.count({
+                        where: {
+                            eventId: mainGuestInvitation.eventId,
+                            bookingId: mainGuestInvitation.bookingId,
+                            status: { not: 'CANCELLED' }
+                        }
+                    });
+
+                    // Check if we've reached the prepaid limit
+                    if (existingParticipantCount >= eventDetails.plannedAttendees) {
+                        throw new Error(`Cannot add more guests. This booking has prepaid for ${eventDetails.plannedAttendees} attendees and all spots are filled.`);
+                    }
+                }
+            }
+
             if (invitation) {
                 // If invitation exists and is PENDING or DECLINED, update it to ACCEPTED
                 if (invitation.invitationStatus === 'PENDING' || invitation.invitationStatus === 'DECLINED') {
@@ -2793,7 +3256,7 @@ export const addGuestToEvent = async (req: express.Request, res: express.Respons
                     });
 
                     // Create EventParticipant since they're now accepted
-                    await tx.eventParticipant.create({
+                    const participant = await tx.eventParticipant.create({
                         data: {
                             eventId: mainGuestInvitation.eventId,
                             customerId: customerId,
@@ -2807,27 +3270,71 @@ export const addGuestToEvent = async (req: express.Request, res: express.Respons
                             notes: `Added by main guest: ${mainGuestInvitation.customer.guestFirstName} ${mainGuestInvitation.customer.guestLastName}`
                         }
                     });
-
-                    // Update event total guests count and revenue
+                    
+                    // Determine if this guest is beyond prepaid limit
+                    let shouldChargeForGuest = true;
+                    if (eventRegistry && eventRegistry.selectedEvents) {
+                        const selectedEvents = typeof eventRegistry.selectedEvents === 'string' 
+                            ? JSON.parse(eventRegistry.selectedEvents) 
+                            : eventRegistry.selectedEvents;
+                        const eventDetails = selectedEvents[selectedEnhancementId] || 
+                                           Object.values(selectedEvents).find((e: any) => e.id === selectedEnhancementId);
+                        
+                        if (eventDetails && eventDetails.plannedAttendees) {
+                            // Count participants BEFORE adding this one
+                            const participantCountBeforeAdd = await tx.eventParticipant.count({
+                                where: {
+                                    eventId: mainGuestInvitation.eventId,
+                                    bookingId: mainGuestInvitation.bookingId,
+                                    status: { not: 'CANCELLED' },
+                                    id: { not: participant.id } // Exclude the just-created participant
+                                }
+                            });
+                            
+                            // If we're still within prepaid limit, don't charge
+                            shouldChargeForGuest = participantCountBeforeAdd >= eventDetails.plannedAttendees;
+                        }
+                    }
+                    
                     await tx.event.update({
                         where: { id: mainGuestInvitation.eventId },
                         data: {
                             totalGuests: {
                                 increment: 1
                             },
-                            totalRevenue: {
+                            totalRevenue: shouldChargeForGuest ? {
                                 increment: enhancementPrice
-                            }
+                            } : undefined
                         }
                     });
                     
-                    // Update payment intent outstanding amount
-                    if (enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
+                    // Only update payment intent outstanding amount if this guest is beyond prepaid limit
+                    if (shouldChargeForGuest && enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
                         const currentOutstanding = mainGuestInvitation.booking.paymentIntent.outstandingAmount || 0;
                         await tx.paymentIntent.update({
                             where: { id: mainGuestInvitation.booking.paymentIntent.id },
                             data: {
                                 outstandingAmount: currentOutstanding + enhancementPrice
+                            }
+                        });
+                        
+                        // Create an order for this additional guest
+                        const enhancement = firstEnhancement?.enhancement;
+                        await tx.order.create({
+                            data: {
+                                customer: { connect: { id: customerId } },
+                                paymentIntent: { connect: { id: mainGuestInvitation.booking.paymentIntent.id } },
+                                items: [{
+                                    name: `${mainGuestInvitation.event.name} - Additional Guest`,
+                                    description: enhancement?.description || mainGuestInvitation.event.description,
+                                    imageUrl: enhancement?.image || null,
+                                    price: enhancementPrice,
+                                    tax: enhancement?.tax ?? 0,
+                                    pricingType: enhancement?.pricingType || 'PER_GUEST',
+                                    quantity: 1
+                                }],
+                                total: enhancementPrice,
+                                status: 'DELIVERED'
                             }
                         });
                     }
@@ -2852,7 +3359,7 @@ export const addGuestToEvent = async (req: express.Request, res: express.Respons
                 });
 
                 // Create EventParticipant
-                await tx.eventParticipant.create({
+                const participant = await tx.eventParticipant.create({
                     data: {
                         eventId: mainGuestInvitation.eventId,
                         customerId: customerId,
@@ -2867,26 +3374,70 @@ export const addGuestToEvent = async (req: express.Request, res: express.Respons
                     }
                 });
 
-                // Update event total guests count and revenue
+                // Determine if this guest is beyond prepaid limit
+                let shouldChargeForGuest = true;
+                if (eventRegistry && eventRegistry.selectedEvents) {
+                    const selectedEvents = typeof eventRegistry.selectedEvents === 'string' 
+                        ? JSON.parse(eventRegistry.selectedEvents) 
+                        : eventRegistry.selectedEvents;
+                    const eventDetails = selectedEvents[selectedEnhancementId] || 
+                                       Object.values(selectedEvents).find((e: any) => e.id === selectedEnhancementId);
+                    
+                    if (eventDetails && eventDetails.plannedAttendees) {
+                        // Count participants BEFORE adding this one
+                        const participantCountBeforeAdd = await tx.eventParticipant.count({
+                            where: {
+                                eventId: mainGuestInvitation.eventId,
+                                bookingId: mainGuestInvitation.bookingId,
+                                status: { not: 'CANCELLED' },
+                                id: { not: participant.id } // Exclude the just-created participant
+                            }
+                        });
+                        
+                        // If we're still within prepaid limit, don't charge
+                        shouldChargeForGuest = participantCountBeforeAdd >= eventDetails.plannedAttendees;
+                    }
+                }
+
                 await tx.event.update({
                     where: { id: mainGuestInvitation.eventId },
                     data: {
                         totalGuests: {
                             increment: 1
                         },
-                        totalRevenue: {
+                        totalRevenue: shouldChargeForGuest ? {
                             increment: enhancementPrice
-                        }
+                        } : undefined
                     }
                 });
                 
-                // Update payment intent outstanding amount
-                if (enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
+                // Only update payment intent outstanding amount if this guest is beyond prepaid limit
+                if (shouldChargeForGuest && enhancementPrice > 0 && mainGuestInvitation.booking.paymentIntent) {
                     const currentOutstanding = mainGuestInvitation.booking.paymentIntent.outstandingAmount || 0;
                     await tx.paymentIntent.update({
                         where: { id: mainGuestInvitation.booking.paymentIntent.id },
                         data: {
                             outstandingAmount: currentOutstanding + enhancementPrice
+                        }
+                    });
+                    
+                    // Create an order for this additional guest
+                    const enhancement = firstEnhancement?.enhancement;
+                    await tx.order.create({
+                        data: {
+                            customer: { connect: { id: customerId } },
+                            paymentIntent: { connect: { id: mainGuestInvitation.booking.paymentIntent.id } },
+                            items: [{
+                                name: `${mainGuestInvitation.event.name} - Additional Guest`,
+                                description: enhancement?.description || mainGuestInvitation.event.description,
+                                imageUrl: enhancement?.image || null,
+                                price: enhancementPrice,
+                                tax: enhancement?.tax ?? 0,
+                                pricingType: enhancement?.pricingType || 'PER_GUEST',
+                                quantity: 1
+                            }],
+                            total: enhancementPrice,
+                            status: 'DELIVERED'
                         }
                     });
                 }
@@ -3090,4 +3641,53 @@ export const getEventGuestsList = async (req: express.Request, res: express.Resp
         handleError(res, error as Error);
     }
 };
+
+export const getBookingCustomers = async (req: express.Request, res: express.Response) => {
+    const { id: bookingId } = req.params;
+    const { excludeEventId } = req.query;
+
+    try {
+        // Get all customers/guests from the booking via GuestCheckInAccess
+        const guestCheckIns = await prisma.guestCheckInAccess.findMany({
+            where: { bookingId: bookingId },
+            include: {
+                customer: true
+            }
+        });
+
+        if (!guestCheckIns || guestCheckIns.length === 0) {
+            responseHandler(res, 404, "No guests found for this booking");
+            return;
+        }
+
+        // Map guest check-ins to customer format
+        let customers = guestCheckIns.map((gci) => ({
+            id: gci.customer.id,
+            guestFirstName: gci.customer.guestFirstName,
+            guestLastName: gci.customer.guestLastName,
+            guestEmail: gci.customer.guestEmail,
+            bookingId: bookingId,
+            isMainGuest: gci.isMainGuest
+        }));
+
+        if (excludeEventId) {
+            // Get existing participants for this event
+            const eventParticipants = await prisma.eventParticipant.findMany({
+                where: { 
+                    eventId: excludeEventId as string,
+                    bookingId: bookingId
+                },
+                select: { customerId: true }
+            });
+
+            const participantCustomerIds = eventParticipants.map(p => p.customerId);
+            customers = customers.filter((c: any) => !participantCustomerIds.includes(c.id));
+        }
+
+        responseHandler(res, 200, "Booking customers retrieved successfully", customers);
+    } catch (error) {
+        console.error("Error fetching booking customers:", error);
+        handleError(res, error as Error);
+    }
+};  
 

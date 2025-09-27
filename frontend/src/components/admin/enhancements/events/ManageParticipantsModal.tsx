@@ -3,6 +3,7 @@ import { RiCloseLine, RiSearchLine, RiUserAddLine, RiLoader4Line, RiCloseFill } 
 import toast from 'react-hot-toast';
 import { baseUrl } from '../../../../utils/constants';
 import type { Event } from '../../../../types/types';
+import { useEventParticipants } from '../../../../hooks/useEventParticipants';
 
 interface BookingGuest {
   customerId: string;
@@ -41,17 +42,30 @@ interface Booking {
 
 interface ManageParticipantsModalProps {
   isOpen: boolean;
-  event: Event;
+  event: Event & {
+    provisional?: {
+      plannedAttendees: number;
+      notes?: string;
+      registryStatus: string;
+    };
+  };
   onClose: () => void;
   onUpdate: () => void;
+  paymentIntentId?: string; // Optional: only show bookings from this payment intent
 }
 
 export default function ManageParticipantsModal({
   isOpen,
   event,
   onClose,
-  onUpdate
+  onUpdate,
+  paymentIntentId
 }: ManageParticipantsModalProps) {
+  const { 
+    addParticipant, 
+    removeParticipant 
+  } = useEventParticipants();
+  
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,7 +105,16 @@ export default function ManageParticipantsModal({
       }
       
       const data = await response.json();
-      setBookings(data.data || []);
+      let bookingsData = data.data || [];
+      
+      // If paymentIntentId is provided, filter bookings to only show ones from this payment intent
+      if (paymentIntentId) {
+        bookingsData = bookingsData.filter((booking: any) => 
+          booking.paymentIntent?.id === paymentIntentId
+        );
+      }
+      
+      setBookings(bookingsData);
     } catch (error) {
       toast.error('Failed to load bookings');
     } finally {
@@ -127,59 +150,36 @@ export default function ManageParticipantsModal({
     if (actionType === 'add') {
       setAddingGuest(selectedGuestData.customerId);
       try {
-        const response = await fetch(`${baseUrl}/admin/events/${event.id}/participants`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            customerId: selectedGuestData.customerId,
-            bookingId: selectedGuestData.bookingId,
-            enhancementId: selectedEnhancement,
-            reason,
-            notes
-          })
+        await addParticipant(event.id, {
+          customerId: selectedGuestData.customerId,
+          bookingId: selectedGuestData.bookingId,
+          enhancementId: selectedEnhancement,
+          paymentIntentId: paymentIntentId, // Include if provided
+          reason,
+          notes
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to add participant');
-        }
-
-        toast.success('Guest added to event successfully');
         
         // Reload bookings to refresh the guest list
         await loadBookings();
         onUpdate(); // Refresh parent data
       } catch (error: any) {
-        toast.error(error.message || 'Failed to add guest to event');
+        // Error already handled by the hook
       } finally {
         setAddingGuest(null);
       }
     } else {
       setRemovingGuest(selectedGuestData.customerId);
       try {
-        const response = await fetch(`${baseUrl}/admin/events/${event.id}/participants/${selectedGuestData.participantId}`, {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ reason, notes })
+        await removeParticipant(event.id, selectedGuestData.participantId!, { 
+          reason, 
+          notes 
         });
-        
-        if (!response.ok) {
-          throw new Error('Failed to remove guest');
-        }
-        
-        toast.success('Guest removed from event successfully');
         
         // Reload bookings to refresh the guest list
         await loadBookings();
         onUpdate(); // Refresh parent data
       } catch (error) {
-        toast.error('Failed to remove guest from event');
+        // Error already handled by the hook
       } finally {
         setRemovingGuest(null);
       }
@@ -246,6 +246,33 @@ export default function ManageParticipantsModal({
             </div>
           </div>
 
+
+          {/* Provisional Registry Info */}
+          {event.provisional && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-yellow-800 mb-1">Pre-Registration Information</h4>
+                  <p className="text-sm text-yellow-700">
+                    <span className="font-medium">{event.provisional.plannedAttendees}</span> guests have pre-registered for this event during booking.
+                  </p>
+                  {event.provisional.notes && (
+                    <p className="text-sm text-yellow-600 mt-1">
+                      Note: {event.provisional.notes}
+                    </p>
+                  )}
+                  <p className="text-xs text-yellow-600 mt-2">
+                    Status: <span className="font-medium">{event.provisional.registryStatus}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bookings List */}
           <div>

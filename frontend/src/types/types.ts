@@ -39,6 +39,7 @@ export interface BulkOverrideLog {
     description?: string;
   };
 }
+type enhancementPricingType = "PER_GUEST" | "PER_BOOKING" | "PER_DAY";
 
 export interface Enhancement {
   id: string
@@ -47,11 +48,13 @@ export interface Enhancement {
   price: number
   tax?: number
   image?: string
-  pricingType: "PER_GUEST" | "PER_BOOKING" | "PER_DAY"
+  pricingType: enhancementPricingType 
+  type?: "PRODUCT" | "EVENT"
   isActive: boolean
   createdAt: string
   updatedAt: string
   enhancementRules?: EnhancementRule[]
+  applicableRules?: any[]
   seasonal: boolean;
   seasonStart: string;
   seasonEnd: string;
@@ -78,14 +81,14 @@ export interface EnhancementRule {
   createdAt: string
   updatedAt: string
 }
-
+type eventStatus = 'COMPLETED' | 'IN_PROGRESS' | 'CANCELLED'
 export interface Event {
   id: string
   name: string
   description?: string
   eventDate: string
   eventType: 'ENHANCEMNET' | 'PIZZA_NIGHT' | 'SPECIAL_DINNER' | 'WINE_TASTING' | 'COOKING_CLASS' | 'OTHERS'
-  status: 'COMPLETED' | 'IN_PROGRESS' | 'CANCELLED'
+  status: eventStatus
   totalRevenue: number
   totalGuests: number
   maxCapacity?: number
@@ -286,6 +289,8 @@ export interface PaymentIntent {
   paymentStructure?: 'FULL_PAYMENT' | 'SPLIT_PAYMENT'
   prepaidAmount?: number
   remainingAmount?: number
+  charges: Charge[]
+  orders: any;
   remainingDueDate?: string
   // Second payment fields
   secondPaymentLinkId?: string
@@ -394,6 +399,22 @@ export interface CustomerData {
   orders: any
 }
 
+export interface SelecetedEventsDetails {
+  name: string;
+  description: string;
+  eventId: string;
+  eventStatus: eventStatus;
+  id: string;
+  image: string;
+  enhancementName: string;
+  eventDate: string;
+  plannedAttendees: number;
+  price: number;
+  pricingType: Enhancement;
+  tax: number;
+  type: string;
+}
+
 export interface BookingData {
   adults: number
   checkIn: string
@@ -401,6 +422,7 @@ export interface BookingData {
   id: string
   promotionCode: string
   specialRequests?: string;
+  selectedEventsDetails: SelecetedEventsDetails[]
   roomDetails: {
     minimumStay: number;
     id: string
@@ -672,6 +694,8 @@ export interface GeneralSettings { // Represents the actual data structure from/
   enableTaxOptimizationFeature: boolean;
   checkinReminderDays: number;
   onlineCheckinHomeImageUrl?: string;
+  standardCheckInTime: string;  // Standard check-in time (e.g., "14:00")
+  standardCheckOutTime: string; // Standard check-out time (e.g., "10:00")
   // Add other settings properties here as they are defined in the backend model
 }
 
@@ -1051,5 +1075,29 @@ export interface PaymentMethodInfo {
   label: string;
   color: string;
   bgColor: string;
+}
+
+// Event Guest Registry for tracking event attendees
+export interface EventGuestRegistry {
+  id: string;
+  paymentIntentId: string;
+  bookingId?: string;
+  mainGuestEmail: string;
+  mainGuestName: string;
+  mainGuestPhone?: string;
+  customerId?: string;
+  totalGuestCount: number;
+  confirmedGuests: number;
+  subGuests?: any; // JSON field
+  eventParticipants?: EventParticipant[];
+  status: string; // "PROVISIONAL" | "CONFIRMED" | etc.
+  syncedWithCheckIn: boolean;
+  guestCheckInAccessId?: string;
+  selectedEvents?: any; // JSON field
+  createdAt: string;
+  updatedAt: string;
+  paymentIntent?: PaymentIntent;
+  booking?: Booking;
+  customer?: Customer | CustomerData;
 }
 

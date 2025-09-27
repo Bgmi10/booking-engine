@@ -20,7 +20,8 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
     voucherCode,
     voucherDiscount,
     originalAmount,
-    voucherProducts
+    voucherProducts,
+    selectedEvents // Event attendance data
   } = req.body;
 
   try {
@@ -99,6 +100,7 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           receiveMarketing: customerDetails.receiveMarketing || false,
           tcAgreed: customerDetails.tcAgreed || true
         }),
+        selectedEvents: selectedEvents ? JSON.stringify(selectedEvents) : undefined, // Store event attendance data
         taxAmount,
         totalAmount: paymentAmount, // Amount to be paid now
         outstandingAmount: originalAmount, // Initial outstanding amount equals original total amount
@@ -153,20 +155,19 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
 
     const line_items = bookingItems.flatMap((booking: any) => {
       const numberOfNights = calculateNights(booking.checkIn, booking.checkOut);
-      
+    
       const roomRatePerNight = booking.selectedRateOption?.price || booking.roomDetails.price;
       let totalRoomPrice = roomRatePerNight * numberOfNights;
       const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || prepayPercentage;
-      
-      // Adjust price for split payment based on actual prepay percentage
+    
       if (issSplitPayment) {
         totalRoomPrice = Math.round(totalRoomPrice * (bookingPrepayPercentage / 100) * 100) / 100;
       }
-      
-      const paymentDescription = issSplitPayment 
+    
+      const paymentDescription = issSplitPayment
         ? `${booking.selectedRateOption?.name || 'Standard Rate'} - ${bookingPrepayPercentage}% Payment (€${Math.round((roomRatePerNight * numberOfNights) * (1 - bookingPrepayPercentage / 100) * 100) / 100} due later)`
         : `${booking.selectedRateOption?.name || 'Standard Rate'} - Full Payment`;
-      
+    
       const roomLineItem = {
         price_data: {
           currency: "eur",
@@ -174,20 +175,18 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
             name: `${booking.roomDetails.name} - ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`,
             description: `€${roomRatePerNight} per night × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''} | ${paymentDescription} | Taxes included`,
             images:
-            booking.roomDetails.images?.length > 0
-            ? booking.roomDetails.images.map((image: any) =>
-            encodeURI(image.url.trim())
-            )
-            : ["https://www.shutterstock.com/search/no-picture-available"],
+              booking.roomDetails.images?.length > 0
+                ? booking.roomDetails.images.map((image: any) => encodeURI(image.url.trim()))
+                : ["https://www.shutterstock.com/search/no-picture-available"],
           },
-          unit_amount: Math.round(totalRoomPrice * 100), // Total price for all nights
+          unit_amount: Math.round(totalRoomPrice * 100),
         },
-        quantity: booking.rooms, // Number of rooms booked
+        quantity: booking.rooms,
       };
-      
+    
+      // Enhancements
       const enhancementLineItems = booking.selectedEnhancements?.map((enhancement: any) => {
         let enhancementQuantity = 1;
-        
         if (enhancement.pricingType === "PER_GUEST") {
           enhancementQuantity = booking.adults * booking.rooms;
         } else if (enhancement.pricingType === "PER_ROOM") {
@@ -196,26 +195,22 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           enhancementQuantity = numberOfNights * booking.rooms;
         } else if (enhancement.pricingType === "PER_GUEST_PER_NIGHT") {
           enhancementQuantity = booking.adults * booking.rooms * numberOfNights;
-        } else {
-          enhancementQuantity = 1;
         }
-
-        // Adjust enhancement price for split payment based on actual prepay percentage
+    
         let enhancementPrice = enhancement.price;
-        const bookingPrepayPercentage = booking.selectedRateOption?.prepayPercentage || prepayPercentage;
         if (issSplitPayment) {
           enhancementPrice = Math.round(enhancement.price * (bookingPrepayPercentage / 100) * 100) / 100;
         }
-        
+    
         const enhancementDescription = issSplitPayment
-          ? `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} - ${bookingPrepayPercentage}% Payment | ${enhancement.description} | Taxes included`
-          : `€${enhancement.price} ${enhancement.pricingType === "PER_GUEST" ? "per guest" : enhancement.pricingType === "PER_ROOM" ? "per room" : enhancement.pricingType === "PER_NIGHT" ? "per night" : enhancement.pricingType === "PER_GUEST_PER_NIGHT" ? "per guest per night" : "per booking"} | ${enhancement.description} | Taxes included`;
-
+          ? `€${enhancement.price} (${enhancement.pricingType}) - ${bookingPrepayPercentage}% Payment | ${enhancement.description} | Taxes included`
+          : `€${enhancement.price} (${enhancement.pricingType}) | ${enhancement.description} | Taxes included`;
+    
         return {
           price_data: {
             currency: "eur",
             product_data: {
-              name: enhancement.title,
+              name: enhancement.name,
               description: enhancementDescription,
               images: enhancement.image ? [enhancement.image] : undefined,
             },
@@ -224,11 +219,38 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
           quantity: enhancementQuantity,
         };
       }) || [];
-
-      return [roomLineItem, ...enhancementLineItems];
+    
+      // ✅ Events
+      const eventLineItems = booking.selectedEventsDetails?.map((event: any) => {
+        let eventQuantity = event.plannedAttendees || booking.adults;
+    
+        let eventPrice = event.price;
+        if (issSplitPayment) {
+          eventPrice = Math.round(event.price * (bookingPrepayPercentage / 100) * 100) / 100;
+        }
+    
+        const eventDescription = issSplitPayment
+          ? `€${event.price} per guest - ${bookingPrepayPercentage}% Payment | ${event.description} | Taxes included`
+          : `€${event.price} per guest | ${event.description} | Taxes included`;
+    
+        return {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: event.name,
+              description: eventDescription,
+              images: event.image ? [event.image] : undefined,
+            },
+            unit_amount: Math.round(eventPrice * 100),
+          },
+          quantity: eventQuantity,
+        };
+      }) || [];
+    
+      return [roomLineItem, ...enhancementLineItems, ...eventLineItems];
     });
+    
 
-    // Add voucher products as free line items if any
     if (voucherProducts && voucherProducts.length > 0) {
       const voucherLineItems = voucherProducts.map((product: any) => ({
         price_data: {
@@ -295,11 +317,11 @@ export const createCheckoutSession = async (req: express.Request, res: express.R
         }
       } else {
         // For product vouchers or when no discount is applied, allow promotion codes
-        sessionConfig.allow_promotion_codes = true;
+        sessionConfig.allow_promotion_codes = false;
       }
     } else {
       // No voucher applied, allow promotion codes for additional discounts
-      sessionConfig.allow_promotion_codes = true;
+      sessionConfig.allow_promotion_codes = false;
     }
 
     // Find the customer to get their Stripe ID

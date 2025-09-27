@@ -23,7 +23,7 @@ import { refund, processFutureRefund } from "../controllers/adminController";
 import { bookingRestrictionSchema, bookingRestrictionUpdateSchema } from "../zod/booking.schema";
 import { createVoucher, createVoucherProduct, deleteVoucher, deleteVoucherProduct, editVoucher, editVoucherProduct, getAllVoucherProducts, getAllVouchers, getVouchers } from "../controllers/voucherController";
 import { updateVoucherProductSchema, updateVoucherSchema, voucherProductSchema, voucherSchema } from "../zod/voucher.scheme";
-import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer, getCustomerRelationshipsAdmin, removeCustomerRelationshipAdmin, updateCustomerAdminNotes } from "../controllers/customerController";
+import { createCustomer, deleteCustomer, editCustomer, getAllCustomers, getCustomerBookings, getCustomerChargePayments, getCustomerById, getPaymentMethodsForCustomer, getCustomerRelationshipsAdmin, removeCustomerRelationshipAdmin, updateCustomerAdminNotes, getBookingCustomers } from "../controllers/customerController";
 import { customerSchema } from "../zod/customer.schema";
 import { updateCustomerSchema } from "../zod/customer.schema";
 import { 
@@ -88,7 +88,8 @@ import {
     searchCustomersForEvent,
     addEventParticipant,
     removeEventParticipant,
-    getEventBookingsWithGuests
+    getEventBookingsWithGuests,
+    getEventsByPaymentIntent
 } from "../controllers/eventController";
 import { createEventSchema, updateEventSchema } from "../zod/event.schema";
 
@@ -149,6 +150,7 @@ adminRouter.put("/bookings/:id", authMiddleware, updateBooking);
 adminRouter.delete("/bookings/:id", authMiddleware, deleteBooking);
 
 adminRouter.get("/bookings/:id", authMiddleware, getBookingById);
+adminRouter.get("/bookings/:id/customers", authMiddleware, getBookingCustomers);
 
 adminRouter.post("/upload-url", authMiddleware, uploadUrl);
 
@@ -512,5 +514,6 @@ adminRouter.get('/events/:eventId/bookings', authMiddleware, getEventBookingsWit
 adminRouter.get('/events/:eventId/search-customers', authMiddleware, searchCustomersForEvent);
 adminRouter.post('/events/:eventId/participants', authMiddleware, addEventParticipant);
 adminRouter.delete('/events/:eventId/participants/:participantId', authMiddleware, removeEventParticipant);
+adminRouter.get('/events/:eventregistryId', authMiddleware, getEventsByPaymentIntent);
 
 export default adminRouter;

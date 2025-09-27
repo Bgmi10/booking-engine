@@ -32,7 +32,7 @@ function App() {
   useEffect(() => {
     setTimeout(() => {
       setShowLoader(false);
-    }, 2000);
+    }, 20);
   }, []);
 
   return (

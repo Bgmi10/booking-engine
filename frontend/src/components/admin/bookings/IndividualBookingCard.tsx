@@ -21,6 +21,8 @@ interface Booking {
   id: string;
   checkIn: string;
   checkOut: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   totalGuests: number;
   status: 'PENDING' | 'CONFIRMED' | 'REFUNDED' | 'CANCELLED';
   totalAmount?: number;
@@ -204,7 +206,7 @@ export default function IndividualBookingCard({
       {/* Dates */}
       <div className="flex items-center space-x-2 mb-3">
         <Calendar className="h-4 w-4 text-gray-400" />
-        <span className="text-sm text-gray-700">
+        <div className="text-sm text-gray-700">
           {(() => {
             try {
               if (booking.checkIn && booking.checkOut) {
@@ -214,9 +216,16 @@ export default function IndividualBookingCard({
                 // Check if dates are valid
                 if (!isNaN(checkInDate.getTime()) && !isNaN(checkOutDate.getTime())) {
                   return (
-                    <>
-                      {format(checkInDate, 'MMM dd')} → {format(checkOutDate, 'MMM dd, yyyy')}
-                    </>
+                    <div className="flex flex-col">
+                      <span>
+                        {format(checkInDate, 'MMM dd')} → {format(checkOutDate, 'MMM dd, yyyy')}
+                      </span>
+                      {(booking.checkInTime || booking.checkOutTime) && (
+                        <span className="text-xs text-gray-500">
+                          Check-in: {booking.checkInTime || '14:00'} | Check-out: {booking.checkOutTime || '10:00'}
+                        </span>
+                      )}
+                    </div>
                   );
                 }
               }
@@ -225,7 +234,7 @@ export default function IndividualBookingCard({
               return <span className="text-gray-500 italic">Dates not available</span>;
             }
           })()}
-        </span>
+        </div>
       </div>
 
       {/* Amount */}

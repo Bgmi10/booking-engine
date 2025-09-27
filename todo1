@@ -115,3 +115,29 @@ non refund automatically
 [] => on the tc page there is a marketing email check box exist. in backend we need check if it was true then save hte user in brevo list else if it was false then remove hte user from brevo.
 
 [] => in groups we need ability to      
+
+
+[C] => In the enhancements try to add a field called type so, we can categorise the enhancement based of type which is enum and it has two values PRODUCT/EVENT
+
+[C] => need to fix the ui date field issue on safari browser in the event creation/update model
+
+[] => need to show the enhancements/ events in the user app and it should be filtered out by italian time zone, So, here is the flow it all based on the standard check in and check out time. so, for example if the user try to book on 20 - 29 then we need to filter the existing products and events for this date first and then on the check in date the time is 2 pm we need to filter and show the eveents after 2 pm not before as guest will check in at 2pm and same goes for the check out date
+
+[C] => need to add this TZ icon under the user app so, user know which is the time zone they are currently in Can write.. European time in small under if you want
+
+[C] => need to fix the logic issue that only show the checkin btn for the user and main guest if they have more then one guest else dont show
+
+[C] => need to show the added enhancements and events for the checkin geust portal and also provide the abilirty to add more events and enhancements if tehy want during that flow and same filteration goes there also.
+
+[C] => need to show the enhancements/ event details in the booking charges details/
+
+[C] =>  need to show the standard check in and checkout time && implement this on admin settings and they can change this whenever they want.
+
+[C] =>  need to replace the ui modification from the event page to the boooking page. [3:58 pm, 23/9/2025] Scott: I should be able to remove it from the customers booking page
+[3:58 pm, 23/9/2025] Scott: Everything about the customer should be managed from customer booking page also
+
+[C] => [5:48 pm, 23/9/2025] Scott: And in customer booking, admin can change user check in time and check out time, manually
+[5:48 pm, 23/9/2025] Scott: With a log of admin edit
+
+
+

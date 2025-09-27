@@ -804,9 +804,9 @@ const updateRoomPrice = async (req: express.Request, res: express.Response) => {
 }
 
 const updateGeneralSettings = async (req: express.Request, res: express.Response) => {
-  const { minStayDays, id, taxPercentage, checkinReminderDays, chargePaymentConfig, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature, onlineCheckinHomeImageUrl } = req.body;
+  const { minStayDays, id, taxPercentage, checkinReminderDays, chargePaymentConfig, licensePlateExpiryDays, licensePlateDailyTriggerTime, dailyBookingStartTime, autoGroupingRoomCount, enableTaxOptimizationFeature, onlineCheckinHomeImageUrl, standardCheckInTime, standardCheckOutTime } = req.body;
 
-  let updateData: { checkinReminderDays?: number, minStayDays?: number,  taxPercentage?: number, chargePaymentConfig?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean, onlineCheckinHomeImageUrl?: string } = {};
+  let updateData: { checkinReminderDays?: number, minStayDays?: number,  taxPercentage?: number, chargePaymentConfig?: string, licensePlateExpiryDays?: number, licensePlateDailyTriggerTime?: string, dailyBookingStartTime?: string, autoGroupingRoomCount?: number, enableTaxOptimizationFeature?: boolean, onlineCheckinHomeImageUrl?: string, standardCheckInTime?: string, standardCheckOutTime?: string } = {};
 
   if (typeof minStayDays !== 'undefined') {
     updateData.minStayDays = minStayDays;
@@ -846,6 +846,14 @@ const updateGeneralSettings = async (req: express.Request, res: express.Response
   
   if (typeof onlineCheckinHomeImageUrl !== 'undefined') {
     updateData.onlineCheckinHomeImageUrl = onlineCheckinHomeImageUrl;
+  }
+  
+  if (typeof standardCheckInTime !== 'undefined') {
+    updateData.standardCheckInTime = standardCheckInTime;
+  }
+  
+  if (typeof standardCheckOutTime !== 'undefined') {
+    updateData.standardCheckOutTime = standardCheckOutTime;
   }
   
   try {
@@ -1094,7 +1102,7 @@ const collectCash = async (req: express.Request, res: express.Response) => {
   const adminUserId = req.user?.id;
 
   try {
-    // Check room availability (same as createAdminPaymentLink)
+
     for (const booking of bookingItems) {
       const { checkIn, checkOut, selectedRoom: roomId } = booking;
 
@@ -1832,18 +1840,8 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
         where: { isSoftDeleted: false, bookingGroupId: null },
         include: {
           bookings: {
-            select: {
-              id: true,
-              request: true,
-              checkIn: true,
-              checkOut: true,
+            include: {
               room: true,
-              checkedIn: true,
-              checkedOut: true,
-              checkedInAt: true,
-              checkedOutAt: true,
-              adminCheckInNotes: true,
-              adminCheckOutNotes: true,
               guestCheckInAccess: {
                 include: {
                   customer: {
@@ -1857,6 +1855,11 @@ const getAllPaymentIntent = async (req: express.Request, res: express.Response) 
                   }
                 }
               }
+            }
+          },
+          eventGuestRegistries: {
+            select: {
+              id: true
             }
           },
           orders: true,
@@ -2333,6 +2336,10 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
   }
 
   try {
+    // Get general settings for default check-in/out times
+    const generalSettings = await prisma.generalSettings.findFirst();
+    const defaultCheckInTime = generalSettings?.standardCheckInTime || '14:00';
+    const defaultCheckOutTime = generalSettings?.standardCheckOutTime || '10:00';
     const paymentIntent = await prisma.paymentIntent.findUnique({
       where: { id: paymentIntentId },
       include: {
@@ -2391,6 +2398,8 @@ const confirmBooking = async (req: express.Request, res: express.Response) => {
             roomId: bookingItem.selectedRoom,
             checkIn: new Date(bookingItem.checkIn),
             checkOut: new Date(bookingItem.checkOut),
+            checkInTime: defaultCheckInTime,
+            checkOutTime: defaultCheckOutTime,
             totalGuests: bookingItem.adults,
             status: "CONFIRMED",
             totalAmount: bookingItem.totalPrice,
@@ -3073,6 +3082,8 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
             roomId: room.id,
             checkIn: new Date(booking.checkIn),
             checkOut: new Date(booking.checkOut),
+            checkInTime: booking.checkInTime || '14:00',
+            checkOutTime: booking.checkOutTime || '10:00',
             totalGuests: booking.totalGuests,
             hasExtraBed: booking.hasExtraBed || false,
             extraBedCount: booking.extraBedCount || 0,
@@ -3090,6 +3101,8 @@ const updatePaymentIntent = async (req: express.Request, res: express.Response) 
               roomId: room.id,
               checkIn: new Date(booking.checkIn),
               checkOut: new Date(booking.checkOut),
+              checkInTime: booking.checkInTime || '14:00',
+              checkOutTime: booking.checkOutTime || '10:00',
               totalGuests: booking.totalGuests,
               hasExtraBed: booking.hasExtraBed || false,
               extraBedCount: booking.extraBedCount || 0,

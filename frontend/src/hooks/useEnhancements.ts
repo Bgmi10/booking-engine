@@ -6,6 +6,10 @@ interface UseEnhancementsProps {
     days?: string[]; // Days in range for filtering seasonal enhancements
     bookingId?: string; // Optional booking ID if enhancements are booking-specific
     enabled?: boolean; // Whether to fetch enhancements or not
+    type?: 'EVENT' | 'PRODUCT'; // Optional filter by enhancement type
+    checkIn?: string; // Check-in date for time-based filtering
+    checkOut?: string; // Check-out date for time-based filtering
+    roomId?: string; // Room ID for room-specific enhancements
 }
 
 interface UseEnhancementsReturn {
@@ -22,7 +26,11 @@ interface UseEnhancementsReturn {
 export const useEnhancements = ({
     days = [],
     bookingId,
-    enabled = true
+    enabled = true,
+    type,
+    checkIn,
+    checkOut,
+    roomId
 }: UseEnhancementsProps = {}): UseEnhancementsReturn => {
     const [enhancements, setEnhancements] = useState<Enhancement[]>([]);
     const [selectedEnhancements, setSelectedEnhancements] = useState<Enhancement[]>([]);
@@ -40,6 +48,9 @@ export const useEnhancements = ({
                 ? `/enhancements` // POST endpoint for days filtering
                 : `/admin/enhancements/all`; // GET endpoint for all enhancements
 
+            // Build query string for type filter
+            const queryParams = type ? `?type=${type}` : '';
+            
             const requestConfig: RequestInit = {
                 method: days.length > 0 ? 'POST' : 'GET',
                 credentials: 'include',
@@ -52,17 +63,20 @@ export const useEnhancements = ({
             if (days.length > 0) {
                 requestConfig.body = JSON.stringify({
                     days: days,
-                    ...(bookingId && { bookingId })
+                    ...(bookingId && { bookingId }),
+                    ...(checkIn && { checkIn }),
+                    ...(checkOut && { checkOut }),
+                    ...(roomId && { roomId })
                 });
             }
 
-            const response = await fetch(`${baseUrl}${endpoint}`, requestConfig);
+            const response = await fetch(`${baseUrl}${endpoint}${queryParams}`, requestConfig);
             const data = await response.json();
 
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to fetch enhancements');
             }
-
+        
             setEnhancements(data.data || []);
         } catch (err) {
             console.error('Error fetching enhancements:', err);
@@ -100,7 +114,7 @@ export const useEnhancements = ({
     // Fetch enhancements when dependencies change
     useEffect(() => {
         fetchEnhancements();
-    }, [days.join(','), bookingId, enabled]);
+    }, [days.join(','), bookingId, enabled, type, checkIn, checkOut, roomId]);
 
     return {
         enhancements,

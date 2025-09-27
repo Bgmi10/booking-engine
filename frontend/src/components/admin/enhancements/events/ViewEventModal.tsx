@@ -5,7 +5,13 @@ import ManageParticipantsModal from "./ManageParticipantsModal"
 
 interface ViewEventModalProps {
   isOpen: boolean
-  event: Event
+  event: Event & {
+    provisional?: {
+      plannedAttendees: number;
+      notes?: string;
+      registryStatus: string;
+    };
+  }
   onClose: () => void
   onUpdate?: () => void
 }
@@ -136,6 +142,39 @@ export default function ViewEventModal({ isOpen, event, onClose, onUpdate }: Vie
               </div>
             </div>
           </div>
+
+          {/* Provisional Registry Info */}
+          {event.provisional && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3 text-yellow-800 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                  <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Pre-Registration Information
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-yellow-700">Planned Attendees:</span>
+                  <span className="font-semibold text-yellow-800">{event.provisional.plannedAttendees} guests</span>
+                </div>
+                {event.provisional.notes && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-sm text-yellow-700">Notes:</span>
+                    <span className="text-sm text-yellow-800 text-right ml-2">{event.provisional.notes}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-yellow-700">Registry Status:</span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-200 text-yellow-800">
+                    {event.provisional.registryStatus}
+                  </span>
+                </div>
+                <p className="text-xs text-yellow-600 mt-2 italic">
+                  These guests have indicated interest during booking but haven't confirmed participation yet.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Statistics */}
           <div className="bg-gray-50 rounded-lg p-4">

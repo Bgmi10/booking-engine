@@ -23,7 +23,8 @@
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "Read(/mnt/c/Users/Administrator/Downloads/**)",
       "WebFetch(domain:www.latorre.farm)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(npx prisma migrate dev:*)"
     ],
     "deny": []
   }

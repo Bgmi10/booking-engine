@@ -17,6 +17,7 @@ export function CreateEnhancementModal({ isOpen, onClose, onSuccess }: CreateEnh
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState("")
   const [pricingType, setPricingType] = useState<"PER_GUEST" | "PER_BOOKING" | "PER_DAY">("PER_BOOKING")
+  const [type, setType] = useState<"PRODUCT" | "EVENT">("PRODUCT")
   const [isActive, setIsActive] = useState(true)
   const [tax, setTax] = useState(0);
   const [showCustomTax, setShowCustomTax] = useState(false);
@@ -38,6 +39,7 @@ export function CreateEnhancementModal({ isOpen, onClose, onSuccess }: CreateEnh
       setDescription("")
       setPrice("")
       setPricingType("PER_BOOKING")
+      setType("PRODUCT")
       setIsActive(true)
     }
   }, [isOpen]);
@@ -69,6 +71,7 @@ export function CreateEnhancementModal({ isOpen, onClose, onSuccess }: CreateEnh
         description: description.trim(),
         price: Number(price),
         pricingType,
+        type,
         isActive,
         tax,
         image: images?.[0] || null,
@@ -365,6 +368,22 @@ export function CreateEnhancementModal({ isOpen, onClose, onSuccess }: CreateEnh
                     <option value="PER_BOOKING">Per Booking</option>
                     <option value="PER_GUEST">Per Guest</option>
                     <option value="PER_DAY">Per Day</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+                    Enhancement Type *
+                  </label>
+                  <select
+                    id="type"
+                    value={type}
+                    onChange={(e) => setType(e.target.value as "PRODUCT" | "EVENT")}
+                    className="p-2 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    required
+                  >
+                    <option value="PRODUCT">Product (Champagne, Flowers, etc.)</option>
+                    <option value="EVENT">Event (Pizza Party, Wine Tasting, etc.)</option>
                   </select>
                 </div>
               </div>

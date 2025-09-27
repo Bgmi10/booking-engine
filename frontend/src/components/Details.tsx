@@ -179,12 +179,44 @@ export default function Details({
     };
 
     const calculateItemEnhancementsPrice = (item: any) => {
-        if (!item.selectedEnhancements || item.selectedEnhancements.length === 0) {
-            return 0;
+        let total = 0;
+        const nights = calculateNights(item.checkIn, item.checkOut);
+        
+        // Calculate products/enhancements price based on pricing type
+        if (item.selectedEnhancements && item.selectedEnhancements.length > 0) {
+            total += item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
+                let price = enhancement.price;
+                
+                // Handle different pricing types
+                if (enhancement.pricingType === 'PER_GUEST') {
+                    // For per-guest pricing, multiply by quantity (if specified) or adults
+                    const quantity = enhancement.quantity || item.adults;
+                    price = enhancement.price * quantity;
+                } else if (enhancement.pricingType === 'PER_DAY') {
+                    // For per-day pricing, multiply by nights
+                    price = enhancement.price * nights;
+                } else if (enhancement.pricingType === 'PER_BOOKING') {
+                    // For PER_BOOKING, price is fixed
+                    price = enhancement.price;
+                } else {
+                    // Fallback for old data without pricingType
+                    price = enhancement.price * item.adults;
+                }
+                
+                return sum + price;
+            }, 0);
         }
-        return item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
-            return sum + (enhancement.price * item.adults);
-        }, 0);
+        
+        // Calculate events price separately using selectedEventsDetails
+        if (item.selectedEventsDetails && item.selectedEventsDetails.length > 0) {
+            total += item.selectedEventsDetails.reduce((sum: number, event: any) => {
+                const eventPrice = event.price || 0;
+                const attendees = event.plannedAttendees || 1;
+                return sum + (eventPrice * attendees);
+            }, 0);
+        }
+        
+        return total;
     };
 
     const calculateItemTotal = (item: any) => {
@@ -212,31 +244,11 @@ export default function Details({
         return "Fenicottero - Vineyard View";
     };
 
-    // Prepare all items for display
+    // Use bookingItems as the single source of truth for display
     const getAllItems = () => {
-        const items = [...bookingItems];
-        
-        const isCurrentBookingComplete = bookingData.selectedRoom && 
-            (bookingData.selectedRateOption || bookingData.totalPrice > 0);
-        
-        if (isCurrentBookingComplete) {
-            const isAlreadyAdded = bookingItems.some((item: any) => 
-                item.id === 'current' || 
-                (item.selectedRoom === bookingData.selectedRoom && 
-                 item.checkIn === bookingData.checkIn && 
-                 item.checkOut === bookingData.checkOut));
-            
-            if (!isAlreadyAdded) {
-                const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
-                items.push({ 
-                    ...bookingData, 
-                    id: 'current',
-                    roomDetails: selectedRoom
-                });
-            }
-        }
-        
-        return items;
+        // bookingItems should already contain all saved items from Summary
+        // No need to add bookingData here as it should be empty after being saved
+        return [...bookingItems];
     };
 
     const allItems = getAllItems();
@@ -425,6 +437,7 @@ const validateForm = () => {
                     tcAgreed: agreeToTerms
                 },
                 bookingItems: allItems,
+                selectedEvents: bookingData.selectedEvents || {}, // Include event attendance data
                 totalAmount: priceDetails.finalTotal,
                 currentChargeAmount: currentChargeAmount, // Current charge amount for split payments
                 taxAmount: parseFloat(priceDetails.tax.toFixed(2)),
@@ -444,7 +457,7 @@ const validateForm = () => {
 
             const data = await response.json();
             if (response.status === 200 && data.data.url) {
-                window.location.href = data.data.url;
+              // window.location.href = data.data.url;
             } else {
                 setApiError(data.message);
             }
@@ -779,7 +792,6 @@ const validateForm = () => {
                             const enhancementsPrice = calculateItemEnhancementsPrice(item);
                             const itemTotal = roomBasePrice + enhancementsPrice;    
                             const rooms = item.rooms || 1;
-                            console.log(item)
                             
                             return (
                                 <div key={item.id || index} className="mb-6 pb-4 border-b border-gray-100 last:border-b-0">
@@ -835,21 +847,65 @@ const validateForm = () => {
                                         {item.selectedEnhancements && item.selectedEnhancements.length > 0 && (
                                             <div className="space-y-1">
                                                 {item.selectedEnhancements.map((enhancement: any, enhIndex: number) => {
-                                                    const quantity = enhancement.pricingType === "PER_GUEST" 
-                                                        ? item.adults * rooms 
-                                                        : rooms;
-                                                    const enhancementTotal = enhancement.price * quantity;
+                                                    let enhancementTotal = enhancement.price;
+                                                    let displayQuantity = '';
+                                                    
+                                                    // Calculate price based on pricing type
+                                                    if (enhancement.pricingType === 'PER_GUEST') {
+                                                        const quantity = enhancement.quantity || item.adults;
+                                                        enhancementTotal = enhancement.price * quantity;
+                                                        displayQuantity = `${quantity} × €${enhancement.price}`;
+                                                    } else if (enhancement.pricingType === 'PER_DAY') {
+                                                        enhancementTotal = enhancement.price * nights;
+                                                        displayQuantity = `${nights} days × €${enhancement.price}`;
+                                                    } else if (enhancement.pricingType === 'PER_BOOKING') {
+                                                        enhancementTotal = enhancement.price;
+                                                        displayQuantity = `€${enhancement.price}`;
+                                                    } else {
+                                                        // Fallback for old data
+                                                        const quantity = item.adults * rooms;
+                                                        enhancementTotal = enhancement.price * quantity;
+                                                        displayQuantity = `${quantity} × €${enhancement.price}`;
+                                                    }
                                                     
                                                     return (
                                                         <div key={enhIndex} className="flex justify-between text-gray-600">
                                                             <span className="flex-1 pr-2">
                                                                 {enhancement.title} 
-                                                                ({quantity} × €{enhancement.price})
+                                                                ({displayQuantity})
                                                                 {enhancement.pricingType === "PER_GUEST" && (
                                                                     <span className="text-xs text-gray-500"> per guest</span>
                                                                 )}
+                                                                {enhancement.pricingType === "PER_DAY" && (
+                                                                    <span className="text-xs text-gray-500"> per day</span>
+                                                                )}
+                                                                {enhancement.pricingType === "PER_BOOKING" && (
+                                                                    <span className="text-xs text-gray-500"> per booking</span>
+                                                                )}
                                                             </span>
                                                             <span className="font-medium">€{enhancementTotal.toFixed(2)}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        
+                                        {/* Events Breakdown */}
+                                        {item.selectedEventsDetails && item.selectedEventsDetails.length > 0 && (
+                                            <div className="space-y-1 mt-2">
+                                                <span className="text-sm font-medium text-gray-700">Events:</span>
+                                                {item.selectedEventsDetails.map((event: any, eventIndex: number) => {
+                                                    const attendees = event.plannedAttendees || 1;
+                                                    const price = event.price || 0;
+                                                    const eventTotal = price * attendees;
+                                                    
+                                                    return (
+                                                        <div key={eventIndex} className="flex justify-between text-gray-600">
+                                                            <span className="flex-1 pr-2">
+                                                                {event.name || event.title}
+                                                                ({attendees} attendee{attendees !== 1 ? 's' : ''} × €{price})
+                                                            </span>
+                                                            <span className="font-medium">€{eventTotal.toFixed(2)}</span>
                                                         </div>
                                                     );
                                                 })}

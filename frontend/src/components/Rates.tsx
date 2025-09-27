@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import BookingSummary from "./BookingSummary";
-import { baseUrl } from "../utils/constants";
 import { format } from "date-fns";
-import type { Enhancement } from "../types/types";
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Shield, Clock } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Shield, Clock, Star, Calendar } from "lucide-react";
+import { useEnhancements } from "../hooks/useEnhancements";
 
 export default function Rates({ bookingData, setCurrentStep, availabilityData, setBookingData }: { bookingData: any, setCurrentStep: (step: number) => void, availabilityData: any, setBookingData: any }) {
 
-  const [enhancements, setEnhancements] = useState<Enhancement[]>([]);
   const formattedCheckIn = format(new Date(bookingData.checkIn), "yyyy-MM-dd");
   const formattedCheckOut = format(new Date(bookingData.checkOut), "yyyy-MM-dd");
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -15,7 +13,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [enhancementDetails, setEnhancementDetails] = useState<any>({});
-  const [rooms, setRooms] = useState(1);
+  const [rooms, setRooms] = useState(bookingData.rooms || 1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
   const [expandedRateDetails, setExpandedRateDetails] = useState<{ [key: string]: boolean }>({});
   
@@ -23,14 +21,18 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   useEffect(() => {
     setAdults(bookingData.adults || 2);
   }, [bookingData.adults]);
+  
+
   //@ts-ignore
   const [selectedPaymentStructures, setSelectedPaymentStructures] = useState<any>({});
   const [showRoomAlternatives, setShowRoomAlternatives] = useState(false);
   const [alternativeRooms, setAlternativeRooms] = useState<any[]>([]);
   const [extraBedConfig, setExtraBedConfig] = useState<{useExtraBed: boolean, extraBedCount: number}>({
-    useExtraBed: false,
-    extraBedCount: 0
+    useExtraBed: bookingData.hasExtraBed || false,
+    extraBedCount: bookingData.extraBedCount || 0
   });
+  
+  
 
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
@@ -42,6 +44,26 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     }
     return false;
   });
+
+  // Use the useEnhancements hook to fetch enhancements with proper filtering
+  const { 
+    enhancements,
+  } = useEnhancements({
+    days: daysInRange,
+    enabled: !!bookingData.checkIn && !!bookingData.checkOut,
+    checkIn: formattedCheckIn,
+    checkOut: formattedCheckOut,
+    roomId: bookingData.selectedRoom
+  });
+
+  // Separate events and products
+  const events = enhancements.filter(e => e.type === 'EVENT');
+  const products = enhancements.filter(e => e.type === 'PRODUCT' || !e.type);
+  
+  const formatItalianTime = (time: string | null) => {
+    if (!time) return '';
+    return time + ' (Italy time)';
+  };
 
   // Calculate nights
   const checkInDate = new Date(bookingData.checkIn);
@@ -169,6 +191,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     };
   };
 
+
   // Prepare rate options - only from server data with rate-specific pricing
   const getRateOptions = () => {
     const options: any = [];
@@ -223,26 +246,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   };
 
   const rateOptions = getRateOptions();
-  async function fetchEnhancements() {
-    try {
-        const res = await fetch(baseUrl + `/enhancements`, {
-            method: "POST",
-            body: JSON.stringify({
-                days: daysInRange,
-                checkIn: formattedCheckIn,
-                checkOut: formattedCheckOut
-            }),
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            }
-        })
-        const data = await res.json();
-        setEnhancements(data.data || []);
-    } catch (error) {
-        console.log(error);
-    }
-  }
 
   function openGallery() {
     setCurrentImageIndex(0);
@@ -268,20 +271,46 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   }
 
   function addEnhancement(enhancement: any) {
-    const existingEnhancement = bookingData.selectedEnhancements.find((e: any) => e.id === enhancement.id);
-    if (!existingEnhancement) {
+    // Check if it's an event or a product
+    if (enhancement.isEvent || enhancement.type === 'EVENT') {
+      // Store full event details in array for UI
       setBookingData((prev: any) => ({
         ...prev,
-        selectedEnhancements: [...prev.selectedEnhancements, enhancement]
+        selectedEventsDetails: [
+          ...(prev.selectedEventsDetails || []).filter((e: any) => e.id !== enhancement.id),
+          { ...enhancement, plannedAttendees: 1 }
+        ]
       }));
+    } else {
+      // Store in selectedEnhancements array with quantity
+      const existingEnhancement = bookingData.selectedEnhancements.find((e: any) => e.id === enhancement.id);
+      if (!existingEnhancement) {
+        const enhancementWithQuantity = { ...enhancement, quantity: 1 };
+        setBookingData((prev: any) => ({
+          ...prev,
+          selectedEnhancements: [...prev.selectedEnhancements, enhancementWithQuantity]
+        }));
+      }
     }
   }
 
   function removeEnhancement(enhancementId: string) {
-    setBookingData((prev: any) => ({
-      ...prev,
-      selectedEnhancements: prev.selectedEnhancements.filter((e: any) => e.id !== enhancementId)
-    }));
+    // Check if it's an event by looking in selectedEventsDetails
+    const isEvent = bookingData.selectedEventsDetails?.some((e: any) => e.id === enhancementId);
+    
+    if (isEvent) {
+      // Remove from event details array
+      setBookingData((prev: any) => ({
+        ...prev,
+        selectedEventsDetails: (prev.selectedEventsDetails || []).filter((e: any) => e.id !== enhancementId)
+      }));
+    } else {
+      // Remove from enhancements
+      setBookingData((prev: any) => ({
+        ...prev,
+        selectedEnhancements: prev.selectedEnhancements.filter((e: any) => e.id !== enhancementId)
+      }));
+    }
   }
 
   function updateOccupancy(type: 'rooms' | 'adults', change: number) {
@@ -300,7 +329,35 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   }
 
   function handleBookNow(rateOption: any, selectedPaymentStructure?: string) {
-    const enhancementPrice = bookingData.selectedEnhancements.length > 1  ? bookingData.selectedEnhancements?.reduce((acc: any, curr: any) => acc.price + curr.price + 0) : 0;
+    
+    // Calculate enhancement price based on pricing type
+    const enhancementPrice = bookingData.selectedEnhancements.length > 0 
+      ? bookingData.selectedEnhancements.reduce((acc: any, curr: any) => {
+          let price = curr.price;
+          
+          // Handle different pricing types
+          if (curr.pricingType === 'PER_GUEST') {
+            // For per-guest pricing, multiply by quantity (number of guests selected)
+            const quantity = curr.quantity || 1;
+            price = curr.price * quantity;
+          } else if (curr.pricingType === 'PER_DAY') {
+            // For per-day pricing, multiply by number of nights
+            price = curr.price * nights;
+          } else {
+            // For PER_BOOKING, price is fixed (no multiplication)
+            price = curr.price;
+          }
+          
+          return acc + price;
+        }, 0) 
+      : 0;
+    
+    // Calculate event price from selectedEventsDetails
+    const eventPrice = (bookingData.selectedEventsDetails || []).reduce((acc: number, eventDetail: any) => {
+      const price = eventDetail?.price || 0;
+      const attendees = eventDetail.plannedAttendees || 1;
+      return acc + (price * attendees);
+    }, 0);
     
     // Calculate extra bed cost if applicable
     let extraBedCost = 0;
@@ -318,22 +375,29 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       totalRateCost = totalRateCost * adjustmentFactor;
     }
     
-    const totalPrice = totalRateCost * rooms + enhancementPrice * bookingData.adults + extraBedCost;
+    // Calculate total price including room, enhancements, events, and extra beds
+    // Note: enhancementPrice already includes quantities and is calculated per booking type
+    const totalPrice = totalRateCost * rooms + enhancementPrice + eventPrice + extraBedCost;
     
-    setBookingData((prev: any) => ({
-      ...prev,
+    const finalBookingData = {
+      ...bookingData,
       selectedRateOption: rateOption,
       selectedPaymentStructure: selectedPaymentStructure || rateOption.paymentStructure || 'FULL_PAYMENT',
       rooms: rooms,
       adults: adults,
       totalPrice: totalPrice,
+      selectedEventsDetails: bookingData.selectedEventsDetails, // For UI: array with full event details
+      selectedEnhancements: bookingData.selectedEnhancements, // Keep only product enhancements
       hasExtraBed: extraBedConfig.useExtraBed,
       extraBedCount: extraBedConfig.extraBedCount,
       extraBedPrice: selectedRoom.extraBedPrice || 0
-    }));
-    setTimeout(() => {
-        setCurrentStep(4);
-    }, 20)
+    };
+
+    console.log(finalBookingData)
+
+    setBookingData(finalBookingData);
+    
+    setCurrentStep(4);
   }
 
   function handleSwitchToAlternativeRoom(roomId: string) {
@@ -353,10 +417,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     }));
   }
 
-  useEffect(() => {
-    fetchEnhancements();
-  }, [bookingData.checkIn, bookingData.checkOut])
-
   return (
     <div>
       <div className="container mx-auto px-2 sm:px-4">
@@ -371,7 +431,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           <div className="bg-white flex flex-col sm:flex-row rounded-xl shadow-sm overflow-hidden transition-all hover:shadow-md w-full">
             {/* Room image */}
             <div className="relative h-48 sm:h-64 overflow-hidden p-2 sm:p-3">
-              {selectedRoom.images?.length > 0 ? (
+              {selectedRoom?.images?.length > 0 ? (
                 <img
                   src={selectedRoom.images[currentImageIndex]?.url}
                   alt={selectedRoom.name}
@@ -458,22 +518,36 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
           <div className={`${enhancements.length > 0 ? 'lg:flex-1' : 'hidden'} order-2 lg:order-1`}>
            {enhancements.length > 0 && <h3 className="rates-section-title mb-4 hidden lg:block">Enhance your stay</h3>}
            
-          
-
-           {/* Original Large Screen Enhancement Design */}
-            <div className="space-y-4 hidden lg:block">
-              {enhancements.map((enhancement: any) => {
-                const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
+           {/* Events Section - Desktop */}
+           {events.length > 0 && (
+             <div className="hidden lg:block mb-6">
+               <div className="flex items-center gap-2 mb-3">
+                 <Calendar className="h-5 w-5 text-blue-600" />
+                 <h4 className="text-sm font-semibold text-gray-700">Special Events</h4>
+                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs">During your stay (Italy time)</span>
+               </div>
+               <div className="space-y-4">
+                 {events.map((enhancement: any) => {
+                const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.id === enhancement.id);
+                const isAdded = !!eventFromDetails;
+                const eventAttendance = eventFromDetails 
+                  ? { plannedAttendees: eventFromDetails.plannedAttendees }
+                  : { plannedAttendees: 1 };
+                const maxGuests = bookingData.adults;
+                
                 return (
                   <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <img 
                         src={enhancement.image} 
-                        alt={enhancement.title} 
+                        alt={enhancement.name || enhancement.title} 
                         className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover flex-shrink-0" 
                       />
                       <div className="flex-1">
-                        <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.title}</h4>
+                        <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.name || enhancement.title}</h4>
+                        {enhancement.enhancementName && (
+                          <p className="text-sm text-blue-600 font-medium mb-1">{enhancement.enhancementName}</p>
+                        )}
                         <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
                         
                         {enhancementDetails[enhancement.id] && (
@@ -492,7 +566,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                   ))}
                                   {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
                                     <span className="text-xs text-gray-500 ml-2">
-                                      ({enhancement.availableTimeStart} - {enhancement.availableTimeEnd})
+                                      ({formatItalianTime(enhancement.availableTimeStart)} - {formatItalianTime(enhancement.availableTimeEnd)})
                                     </span>
                                   )}
                                 </div>
@@ -501,7 +575,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                 <div className="text-xs sm:text-sm text-gray-600">
                                   <span className="text-gray-500">Special event during your stay</span>
                                   {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
-                                    <span className="ml-2">({enhancement.availableTimeStart} - {enhancement.availableTimeEnd})</span>
+                                    <span className="ml-2">({formatItalianTime(enhancement.availableTimeStart)} - {formatItalianTime(enhancement.availableTimeEnd)})</span>
                                   )}
                                 </div>
                               )}
@@ -551,27 +625,225 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                             </button>
                           )}
                         </div>
+                        
+                        {/* Event Attendance Selector */}
+                        {isAdded && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <label className="text-sm font-medium text-gray-700">How many guests will attend?</label>
+                                <p className="text-xs text-gray-500 mt-1">Max {maxGuests} guests in your party</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  className="w-8 h-8 rounded-md border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                  onClick={() => {
+                                    const current = eventAttendance?.plannedAttendees || 1;
+                                    if (current > 1) {
+                                      const newAttendees = current - 1;
+                                      // Update the array
+                                      setBookingData((prev: any) => ({
+                                        ...prev,
+                                        selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
+                                          e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                        )
+                                      }));
+                                    }
+                                  }}
+                                  disabled={(eventAttendance?.plannedAttendees || 1) <= 1}
+                                >
+                                  <span className="text-gray-600">−</span>
+                                </button>
+                                <span className="w-12 text-center font-medium text-gray-800">
+                                  {eventAttendance?.plannedAttendees || 1}
+                                </span>
+                                <button
+                                  className="w-8 h-8 rounded-md border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                  onClick={() => {
+                                    const current = eventAttendance?.plannedAttendees || 1;
+                                    if (current < maxGuests) {
+                                      const newAttendees = current + 1;
+                                      // Update the array
+                                      setBookingData((prev: any) => ({
+                                        ...prev,
+                                        selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
+                                          e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                        )
+                                      }));
+                                    }
+                                  }}
+                                  disabled={(eventAttendance?.plannedAttendees || 1) >= maxGuests}
+                                >
+                                  <span className="text-gray-600">+</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 );
               })}
-            </div>
+               </div>
+             </div>
+           )}
 
-            {/* Selected Enhancements for Large Screen */}
-            {bookingData.selectedEnhancements?.length > 0 && (
-              <div className="mt-6 hidden lg:block">
-                <h4 className="text-base sm:text-lg font-semibold mb-3 text-gray-800">Added Enhancements</h4>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  {bookingData.selectedEnhancements.map((enhancement: any, index: number) => (
-                    <div key={index} className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-2 border-b border-green-200 last:border-b-0 gap-1 sm:gap-0">
-                      <span className="text-green-800 font-medium text-sm sm:text-base">{enhancement.title}</span>
-                      <span className="text-green-700 font-semibold text-sm sm:text-base">€{enhancement.price} / {enhancement.pricingType.toLowerCase().replace('_', ' ')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+           {/* Products Section - Desktop */}
+           {products.length > 0 && (
+             <div className="hidden lg:block">
+               <div className="flex items-center gap-2 mb-3">
+                 <Star className="h-5 w-5 text-green-600" />
+                 <h4 className="text-sm font-semibold text-gray-700">Additional Products</h4>
+                 <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-md text-xs">Enhance your comfort</span>
+               </div>
+               <div className="space-y-4">
+                 {products.map((enhancement: any) => {
+                   const existingEnhancement = bookingData.selectedEnhancements.find((e: any) => e.id === enhancement.id);
+                   const isAdded = !!existingEnhancement;
+                   const productQuantity = existingEnhancement?.quantity || 0;
+                   return (
+                     <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+                       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                         <img 
+                           src={enhancement.image} 
+                           alt={enhancement.title || enhancement.name} 
+                           className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover flex-shrink-0" 
+                         />
+                         <div className="flex-1">
+                           <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.title || enhancement.name}</h4>
+                           <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
+                           
+                           {enhancementDetails[enhancement.id] && (
+                               <div>
+                                 <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                                   <p className="text-xs sm:text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
+                                 </div>
+                                 {/* Show availability details based on type */}
+                                 {enhancement.availabilityType === 'WEEKLY' && enhancement.availableDays && (
+                                   <div className="flex flex-wrap gap-1 sm:gap-2">
+                                     <span className="text-xs text-gray-500">Available on:</span>
+                                     {enhancement.availableDays.map((item: string, index: number) => (
+                                       <span key={index} className="text-gray-600 text-xs sm:text-sm">
+                                         {item}{index < enhancement.availableDays.length - 1 ? ',' : ''}
+                                       </span>
+                                     ))}
+                                   </div>
+                                 )}
+                                 {enhancement.availabilityType === 'ALWAYS' && (
+                                   <div className="text-xs sm:text-sm text-gray-600">
+                                     <span className="text-gray-500">Available throughout your stay</span>
+                                   </div>
+                                 )}
+                               </div>
+                           )}
+                           
+                           <button
+                             className="flex items-center text-gray-700 text-xs sm:text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
+                             onClick={() => toggleEnhancementDetails(enhancement.id)}
+                           >
+                             {enhancementDetails[enhancement.id] ? (
+                               <>less <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
+                             ) : (
+                               <>more <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
+                             )}
+                           </button>
+                           
+                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                             <div>
+                               <span className="text-lg sm:text-xl font-bold text-gray-800">€{enhancement.price}</span>
+                               <span className="text-gray-600 ml-1 text-sm">
+                                 {enhancement.pricingType === 'PER_GUEST' && '/ per guest'}
+                                 {enhancement.pricingType === 'PER_DAY' && `/ per day (€${enhancement.price * nights} for ${nights} nights)`}
+                                 {enhancement.pricingType === 'PER_BOOKING' && '/ per booking'}
+                               </span>
+                             </div>
+                             {isAdded ? (
+                               <button 
+                                 className="bg-red-600 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer text-sm w-full sm:w-auto"
+                                 onClick={() => removeEnhancement(enhancement.id)}
+                               >
+                                 Remove
+                               </button>
+                             ) : (
+                               <button 
+                                 className="bg-gray-800 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors cursor-pointer text-sm w-full sm:w-auto"
+                                 onClick={() => addEnhancement(enhancement)}
+                               >
+                                 Add
+                               </button>
+                             )}
+                           </div>
+                           
+                           {/* Product Quantity Selector - Only show for PER_GUEST pricing */}
+                           {isAdded && enhancement.pricingType === 'PER_GUEST' && (
+                             <div className="mt-4 pt-4 border-t border-gray-200">
+                               <div className="flex items-center justify-between">
+                                 <div>
+                                   <label className="text-sm font-medium text-gray-700">Number of Guests</label>
+                                   <p className="text-xs text-gray-500 mt-1">Max {adults} guests in your party</p>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                   <button
+                                     className="w-8 h-8 rounded-md border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                     onClick={() => {
+                                       if (productQuantity > 1) {
+                                         const newQuantity = productQuantity - 1;
+                                          setBookingData((prev: any) => {
+                                           const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
+                                             e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
+                                           );
+                                           console.log('Desktop: Updating quantity to', newQuantity, 'for', enhancement.name);
+                                           return {
+                                             ...prev,
+                                             selectedEnhancements: updatedEnhancements,
+                                               [enhancement.id]: { quantity: newQuantity }
+                                             }
+                                         });
+                                       }
+                                     }}
+                                     disabled={productQuantity <= 1}
+                                   >
+                                     <span className="text-gray-600">−</span>
+                                   </button>
+                                   <span className="w-12 text-center font-medium text-gray-800">
+                                     {productQuantity}
+                                   </span>
+                                   <button
+                                     className="w-8 h-8 rounded-md border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                     onClick={() => {
+                                       if (productQuantity < adults) {
+                                         const newQuantity = productQuantity + 1;
+                                       // Update the array too - ensure proper state update
+                                       setBookingData((prev: any) => {
+                                         const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
+                                           e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
+                                         );
+                                         return {
+                                           ...prev,
+                                           selectedEnhancements: updatedEnhancements,
+                                             [enhancement.id]: { quantity: newQuantity }
+                                           }
+                                       });
+                                       }
+                                     }}
+                                     disabled={productQuantity >= adults}
+                                   >
+                                     <span className="text-gray-600">+</span>
+                                   </button>
+                                 </div>
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             </div>
+           )}
+
           </div>
 
           {/* Right Side - Occupancy and Rates */}
@@ -717,24 +989,40 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
  {/* Mobile Compact Enhancement Design */}
  {enhancements.length > 0 && (
             <div className="lg:hidden bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-4">
-              <h3 className="rates-section-title mb-3">Add-ons</h3>
-              <p className="text-sm text-gray-600 mb-4">Enhance your stay with these optional services</p>
+              <h3 className="rates-section-title mb-3">Enhance your stay</h3>
               
-              <div className="space-y-3">
-                {enhancements.map((enhancement: any) => {
-                  const isAdded = bookingData.selectedEnhancements.some((e: any) => e.id === enhancement.id);
+              {/* Mobile Events Section */}
+              {events.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    <h4 className="text-sm font-semibold text-gray-700">Events</h4>
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Italy time</span>
+                  </div>
+                  <div className="space-y-3">
+                    {events.map((enhancement: any) => {
+                  const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.id === enhancement.id);
+                  const isAdded = !!eventFromDetails;
+                  const eventAttendance = eventFromDetails 
+                    ? { plannedAttendees: eventFromDetails.plannedAttendees }
+                    : { plannedAttendees: 1 };
+                  const maxGuests = bookingData.adults;
+                  
                   return (
                     <div key={enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
                       <div className="flex items-start gap-3">
                         {/* Small thumbnail for mobile */}
                         <img 
                           src={enhancement.image} 
-                          alt={enhancement.title} 
+                          alt={enhancement.name || enhancement.title} 
                           className="w-12 h-12 rounded-md object-cover flex-shrink-0" 
                         />
                         
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-semibold text-gray-800 leading-tight">{enhancement.title}</h4>
+                          <h4 className="text-sm font-semibold text-gray-800 leading-tight">{enhancement.name || enhancement.title}</h4>
+                          {enhancement.enhancementName && (
+                            <p className="text-xs text-blue-600 font-medium">{enhancement.enhancementName}</p>
+                          )}
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{enhancement.description}</p>
                           
                           {/* Price and action in one line on mobile */}
@@ -761,6 +1049,63 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                             )}
                           </div>
                           
+                          {/* Event Attendance Selector for Mobile */}
+                          {isAdded && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <span className="text-xs font-medium text-gray-700">Attendees</span>
+                                  <p className="text-xs text-gray-500">Max {maxGuests}</p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    className="w-7 h-7 rounded border border-gray-300 flex items-center justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const current = eventAttendance?.plannedAttendees || 1;
+                                      if (current > 1) {
+                                        const newAttendees = current - 1;
+                                        // Update the array
+                                        setBookingData((prev: any) => ({
+                                          ...prev,
+                                          selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
+                                            e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                          )
+                                        }));
+                                      }
+                                    }}
+                                    disabled={(eventAttendance?.plannedAttendees || 1) <= 1}
+                                  >
+                                    −
+                                  </button>
+                                  <span className="w-8 text-center text-sm font-medium">
+                                    {eventAttendance?.plannedAttendees || 1}
+                                  </span>
+                                  <button
+                                    className="w-7 h-7 rounded border border-gray-300 flex items-center justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const current = eventAttendance?.plannedAttendees || 1;
+                                      if (current < maxGuests) {
+                                        const newAttendees = current + 1;
+                                        // Update the array
+                                        setBookingData((prev: any) => ({
+                                          ...prev,
+                                          selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
+                                            e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                          )
+                                        }));
+                                      }
+                                    }}
+                                    disabled={(eventAttendance?.plannedAttendees || 1) >= maxGuests}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
                           {/* Expandable details for mobile */}
                           {enhancementDetails[enhancement.id] && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
@@ -777,7 +1122,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                   ))}
                                   {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
                                     <span className="text-xs text-gray-500 ml-1">
-                                      {enhancement.availableTimeStart}-{enhancement.availableTimeEnd}
+                                      {formatItalianTime(enhancement.availableTimeStart)}-{formatItalianTime(enhancement.availableTimeEnd)}
                                     </span>
                                   )}
                                 </div>
@@ -786,7 +1131,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                 <p className="text-xs text-gray-600">
                                   Special event
                                   {enhancement.availableTimeStart && enhancement.availableTimeEnd && (
-                                    <span className="ml-1">({enhancement.availableTimeStart}-{enhancement.availableTimeEnd})</span>
+                                    <span className="ml-1">({formatItalianTime(enhancement.availableTimeStart)}-{formatItalianTime(enhancement.availableTimeEnd)})</span>
                                   )}
                                 </p>
                               )}
@@ -814,22 +1159,159 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Selected Enhancements Summary for mobile */}
-              {bookingData.selectedEnhancements?.length > 0 && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <h4 className="text-sm font-semibold mb-2 text-green-800">Selected Add-ons ({bookingData.selectedEnhancements.length})</h4>
-                  <div className="space-y-1">
-                    {bookingData.selectedEnhancements.map((enhancement: any, index: number) => (
-                      <div key={index} className="flex justify-between items-center text-sm">
-                        <span className="text-green-700">{enhancement.title}</span>
-                        <span className="text-green-800 font-medium">€{enhancement.price}</span>
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
+
+              {/* Mobile Products Section */}
+              {products.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Star className="h-4 w-4 text-green-600" />
+                    <h4 className="text-sm font-semibold text-gray-700">Products</h4>
+                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">Enhance comfort</span>
+                  </div>
+                  <div className="space-y-3">
+                    {products.map((enhancement: any) => {
+                      const existingEnhancement = bookingData.selectedEnhancements.find((e: any) => e.id === enhancement.id);
+                      const isAdded = !!existingEnhancement;
+                      const productQuantity = existingEnhancement?.quantity || 0;
+                      return (
+                        <div key={enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
+                          <div className="flex items-start gap-3">
+                            {/* Small thumbnail for mobile */}
+                            <img 
+                              src={enhancement.image} 
+                              alt={enhancement.title || enhancement.name} 
+                              className="w-12 h-12 rounded-md object-cover flex-shrink-0" 
+                            />
+                            
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-gray-800 leading-tight">{enhancement.title || enhancement.name}</h4>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{enhancement.description}</p>
+                              
+                              {/* Price and action in one line on mobile */}
+                              <div className="flex items-center justify-between mt-2 gap-2">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-sm font-bold text-gray-800">€{enhancement.price}</span>
+                                  <span className="text-xs text-gray-600">
+                                    {enhancement.pricingType === 'PER_GUEST' && '/ guest'}
+                                    {enhancement.pricingType === 'PER_DAY' && `/ day`}
+                                    {enhancement.pricingType === 'PER_BOOKING' && '/ booking'}
+                                  </span>
+                                </div>
+                                
+                                {isAdded ? (
+                                  <button 
+                                    className="bg-red-100 text-red-700 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors cursor-pointer"
+                                    onClick={() => removeEnhancement(enhancement.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className="bg-blue-600 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+                                    onClick={() => addEnhancement(enhancement)}
+                                  >
+                                    Add
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {/* Product Quantity Selector for Mobile - Only show for PER_GUEST pricing */}
+                              {isAdded && enhancement.pricingType === 'PER_GUEST' && (
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <span className="text-xs font-medium text-gray-700">Guests</span>
+                                      <p className="text-xs text-gray-500">Max {bookingData.adults}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        className="w-7 h-7 rounded border border-gray-300 flex items-center justify-center text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (productQuantity > 1) {
+                                            const newQuantity = productQuantity - 1;
+                                            setBookingData((prev: any) => {
+                                              const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
+                                                e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
+                                              );
+                                              console.log('Mobile: Updating quantity to', newQuantity, 'for', enhancement.name);
+                                              return {
+                                                ...prev,
+                                                selectedEnhancements: updatedEnhancements,
+                                                  [enhancement.id]: { quantity: newQuantity }
+                                                }
+                                            });
+                                          }
+                                        }}
+                                        disabled={productQuantity <= 1}
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-8 text-center text-sm font-medium">
+                                        {productQuantity}
+                                      </span>
+                                      <button
+                                        className="w-7 h-7 rounded border border-gray-300 flex items-center justify-center text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (productQuantity < bookingData.adults) {
+                                            const newQuantity = productQuantity + 1;
+                                            setBookingData((prev: any) => {
+                                              const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
+                                                e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
+                                              );
+                                              console.log('Mobile: Updating quantity to', newQuantity, 'for', enhancement.name);
+                                              return {
+                                                ...prev,
+                                                selectedEnhancements: updatedEnhancements,
+                                                  [enhancement.id]: { quantity: newQuantity }
+                                                }
+                                            });
+                                          }
+                                        }}
+                                        disabled={productQuantity >= bookingData.adults}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Expandable details for mobile */}
+                              {enhancementDetails[enhancement.id] && (
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                  <div className="bg-gray-50 rounded-md p-2 mb-2">
+                                    <p className="text-xs text-gray-700">Available for your {nights} night stay</p>
+                                  </div>
+                                  {enhancement.availabilityType === 'ALWAYS' && (
+                                    <p className="text-xs text-gray-600">Always available</p>
+                                  )}
+                                </div>
+                              )}
+                              
+                              <button
+                                className="flex items-center text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors cursor-pointer"
+                                onClick={() => toggleEnhancementDetails(enhancement.id)}
+                              >
+                                {enhancementDetails[enhancement.id] ? (
+                                  <>Hide details <ChevronUp className="h-3 w-3 ml-1" /></>
+                                ) : (
+                                  <>Show details <ChevronDown className="h-3 w-3 ml-1" /></>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
             </div>
            )}
             {/* All Rate Options */}

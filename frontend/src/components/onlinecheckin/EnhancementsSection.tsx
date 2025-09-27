@@ -31,6 +31,10 @@ export const EnhancementsSection = ({
 
     // Only show to main guests and if there are enhancements available
     if (!isMainGuest || enhancements.length === 0) return null;
+    
+    // Separate enhancements into events and products based on their type
+    const events = enhancements.filter(e => e.type === 'EVENT');
+    const products = enhancements.filter(e => e.type === 'PRODUCT' || !e.type); // Default to PRODUCT if type is not set
 
     const handleAddEnhancement = (enhancement: Enhancement) => {
         addEnhancement(enhancement);
@@ -89,10 +93,16 @@ export const EnhancementsSection = ({
             </div>
 
             {/* Content */}
-            <div className="p-4">
-                {/* Available Enhancements */}
-                <div className="space-y-4">
-                    {enhancements.map((enhancement) => {
+            <div className="p-4 space-y-6">
+                {/* Events Section */}
+                {events.length > 0 && (
+                    <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs">EVENTS</span>
+                            Special events during your stay
+                        </h4>
+                        <div className="space-y-3">
+                            {events.map((enhancement) => {
                         const isSelected = selectedEnhancements.some(e => e.id === enhancement.id);
                         const enhancementPrice = getEnhancementPrice(enhancement);
                         
@@ -174,8 +184,105 @@ export const EnhancementsSection = ({
                             </div>
                         );
                     })}
-                </div>
+                        </div>
+                    </div>
+                )}
 
+                {/* Products Section */}
+                {products.length > 0 && (
+                    <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-md text-xs">PRODUCTS</span>
+                            Enhance your stay with these little extras
+                        </h4>
+                        <div className="space-y-3">
+                            {products.map((enhancement) => {
+                                const isSelected = selectedEnhancements.some(e => e.id === enhancement.id);
+                                const enhancementPrice = getEnhancementPrice(enhancement);
+                                
+                                return (
+                                    <div 
+                                        key={enhancement.id} 
+                                        className={`border rounded-lg overflow-hidden transition-all duration-200 ${
+                                            isSelected 
+                                                ? 'border-purple-300 bg-purple-50' 
+                                                : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <div className="p-4">
+                                            <div className="flex items-start gap-4">
+                                                {/* Enhancement Image */}
+                                                {enhancement.image && (
+                                                    <div className="flex-shrink-0">
+                                                        <img 
+                                                            src={enhancement.image} 
+                                                            alt={enhancement.name}
+                                                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover"
+                                                        />
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Enhancement Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <h4 className="font-semibold text-gray-900 mb-1">
+                                                                {enhancement.name}
+                                                            </h4>
+                                                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                                                                {enhancement.description}
+                                                            </p>
+                                                            
+                                                            {/* Pricing */}
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className="text-lg font-bold text-gray-900">
+                                                                    €{enhancement.price.toFixed(2)}
+                                                                </span>
+                                                                <span className="text-sm text-gray-600">
+                                                                    {getPricingTypeLabel(enhancement.pricingType)}
+                                                                </span>
+                                                                {enhancement.pricingType === 'PER_GUEST' && totalGuests > 1 && (
+                                                                    <span className="text-sm font-medium text-purple-600">
+                                                                        (€{enhancementPrice.toFixed(2)} for {totalGuests} guests)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Action Button */}
+                                                        <div className="flex-shrink-0">
+                                                            {isSelected ? (
+                                                                <button
+                                                                    onClick={() => handleRemoveEnhancement(enhancement.id)}
+                                                                    className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
+                                                                >
+                                                                    <Minus className="h-4 w-4" />
+                                                                    Remove
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleAddEnhancement(enhancement)}
+                                                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                                                                >
+                                                                    <Plus className="h-4 w-4" />
+                                                                    Add
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+            <div>
                 {/* Selected Enhancements Summary */}
                 {selectedEnhancements.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-gray-200">

@@ -24,6 +24,7 @@ export default function UpdateEnhancementModal({
   const [description, setDescription] = useState(enhancement.description)
   const [price, setPrice] = useState(enhancement.price.toString())
   const [pricingType, setPricingType] = useState<"PER_GUEST" | "PER_BOOKING" | "PER_DAY">(enhancement.pricingType)
+  const [type, setType] = useState<"PRODUCT" | "EVENT">(enhancement.type || "PRODUCT")
   const [isActive, setIsActive] = useState(enhancement.isActive)
   const [tax, setTax] = useState(enhancement.tax || 0)
   const [showCustomTax, setShowCustomTax] = useState(false)
@@ -46,6 +47,7 @@ export default function UpdateEnhancementModal({
       setDescription(enhancement.description)
       setPrice(enhancement.price.toString())
       setPricingType(enhancement.pricingType)
+      setType(enhancement.type || "PRODUCT")
       setIsActive(enhancement.isActive)
       setTax(enhancement.tax || 0)
       if (enhancement.image) {
@@ -82,6 +84,7 @@ export default function UpdateEnhancementModal({
         description: description.trim(),
         price: Number(price),
         pricingType,
+        type,
         isActive,
         tax,
         image: images[0] || null,
@@ -402,6 +405,22 @@ export default function UpdateEnhancementModal({
                 </label>
               </div>
             </div>
+
+            <div>
+                <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
+                  Type
+                </label>
+                <select
+                  name="type"
+                  id="type"
+                  onChange={(e:  React.ChangeEvent<HTMLSelectElement>) => setType(e.target.value as "EVENT" | "PRODUCT")}
+                  value={type}
+                  className="block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                >
+                  <option value="PRODUCT">Product</option>
+                  <option value="EVENT">Event</option>
+                </select>
+              </div>
 
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
               <div className="flex">

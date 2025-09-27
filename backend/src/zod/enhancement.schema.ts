@@ -13,6 +13,7 @@ export const createEnhancementSchema = z.object({
   image: z.string().nullable().optional(),
   tax: z.number(),
   isActive: z.boolean().optional().default(true),
+  type: z.enum(["PRODUCT", "EVENT"])
 });
 
 export const updateEnhancementSchema = z.object({
@@ -23,6 +24,7 @@ export const updateEnhancementSchema = z.object({
   pricingType: pricingTypeEnum.optional().nullable(),
   image: z.string().nullable().optional().nullable(),
   isActive: z.boolean().optional().nullable(),
+  type: z.enum(["PRODUCT", "EVENT"]).nullable()
 });
 
 // Enhancement Rule schemas

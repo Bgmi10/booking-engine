@@ -135,6 +135,8 @@ export default function EnhancedPaymentIntentCard({
           guestCheckInAccess: booking.guestCheckInAccess || [],
           checkedInAt: booking.checkedInAt,
           checkedOutAt: booking.checkedOutAt,
+          checkInTime: booking.checkInTime,
+          checkOutTime: booking.checkOutTime,
           adminCheckInNotes: booking.adminCheckInNotes,
           adminCheckOutNotes: booking.adminCheckOutNotes,
           refundAmount: paymentIntent.refundAmount,

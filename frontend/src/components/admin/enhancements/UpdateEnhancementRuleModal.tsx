@@ -8,6 +8,7 @@ import { useEnhancements } from "../../../hooks/useEnhancements"
 import { useRooms } from "../../../hooks/useRooms"
 import toast from "react-hot-toast"
 import type { EnhancementRule } from "../../../types/types"
+import SafariTimePicker from "./SafariTimePicker"
 
 interface UpdateEnhancementRuleModalProps {
   isOpen: boolean
@@ -32,7 +33,13 @@ export default function UpdateEnhancementRuleModal({
   const [availableTimeStart, setAvailableTimeStart] = useState(rule.availableTimeStart || "")
   const [availableTimeEnd, setAvailableTimeEnd] = useState(rule.availableTimeEnd || "")
   const [specificDates, setSpecificDates] = useState<string[]>(
-    rule.specificDates?.map(date => new Date(date).toISOString().split('T')[0]) || []
+    rule.specificDates?.map(date => {
+      const d = new Date(date)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }) || []
   )
   const [seasonStart, setSeasonStart] = useState<Date | null>(
     rule.seasonStart ? new Date(rule.seasonStart) : null
@@ -85,7 +92,13 @@ export default function UpdateEnhancementRuleModal({
       setAvailableTimeStart(rule.availableTimeStart || "")
       setAvailableTimeEnd(rule.availableTimeEnd || "")
       setSpecificDates(
-        rule.specificDates?.map(date => new Date(date).toISOString().split('T')[0]) || []
+        rule.specificDates?.map(date => {
+          const d = new Date(date)
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }) || []
       )
       setSeasonStart(
         rule.seasonStart ? new Date(rule.seasonStart) : null
@@ -217,7 +230,7 @@ export default function UpdateEnhancementRuleModal({
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div className="sticky top-0 z-50 bg-white border-b px-6 py-4 flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-900">Update Enhancement Rule</h2>
           <button
             onClick={onClose}
@@ -326,7 +339,12 @@ export default function UpdateEnhancementRuleModal({
                         selected={null}
                         onChange={(date: Date | null) => {
                           if (date) {
-                            const dateStr = date.toISOString().split('T')[0]
+                            // Create date string without timezone conversion
+                            const year = date.getFullYear()
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const dateStr = `${year}-${month}-${day}`
+                            
                             if (!specificDates.includes(dateStr)) {
                               setSpecificDates([...specificDates, dateStr])
                             }
@@ -390,28 +408,18 @@ export default function UpdateEnhancementRuleModal({
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Available From Time
-                      </label>
-                      <input
-                        type="time"
-                        value={availableTimeStart}
-                        onChange={(e) => setAvailableTimeStart(e.target.value)}
-                        className="p-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Available Until Time
-                      </label>
-                      <input
-                        type="time"
-                        value={availableTimeEnd}
-                        onChange={(e) => setAvailableTimeEnd(e.target.value)}
-                        className="p-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      />
-                    </div>
+                    <SafariTimePicker
+                      label="Available From Time"
+                      value={availableTimeStart}
+                      onChange={setAvailableTimeStart}
+                      className="flex-1"
+                    />
+                    <SafariTimePicker
+                      label="Available Until Time"
+                      value={availableTimeEnd}
+                      onChange={setAvailableTimeEnd}
+                      className="flex-1"
+                    />
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, Eye, FileText } from "lucide-react"
+import { CreditCard, DollarSign, Mail, MapPin, RefreshCw, Trash, Users, Settings, FileText, Calendar, ChevronDown, ChevronUp, Plus, ShoppingBag } from "lucide-react"
 import CheckInCheckOutButtons from './CheckInCheckOutButtons';
 import type { BookingData, PaymentIntentDetailsViewProps } from "../../../types/types"
 import { differenceInDays, format } from "date-fns"
@@ -7,29 +7,40 @@ import { baseUrl } from "../../../utils/constants"
 import CustomPartialRefundModal from "./CustomPartialRefundModal"
 import BookingOverviewModal from "./BookingOverviewModal"
 import TaxOptimizationModal from "../invoices/TaxOptimizationModal"
+import BookingEventsModal from "./BookingEventsModal"
+import OrderDetailsModal from "../customers/OrderDetailsModal"
+import ChargeModal from "../customers/ChargeModal"
+import ManageAttendeesModal from "./ManageAttendeesModal"
 import { useState, useEffect } from "react"
 
   export default function PaymentIntentDetailsView({
     paymentIntent,
     paymentDetails,
-    loadingPayment,
     onDelete,
     onSendInvoice,
     onRestore,
     onRefund,
-    onViewPayment,
     onRefresh,
     loadingAction,
     isDeletedTab = false,
-    hideViewPayments = false,
     hideInvoiceButtons = false,
   }: PaymentIntentDetailsViewProps) {
     const [showCustomPartialRefundModal, setShowCustomPartialRefundModal] = useState(false);
     const [showBookingOverviewModal, setShowBookingOverviewModal] = useState(false);
     const [showTaxModal, setShowTaxModal] = useState(false);
+    const [showEventsManagementModal, setShowEventsManagementModal] = useState(false);
     const [settings, setSettings] = useState<any>(null);
+    const [isPaymentsAccordionOpen, setIsPaymentsAccordionOpen] = useState(true);
+    const [isOrdersAccordionOpen, setIsOrdersAccordionOpen] = useState(true);
+    const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+    const [showChargeModal, setShowChargeModal] = useState(false);
+    const [isEventsAccordionOpen, setIsEventsAccordionOpen] = useState(true);
+    const [showManageAttendeesModal, setShowManageAttendeesModal] = useState(false);
+    const [selectedEventGuestRegistryId, setSelectedEventGuestRegistryId] = useState<string | null>(null);
 
     // Fetch general settings to check if tax optimization is enabled
+    console.log(paymentIntent)
     useEffect(() => {
       const fetchSettings = async () => {
         try {
@@ -70,6 +81,47 @@ import { useState, useEffect } from "react"
     const bookingData = parseJsonSafely(paymentIntent.bookingData, []);
     const customerData = parseJsonSafely(paymentIntent.customerData, {});
 
+    // Create customer object for ChargeModal
+    const customer = {
+      id: paymentIntent.customerId || '',
+      guestFirstName: customerData.firstName,
+      guestMiddleName: customerData.middleName,
+      guestLastName: customerData.lastName,
+      guestEmail: customerData.email,
+      guestPhone: customerData.phone,
+      guestNationality: customerData.nationality,
+      stripeCustomerId: customerData.stripeCustomerId,
+      vipStatus: false,
+      totalNightStayed: 0,
+      totalMoneySpent: 0,
+      accountActivated: false,
+      emailVerified: false,
+      createdAt: paymentIntent.createdAt,
+      updatedAt: paymentIntent.updatedAt,
+    };
+
+    // Process orders and charges data
+    const allOrders = paymentIntent?.orders || [];
+    const roomOrders = allOrders.filter((order: any) => order.paymentIntentId === paymentIntent?.id);
+    const allCharges = paymentIntent?.charges || [];
+
+    const toggleOrderExpansion = (orderId: string) => {
+      setExpandedOrders(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(orderId)) {
+          newSet.delete(orderId);
+        } else {
+          newSet.add(orderId);
+        }
+        return newSet;
+      });
+    };
+
+    const handleManageAttendees = (eventRegistryId: string) => {
+        setSelectedEventGuestRegistryId(eventRegistryId);
+        setShowManageAttendeesModal(true);
+    };
+
     return (
       <>
       <div className="space-y-6 z-50">
@@ -80,15 +132,9 @@ import { useState, useEffect } from "react"
               <Users className="h-5 w-5" />
               Customer Information
             </h3>
-            {!hideViewPayments && (
-              <button
-                onClick={() => setShowBookingOverviewModal(true)}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                View Payments
-              </button>
-            )}
+            <div className="flex gap-2">
+              {/* Events Management moved to accordion below */}
+            </div>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -189,6 +235,135 @@ import { useState, useEffect } from "react"
                           <div className="text-sm text-gray-600">{booking.selectedRateOption.description}</div>
                         </div>
                       )}
+
+                      {
+                        booking.selectedEventsDetails && booking.selectedEventsDetails.length > 0 && (
+                          <div className="col-span-2">
+                            <label className="text-sm font-medium text-gray-500">Selected Events</label>
+                            <div className="mt-2 space-y-3">
+                              {booking.selectedEventsDetails.map((event, eventIndex) => (
+                                <div key={eventIndex} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                  <div className="flex items-start gap-3">
+                                    {event.image && (
+                                      <img 
+                                        src={event.image} 
+                                        alt={event.name} 
+                                        className="w-12 h-12 rounded-md object-cover flex-shrink-0" 
+                                      />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between">
+                                        <div>
+                                          <h4 className="font-medium text-purple-900">{event.name}</h4>
+                                          {event.enhancementName && (
+                                            <p className="text-sm text-purple-700 font-medium">{event.enhancementName}</p>
+                                          )}
+                                          <p className="text-sm text-purple-600 mt-1">{event.description}</p>
+                                          {event.eventDate && (
+                                            <div className="text-xs text-purple-600 mt-1">
+                                              <p>Event Date: {format(new Date(event.eventDate), "EEEE, MMMM dd, yyyy")}</p>
+                                              <p>Event Time: {format(new Date(event.eventDate), "HH:mm")} (Italy time)</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                          <div className="font-bold text-purple-900">
+                                            €{(() => {
+                                              if (event.tax && event.tax > 0) {
+                                                const netPrice = event.price / (1 + event.tax / 100);
+                                                return netPrice.toFixed(2);
+                                              }
+                                              return event.price.toFixed(2);
+                                            })()}
+                                          </div>
+                                          <div className="text-xs text-purple-600">
+                                            {event.plannedAttendees} attendee{event.plannedAttendees !== 1 ? 's' : ''}
+                                          </div>
+                                          {event.tax && event.tax > 0 && (
+                                            <div className="text-xs text-purple-600">
+                                              VAT {event.tax}%: €{(() => {
+                                                const totalGross = event.price * event.plannedAttendees;
+                                                const taxAmount = totalGross * event.tax / (100 + event.tax);
+                                                return taxAmount.toFixed(2);
+                                              })()}
+                                            </div>
+                                          )}
+                                          <div className="text-xs text-purple-600">
+                                            Total: €{(event.price * event.plannedAttendees).toFixed(2)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      {
+                        booking.selectedEnhancements && booking.selectedEnhancements.length > 0 && (
+                          <div className="col-span-2">
+                            <label className="text-sm font-medium text-gray-500">Selected Enhancements</label>
+                            <div className="mt-2 space-y-3">
+                              {booking.selectedEnhancements.map((enhancement, enhancementIndex) => (
+                                <div key={enhancementIndex} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                  <div className="flex items-start gap-3">
+                                    {enhancement.image && (
+                                      <img 
+                                        src={enhancement.image} 
+                                        alt={enhancement.name} 
+                                        className="w-12 h-12 rounded-md object-cover flex-shrink-0" 
+                                      />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between">
+                                        <div>
+                                          <h4 className="font-medium text-green-900">{enhancement.name}</h4>
+                                          <p className="text-sm text-green-600 mt-1">{enhancement.description}</p>
+                                          <div className="flex items-center gap-3 mt-2 text-xs text-green-600">
+                                            <span>Pricing: {enhancement.pricingType.replace('_', ' ').toLowerCase()}</span>
+                                            {enhancement.quantity && (
+                                              <span>Quantity: {enhancement.quantity}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                          <div className="font-bold text-green-900">
+                                            €{(() => {
+                                              if (enhancement.tax && enhancement.tax > 0) {
+                                                const netPrice = enhancement.price / (1 + enhancement.tax / 100);
+                                                return netPrice.toFixed(2);
+                                              }
+                                              return enhancement.price.toFixed(2);
+                                            })()}
+                                          </div>
+                                          <div className="text-xs text-green-600"> {enhancement.pricingType.toLowerCase().replace('_', ' ')}</div>
+                                          {enhancement.tax && enhancement.tax > 0 && (
+                                            <div className="text-xs text-green-600">
+                                              VAT {enhancement.tax}%: €{(() => {
+                                                const totalGross = enhancement.price * (enhancement.quantity || 1);
+                                                const taxAmount = totalGross * enhancement.tax / (100 + enhancement.tax);
+                                                return taxAmount.toFixed(2);
+                                              })()}
+                                            </div>
+                                          )}
+                                          {enhancement.quantity && enhancement.quantity > 1 && (
+                                            <div className="text-xs text-green-600">
+                                              Total: €{(enhancement.price * enhancement.quantity).toFixed(2)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      }
                     </div>
   
                     {/* Rate Policy Details */}
@@ -272,6 +447,450 @@ import { useState, useEffect } from "react"
               })}
             </div>
           </div>
+        </div>
+
+        {/* Events Management Accordion */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div 
+            className="px-6 py-4 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setIsEventsAccordionOpen(!isEventsAccordionOpen)}
+          >
+            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Events Management
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Add event functionality here if needed
+                }}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Manage Events
+              </button>
+              {isEventsAccordionOpen ? (
+                <ChevronUp className="h-5 w-5 text-gray-500" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-500" />
+              )}
+            </div>
+          </div>
+          
+          {isEventsAccordionOpen && (
+            <div className="p-6">
+              {/* Extract events from booking data */}
+              {(() => {
+                const allEvents = bookingData.flatMap((booking: any) => 
+                  booking.selectedEventsDetails || []
+                );
+
+                //@ts-ignore
+                const eventGuestRegistry = paymentIntent?.eventGuestRegistries?.[0];
+                
+                // Merge eventGuestRegistry ID with events
+                // All events in a booking share the same registry
+                const eventsWithRegistryIds = allEvents.map((event: any) => ({
+                  ...event,
+                  eventGuestRegistryId: eventGuestRegistry?.id,
+                  // Add registry details for better tracking
+                  totalGuestCount: eventGuestRegistry?.totalGuestCount || 0,
+                  confirmedGuests: eventGuestRegistry?.confirmedGuests || event.plannedAttendees || 0,
+                  registryStatus: eventGuestRegistry?.status || 'PENDING'
+                }));
+                
+                return eventsWithRegistryIds.length === 0 ? (
+                  <div className="text-center py-6">
+                    <div className="h-12 w-12 mx-auto mb-3 bg-purple-100 rounded-full flex items-center justify-center">
+                      <Calendar className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-900">No events found</p>
+                    <p className="text-sm text-gray-600 mt-0.5">No events have been booked for this reservation.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Events Summary */}
+                    <div className="bg-purple-50 rounded-md p-4 mb-4 border border-purple-200">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="text-sm font-medium text-purple-900">Events Summary</h4>
+                          <p className="text-sm text-purple-700 mt-0.5">{eventsWithRegistryIds.length} events • Part of booking experience</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-purple-900">
+                            €{eventsWithRegistryIds.reduce((sum: number, event: any) => sum + ((event.price || 0) * (event.plannedAttendees || 1)), 0).toFixed(2)}
+                          </p>
+                          <p className="text-sm text-purple-600">Total value</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Individual Events */}
+                    <div className="space-y-3">
+                      {eventsWithRegistryIds.map((event: any, index: number) => (
+                        <div key={index} className="bg-white rounded-md p-4 border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all duration-200">
+                          <div className="flex items-start gap-3">
+                            {event.image && (
+                              <img 
+                                src={event.image} 
+                                alt={event.name} 
+                                className="w-16 h-16 rounded-md object-cover flex-shrink-0" 
+                              />
+                            )}
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h5 className="text-sm font-semibold text-gray-900">{event.name}</h5>
+                                  {event.enhancementName && (
+                                    <p className="text-xs text-purple-600 font-medium">{event.enhancementName}</p>
+                                  )}
+                                  <p className="text-xs text-gray-600 mt-1">{event.description}</p>
+                                  {event.eventDate && (
+                                    <div className="text-xs text-purple-600 mt-2">
+                                      <p>📅 {format(new Date(event.eventDate), "EEEE, MMMM dd, yyyy")}</p>
+                                      <p>🕐 {format(new Date(event.eventDate), "HH:mm")} (Italy time)</p>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <div className="font-bold text-purple-900">
+                                    €{(() => {
+                                      if (event.tax && event.tax > 0) {
+                                        const netPrice = event.price / (1 + event.tax / 100);
+                                        return netPrice.toFixed(2);
+                                      }
+                                      return event.price.toFixed(2);
+                                    })()}
+                                  </div>
+                                  <div className="text-xs text-purple-600">
+                                    {event.confirmedGuests || event.plannedAttendees} attendee{(event.confirmedGuests || event.plannedAttendees) !== 1 ? 's' : ''} confirmed
+                                  </div>
+                                  {event.totalGuestCount > 0 && event.totalGuestCount !== (event.confirmedGuests || event.plannedAttendees) && (
+                                    <div className="text-xs text-gray-500">
+                                      ({event.totalGuestCount} total in booking)
+                                    </div>
+                                  )}
+                                  {event.tax && event.tax > 0 && (
+                                    <div className="text-xs text-purple-600">
+                                      VAT {event.tax}%: €{(() => {
+                                        const totalGross = event.price * event.plannedAttendees;
+                                        const taxAmount = totalGross * event.tax / (100 + event.tax);
+                                        return taxAmount.toFixed(2);
+                                      })()}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-purple-600 font-medium">
+                                    Total: €{(event.price * event.plannedAttendees).toFixed(2)}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Event Management Actions */}
+                              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  event.eventStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                                  event.eventStatus === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                                  event.eventStatus === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {event.eventStatus || 'SCHEDULED'}
+                                </span>
+                                
+                                {event.registryStatus && (
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    event.registryStatus === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                                    event.registryStatus === 'PROVISIONAL' ? 'bg-orange-100 text-orange-800' :
+                                    event.registryStatus === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {event.registryStatus}
+                                  </span>
+                                )}
+                                
+                                <button 
+                                  onClick={() => {
+                                    if (event.eventGuestRegistryId) {
+                                      handleManageAttendees(event.eventGuestRegistryId);
+                                    } else {
+                                      alert('No event guest registry ID found for this event.');
+                                    }
+                                  }}
+                                  className="ml-auto text-xs text-purple-600 hover:text-purple-800 font-medium"
+                                >
+                                  Manage Attendees
+                                </button>
+                                <button className="text-xs text-gray-600 hover:text-gray-800 font-medium">
+                                  View Details
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* Payments & Charges Accordion */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div 
+            className="px-6 py-4 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setIsPaymentsAccordionOpen(!isPaymentsAccordionOpen)}
+          >
+            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Payments & Charges
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowChargeModal(true);
+                }}
+                className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Payment
+              </button>
+              {isPaymentsAccordionOpen ? (
+                <ChevronUp className="h-5 w-5 text-gray-500" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-500" />
+              )}
+            </div>
+          </div>
+          
+          {isPaymentsAccordionOpen && (
+            <div className="p-6">
+              {/* Payment Summary */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Total Amount</label>
+                    <div className="text-lg font-semibold text-gray-900">€{paymentIntent?.totalAmount || 0}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Paid Amount</label>
+                    <div className="text-lg font-semibold text-green-600">
+                      €{((paymentIntent?.totalAmount || 0) - (paymentIntent?.outstandingAmount || 0)).toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Outstanding</label>
+                    <div className={`text-lg font-semibold ${(paymentIntent?.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                      €{(paymentIntent?.outstandingAmount || 0).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charges List */}
+              {allCharges.length === 0 ? (
+                <div className="text-center py-6">
+                  <CreditCard className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">No additional charges found</p>
+                  <p className="text-sm text-gray-600 mt-0.5">Only the main booking payment has been recorded.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Additional Charges</h4>
+                  {allCharges.map((charge: any) => (
+                    <div key={charge.id} className="bg-white rounded-md p-3 border border-gray-200 hover:border-gray-300 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {charge.description || `Charge #${charge.id.slice(-8)}`}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {format(new Date(charge.createdAt), 'MMM dd, HH:mm')}
+                              </p>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              charge.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
+                              charge.status === 'REFUNDED' ? 'bg-red-100 text-red-800' :
+                              charge.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {charge.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Amount:</span>
+                              <span className="font-medium text-gray-900 ml-1">
+                                {charge.currency ? `${charge.currency.toUpperCase()} ` : '€'}{charge.amount}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Method:</span>
+                              <span className="font-medium text-gray-900 ml-1">
+                                {charge.paymentMethod ? charge.paymentMethod.replace('_', ' ') : 'Room Charge'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Room Orders Accordion */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div 
+            className="px-6 py-4 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setIsOrdersAccordionOpen(!isOrdersAccordionOpen)}
+          >
+            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5" />
+              Room Orders ({roomOrders.length})
+            </h3>
+            {isOrdersAccordionOpen ? (
+              <ChevronUp className="h-5 w-5 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-500" />
+            )}
+          </div>
+          
+          {isOrdersAccordionOpen && (
+            <div className="p-6">
+              {roomOrders.length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="h-12 w-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
+                    <ShoppingBag className="h-6 w-6 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">No room orders found</p>
+                  <p className="text-sm text-gray-600 mt-0.5">No items have been added to this booking's tab yet.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Orders Summary */}
+                  <div className="bg-green-50 rounded-md p-4 mb-4 border border-green-200">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-sm font-medium text-green-900">Room Orders Summary</h4>
+                        <p className="text-sm text-green-700 mt-0.5">{roomOrders.length} orders • Added to booking tab</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-green-900">
+                          €{roomOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0).toFixed(2)}
+                        </p>
+                        <p className="text-sm text-green-600">Total value</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual Orders */}
+                  <div className="space-y-3">
+                    {roomOrders.map((order: any) => (
+                      <div key={order.id} className="bg-white rounded-md p-4 border border-gray-200 hover:border-green-300 hover:shadow-sm transition-all duration-200">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 
+                                className="text-sm font-semibold text-gray-900 cursor-pointer hover:text-green-600 transition-colors"
+                                onClick={() => setSelectedOrderId(order.id)}
+                              >
+                                Order #{order.id.slice(-6)} <span className="text-xs text-gray-500 ml-1">• Click for details</span>
+                              </h5>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                                order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {format(new Date(order.createdAt), 'MMM dd, yyyy • HH:mm')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-900">€{order.total}</p>
+                          </div>
+                        </div>
+
+                        {/* Order Items Dropdown */}
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <button
+                              type="button"
+                              onClick={() => toggleOrderExpansion(order.id)}
+                              className="w-full flex items-center justify-between text-sm group hover:bg-gray-50 rounded p-2 -m-2 transition-all duration-200"
+                            >
+                              <div className="flex items-center gap-2">
+                                <ShoppingBag className="h-4 w-4 text-gray-500 group-hover:text-gray-700 transition-colors" />
+                                <span className="font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                                  {order.items.length} Item{order.items.length > 1 ? 's' : ''}
+                                </span>
+                                <span className="text-gray-500">
+                                  • €{order.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className={`transform transition-transform duration-200 ${expandedOrders.has(order.id) ? 'rotate-180' : ''}`}>
+                                <ChevronDown className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+                              </div>
+                            </button>
+                            
+                            {/* Expanded Items List */}
+                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                              expandedOrders.has(order.id) ? 'max-h-96 opacity-100 mt-3' : 'max-h-0 opacity-0'
+                            }`}>
+                              <div className="space-y-2 bg-gray-50 rounded-md p-3">
+                                {order.items.map((item: any, index: number) => {
+                                  const totalPrice = (item.price || 0) * (item.quantity || 1);
+                                  const taxAmount = item.tax ? (totalPrice * item.tax / (100 + item.tax)) : 0;
+                                  
+                                  return (
+                                    <div 
+                                      key={index} 
+                                      className="bg-white rounded p-3 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                                      onClick={() => setSelectedOrderId(order.id)}
+                                    >
+                                      <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-sm text-gray-500">{item.quantity || 1}x</span>
+                                            <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-sm font-medium text-gray-900">
+                                          €{totalPrice.toFixed(2)}
+                                        </div>
+                                      </div>
+                                      {item.tax > 0 && (
+                                        <div className="ml-4 pt-1 border-t border-gray-100">
+                                          <div className="flex justify-between items-center text-sm text-gray-500">
+                                            <span>VAT {item.tax}%</span>
+                                            <span>€{taxAmount.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
   
         {/* Payment Information */}
@@ -509,21 +1128,6 @@ import { useState, useEffect } from "react"
                 </div>
               )}
     
-              {paymentIntent.stripePaymentIntentId && (
-                <button
-                  onClick={onViewPayment}
-                  disabled={loadingPayment}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
-                >
-                  {loadingPayment ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4 mr-2" />
-                  )}
-                  View Stripe Payment Details
-                </button>
-              )}
-    
               {paymentDetails && (
                 <div className="bg-gray-50 rounded-lg border border-gray-200">
                   <div className="p-4">
@@ -709,6 +1313,47 @@ import { useState, useEffect } from "react"
         <TaxOptimizationModal
           paymentIntent={paymentIntent}
           onClose={() => setShowTaxModal(false)}
+        />
+      )}
+      
+      {showEventsManagementModal && (
+        <BookingEventsModal
+          isOpen={showEventsManagementModal}
+          onClose={() => setShowEventsManagementModal(false)}
+          paymentIntentId={paymentIntent.id}
+          bookings={paymentIntent.bookings}
+        />
+      )}
+
+      {selectedOrderId && (
+        <OrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => setSelectedOrderId(null)}
+        />
+      )}
+
+      {showChargeModal && (
+        <ChargeModal
+          customer={customer}
+          paymentIntentId={paymentIntent.id}
+          step='create_payment'
+          onClose={async () => {
+            setShowChargeModal(false);
+            if (onRefresh) {
+              await onRefresh();
+            }
+          }}
+        />
+      )}
+
+      {showManageAttendeesModal && selectedEventGuestRegistryId && (
+        <ManageAttendeesModal
+          isOpen={showManageAttendeesModal}
+          onClose={() => {
+            setShowManageAttendeesModal(false);
+            setSelectedEventGuestRegistryId(null);
+          }}
+          eventGuestRegistryId={selectedEventGuestRegistryId}
         />
       )}
       </>

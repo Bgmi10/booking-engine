@@ -58,6 +58,8 @@ export default function BookingManagement() {
     refetch,
   } = useBookingGroups();
   // Use the custom hooks for active and deleted payment intents
+
+  console.log(selectedPaymentIntent)
   const {
     paymentIntents: activePaymentIntents,
     loading: activeLoading,

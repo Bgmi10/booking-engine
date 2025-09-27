@@ -467,6 +467,7 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
                 where: { id: ourPaymentIntent.id }
             });
             await processPaymentSuccess(currentPaymentIntent!, stripePaymentIntent, 'checkout_session');
+            
         } 
     } catch (error) {
         console.error("Error in handleCheckoutSessionCompleted:", error);
@@ -985,10 +986,6 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
 
             // Handle voucher success - increment usage counts and confirm applied status
             await handleVoucherSuccess(tx, ourPaymentIntent, createdBookings);
-
-            // Note: GuestCheckInAccess records will be created by the cron job when sending check-in reminder emails
-            // This ensures tokens are only created when actually needed for customer communication
-
             return { createdBookings, customer };
         });
 
@@ -1023,11 +1020,8 @@ async function processPaymentSuccess(ourPaymentIntent: any, stripePayment: any, 
             await sendConfirmationEmails(result.createdBookings, customerDetails);
         }
 
-        // Only return 200 to Stripe if everything succeeded
     } catch (error) {
-        // Log error with details
         console.error('Error in processPaymentSuccess:', error, { paymentIntentId: ourPaymentIntent.id });
-        // Do NOT return 200 to Stripe, so it will retry
         throw error;
     }
 }
@@ -1354,6 +1348,7 @@ async function processBookingsInTransaction(
     customerId: string
 ): Promise<any[]> {
     const createdBookings: any[] = [];
+    const bookingsToSync: { bookingId: string, roomId: string }[] = [];
     
     for (const booking of bookingItems) {
         try {
@@ -1365,7 +1360,7 @@ async function processBookingsInTransaction(
                     checkIn: new Date(checkIn),
                     checkOut: new Date(checkOut),
                     paymentIntentId: paymentIntentId // Only check for same payment intent
-                }
+                },
             });
 
             if (existingBooking) {
@@ -1439,11 +1434,18 @@ async function processBookingsInTransaction(
                 throw new Error(`Room with ID ${roomId} not found`);
             }
 
+            // Get general settings for default check-in/out times
+            const generalSettings = await tx.generalSettings.findFirst();
+            const defaultCheckInTime = generalSettings?.standardCheckInTime || '14:00';
+            const defaultCheckOutTime = generalSettings?.standardCheckOutTime || '10:00';
+            
             const newBooking = await tx.booking.create({
                 data: {
                     totalGuests: adults * (rooms || 1),
                     checkIn: new Date(checkIn),
                     checkOut: new Date(checkOut),
+                    checkInTime: defaultCheckInTime,
+                    checkOutTime: defaultCheckOutTime,
                     room: { connect: { id: roomId } },
                     status: "CONFIRMED",
                     request: customerDetails.specialRequests || null,
@@ -1483,17 +1485,179 @@ async function processBookingsInTransaction(
                     // Don't fail the booking creation if enhancement creation fails
                 }
             }
-
+           
             createdBookings.push(newBooking);
             
-            // Mark room for channel sync when booking is created
-            try {
-                await markForChannelSync.booking(newBooking.id);
-                await markForChannelSync.room(roomId);
-            } catch (syncError) {
-                console.error(`Failed to mark for channel sync:`, syncError);
-                // Don't fail booking creation if sync marking fails
+            // Create order if this booking has enhancements
+            if (booking.selectedEnhancements && booking.selectedEnhancements.length > 0) {
+                try {
+                    // Calculate total price for the order
+                    let orderTotal = 0;
+                    const nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 3600 * 24));
+                    
+                    booking.selectedEnhancements.forEach((enh: any) => {
+                        let enhPrice = enh.price || 0;
+                        if (enh.pricingType === 'PER_GUEST') {
+                            enhPrice *= (enh.quantity || adults);
+                        } else if (enh.pricingType === 'PER_DAY') {
+                            enhPrice *= nights;
+                        }
+                        orderTotal += enhPrice;
+                    });
+                    
+                    await tx.order.create({
+                        data: {
+                            paymentIntent: { connect: { id: paymentIntentId } },
+                            customer: { connect: { id: customerId } },
+                            items: booking.selectedEnhancements.map((enh: any) => ({
+                                    name: enh.name || enh.title,
+                                    description: enh.description,
+                                    imageUrl: enh.image,
+                                    price: enh.price,
+                                    tax: enh.tax ?? 0,
+                                    pricingType: enh.pricingType,
+                                    quantity: enh.quantity || 1,
+                                })),
+                            total: orderTotal,
+                            status: "DELIVERED"
+                        }
+                    });
+                    console.log(`Created order for booking ${newBooking.id} with ${booking.selectedEnhancements.length} enhancements, total: €${orderTotal}`);
+                } catch (orderError) {
+                    console.error(`Failed to create order for booking ${newBooking.id}:`, orderError);
+                    // Don't fail the booking if order creation fails
+                }
             }
+            
+            if (booking.selectedEventsDetails && booking.selectedEventsDetails.length > 0) {
+                try {
+                    // Calculate total price for the order
+                    let orderTotal = 0;
+                    const nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 3600 * 24));
+                    
+                    // Calculate planned attendees from selected events (NOT total booking guests)
+                    let totalPlannedAttendees = 0;
+                    
+                    booking.selectedEventsDetails.forEach((event: any) => {
+                        let eventPrice = event.price || 0;
+                        let eventGuestCount = event.plannedAttendees || 1;
+                        
+                        if (event.pricingType === 'PER_GUEST') {
+                            eventPrice *= eventGuestCount;
+                        } else if (event.pricingType === 'PER_DAY') {
+                            eventPrice *= nights;
+                        }
+                        
+                        orderTotal += eventPrice;
+                        totalPlannedAttendees += eventGuestCount;
+                    });
+                    
+                    // Create order for the events
+                    await tx.order.create({
+                        data: {
+                            paymentIntent: { connect: { id: paymentIntentId } },
+                            customer: { connect: { id: customerId } },
+                            items: booking.selectedEventsDetails.map((event: any) => ({
+                                    name: event.name,
+                                    description: event.description,
+                                    imageUrl: event.image,
+                                    price: event.price,
+                                    tax: event.tax ?? 0,
+                                    pricingType: event.pricingType,
+                                    quantity: event.plannedAttendees || 1,
+                                })),
+                            total: orderTotal,
+                            status: "DELIVERED"
+                        }
+                    });
+
+                    // Calculate total booking guests (adults * rooms)
+                    const totalBookingGuests = adults * (rooms || 1);
+                    
+                    // Create event guest registry with proper guest counts
+                    const eventRegistry = await tx.eventGuestRegistry.create({
+                        data: {
+                            paymentIntentId,
+                            bookingId: newBooking.id,
+                            mainGuestEmail: customerDetails.email,
+                            mainGuestName: `${customerDetails.firstName} ${customerDetails.lastName}`,
+                            mainGuestPhone: customerDetails.phone,
+                            customerId,
+                            totalGuestCount: totalBookingGuests, // Total guests in the booking
+                            confirmedGuests: totalPlannedAttendees, // Only the planned attendees for events
+                            selectedEvents: booking.selectedEventsDetails,
+                            status: "PROVISIONAL",
+                        }
+                    });
+
+                    // Create event participants for each selected event
+                    for (const eventDetails of booking.selectedEventsDetails) {
+                        // Find the actual event using the enhancement ID
+                        const event = await tx.event.findFirst({
+                            where: {
+                                eventEnhancements: {
+                                    some: {
+                                        enhancementId: eventDetails.id
+                                    }
+                                },
+                                status: 'IN_PROGRESS'
+                            },
+                            include: {
+                                eventEnhancements: {
+                                    where: {
+                                        enhancementId: eventDetails.id
+                                    }
+                                }
+                            }
+                        });
+
+                        if (event) {
+                            // Create participant for main guest with planned attendees count
+                            await tx.eventParticipant.create({
+                                data: {
+                                    eventId: event.id,
+                                    customerId: customerId,
+                                    bookingId: newBooking.id,
+                                    paymentIntentId: paymentIntentId,
+                                    enhancementId: eventDetails.id,
+                                    status: "PENDING",
+                                    addedBy: "MAIN_GUEST",
+                                    participantType: "MAIN_GUEST",
+                                    registryId: eventRegistry.id,
+                                    guestCount: eventDetails.plannedAttendees || 1,
+                                    notes: `Pre-paid booking with ${eventDetails.plannedAttendees} planned attendees`
+                                }
+                            });
+
+                            // Update event stats
+                            const eventEnhancement = event.eventEnhancements[0];
+                            const enhancementPrice = eventEnhancement?.overridePrice ?? eventDetails.price;
+                            const eventRevenue = enhancementPrice * (eventDetails.plannedAttendees || 1);
+                            
+                            await tx.event.update({
+                                where: { id: event.id },
+                                data: {
+                                    totalGuests: {
+                                        increment: eventDetails.plannedAttendees || 1
+                                    },
+                                    totalRevenue: {
+                                        increment: eventRevenue
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    
+                    console.log(`Created order for booking ${newBooking.id} with ${booking.selectedEventsDetails.length} events, total: €${orderTotal}`);
+                    console.log(`Created event guest registry - Total booking guests: ${totalBookingGuests}, Planned event attendees: ${totalPlannedAttendees}`);
+                } catch (orderError) {
+                    console.error(`Failed to create order/event registry for booking ${newBooking.id}:`, orderError);
+                    // Don't fail the booking if order creation fails
+                }
+            }
+
+            // Queue for channel sync after transaction completes
+            bookingsToSync.push({ bookingId: newBooking.id, roomId });
             
         } catch (bookingError) {
             console.error(`Failed to create booking for room ${booking.selectedRoom}:`, bookingError);
@@ -1502,6 +1666,22 @@ async function processBookingsInTransaction(
     }
     
     console.log(`Successfully created ${createdBookings.length} bookings`);
+    
+    // Perform channel sync after transaction completes
+    // This is done after the transaction to avoid transaction timeout issues
+    setTimeout(async () => {
+        for (const syncItem of bookingsToSync) {
+            try {
+                await markForChannelSync.booking(syncItem.bookingId);
+                await markForChannelSync.room(syncItem.roomId);
+                console.log(`Marked booking ${syncItem.bookingId} and room ${syncItem.roomId} for channel sync`);
+            } catch (syncError) {
+                console.error(`Failed to mark for channel sync:`, syncError);
+                // Continue with other syncs even if one fails
+            }
+        }
+    }, 1000); // Delay by 1 second to ensure transaction is fully committed
+    
     return createdBookings;
 }
 

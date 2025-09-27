@@ -8,6 +8,10 @@ export const generateToken = (payload: any) => {
 }
 
 export const verifyToken = (token: string) => {
-  return jwt.verify(token, process.env.JWT_SECRET as string);
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET!);
+  } catch (err) {
+    return null; // return null instead of throwing
+  };
 }
 

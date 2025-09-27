@@ -1,9 +1,10 @@
 import { useState } from "react"
-import { RiCloseLine, RiCalendarLine } from "react-icons/ri"
+import { RiCloseLine } from "react-icons/ri"
 import { BiLoader } from "react-icons/bi"
 import toast from "react-hot-toast"
 import { baseUrl } from "../../../../utils/constants"
 import { useEnhancements } from "../../../../hooks/useEnhancements"
+import SafariDateTimePicker from "./SafariDateTimePicker"
 
 interface CreateEventModalProps {
   isOpen: boolean
@@ -21,8 +22,8 @@ const eventTypes = [
 ]
 
 export default function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModalProps) {
-  // Fetch enhancements only when modal is open
-  const { enhancements, loading: enhancementsLoading } = useEnhancements({ enabled: isOpen })
+  // Fetch only EVENT type enhancements when modal is open
+  const { enhancements, loading: enhancementsLoading } = useEnhancements({ enabled: isOpen, type: 'EVENT' })
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -109,7 +110,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }: CreateE
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
@@ -172,36 +173,12 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }: CreateE
             </select>
           </div>
 
-          {/* Date and Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Event Date <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <RiCalendarLine className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={formData.eventDate}
-                  onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Event Time <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                value={formData.eventTime}
-                onChange={(e) => setFormData({ ...formData, eventTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-          </div>
+          {/* Date and Time - Safari Compatible */}
+          <SafariDateTimePicker
+            value={{ date: formData.eventDate, time: formData.eventTime }}
+            onChange={({ date, time }) => setFormData({ ...formData, eventDate: date, eventTime: time })}
+            required={true}
+          />
           {/* Available Enhancements */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

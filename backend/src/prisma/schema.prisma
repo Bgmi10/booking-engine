@@ -132,8 +132,8 @@ model EventParticipant {
   id                 String                          @id           @default(uuid())
   eventId            String                   
   event              Event                           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  bookingId          String                   
-  booking            Booking                         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId          String?                  // Made optional for registry-based participants
+  booking            Booking?                        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   paymentIntentId    String               
   paymentIntent      PaymentIntent                   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
   customerId         String               
@@ -145,6 +145,12 @@ model EventParticipant {
   addedBy            AddedBy                         @default(ADMIN)
   logs               BookingAuditLog[]
   notes              String?
+  
+  // Registry relation for pre-check-in tracking
+  registryId         String?
+  registry           EventGuestRegistry?             @relation(fields: [registryId], references: [id], onDelete: SetNull)
+  guestCount         Int?                            // For provisional participants tracking expected attendees
+  
   createdAt          DateTime                        @default(now())
   updatedAt          DateTime                        @updatedAt
 
@@ -153,6 +159,7 @@ model EventParticipant {
   @@index([bookingId])
   @@index([customerId])
   @@index([paymentIntentId])
+  @@index([registryId])
 
 }
 
@@ -269,6 +276,7 @@ model Customer {
   relatedTo                  GuestRelationShip[]  @relation("RelatedToCustomer")
   eventParticipants          EventParticipant[]
   eventInvitations           EventInvitation[]
+  eventGuestRegistries       EventGuestRegistry[]
 
   @@index([guestEmail, guestFirstName])
 }
@@ -364,8 +372,10 @@ model Booking {
   checkedOutAt          DateTime?
   totalGuests           Int        
   checkIn               DateTime          
+  checkInTime           String?                       @default("14:00") // Time for check-in (e.g., "14:00")
   status                BookingStatus                 @default(PENDING)
-  checkOut              DateTime                  
+  checkOut              DateTime
+  checkOutTime          String?                       @default("10:00") // Time for check-out (e.g., "10:00")                  
   createdAt             DateTime                      @default(now())
   updatedAt             DateTime                      @updatedAt
   room                  Room                          @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -409,6 +419,7 @@ model Booking {
   adminCheckOutNotes    String?                       // Admin notes during check-out
   eventParticipants     EventParticipant[]
   eventInvitations      EventInvitation[]
+  eventGuestRegistries  EventGuestRegistry[]
 
   @@index([roomId, checkIn, checkOut, status])
   @@index([refundStatus])
@@ -430,6 +441,7 @@ model Enhancement {
   image               String?
   price               Float
   pricingType         EnhancementPricingType
+  type                EnhancementType            @default(PRODUCT)
   isActive            Boolean                    @default(true)
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
@@ -464,6 +476,11 @@ model EnhancementRule {
   @@index([enhancementId, isActive])
   @@index([validFrom, validUntil])
 } 
+
+enum EnhancementType {
+  PRODUCT     // Regular products like champagne, flowers, etc.
+  EVENT       // Events with specific dates/times like pizza parties, wine tasting
+}
 
 enum EnhancementPricingType {
   PER_GUEST
@@ -557,9 +574,11 @@ model PaymentIntent {
   charges               Charge[]
   voucherCode           String?           
   voucherDiscount       Float?            
+  selectedEvents        Json?               // Stores event attendance plans {eventId: {plannedAttendees, notes}}
   voucherUsages         VoucherUsage[]
   auditLogs             BookingAuditLog[]   
   eventParticipants     EventParticipant[]
+  eventGuestRegistries  EventGuestRegistry[]
    
   @@index([status, expiresAt])
   @@index([stripePaymentIntentId])
@@ -683,6 +702,8 @@ model GeneralSettings {
   enableTaxOptimizationFeature      Boolean                      @default(true)
   checkinReminderDays               Int                          @default(10)
   onlineCheckinHomeImageUrl         String?                      // Image URL for online check-in home page
+  standardCheckInTime               String                       @default("14:00")  // Standard check-in time (2 PM)
+  standardCheckOutTime              String                       @default("10:00")  // Standard check-out time (10 AM)
 }
 
 model Otp {
@@ -1776,4 +1797,33 @@ enum AuditActionType {
   GROUP_CHECKOUT
   CHECKOUT_PROCESSED
   BANK_TRANSFER_CONFIRM
+}
+
+// Event Guest Registry for tracking provisional and confirmed event participants
+model EventGuestRegistry {
+  id                   String              @id @default(uuid())
+  paymentIntentId      String
+  bookingId            String?
+  mainGuestEmail       String
+  mainGuestName        String
+  mainGuestPhone       String?
+  customerId           String?
+  totalGuestCount      Int    
+  confirmedGuests      Int                 @default(1) 
+  subGuests            Json?               
+  eventParticipants    EventParticipant[]
+  status               String              @default("PROVISIONAL") 
+  syncedWithCheckIn    Boolean             @default(false)
+  guestCheckInAccessId String?             
+  selectedEvents       Json?               
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  paymentIntent        PaymentIntent       @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  booking              Booking?            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer             Customer?           @relation(fields: [customerId], references: [id])
+  
+  @@index([paymentIntentId])
+  @@index([mainGuestEmail])
+  @@index([status])
+  @@index([bookingId])
 }

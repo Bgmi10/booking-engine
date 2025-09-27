@@ -4,7 +4,7 @@ import { useOnlineCheckIn } from "../../context/OnlineCheckInContext"
 import { useGeneralSettings } from "../../hooks/useGeneralSettings"
 
 export const OnlineCheckInHome: React.FC = () => {
-  const { customer, loader } = useOnlineCheckIn()
+  const { customer, loader } = useOnlineCheckIn();
   const { settings } = useGeneralSettings()
   // Show loading state while fetching customer data
   if (loader) {
@@ -134,18 +134,20 @@ export const OnlineCheckInHome: React.FC = () => {
             </div>
 
             {/* Check in now Section */}
-            <div className="bg-gray-900 text-white p-6">
-              <h3 className="text-xl font-medium mb-2">Check in now</h3>
-              <p className="text-gray-300 mb-6">Less time with documents and more time to enjoy your stay.</p>
-              <button
-                onClick={handleCheckIn}
-                className="border border-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
-              >
-                Check in
-              </button>
-            </div>
-
-            {/* Bookings Section */}
+            {customer.isMainGuest && bookings.some((booking: any) => booking.room?.capacity > 1) && (
+              <div className="bg-gray-900 text-white p-6">
+                <h3 className="text-xl font-medium mb-2">Check in now</h3>
+                <p className="text-gray-300 mb-6">Less time with documents and more time to enjoy your stay.</p>
+                <button
+                  onClick={handleCheckIn}
+                  className="border border-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
+                >
+                  Check in
+                </button>
+              </div>
+            )}
+          
+          {/* Bookings Section */}
             <div className="p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Bookings</h3>
               
@@ -270,9 +272,6 @@ export const OnlineCheckInHome: React.FC = () => {
                     </div>
                   );
                 }
-
-                console.log(ratePolicy)
-
                 // Calculate cancellation deadline based on policy
                 const checkInDate = new Date(booking.checkIn);
                 const getCancellationDeadline = () => {

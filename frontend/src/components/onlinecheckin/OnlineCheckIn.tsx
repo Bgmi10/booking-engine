@@ -27,8 +27,6 @@ export const OnlineCheckIn = () => {
         return <Loader />
     }
 
-    console.log(customer)
-
     if (!customer) {
         return (
             <>

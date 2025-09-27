@@ -316,7 +316,14 @@ export class GuestRelationshipService {
           }
         }
       });
+       
+      const existingRelatedCustomer = await prisma.guestCheckInAccess.findMany({
+        where: { customerId: { in: relatedCustomerIds } }
+      })
 
+      if (existingRelatedCustomer) {
+        throw new Error("Guest already exist");
+      }
       // Add guests to booking (this would integrate with your existing booking system)
       // This is a placeholder - you'd need to implement based on your booking structure
       const guestCheckInAccesses = await Promise.all(
@@ -342,6 +349,155 @@ export class GuestRelationshipService {
           })
         })
       );
+
+      // Update EventGuestRegistry with the added guests and create event participants if needed
+      try {
+        const booking = await prisma.booking.findUnique({
+          where: { id: bookingId },
+          include: {
+            paymentIntent: {
+              include: {
+                eventGuestRegistries: true
+              }
+            }
+          }
+        });
+
+        if (booking?.paymentIntent?.eventGuestRegistries?.[0]) {
+          const registry = booking.paymentIntent.eventGuestRegistries[0];
+          const paymentIntentId = booking.paymentIntent.id;
+          
+          // Get current sub-guests
+          let currentSubGuests = [];
+          if (registry.subGuests) {
+            currentSubGuests = typeof registry.subGuests === 'string' 
+              ? JSON.parse(registry.subGuests as string) 
+              : registry.subGuests as any[];
+          }
+
+          const selectedEvents = registry.selectedEvents ? 
+            (typeof registry.selectedEvents === 'string' ? 
+              JSON.parse(registry.selectedEvents as string) : 
+              registry.selectedEvents) : null;
+
+          // Add all the new related guests to sub-guests and create event participants
+          for (const customer of relatedCustomers) {
+            const existingIndex = currentSubGuests.findIndex((g: any) => g.customerId === customer.id);
+            
+            const guestInfo = {
+              customerId: customer.id,
+              email: customer.guestEmail,
+              name: `${customer.guestFirstName} ${customer.guestLastName}`,
+              phone: customer.guestPhone || null,
+              addedAt: new Date().toISOString(),
+              type: 'related'
+            };
+
+            const isNewGuest = existingIndex === -1;
+            if (isNewGuest) {
+              currentSubGuests.push(guestInfo);
+            } else {
+              currentSubGuests[existingIndex] = guestInfo;
+            }
+
+            // Create event participants for new guests if there are selected events
+            if (isNewGuest && selectedEvents) {
+              for (const [enhancementId, eventData] of Object.entries(selectedEvents) as [string, any][]) {
+                const plannedAttendees = eventData.plannedAttendees || 1;
+                
+                // Count existing participants for this event from this booking/registry
+                const existingParticipantCount = await prisma.eventParticipant.count({
+                  where: {
+                    enhancementId: enhancementId,
+                    registryId: registry.id
+                  }
+                });
+
+                // Check if we've reached the planned attendee limit
+                if (existingParticipantCount >= plannedAttendees) {
+                  console.log(`[EventRegistry] Skipping event ${enhancementId} for guest ${customer.id} - already have ${existingParticipantCount}/${plannedAttendees} planned attendees`);
+                  continue; // Skip this event, we've reached the planned limit
+                }
+                // Find the actual event
+                const event = await prisma.event.findFirst({
+                  where: {
+                    eventEnhancements: {
+                      some: {
+                        enhancementId: enhancementId
+                      }
+                    },
+                    status: {
+                      in: ["IN_PROGRESS"]
+                    }
+                  },
+                  include: {
+                    eventEnhancements: {
+                      where: {
+                        enhancementId: enhancementId
+                      },
+                      include: {
+                        enhancement: true
+                      }
+                    }
+                  }
+                });
+
+                if (!event) continue;
+
+                const existingParticipant = await prisma.eventParticipant.findFirst({
+                  where: {
+                    eventId: event.id,
+                    customerId: customer.id,
+                    enhancementId: enhancementId
+                  }
+                });
+
+                if (!existingParticipant) {
+                  await prisma.eventParticipant.create({
+                    data: {
+                      eventId: event.id,
+                      customerId: customer.id,
+                      bookingId: bookingId,
+                      paymentIntentId: paymentIntentId,
+                      enhancementId: enhancementId,
+                      status: "PENDING",
+                      addedBy: "MAIN_GUEST",
+                      registryId: registry.id,
+                      notes: `Related guest added to pre-registered event`
+                    }
+                  });
+
+                  // Update event stats (only guest count, not revenue - already paid during booking)
+                  await prisma.event.update({
+                    where: { id: event.id },
+                    data: {
+                      totalGuests: {
+                        increment: 1
+                      }
+                      // NO revenue increment - these events were already paid for during booking
+                    }
+                  });
+                }
+              }
+            }
+          }
+
+          // Update registry
+          await prisma.eventGuestRegistry.update({
+            where: { id: registry.id },
+            data: {
+              subGuests: currentSubGuests,
+              confirmedGuests: Math.min(currentSubGuests.length + 1, registry.totalGuestCount)
+            }
+          });
+
+          // NO outstanding amount update - these events were already paid for during booking
+          console.log(`[EventRegistry] Added ${relatedCustomers.length} related guests to registry ${registry.id} (pre-paid events)`);
+        }
+      } catch (error) {
+        console.error("[EventRegistry] Error adding related guests with events:", error);
+        // Non-critical, continue
+      }
 
       return {
         added: relatedCustomers.length,

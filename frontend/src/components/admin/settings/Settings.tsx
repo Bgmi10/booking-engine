@@ -9,6 +9,8 @@ import BankDetailsManagement from './BankDetailsManagement';
 import LicensePlateManagement from './LicensePlateManagement';
 import type { GeneralSettings, SettingsFormValues } from '../../../types/types';
 import Profile from '../Profile';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import Users from '../user/Users';
 import toast from 'react-hot-toast';
 import { useImageUpload } from '../../../hooks/useImageUpload';
@@ -44,7 +46,7 @@ export default function Settings() {
     setInitialImages: setInitialCheckInImages
   } = useImageUpload();
 
-  // Payment config state
+  // Payment config stateStandard Check-in Time
   const [showPaymentConfig, setShowPaymentConfig] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({
     qr_code: true,
@@ -98,7 +100,9 @@ export default function Settings() {
           autoGroupingRoomCount: String(currentSettings.autoGroupingRoomCount || 2),
           enableTaxOptimizationFeature: currentSettings.enableTaxOptimizationFeature || false,
           checkinReminderDays: currentSettings.checkinReminderDays || 0,
-          onlineCheckinHomeImageUrl: currentSettings.onlineCheckinHomeImageUrl || ''
+          onlineCheckinHomeImageUrl: currentSettings.onlineCheckinHomeImageUrl || '',
+          standardCheckInTime: currentSettings.standardCheckInTime || '14:00',
+          standardCheckOutTime: currentSettings.standardCheckOutTime || '10:00'
         });
         setSettingsId(currentSettings.id);
 
@@ -372,7 +376,9 @@ export default function Settings() {
           autoGroupingRoomCount: Number(formValues.autoGroupingRoomCount) || 2,
           enableTaxOptimizationFeature: formValues.enableTaxOptimizationFeature === true,
           checkinReminderDays: formValues.checkinReminderDays || 0,
-          onlineCheckinHomeImageUrl: checkInImages[0] || ''
+          onlineCheckinHomeImageUrl: checkInImages[0] || '',
+          standardCheckInTime: formValues.standardCheckInTime || '14:00',
+          standardCheckOutTime: formValues.standardCheckOutTime || '10:00'
         }),
       });
       
@@ -495,6 +501,67 @@ export default function Settings() {
                         />
                       </div>
                     </div>
+
+                     <div>
+                       <label htmlFor="standardCheckInTime" className="block text-sm font-medium text-gray-700 mb-2">
+                         Standard Check-in Time
+                       </label>
+                       <div className="mt-1 relative rounded-md shadow-sm">
+                         <DatePicker
+                           id="standardCheckInTime"
+                           selected={formValues.standardCheckInTime ? new Date(`1970-01-01T${formValues.standardCheckInTime}:00`) : null}
+                           onChange={(date) => {
+                             if (date) {
+                               const hours = date.getHours().toString().padStart(2, "0");
+                               const minutes = date.getMinutes().toString().padStart(2, "0");
+                               //@ts-ignore
+                               handleInputChange({ target: { name: "standardCheckInTime", value: `${hours}:${minutes}` } });
+                             }
+                           }}
+                           showTimeSelect
+                           showTimeSelectOnly
+                           timeIntervals={30}
+                           timeCaption="Time"
+                           dateFormat="HH:mm"  // 24-hour format
+                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           disabled={isLoading}
+                         />
+                       </div>
+                       <p className="mt-2 text-sm text-gray-500">
+                         Default check-in time for all bookings (e.g., 14:00)
+                       </p>
+                     </div>
+                     
+                     <div>
+                       <label htmlFor="standardCheckOutTime" className="block text-sm font-medium text-gray-700 mb-2">
+                         Standard Check-out Time
+                       </label>
+                       <div className="mt-1 relative rounded-md shadow-sm">
+                         <DatePicker
+                           id="standardCheckOutTime"
+                           selected={formValues.standardCheckOutTime ? new Date(`1970-01-01T${formValues.standardCheckOutTime}:00`) : null}
+                           onChange={(date) => {
+                             if (date) {
+                               const hours = date.getHours().toString().padStart(2, "0");
+                               const minutes = date.getMinutes().toString().padStart(2, "0");
+                               //@ts-ignore
+                               handleInputChange({ target: { name: "standardCheckOutTime", value: `${hours}:${minutes}` } });
+                             }
+                           }}
+                           showTimeSelect
+                           showTimeSelectOnly
+                           timeIntervals={30}
+                           timeCaption="Time"
+                           dateFormat="HH:mm"  // 24-hour format
+                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           disabled={isLoading}
+                         />
+                       </div>
+                       <p className="mt-2 text-sm text-gray-500">
+                         Default check-out time for all bookings (e.g., 10:00)
+                       </p>
+                     </div>
+                     
                   </div>
                 </div>
 

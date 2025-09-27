@@ -13,6 +13,8 @@ interface BookingEditData {
   roomName: string;
   checkIn: string;
   checkOut: string;
+  checkInTime?: string; // Time for check-in (e.g., "14:00")
+  checkOutTime?: string; // Time for check-out (e.g., "10:00")
   totalGuests: number;
   hasExtraBed: boolean;
   extraBedCount: number;
@@ -78,6 +80,8 @@ export default function ComprehensivePaymentIntentEditForm({
         roomName: booking.roomDetails?.name || 'Unknown Room',
         checkIn: booking.checkIn?.split('T')[0] || '',
         checkOut: booking.checkOut?.split('T')[0] || '',
+        checkInTime: paymentIntent.bookings?.[index]?.checkInTime || settings?.standardCheckInTime || '14:00',
+        checkOutTime: paymentIntent.bookings?.[index]?.checkOutTime || settings?.standardCheckOutTime || '10:00',
         totalGuests: booking.adults || booking.totalGuests || 1,
         hasExtraBed: booking.hasExtraBed || false,
         extraBedCount: booking.extraBedCount || 0,
@@ -548,6 +552,24 @@ export default function ComprehensivePaymentIntentEditForm({
           />
         </div>
 
+        {/* Check-in Time */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Check-in Time
+          </label>
+          <input
+            type="time"
+            value={booking.checkInTime || '14:00'}
+            onChange={(e) =>
+              !isReadOnly && updateBooking(index, "checkInTime", e.target.value)
+            }
+            className={`w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+              isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+            }`}
+            disabled={isReadOnly}
+          />
+        </div>
+
         {/* Raw Check-out Date Field for Testing */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -566,6 +588,24 @@ export default function ComprehensivePaymentIntentEditForm({
                 isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
               }`
             )}
+            disabled={isReadOnly}
+          />
+        </div>
+
+        {/* Check-out Time */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Check-out Time
+          </label>
+          <input
+            type="time"
+            value={booking.checkOutTime || '10:00'}
+            onChange={(e) =>
+              !isReadOnly && updateBooking(index, "checkOutTime", e.target.value)
+            }
+            className={`w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+              isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""
+            }`}
             disabled={isReadOnly}
           />
         </div>
