@@ -43,7 +43,6 @@ export default function Rooms() {
   })
   const [selectedPolicies, setSelectedPolicies] = useState<RatePolicy[]>([])
   const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'details' | 'pricing'>('details');
  
   // Fetch rooms
   const fetchRooms = async () => {
@@ -442,73 +441,6 @@ export default function Rooms() {
       </div>
     )
   }
-  
-  // Modal for confirming room deletion 
-  // Old DeleteRoomModal removed - now using reusable DeleteConfirmationModal from ui folder
-  /*
-  const DeleteRoomModal = () => {
-    if (!selectedRoom) return null
-    
-    return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-          <div className="flex justify-between items-center border-b p-4">
-            <h3 className="text-xl font-semibold text-gray-900">Delete Room</h3>
-            <button 
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="text-gray-500 hover:text-gray-700 focus:outline-none"
-              disabled={loadingAction}
-            >
-              <RiCloseLine size={24} />
-            </button>
-          </div>
-          
-          <div className="p-6">
-          
-            
-            <div className="mb-4">
-              <div className="flex items-center justify-center mb-4 text-red-500">
-                <RiErrorWarningLine size={48} />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
-                Are you sure you want to delete this room?
-              </h3>
-              <p className="text-sm text-gray-500 text-center">
-                This action cannot be undone. All data associated with "{selectedRoom.name}" will be permanently removed.
-              </p>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 px-4 py-3 flex justify-end space-x-3 rounded-b-lg">
-            <button
-              type="button"
-              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none"
-              onClick={() => setIsDeleteModalOpen(false)}
-              disabled={loadingAction}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none disabled:opacity-50"
-              onClick={() => deleteRoom(selectedRoom.id)}
-              disabled={loadingAction}
-            >
-              {loadingAction ? (
-                <span className="flex items-center">
-                  <BiLoader className="animate-spin mr-2" />
-                  Deleting...
-                </span>
-              ) : (
-                "Delete Room"
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-  */
 
   const togglePolicySelection = (policy: RatePolicy) => {
     setSelectedPolicies(prev => {
@@ -734,31 +666,8 @@ export default function Rooms() {
           Manage all rooms, prices, images, and policies
         </p>
       </div>
-
-      {/* Tab Navigation */}
-      <div className="mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab('details')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'details'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Details
-            </button>
-          </nav>
-        </div>
-      </div>
-    
-      {/* Actions bar */}
-      {activeTab === 'details' && (
+  
         <>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-500">Base price: </span>
-          </div>
           <div className="bg-white rounded-lg shadow p-4 mb-6">
             <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
               <div className="relative w-full md:w-64">
@@ -1097,7 +1006,6 @@ export default function Rooms() {
             )}
           </div>
         </>
-      )}
 
       {isViewModalOpen && <ViewRoomModal />}
       {/* Delete Confirmation Modal */}

@@ -18,6 +18,7 @@ import ViewEventModal from "./ViewEventModal"
 import EventAuditLogModal from "./EventAuditLogModal"
 import type { Event } from "../../../../types/types"
 import { History } from "lucide-react"
+import { format } from "date-fns"
 
 export default function Events() {
   // States
@@ -264,6 +265,9 @@ export default function Events() {
                   Event
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date & Time
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -292,6 +296,21 @@ export default function Events() {
                         </div>
                       )}
                     </div>
+                  </td>
+                  
+                  <td className="px-6 py-4">
+                    {event.eventDate ? (
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {format(new Date(event.eventDate), 'MMM dd, yyyy')}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {format(new Date(event.eventDate), 'h:mm a')}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">Not scheduled</span>
+                    )}
                   </td>
                   
                   <td className="px-6 py-4">

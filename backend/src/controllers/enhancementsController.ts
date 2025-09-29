@@ -14,9 +14,6 @@ export const getEnhancements = async (req: Request, res: Response) => {
   try {
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
-    const currentDate = new Date();
-    
-    // Fetch general settings to get standard check-in/check-out times
     const generalSettings = await prisma.generalSettings.findFirst();
     const standardCheckInTime = generalSettings?.standardCheckInTime || '14:00';
     const standardCheckOutTime = generalSettings?.standardCheckOutTime || '10:00';

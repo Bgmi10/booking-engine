@@ -641,24 +641,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       const filtered = prev.filter((item: any) => item.id !== 'current');
                       return [...filtered, bookingCopy];
                     });
-                    
-                    // Clear bookingData as it's now saved
-                    setBookingData((prev: any) => ({
-                      checkIn: prev.checkIn,
-                      checkOut: prev.checkOut,
-                      adults: 2,
-                      promotionCode: prev.promotionCode,
-                      selectedRoom: null,
-                      selectedEnhancements: [],
-                      selectedEvents: {},
-                      selectedEventsDetails: [],
-                      selectedRateOption: null,
-                      totalPrice: 0,
-                      rooms: 1,
-                      hasExtraBed: false,
-                      extraBedCount: 0,
-                      extraBedPrice: 0
-                    }));
                   }
                   setCurrentStep(5);
                 }}

@@ -16,7 +16,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   const [rooms, setRooms] = useState(bookingData.rooms || 1);
   const [adults, setAdults] = useState(bookingData.adults || 2);
   const [expandedRateDetails, setExpandedRateDetails] = useState<{ [key: string]: boolean }>({});
-  
+
   // Sync adults state with bookingData when it changes externally
   useEffect(() => {
     setAdults(bookingData.adults || 2);
@@ -56,7 +56,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     roomId: bookingData.selectedRoom
   });
 
-  // Separate events and products
   const events = enhancements.filter(e => e.type === 'EVENT');
   const products = enhancements.filter(e => e.type === 'PRODUCT' || !e.type);
   
@@ -393,8 +392,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
       extraBedPrice: selectedRoom.extraBedPrice || 0
     };
 
-    console.log(finalBookingData)
-
     setBookingData(finalBookingData);
     
     setCurrentStep(4);
@@ -533,8 +530,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                 const eventAttendance = eventFromDetails 
                   ? { plannedAttendees: eventFromDetails.plannedAttendees }
                   : { plannedAttendees: 1 };
-                const maxGuests = bookingData.adults;
-                
+                const maxGuests = enhancement.maxQuantity ?? bookingData.adults;
+
                 return (
                   <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -547,6 +544,14 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.name || enhancement.title}</h4>
                         {enhancement.enhancementName && (
                           <p className="text-sm text-blue-600 font-medium mb-1">{enhancement.enhancementName}</p>
+                        )}
+                        {enhancement.eventDate && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-700">
+                              {format(new Date(enhancement.eventDate), 'EEEE, MMM dd, yyyy • h:mm a')}
+                            </span>
+                          </div>
                         )}
                         <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
                         
@@ -661,7 +666,8 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                   className="w-8 h-8 rounded-md border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
                                   onClick={() => {
                                     const current = eventAttendance?.plannedAttendees || 1;
-                                    if (current < maxGuests) {
+                                    const maxAllowed = enhancement.maxQuantity !== null && enhancement.maxQuantity !== undefined ? enhancement.maxQuantity : maxGuests;
+                                    if (current < maxAllowed) {
                                       const newAttendees = current + 1;
                                       // Update the array
                                       setBookingData((prev: any) => ({
@@ -672,7 +678,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                       }));
                                     }
                                   }}
-                                  disabled={(eventAttendance?.plannedAttendees || 1) >= maxGuests}
+                                  disabled={(eventAttendance?.plannedAttendees || 1) >= (enhancement.maxQuantity !== null && enhancement.maxQuantity !== undefined ? enhancement.maxQuantity : maxGuests)}
                                 >
                                   <span className="text-gray-600">+</span>
                                 </button>
@@ -1023,6 +1029,14 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           {enhancement.enhancementName && (
                             <p className="text-xs text-blue-600 font-medium">{enhancement.enhancementName}</p>
                           )}
+                          {enhancement.eventDate && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Clock className="h-3 w-3 text-blue-600" />
+                              <span className="text-xs font-medium text-blue-700">
+                                {format(new Date(enhancement.eventDate), 'MMM dd • h:mm a')}
+                              </span>
+                            </div>
+                          )}
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{enhancement.description}</p>
                           
                           {/* Price and action in one line on mobile */}
@@ -1097,7 +1111,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                         }));
                                       }
                                     }}
-                                    disabled={(eventAttendance?.plannedAttendees || 1) >= maxGuests}
+                                    disabled={(eventAttendance?.plannedAttendees || 1) >= (enhancement.maxQuantity !== null && enhancement.maxQuantity !== undefined ? enhancement.maxQuantity : maxGuests)}
                                   >
                                     +
                                   </button>
