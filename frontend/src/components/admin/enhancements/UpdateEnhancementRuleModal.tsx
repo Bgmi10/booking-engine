@@ -62,9 +62,12 @@ export default function UpdateEnhancementRuleModal({
 
   // Use hooks for fetching data
   const { 
-    enhancements, 
+    enhancements: allEnhancements, 
     loading: loadingEnhancements, 
   } = useEnhancements({ enabled: isOpen })
+  
+  // Filter out event-type enhancements for Product Availability rules
+  const enhancements = allEnhancements.filter(enhancement => enhancement.type !== 'EVENT')
   
   const { 
     rooms, 
@@ -231,7 +234,7 @@ export default function UpdateEnhancementRuleModal({
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 z-50 bg-white border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Update Enhancement Rule</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Update Product</h2>
           <button
             onClick={onClose}
             disabled={loading}
@@ -536,7 +539,7 @@ export default function UpdateEnhancementRuleModal({
                   Updating...
                 </span>
               ) : (
-                "Update Rule"
+                "Update Product"
               )}
             </button>
           </div>

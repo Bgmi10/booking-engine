@@ -40,6 +40,15 @@ export default function CreateEnhancementRuleModal({
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  
+  // Product selection fields
+  const [selectFromProducts, setSelectFromProducts] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    enhancementId: string
+    overridePrice?: number | null
+    maxQuantity?: number | null
+  }>>([])
+  const [allEnhancements, setAllEnhancements] = useState<Enhancement[]>([])
 
   // Fetch enhancements and rooms
   useEffect(() => {
@@ -51,13 +60,22 @@ export default function CreateEnhancementRuleModal({
   const fetchData = async () => {
     setLoadingData(true)
     try {
-      // Fetch enhancements
+      // Fetch all enhancements
       const enhancementsRes = await fetch(`${baseUrl}/admin/enhancements/all`, {
         credentials: "include",
       })
       if (enhancementsRes.ok) {
         const enhancementsData = await enhancementsRes.json()
-        setEnhancements(enhancementsData.data || [])
+        const allEnhancementsData = enhancementsData.data || []
+        
+        // Store all enhancements for product selection
+        setAllEnhancements(allEnhancementsData)
+        
+        // Filter out event-type enhancements (only show products for Product Availability rules dropdown)
+        const productEnhancements = allEnhancementsData.filter((enhancement: Enhancement) => 
+          enhancement.type !== 'EVENT'
+        )
+        setEnhancements(productEnhancements)
       }
 
       // Fetch rooms
@@ -91,6 +109,9 @@ export default function CreateEnhancementRuleModal({
     setRoomScope("ALL_ROOMS")
     setRoomIds([])
     setIsActive(true)
+    // Reset product selection fields
+    setSelectFromProducts(false)
+    setSelectedProducts([])
   }
 
   useEffect(() => {
@@ -115,6 +136,27 @@ export default function CreateEnhancementRuleModal({
     }
   }
 
+  const toggleProductSelection = (enhancementId: string) => {
+    setSelectedProducts(prev => {
+      const exists = prev.find(e => e.enhancementId === enhancementId)
+      if (exists) {
+        return prev.filter(e => e.enhancementId !== enhancementId)
+      } else {
+        return [...prev, { enhancementId }]
+      }
+    })
+  }
+
+  const updateProductOverride = (enhancementId: string, field: 'overridePrice' | 'maxQuantity', value: string) => {
+    setSelectedProducts(prev => 
+      prev.map(e => 
+        e.enhancementId === enhancementId 
+          ? { ...e, [field]: value ? (field === 'maxQuantity' ? parseInt(value) : parseFloat(value)) : null }
+          : e
+      )
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     // Validation
@@ -123,9 +165,17 @@ export default function CreateEnhancementRuleModal({
       return
     }
 
-    if (!selectedEnhancementId) {
-      toast.error("Please select an enhancement")
-      return
+    // Validation for product selection
+    if (selectFromProducts) {
+      if (selectedProducts.length === 0) {
+        toast.error("Please select at least one product when using product selection")
+        return
+      }
+    } else {
+      if (!selectedEnhancementId) {
+        toast.error("Please select an enhancement or choose from available products")
+        return
+      }
     }
 
     if (availabilityType === "WEEKLY" && availableDays.length === 0) {
@@ -151,50 +201,115 @@ export default function CreateEnhancementRuleModal({
     setLoading(true)
 
     try {
-      const requestBody: any = {
-        name: name.trim(),
-        enhancementId: selectedEnhancementId,
-        availabilityType,
-        roomScope,
-        isActive,
-        availableDays: availabilityType === "WEEKLY" ? availableDays : [],
-        roomIds: roomScope === "SPECIFIC_ROOMS" ? roomIds : [],
+      // If using product selection, create rules for each selected product
+      if (selectFromProducts) {
+        let successCount = 0
+        let failCount = 0
+
+        for (const product of selectedProducts) {
+          try {
+            const requestBody: any = {
+              name: `${name.trim()} - ${allEnhancements.find(e => e.id === product.enhancementId)?.name}`,
+              enhancementId: product.enhancementId,
+              availabilityType,
+              roomScope,
+              isActive,
+              availableDays: availabilityType === "WEEKLY" ? availableDays : [],
+              roomIds: roomScope === "SPECIFIC_ROOMS" ? roomIds : [],
+            }
+
+            // Add optional fields
+            if (availableTimeStart) requestBody.availableTimeStart = availableTimeStart
+            if (availableTimeEnd) requestBody.availableTimeEnd = availableTimeEnd
+            if (validFrom) requestBody.validFrom = validFrom.toISOString()
+            if (validUntil) requestBody.validUntil = validUntil.toISOString()
+
+            if (availabilityType === "SPECIFIC_DATES") {
+              requestBody.specificDates = specificDates.map(date => new Date(date).toISOString())
+            }
+
+            if (availabilityType === "SEASONAL") {
+              requestBody.seasonal = true
+              //@ts-ignore
+              requestBody.seasonStart = seasonStart.toISOString()
+              //@ts-ignore
+              requestBody.seasonEnd = seasonEnd.toISOString()
+            }
+
+            const res = await fetch(`${baseUrl}/admin/enhancement-rules`, {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(requestBody),
+            })
+
+            if (res.ok) {
+              successCount++
+            } else {
+              failCount++
+            }
+          } catch (error) {
+            failCount++
+          }
+        }
+
+        if (successCount > 0 && failCount === 0) {
+          toast.success(`${successCount} availability rule(s) created successfully!`)
+        } else if (successCount > 0 && failCount > 0) {
+          toast.success(`${successCount} rule(s) created, ${failCount} failed`)
+        } else {
+          toast.error("Failed to create availability rules")
+        }
+      } else {
+        // Single rule creation (existing logic)
+        const requestBody: any = {
+          name: name.trim(),
+          enhancementId: selectedEnhancementId,
+          availabilityType,
+          roomScope,
+          isActive,
+          availableDays: availabilityType === "WEEKLY" ? availableDays : [],
+          roomIds: roomScope === "SPECIFIC_ROOMS" ? roomIds : [],
+        }
+
+        // Add optional fields
+        if (availableTimeStart) requestBody.availableTimeStart = availableTimeStart
+        if (availableTimeEnd) requestBody.availableTimeEnd = availableTimeEnd
+        if (validFrom) requestBody.validFrom = validFrom.toISOString()
+        if (validUntil) requestBody.validUntil = validUntil.toISOString()
+
+        if (availabilityType === "SPECIFIC_DATES") {
+          requestBody.specificDates = specificDates.map(date => new Date(date).toISOString())
+        }
+
+        if (availabilityType === "SEASONAL") {
+          requestBody.seasonal = true
+          //@ts-ignore
+          requestBody.seasonStart = seasonStart.toISOString()
+          //@ts-ignore
+          requestBody.seasonEnd = seasonEnd.toISOString()
+        }
+
+        const res = await fetch(`${baseUrl}/admin/enhancement-rules`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.message || "Failed to create rule")
+        }
+
+        toast.success("Rule created successfully!")
       }
-
-      // Add optional fields
-      if (availableTimeStart) requestBody.availableTimeStart = availableTimeStart
-      if (availableTimeEnd) requestBody.availableTimeEnd = availableTimeEnd
-      if (validFrom) requestBody.validFrom = validFrom.toISOString()
-      if (validUntil) requestBody.validUntil = validUntil.toISOString()
-
-      if (availabilityType === "SPECIFIC_DATES") {
-        requestBody.specificDates = specificDates.map(date => new Date(date).toISOString())
-      }
-
-      if (availabilityType === "SEASONAL") {
-        requestBody.seasonal = true
-        //@ts-ignore
-        requestBody.seasonStart = seasonStart.toISOString()
-        //@ts-ignore
-        requestBody.seasonEnd = seasonEnd.toISOString()
-      }
-
-      const res = await fetch(`${baseUrl}/admin/enhancement-rules`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to create rule")
-      }
-
-      toast.success("Rule created successfully!")
+      
       onSuccess()
     } catch (error: any) {
       toast.error(error.message || "Failed to create rule")
@@ -211,7 +326,7 @@ export default function CreateEnhancementRuleModal({
     <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto z-50">
         <div className="sticky top-0 bg-white z-50 border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Create Enhancement Rule</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Create Product</h2>
           <button
             onClick={onClose}
             disabled={loading}
@@ -248,22 +363,95 @@ export default function CreateEnhancementRuleModal({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Enhancement *
-                    </label>
-                    <select
-                      value={selectedEnhancementId}
-                      onChange={(e) => setSelectedEnhancementId(e.target.value)}
-                      className="mt-1 p-3 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      required
-                    >
-                      <option value="">Select an enhancement</option>
-                      {enhancements.map((enhancement) => (
-                        <option key={enhancement.id} value={enhancement.id}>
-                          {enhancement.name} - €{enhancement.price}
-                        </option>
-                      ))}
-                    </select>
+                    
+                    {!selectFromProducts ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Enhancement *
+                        </label>
+                        <select
+                          value={selectedEnhancementId}
+                          onChange={(e) => setSelectedEnhancementId(e.target.value)}
+                          className="mt-1 p-3 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          required={!selectFromProducts}
+                        >
+                          <option value="">Select an enhancement</option>
+                          {enhancements.map((enhancement) => (
+                            <option key={enhancement.id} value={enhancement.id}>
+                              {enhancement.name} - €{enhancement.price}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+                        <h4 className="text-sm font-medium text-gray-900">Available Product Enhancements</h4>
+                        
+                        <div className="border border-gray-300 rounded-lg max-h-64 overflow-y-auto p-3">
+                          {loadingData ? (
+                            <div className="flex items-center justify-center py-4">
+                              <BiLoader className="animate-spin text-gray-500 mr-2" />
+                              <span className="text-gray-500 text-sm">Loading enhancements...</span>
+                            </div>
+                          ) : enhancements.length === 0 ? (
+                            <p className="text-gray-500 text-sm">No product enhancements available</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {enhancements.map(enhancement => {
+                                const selected = selectedProducts.find(e => e.enhancementId === enhancement.id)
+                                return (
+                                  <div
+                                    key={enhancement.id}
+                                    className={`p-3 rounded-lg border ${selected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}
+                                  >
+                                    <label className="flex items-start cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!selected}
+                                        onChange={() => toggleProductSelection(enhancement.id)}
+                                        className="mt-1 mr-3"
+                                      />
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{enhancement.name}</div>
+                                        <div className="text-xs text-gray-500">
+                                          Default: €{enhancement.price} - {enhancement.pricingType}
+                                        </div>
+                                      </div>
+                                    </label>
+                                    {selected && (
+                                      <div className="mt-3 ml-6 grid grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="block text-xs text-gray-600 mb-1">Override Price (optional)</label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder={enhancement.price.toString()}
+                                            value={selected.overridePrice || ''}
+                                            onChange={(e) => updateProductOverride(enhancement.id, 'overridePrice', e.target.value)}
+                                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-gray-600 mb-1">Max Quantity (optional)</label>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            placeholder="Unlimited"
+                                            value={selected.maxQuantity || ''}
+                                            onChange={(e) => updateProductOverride(enhancement.id, 'maxQuantity', e.target.value)}
+                                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -517,7 +705,7 @@ export default function CreateEnhancementRuleModal({
                   Creating...
                 </span>
               ) : (
-                "Create Rule"
+                "Create Product"
               )}
             </button>
           </div>

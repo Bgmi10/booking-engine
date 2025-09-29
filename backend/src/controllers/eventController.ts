@@ -7,7 +7,7 @@ import { generateToken } from "../utils/tokenGenerator";
 export const createEvent = async (req: express.Request, res: express.Response) => {
  //@ts-ignore
  const { id: userId } = req.user;
- const { name, description, eventDate, eventType, enhancements, notes } = req.body;
+ const { name, description, eventDate, eventType, enhancements, notes, createRule, ruleName, availabilityType, availableDays, availableTimeStart, availableTimeEnd, specificDates, roomScope, roomIds, validFrom, validUntil } = req.body;
 
  try {
    const event = await prisma.event.create({
@@ -37,6 +37,33 @@ export const createEvent = async (req: express.Request, res: express.Response) =
    });
 
 
+   // Create availability rule if requested
+   if (createRule && enhancements && enhancements.length > 0) {
+     try {
+       const rulePayload = {
+         name: ruleName || `${name} - Availability Rule`,
+         enhancementId: enhancements[0].enhancementId || enhancements[0], // Use first enhancement
+         availabilityType: availabilityType || 'ALWAYS',
+         roomScope: roomScope || 'ALL_ROOMS',
+         isActive: true,
+         availableDays: availabilityType === 'WEEKLY' ? (availableDays || []) : [],
+         roomIds: roomScope === 'SPECIFIC_ROOMS' ? (roomIds || []) : [],
+         availableTimeStart: availableTimeStart || null,
+         availableTimeEnd: availableTimeEnd || null,
+         specificDates: availabilityType === 'SPECIFIC_DATES' ? (specificDates || []) : [],
+         validFrom: validFrom ? new Date(validFrom) : null,
+         validUntil: validUntil ? new Date(validUntil) : null
+       };
+
+       await prisma.enhancementRule.create({
+         data: rulePayload
+       });
+     } catch (ruleError) {
+       console.warn('Failed to create availability rule for event:', ruleError);
+       // Don't fail the event creation if rule creation fails
+     }
+   }
+
    await prisma.bookingAuditLog.create({
     data: {
         actionType: "CREATED",
@@ -53,7 +80,9 @@ export const createEvent = async (req: express.Request, res: express.Response) =
           enhancements,
           totalRevenue: 0,
           totalGuests: 0,
-          status: "IN_PROGRESS"
+          status: "IN_PROGRESS",
+          createRule,
+          ruleName
         },
         changedFields: ["name", "description", "eventDate", "eventType", "enhancements", "status"]
     }
@@ -90,7 +119,7 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
     const { id } = req.params;
     //@ts-ignore
     const { id: userId } = req.user;
-    const { name, description, eventDate, eventType, status, enhancements, reason, notes } = req.body;
+    const { name, description, eventDate, eventType, status, enhancements, reason, notes, createRule, ruleName, availabilityType, availableDays, availableTimeStart, availableTimeEnd, specificDates, roomScope, roomIds, validFrom, validUntil } = req.body;
     
     if (!id) {
         responseHandler(res, 400, "Id missing");
@@ -260,6 +289,39 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
                 }
             }
 
+            // Create availability rule if requested
+            if (createRule && enhancements && enhancements.length > 0) {
+                try {
+                    const rulePayload = {
+                        name: ruleName || `${event.name} - Additional Rule`,
+                        enhancementId: enhancements[0].enhancementId || enhancements[0], // Use first enhancement
+                        availabilityType: availabilityType || 'ALWAYS',
+                        roomScope: roomScope || 'ALL_ROOMS',
+                        isActive: true,
+                        availableDays: availabilityType === 'WEEKLY' ? (availableDays || []) : [],
+                        roomIds: roomScope === 'SPECIFIC_ROOMS' ? (roomIds || []) : [],
+                        availableTimeStart: availableTimeStart || null,
+                        availableTimeEnd: availableTimeEnd || null,
+                        specificDates: availabilityType === 'SPECIFIC_DATES' ? (specificDates || []) : [],
+                        validFrom: validFrom ? new Date(validFrom) : null,
+                        validUntil: validUntil ? new Date(validUntil) : null
+                    };
+
+                    await tx.enhancementRule.create({
+                        data: rulePayload
+                    });
+
+                    // Add rule creation to changed fields if not already present
+                    if (!changedFields.includes('availabilityRule')) {
+                        changedFields.push('availabilityRule');
+                        newValues.availabilityRule = rulePayload;
+                    }
+                } catch (ruleError) {
+                    console.warn('Failed to create availability rule during event update:', ruleError);
+                    // Don't fail the event update if rule creation fails
+                }
+            }
+
             // Create audit log if there were changes
             if (changedFields.length > 0) {
                 await tx.bookingAuditLog.create({
@@ -320,7 +382,11 @@ export const getAllEvents = async (req: express.Request, res: express.Response) 
             include: {
                 eventEnhancements: {
                     include: {
-                        enhancement: true
+                        enhancement: {
+                            include: {
+                                enhancementRules: true,
+                            }
+                        }
                     }
                 },
                 eventParticipants: {

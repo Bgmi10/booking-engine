@@ -1552,7 +1552,6 @@ async function processBookingsInTransaction(
                         totalPlannedAttendees += eventGuestCount;
                     });
                     
-                    // Create order for the events
                     await tx.order.create({
                         data: {
                             paymentIntent: { connect: { id: paymentIntentId } },
@@ -1571,10 +1570,8 @@ async function processBookingsInTransaction(
                         }
                     });
 
-                    // Calculate total booking guests (adults * rooms)
                     const totalBookingGuests = adults * (rooms || 1);
                     
-                    // Create event guest registry with proper guest counts
                     const eventRegistry = await tx.eventGuestRegistry.create({
                         data: {
                             paymentIntentId,
@@ -1583,16 +1580,14 @@ async function processBookingsInTransaction(
                             mainGuestName: `${customerDetails.firstName} ${customerDetails.lastName}`,
                             mainGuestPhone: customerDetails.phone,
                             customerId,
-                            totalGuestCount: totalBookingGuests, // Total guests in the booking
-                            confirmedGuests: totalPlannedAttendees, // Only the planned attendees for events
+                            totalGuestCount: totalPlannedAttendees, // Total guests in the booking
+                            confirmedGuests: 0,
                             selectedEvents: booking.selectedEventsDetails,
                             status: "PROVISIONAL",
                         }
                     });
 
-                    // Create event participants for each selected event
                     for (const eventDetails of booking.selectedEventsDetails) {
-                        // Find the actual event using the enhancement ID
                         const event = await tx.event.findFirst({
                             where: {
                                 eventEnhancements: {

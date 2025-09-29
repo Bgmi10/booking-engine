@@ -31,7 +31,7 @@ export default function Enhancements() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loadingAction, setLoadingAction] = useState(false)
-  const [activeTab, setActiveTab] = useState<'enhancements' | 'rules' | 'events'>('enhancements')
+  const [activeTab, setActiveTab] = useState<'enhancements' | 'productAvailability' | 'events'>('enhancements')
   
   // Modal states
   const [isCreateEnhancementModalOpen, setIsCreateEnhancementModalOpen] = useState(false)
@@ -68,7 +68,7 @@ export default function Enhancements() {
     }
   }
 
-  // Fetch enhancement rules
+  // Fetch enhancement rules (filter out event-type enhancement rules for Product Availability tab)
   const fetchEnhancementRules = async () => {
     setLoading(true)
     setError("")
@@ -85,8 +85,12 @@ export default function Enhancements() {
       }
       
       const data = await res.json()
-      setEnhancementRules(data.data || [])
-      setFilteredRules(data.data || [])
+      // Filter out rules for event-type enhancements (only show product rules in Product Availability tab)
+      const productRules = (data.data || []).filter((rule: EnhancementRule) => 
+        rule.enhancement?.type !== 'EVENT'
+      )
+      setEnhancementRules(productRules)
+      setFilteredRules(productRules)
     } catch (error) {
       console.error(error)
       setError("Failed to load enhancement rules. Please try again.")
@@ -114,7 +118,7 @@ export default function Enhancements() {
         )
         setFilteredEnhancements(filtered)
       }
-    } else {
+    } else if (activeTab === 'productAvailability') {
       if (searchTerm.trim() === "") {
         setFilteredRules(enhancementRules)
       } else {
@@ -355,14 +359,14 @@ export default function Enhancements() {
               Enhancements
             </button>
             <button
-              onClick={() => setActiveTab('rules')}
+              onClick={() => setActiveTab('productAvailability')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'rules'
+                activeTab === 'productAvailability'
                   ? 'border-indigo-500 text-indigo-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Availability Rules
+              Product Availability
             </button>
             <button
               onClick={() => setActiveTab('events')}
@@ -407,7 +411,7 @@ export default function Enhancements() {
       )}
 
       {/* Actions bar */}
-      { (activeTab === "enhancements" || activeTab === "rules" ) && <div className="bg-white rounded-lg shadow p-4 mb-6">
+      { (activeTab === "enhancements" || activeTab === "productAvailability" ) && <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           <div className="relative w-full md:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -442,7 +446,7 @@ export default function Enhancements() {
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none cursor-pointer"
             >
               <RiAddLine className="mr-2 h-5 w-5" />
-              {activeTab === 'enhancements' ? 'Add Enhancement' : 'Add Rule'}
+              {activeTab === 'enhancements' ? 'Add Enhancement' : 'Add product'}
             </button>
           </div>
         </div>
@@ -491,6 +495,9 @@ export default function Enhancements() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Name
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -516,6 +523,28 @@ export default function Enhancements() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredEnhancements.map((enhancement) => (
                     <tr key={enhancement.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex-shrink-0 h-12 w-12">
+                          {enhancement.image ? (
+                            <img
+                              className="h-12 w-12 rounded-lg object-cover border border-gray-200"
+                              src={enhancement.image}
+                              alt={enhancement.name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className={`h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center ${enhancement.image ? 'hidden' : 'flex'}`}
+                            style={{ display: enhancement.image ? 'none' : 'flex' }}
+                          >
+                            <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{enhancement.name}</div>
                       </td>
@@ -575,14 +604,14 @@ export default function Enhancements() {
         </div>
       )}
 
-      {/* Rules Tab */}
-      {activeTab === 'rules' && (
+      {/* Product Availability Tab */}
+      {activeTab === 'productAvailability' && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             {loading ? (
               <div className="flex justify-center items-center p-12">
                 <BiLoader className="animate-spin text-indigo-600 mr-2 h-8 w-8" />
-                <span className="text-gray-500 text-lg">Loading rules...</span>
+                <span className="text-gray-500 text-lg">Loading Products Availability...</span>
               </div>
             ) : filteredRules.length === 0 ? (
               <div className="text-center py-12">
@@ -599,17 +628,14 @@ export default function Enhancements() {
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No rules found</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  Create rules to control when enhancements are available.
-                </p>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No Products found</h3>
                 <div className="mt-6">
                   <button
                     onClick={() => setIsCreateRuleModalOpen(true)}
                     className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                   >
                     <RiAddLine className="mr-2 -ml-1 h-5 w-5" />
-                    Create Rule
+                    Create products with rules
                   </button>
                 </div>
               </div>
@@ -618,7 +644,7 @@ export default function Enhancements() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rule Name
+                      Name
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enhancement

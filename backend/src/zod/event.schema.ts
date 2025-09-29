@@ -30,7 +30,19 @@ export const createEventSchema = z.object({
     overridePrice: z.number().nullable().optional()
   })),
   notes: z.string().nullable().optional(),
-  maxCapacity: z.number().int().min(0).nullable().optional()
+  maxCapacity: z.number().int().min(0).nullable().optional(),
+  // Rule creation fields for events
+  createRule: z.boolean().optional(),
+  ruleName: z.string().optional(),
+  availabilityType: z.enum(['ALWAYS', 'WEEKLY', 'SPECIFIC_DATES', 'SEASONAL']).optional(),
+  availableDays: z.array(z.string()).optional(),
+  availableTimeStart: z.string().nullable().optional(),
+  availableTimeEnd: z.string().nullable().optional(),
+  specificDates: z.array(z.string()).optional(),
+  roomScope: z.enum(['ALL_ROOMS', 'SPECIFIC_ROOMS']).optional(),
+  roomIds: z.array(z.string()).optional(),
+  validFrom: z.string().optional(),
+  validUntil: z.string().optional()
 });
 
 // Update event schema - requires reason but other fields are partial
@@ -48,5 +60,17 @@ export const updateEventSchema = z.object({
     overridePrice: z.number().nullable().optional()
   })).optional(),
   reason: z.string().min(1, "Reason for update is required"),
-  notes: z.string().nullable().optional()
+  notes: z.string().nullable().optional(),
+  // Rule creation fields for events
+  createRule: z.boolean().optional(),
+  ruleName: z.string().optional(),
+  availabilityType: z.enum(['ALWAYS', 'WEEKLY', 'SPECIFIC_DATES', 'SEASONAL']).optional(),
+  availableDays: z.array(z.string()).optional(),
+  availableTimeStart: z.string().nullable().optional(),
+  availableTimeEnd: z.string().nullable().optional(),
+  specificDates: z.array(z.string()).optional(),
+  roomScope: z.enum(['ALL_ROOMS', 'SPECIFIC_ROOMS']).optional(),
+  roomIds: z.array(z.string()).optional(),
+  validFrom: z.string().optional(),
+  validUntil: z.string().optional()
 })
