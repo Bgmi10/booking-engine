@@ -32,8 +32,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
     extraBedCount: bookingData.extraBedCount || 0
   });
   
-  
-
   const daysInRange = days.filter(day => {
     const date = new Date(formattedCheckIn);
     while (date <= new Date(formattedCheckOut)) {
@@ -797,7 +795,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                            const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
                                              e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
                                            );
-                                           console.log('Desktop: Updating quantity to', newQuantity, 'for', enhancement.name);
                                            return {
                                              ...prev,
                                              selectedEnhancements: updatedEnhancements,
@@ -1247,7 +1244,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                               const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
                                                 e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
                                               );
-                                              console.log('Mobile: Updating quantity to', newQuantity, 'for', enhancement.name);
                                               return {
                                                 ...prev,
                                                 selectedEnhancements: updatedEnhancements,
@@ -1273,7 +1269,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                               const updatedEnhancements = prev.selectedEnhancements.map((e: any) => 
                                                 e.id === enhancement.id ? { ...e, quantity: newQuantity } : e
                                               );
-                                              console.log('Mobile: Updating quantity to', newQuantity, 'for', enhancement.name);
                                               return {
                                                 ...prev,
                                                 selectedEnhancements: updatedEnhancements,

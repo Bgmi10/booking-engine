@@ -8,8 +8,6 @@ interface StepIndicatorProps {
 }
 
 const StepIndicator = ({ steps, currentStep, setCurrentStep, bookingData }: StepIndicatorProps) => {
-  
-  // Function to check if a step is completed
   const isStepCompleted = (stepId: number): boolean => {
     switch (stepId) {
       case 1: // Dates step

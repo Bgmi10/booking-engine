@@ -238,17 +238,26 @@ export default function Details({
             }
         }
         
-        if (roomId === "54202303-615d-4cf0-bf79-f1b46dfccc65") {
-            return "Fagiano - Garden View Terrace";
-        }
         return "Fenicottero - Vineyard View";
     };
 
-    // Use bookingItems as the single source of truth for display
     const getAllItems = () => {
-        // bookingItems should already contain all saved items from Summary
-        // No need to add bookingData here as it should be empty after being saved
-        return [...bookingItems];
+        const items = [...bookingItems];
+        
+        // Only add current booking data if it's complete and not yet saved
+        const isCurrentBookingComplete = bookingData.selectedRoom && 
+            (bookingData.selectedRateOption || bookingData.totalPrice > 0);
+        
+        if (isCurrentBookingComplete) {
+            // Add current unsaved booking for preview
+            items.push({ 
+                ...bookingData, 
+                id: 'current',
+                roomDetails: availabilityData?.availableRooms?.find((r: any) => r.id === bookingData.selectedRoom)
+            });
+        }
+        
+        return items;
     };
 
     const allItems = getAllItems();
@@ -259,7 +268,6 @@ export default function Details({
    
     const priceDetails = calculateFinalPrice();
 
-    // Validation functions
     const validateEmail = (email: string) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);

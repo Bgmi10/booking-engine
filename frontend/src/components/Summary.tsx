@@ -33,37 +33,56 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
     const checkConflicts = () => {
       const allItems = getAllItems();
       const conflictingItems: any[] = [];
-
+    
       for (let i = 0; i < allItems.length; i++) {
         for (let j = i + 1; j < allItems.length; j++) {
           const item1 = allItems[i];
           const item2 = allItems[j];
-          
+    
           // Check if same room
           if (item1.selectedRoom === item2.selectedRoom) {
             const checkIn1 = new Date(item1.checkIn);
             const checkOut1 = new Date(item1.checkOut);
             const checkIn2 = new Date(item2.checkIn);
             const checkOut2 = new Date(item2.checkOut);
-
+    
             // Check for date overlap
             const hasOverlap = checkIn1 < checkOut2 && checkIn2 < checkOut1;
-            
+    
             if (hasOverlap) {
-              // Mark both items as conflicting
-              if (!conflictingItems.some(c => c.id === item1.id)) {
-                conflictingItems.push({ ...item1, conflictWith: item2.id });
-              }
-              if (!conflictingItems.some(c => c.id === item2.id)) {
-                conflictingItems.push({ ...item2, conflictWith: item1.id });
+              // Check if this is exactly the same booking (same room, same dates)
+              const isSameBooking = item1.selectedRoom === item2.selectedRoom &&
+                checkIn1.getTime() === checkIn2.getTime() &&
+                checkOut1.getTime() === checkOut2.getTime();
+              
+              // Only treat as conflict if these are truly different bookings
+              // Don't conflict if it's the same booking data (user navigating back)
+              if (!isSameBooking) {
+                if (!conflictingItems.some(c => c.id === item1.id)) {
+                  conflictingItems.push({ ...item1, conflictWith: item2.id });
+                }
+                if (!conflictingItems.some(c => c.id === item2.id)) {
+                  conflictingItems.push({ ...item2, conflictWith: item1.id });
+                }
               }
             }
           }
+    
+          // 👇 log each comparison
+          console.log(`Compare i=${i}, j=${j}`, { item1, item2, conflictingItems });
         }
       }
-
+    
+      // 👇 control stop when conflicts == 2
+      if (conflictingItems.length === 2) {
+        console.log("STOP — conflicts reached 2", conflictingItems);
+        debugger; // <-- execution will pause here in browser devtools
+      }
+    
+      console.log("Final Conflicts:", conflictingItems.length, conflictingItems);
+    
       setConflicts(conflictingItems);
-
+    
       // Auto-remove conflicts (keep the first one, remove duplicates)
       if (conflictingItems.length > 0) {
         const itemsToRemove = new Set();
@@ -98,28 +117,33 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
             prev.filter((item: any) => !itemsToRemove.has(item.id))
           );
 
-          // If current booking conflicts, reset it
+          // If current booking conflicts, reset it (preserve dates and promo code)
           if (itemsToRemove.has('current')) {
+            console.log('True conflict detected - resetting current booking')
             setBookingData((prev: any) => ({
-              checkIn: null,
-              checkOut: null,
-              ...prev,
+              checkIn: prev.checkIn, // Preserve dates
+              checkOut: prev.checkOut,
               adults: 2,
+              promotionCode: prev.promotionCode, // Preserve promo code
               selectedRoom: null,
               selectedEnhancements: [],
               selectedEvents: {},
               selectedEventsDetails: [],
               selectedRateOption: null,
               totalPrice: 0,
-              rooms: 1
+              rooms: 1,
+              hasExtraBed: false,
+              extraBedCount: 0,
+              extraBedPrice: 0
             }));
           }
         }
       }
     };
+    
 
     checkConflicts();
-  }, [bookingData, bookingItems, setBookingItems, setBookingData]);
+  }, [bookingData, bookingItems]);
 
   const toggleExpanded = (index: number) => {
     setExpandedItems((prev: any) => ({
@@ -260,12 +284,28 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       (bookingData.selectedRateOption || bookingData.totalPrice > 0);
     
     if (isCurrentBookingComplete) {
-      // Add current unsaved booking for preview
-      items.push({ 
-        ...bookingData, 
-        id: 'current',
-        roomDetails: selectedRoom
+      // Check if current booking already exists in saved bookingItems
+      const currentBookingExists = items.some(item => {
+        const checkIn1 = new Date(item.checkIn);
+        const checkOut1 = new Date(item.checkOut);
+        const checkIn2 = new Date(bookingData.checkIn);
+        const checkOut2 = new Date(bookingData.checkOut);
+        
+        return item.selectedRoom === bookingData.selectedRoom &&
+          checkIn1.getTime() === checkIn2.getTime() &&
+          checkOut1.getTime() === checkOut2.getTime() &&
+          item.adults === bookingData.adults &&
+          item.rooms === bookingData.rooms;
       });
+      
+      // Only add current booking if it doesn't already exist in saved items
+      if (!currentBookingExists) {
+        items.push({ 
+          ...bookingData, 
+          id: 'current',
+          roomDetails: selectedRoom
+        });
+      }
     }
     
     return items;
@@ -641,6 +681,7 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
                       const filtered = prev.filter((item: any) => item.id !== 'current');
                       return [...filtered, bookingCopy];
                     });
+                  
                   }
                   setCurrentStep(5);
                 }}
