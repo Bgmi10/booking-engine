@@ -354,95 +354,141 @@ export const getEnhancements = async (req: Request, res: Response) => {
         }
       });
       
-      // Get the active event details and override price if this enhancement is linked to an event
-      let activeEvent = null;
-      let eventEnhancement = null;
+      // Get all active events that fall within the booking date range
+      let applicableEvents: any[] = [];
       if (hasActiveEvent) {
-        eventEnhancement = enhancement.events.find((ee: any) => 
-          ee.event && ee.event.status !== 'CANCELLED'
-        );
-        if (eventEnhancement) {
-          activeEvent = eventEnhancement.event;
-        }
+        applicableEvents = enhancement.events.filter((ee: any) => {
+          if (!ee.event || ee.event.status === 'CANCELLED') {
+            return false;
+          }
+          
+          // Check if event date falls within the booking period
+          const eventDate = new Date(ee.event.eventDate);
+          const eventDateStr = eventDate.toISOString().split('T')[0];
+          const checkInDateStr = checkInDate.toISOString().split('T')[0];
+          const checkOutDateStr = checkOutDate.toISOString().split('T')[0];
+          
+          // Event must be during the guest's stay (inclusive of check-in, exclusive of check-out)
+          return eventDateStr >= checkInDateStr && eventDateStr < checkOutDateStr;
+        });
       }
       
       // If enhancement has no active rules at all, it's always available
       // If it has rules, at least one must apply
       if (totalRulesCount === 0) {
         // No rules exist - enhancement is always available
-        const enhancementData: any = {
-          id: enhancement.id,
-          // Use event name/description if this is part of an event, otherwise use enhancement's
-          name: activeEvent ? activeEvent.name : enhancement.name,
-          description: activeEvent ? activeEvent.description : enhancement.description,
-          image: enhancement.image,
-          tax: enhancement.tax,
-          // Use override price from EventEnhancement if it exists, otherwise use enhancement price
-          price: (eventEnhancement && eventEnhancement.overridePrice !== null) 
-            ? eventEnhancement.overridePrice 
-            : enhancement.price,
-          pricingType: enhancement.pricingType,
-          applicableRules: [] // Empty array means always available
-        };
         
-        // If it has an active event, include event details
-        if (hasActiveEvent && enhancement.type === 'EVENT' && activeEvent) {
-          enhancementData.type = enhancement.type;
-          enhancementData.eventId = activeEvent.id;
-          enhancementData.eventDate = activeEvent.eventDate;
-          enhancementData.eventStatus = activeEvent.status;
-          // Keep original enhancement name as subName for context
-          enhancementData.enhancementName = enhancement.name;
-          // Include max quantity if set
-          if (eventEnhancement?.maxQuantity) {
-            enhancementData.maxQuantity = eventEnhancement.maxQuantity;
+        // For EVENT type enhancements, create separate entries for each applicable event
+        if (hasActiveEvent && enhancement.type === 'EVENT' && applicableEvents.length > 0) {
+          for (const eventEnhancement of applicableEvents) {
+            const activeEvent = eventEnhancement.event;
+            const enhancementData: any = {
+              id: enhancement.id,
+              name: activeEvent.name,
+              description: activeEvent.description,
+              image: enhancement.image,
+              tax: enhancement.tax,
+              price: (eventEnhancement.overridePrice !== null) 
+                ? eventEnhancement.overridePrice 
+                : enhancement.price,
+              pricingType: enhancement.pricingType,
+              applicableRules: [],
+              type: enhancement.type,
+              eventId: activeEvent.id,
+              eventDate: activeEvent.eventDate,
+              eventStatus: activeEvent.status,
+              enhancementName: enhancement.name
+            };
+            
+            if (eventEnhancement.maxQuantity) {
+              enhancementData.maxQuantity = eventEnhancement.maxQuantity;
+            }
+            
+            availableEnhancements.push(enhancementData);
           }
+        } else if (!hasActiveEvent || enhancement.type !== 'EVENT') {
+          // For non-EVENT enhancements or those without active events
+          const enhancementData: any = {
+            id: enhancement.id,
+            name: enhancement.name,
+            description: enhancement.description,
+            image: enhancement.image,
+            tax: enhancement.tax,
+            price: enhancement.price,
+            pricingType: enhancement.pricingType,
+            applicableRules: []
+          };
+          
+          availableEnhancements.push(enhancementData);
         }
-        
-        availableEnhancements.push(enhancementData);
       } else if (applicableRules.length > 0) {
         // Has rules and at least one applies
-        const enhancementData: any = {
-          id: enhancement.id,
-          // Use event name/description if this is part of an event, otherwise use enhancement's
-          name: activeEvent ? activeEvent.name : enhancement.name,
-          description: activeEvent ? activeEvent.description : enhancement.description,
-          image: enhancement.image,
-          tax: enhancement.tax,
-          // Use override price from EventEnhancement if it exists, otherwise use enhancement price
-          price: (eventEnhancement && eventEnhancement.overridePrice !== null) 
-            ? eventEnhancement.overridePrice 
-            : enhancement.price,
-          pricingType: enhancement.pricingType,
-          applicableRules: applicableRules.map((rule: any) => ({
-            id: rule.id,
-            name: rule.name,
-            availabilityType: rule.availabilityType,
-            availableDays: rule.availableDays,
-            availableTimeStart: rule.availableTimeStart,
-            availableTimeEnd: rule.availableTimeEnd,
-            specificDates: rule.specificDates,
-            seasonal: rule.seasonal,
-            seasonStart: rule.seasonStart,
-            seasonEnd: rule.seasonEnd
-          }))
-        };
         
-        // If it has an active event, include event details
-        if (hasActiveEvent && enhancement.type === 'EVENT' && activeEvent) {
-          enhancementData.type = enhancement.type;
-          enhancementData.eventId = activeEvent.id;
-          enhancementData.eventDate = activeEvent.eventDate;
-          enhancementData.eventStatus = activeEvent.status;
-          // Keep original enhancement name as subName for context
-          enhancementData.enhancementName = enhancement.name;
-          // Include max quantity if set
-          if (eventEnhancement?.maxQuantity) {
-            enhancementData.maxQuantity = eventEnhancement.maxQuantity;
+        // For EVENT type enhancements, create separate entries for each applicable event
+        if (hasActiveEvent && enhancement.type === 'EVENT' && applicableEvents.length > 0) {
+          for (const eventEnhancement of applicableEvents) {
+            const activeEvent = eventEnhancement.event;
+            const enhancementData: any = {
+              id: enhancement.id,
+              name: activeEvent.name,
+              description: activeEvent.description,
+              image: enhancement.image,
+              tax: enhancement.tax,
+              price: (eventEnhancement.overridePrice !== null) 
+                ? eventEnhancement.overridePrice 
+                : enhancement.price,
+              pricingType: enhancement.pricingType,
+              applicableRules: applicableRules.map((rule: any) => ({
+                id: rule.id,
+                name: rule.name,
+                availabilityType: rule.availabilityType,
+                availableDays: rule.availableDays,
+                availableTimeStart: rule.availableTimeStart,
+                availableTimeEnd: rule.availableTimeEnd,
+                specificDates: rule.specificDates,
+                seasonal: rule.seasonal,
+                seasonStart: rule.seasonStart,
+                seasonEnd: rule.seasonEnd
+              })),
+              type: enhancement.type,
+              eventId: activeEvent.id,
+              eventDate: activeEvent.eventDate,
+              eventStatus: activeEvent.status,
+              enhancementName: enhancement.name
+            };
+            
+            if (eventEnhancement.maxQuantity) {
+              enhancementData.maxQuantity = eventEnhancement.maxQuantity;
+            }
+            
+            availableEnhancements.push(enhancementData);
           }
+        } else if (!hasActiveEvent || enhancement.type !== 'EVENT') {
+          // For non-EVENT enhancements or those without active events
+          const enhancementData: any = {
+            id: enhancement.id,
+            name: enhancement.name,
+            description: enhancement.description,
+            image: enhancement.image,
+            tax: enhancement.tax,
+            price: enhancement.price,
+            pricingType: enhancement.pricingType,
+            applicableRules: applicableRules.map((rule: any) => ({
+              id: rule.id,
+              name: rule.name,
+              availabilityType: rule.availabilityType,
+              availableDays: rule.availableDays,
+              availableTimeStart: rule.availableTimeStart,
+              availableTimeEnd: rule.availableTimeEnd,
+              specificDates: rule.specificDates,
+              seasonal: rule.seasonal,
+              seasonStart: rule.seasonStart,
+              seasonEnd: rule.seasonEnd
+            }))
+          };
+          
+          availableEnhancements.push(enhancementData);
         }
-        
-        availableEnhancements.push(enhancementData);
       }
       // If has rules but none apply, don't show the enhancement
     }
