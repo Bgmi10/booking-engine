@@ -457,7 +457,7 @@ const validateForm = () => {
 
             const data = await response.json();
             if (response.status === 200 && data.data.url) {
-              // window.location.href = data.data.url;
+              window.location.href = data.data.url;
             } else {
                 setApiError(data.message);
             }

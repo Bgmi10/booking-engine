@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import BookingSummary from "./BookingSummary";
 import { format } from "date-fns";
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Shield, Clock, Star, Calendar } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, User, Plus, Minus, Shield, Clock } from "lucide-react";
 import { useEnhancements } from "../hooks/useEnhancements";
 
 export default function Rates({ bookingData, setCurrentStep, availabilityData, setBookingData }: { bookingData: any, setCurrentStep: (step: number) => void, availabilityData: any, setBookingData: any }) {
@@ -272,11 +272,11 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
   function addEnhancement(enhancement: any) {
     // Check if it's an event or a product
     if (enhancement.isEvent || enhancement.type === 'EVENT') {
-      // Store full event details in array for UI
+      // Store full event details in array for UI using eventId as unique identifier
       setBookingData((prev: any) => ({
         ...prev,
         selectedEventsDetails: [
-          ...(prev.selectedEventsDetails || []).filter((e: any) => e.id !== enhancement.id),
+          ...(prev.selectedEventsDetails || []).filter((e: any) => e.eventId !== enhancement.eventId),
           { ...enhancement, plannedAttendees: 1 }
         ]
       }));
@@ -295,13 +295,13 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
 
   function removeEnhancement(enhancementId: string) {
     // Check if it's an event by looking in selectedEventsDetails
-    const isEvent = bookingData.selectedEventsDetails?.some((e: any) => e.id === enhancementId);
+    const isEvent = bookingData.selectedEventsDetails?.some((e: any) => e.eventId === enhancementId);
     
     if (isEvent) {
       // Remove from event details array
       setBookingData((prev: any) => ({
         ...prev,
-        selectedEventsDetails: (prev.selectedEventsDetails || []).filter((e: any) => e.id !== enhancementId)
+        selectedEventsDetails: (prev.selectedEventsDetails || []).filter((e: any) => e.eventId !== enhancementId)
       }));
     } else {
       // Remove from enhancements
@@ -519,13 +519,12 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
            {events.length > 0 && (
              <div className="hidden lg:block mb-6">
                <div className="flex items-center gap-2 mb-3">
-                 <Calendar className="h-5 w-5 text-blue-600" />
                  <h4 className="text-sm font-semibold text-gray-700">Special Events</h4>
                  <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs">During your stay (Italy time)</span>
                </div>
                <div className="space-y-4">
                  {events.map((enhancement: any) => {
-                const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.id === enhancement.id);
+                const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.eventId === enhancement.eventId);
                 const isAdded = !!eventFromDetails;
                 const eventAttendance = eventFromDetails 
                   ? { plannedAttendees: eventFromDetails.plannedAttendees }
@@ -533,7 +532,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                 const maxGuests = enhancement.maxQuantity ?? bookingData.adults;
 
                 return (
-                  <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+                  <div key={enhancement.eventId || enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <img 
                         src={enhancement.image} 
@@ -555,7 +554,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         )}
                         <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
                         
-                        {enhancementDetails[enhancement.id] && (
+                        {enhancementDetails[enhancement.eventId || enhancement.id] && (
                             <div>
                               <div className="bg-gray-50 rounded-lg p-3 mb-3">
                                 <p className="text-xs sm:text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
@@ -599,9 +598,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                         
                         <button
                           className="flex items-center text-gray-700 text-xs sm:text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
-                          onClick={() => toggleEnhancementDetails(enhancement.id)}
+                          onClick={() => toggleEnhancementDetails(enhancement.eventId || enhancement.id)}
                         >
-                          {enhancementDetails[enhancement.id] ? (
+                          {enhancementDetails[enhancement.eventId || enhancement.id] ? (
                             <>less <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
                           ) : (
                             <>more <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
@@ -617,7 +616,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           {isAdded ? (
                             <button 
                               className="bg-red-600 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer text-sm w-full sm:w-auto"
-                              onClick={() => removeEnhancement(enhancement.id)}
+                              onClick={() => removeEnhancement(enhancement.eventId || enhancement.id)}
                             >
                               Remove
                             </button>
@@ -650,7 +649,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                       setBookingData((prev: any) => ({
                                         ...prev,
                                         selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
-                                          e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                          e.eventId === enhancement.eventId ? { ...e, plannedAttendees: newAttendees } : e
                                         )
                                       }));
                                     }
@@ -673,7 +672,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                       setBookingData((prev: any) => ({
                                         ...prev,
                                         selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
-                                          e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                          e.eventId === enhancement.eventId ? { ...e, plannedAttendees: newAttendees } : e
                                         )
                                       }));
                                     }
@@ -699,7 +698,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
            {products.length > 0 && (
              <div className="hidden lg:block">
                <div className="flex items-center gap-2 mb-3">
-                 <Star className="h-5 w-5 text-green-600" />
                  <h4 className="text-sm font-semibold text-gray-700">Additional Products</h4>
                  <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-md text-xs">Enhance your comfort</span>
                </div>
@@ -709,7 +707,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                    const isAdded = !!existingEnhancement;
                    const productQuantity = existingEnhancement?.quantity || 0;
                    return (
-                     <div key={enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+                     <div key={enhancement.eventId || enhancement.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                          <img 
                            src={enhancement.image} 
@@ -720,7 +718,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                            <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2">{enhancement.title || enhancement.name}</h4>
                            <p className="text-gray-600 text-xs sm:text-sm mb-3">{enhancement.description}</p>
                            
-                           {enhancementDetails[enhancement.id] && (
+                           {enhancementDetails[enhancement.eventId || enhancement.id] && (
                                <div>
                                  <div className="bg-gray-50 rounded-lg p-3 mb-3">
                                    <p className="text-xs sm:text-sm text-gray-700">Perfect for your {nights} night stay. Available during your selected dates.</p>
@@ -746,9 +744,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                            
                            <button
                              className="flex items-center text-gray-700 text-xs sm:text-sm mb-4 hover:text-gray-900 transition-colors cursor-pointer"
-                             onClick={() => toggleEnhancementDetails(enhancement.id)}
+                             onClick={() => toggleEnhancementDetails(enhancement.eventId || enhancement.id)}
                            >
-                             {enhancementDetails[enhancement.id] ? (
+                             {enhancementDetails[enhancement.eventId || enhancement.id] ? (
                                <>less <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
                              ) : (
                                <>more <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1" /></>
@@ -767,7 +765,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                              {isAdded ? (
                                <button 
                                  className="bg-red-600 text-white px-4 sm:px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors cursor-pointer text-sm w-full sm:w-auto"
-                                 onClick={() => removeEnhancement(enhancement.id)}
+                                 onClick={() => removeEnhancement(enhancement.eventId || enhancement.id)}
                                >
                                  Remove
                                </button>
@@ -1001,13 +999,12 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               {events.length > 0 && (
                 <div className="mb-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Calendar className="h-4 w-4 text-blue-600" />
                     <h4 className="text-sm font-semibold text-gray-700">Events</h4>
                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Italy time</span>
                   </div>
                   <div className="space-y-3">
                     {events.map((enhancement: any) => {
-                  const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.id === enhancement.id);
+                  const eventFromDetails = bookingData.selectedEventsDetails?.find((e: any) => e.eventId === enhancement.eventId);
                   const isAdded = !!eventFromDetails;
                   const eventAttendance = eventFromDetails 
                     ? { plannedAttendees: eventFromDetails.plannedAttendees }
@@ -1015,7 +1012,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                   const maxGuests = bookingData.adults;
                   
                   return (
-                    <div key={enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
+                    <div key={enhancement.eventId || enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
                       <div className="flex items-start gap-3">
                         {/* Small thumbnail for mobile */}
                         <img 
@@ -1049,7 +1046,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                             {isAdded ? (
                               <button 
                                 className="bg-red-100 text-red-700 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors cursor-pointer"
-                                onClick={() => removeEnhancement(enhancement.id)}
+                                onClick={() => removeEnhancement(enhancement.eventId || enhancement.id)}
                               >
                                 Remove
                               </button>
@@ -1083,7 +1080,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                         setBookingData((prev: any) => ({
                                           ...prev,
                                           selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
-                                            e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                            e.eventId === enhancement.eventId ? { ...e, plannedAttendees: newAttendees } : e
                                           )
                                         }));
                                       }
@@ -1106,7 +1103,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                         setBookingData((prev: any) => ({
                                           ...prev,
                                           selectedEventsDetails: (prev.selectedEventsDetails || []).map((e: any) => 
-                                            e.id === enhancement.id ? { ...e, plannedAttendees: newAttendees } : e
+                                            e.eventId === enhancement.eventId ? { ...e, plannedAttendees: newAttendees } : e
                                           )
                                         }));
                                       }
@@ -1121,7 +1118,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           )}
                           
                           {/* Expandable details for mobile */}
-                          {enhancementDetails[enhancement.id] && (
+                          {enhancementDetails[enhancement.eventId || enhancement.id] && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                               <div className="bg-gray-50 rounded-md p-2 mb-2">
                                 <p className="text-xs text-gray-700">Available during your {nights} night stay</p>
@@ -1160,9 +1157,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                           
                           <button
                             className="flex items-center text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors cursor-pointer"
-                            onClick={() => toggleEnhancementDetails(enhancement.id)}
+                            onClick={() => toggleEnhancementDetails(enhancement.eventId || enhancement.id)}
                           >
-                            {enhancementDetails[enhancement.id] ? (
+                            {enhancementDetails[enhancement.eventId || enhancement.id] ? (
                               <>Hide details <ChevronUp className="h-3 w-3 ml-1" /></>
                             ) : (
                               <>Show details <ChevronDown className="h-3 w-3 ml-1" /></>
@@ -1181,7 +1178,6 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
               {products.length > 0 && (
                 <div className="mb-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Star className="h-4 w-4 text-green-600" />
                     <h4 className="text-sm font-semibold text-gray-700">Products</h4>
                     <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">Enhance comfort</span>
                   </div>
@@ -1191,7 +1187,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                       const isAdded = !!existingEnhancement;
                       const productQuantity = existingEnhancement?.quantity || 0;
                       return (
-                        <div key={enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
+                        <div key={enhancement.eventId || enhancement.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors">
                           <div className="flex items-start gap-3">
                             {/* Small thumbnail for mobile */}
                             <img 
@@ -1218,7 +1214,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                                 {isAdded ? (
                                   <button 
                                     className="bg-red-100 text-red-700 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors cursor-pointer"
-                                    onClick={() => removeEnhancement(enhancement.id)}
+                                    onClick={() => removeEnhancement(enhancement.eventId || enhancement.id)}
                                   >
                                     Remove
                                   </button>
@@ -1296,7 +1292,7 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                               )}
                               
                               {/* Expandable details for mobile */}
-                              {enhancementDetails[enhancement.id] && (
+                              {enhancementDetails[enhancement.eventId || enhancement.id] && (
                                 <div className="mt-3 pt-3 border-t border-gray-100">
                                   <div className="bg-gray-50 rounded-md p-2 mb-2">
                                     <p className="text-xs text-gray-700">Available for your {nights} night stay</p>
@@ -1309,9 +1305,9 @@ export default function Rates({ bookingData, setCurrentStep, availabilityData, s
                               
                               <button
                                 className="flex items-center text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors cursor-pointer"
-                                onClick={() => toggleEnhancementDetails(enhancement.id)}
+                                onClick={() => toggleEnhancementDetails(enhancement.eventId || enhancement.id)}
                               >
-                                {enhancementDetails[enhancement.id] ? (
+                                {enhancementDetails[enhancement.eventId || enhancement.id] ? (
                                   <>Hide details <ChevronUp className="h-3 w-3 ml-1" /></>
                                 ) : (
                                   <>Show details <ChevronDown className="h-3 w-3 ml-1" /></>
