@@ -62,8 +62,8 @@ app.use("/api/v1/customers", publicLimiter, customerRouter);
 app.use("/api/v1/beds24/webhook", webhookLimiter, beds24WebhookRouter);
 app.use('/api/v1/wedding-portal', weddingMainRoute);
 
-// cleanExpiredTempHolds();
-// makeExpiredSessionToInactive();
+cleanExpiredTempHolds();
+makeExpiredSessionToInactive();
 // triggerAutomatedTasks();
 // schedulePaymentReminders();
 // scheduleWeddingReminders();
