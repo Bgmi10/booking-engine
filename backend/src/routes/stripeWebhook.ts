@@ -1462,7 +1462,8 @@ async function processBookingsInTransaction(
                         promotionCode: booking.promotionCode || null,
                         totalPrice: totalAmount,
                         rooms: booking.rooms || 1,
-                        receiveMarketing: customerDetails.receiveMarketing || false
+                        receiveMarketing: customerDetails.receiveMarketing || false,
+                        selectedEventsDetails: booking.selectedEventsDetails || null
                     },
                     customer: { connect: { id: customerId }}
                 },
@@ -1706,7 +1707,6 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
     if (createdBookings.length === 0) return;
 
     try {
-        // Fetch enriched booking data for emails
         const enrichedBookings = await prisma.booking.findMany({
             where: { 
                 id: { in: createdBookings.map(b => b.id) }
@@ -1754,10 +1754,8 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
         const baseUrl = process.env.NODE_ENV === "local" ? process.env.BASE_URL_DEV : process.env.BASE_URL_PROD;
         const receipt_url = `${baseUrl}/sessions/${sessionId}/receipt`;
 
-        // Prepare voucher information if voucher was used
         let voucherInfo = null;
         if (paymentIntent.voucherCode) {
-            // Fetch voucher details with products
             const voucherDetails = await prisma.voucher.findUnique({
                 where: { code: paymentIntent.voucherCode },
                 include: {
@@ -1785,7 +1783,6 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
             }
         }
 
-        // Use group routing for confirmation emails
         const paymentIntentId = paymentIntent.id;
         await routeGroupEmail(paymentIntentId, 'CONFIRMATION', {
             bookings: enrichedBookings,
@@ -1794,7 +1791,6 @@ async function sendConfirmationEmails(createdBookings: any[], customerDetails: a
             voucherInfo
         });
 
-        // Always send admin notification (not affected by group preferences)
         //@ts-ignore
         await sendConsolidatedAdminNotification(enrichedBookings, customerDetails, sessionId, voucherInfo);
     } catch (error) {

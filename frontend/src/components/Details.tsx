@@ -15,7 +15,6 @@ export default function Details({
     availabilityData: any,
     taxPercentage?: number 
 }) {
-    // Form states
     const [formData, setFormData] = useState({ 
         firstName: "",
         middleName: "",
@@ -27,32 +26,25 @@ export default function Details({
         carNumberPlate: ""  // Add license plate field
     });    
 
-    // Voucher states
     const [voucherCode, setVoucherCode] = useState(bookingData.promotionCode || "");
     const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
     const [voucherError, setVoucherError] = useState("");
     const [voucherData, setVoucherData] = useState<any>(null);
     const [showVoucherDetails, setShowVoucherDetails] = useState(false);
-
-    // UI states
     const [showNationality, setShowNationality] = useState(false);
     const [nationalitySearch, setNationalitySearch] = useState("");
-    //@ts-ignore
-    const [selectedCountry, setSelectedCountry] = useState<any>(null);
     const [agreeToTerms, setAgreeToTerms] = useState(false);
     const [receiveMarketing, setReceiveMarketing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [errors, setErrors] = useState<any>({});    
     const [apiError, setApiError] = useState("");
     
-    // Validate voucher code on component mount if code exists
     useEffect(() => {
         if (voucherCode) {
             validateVoucher();
         }
     }, []);
 
-    // Validate voucher code
     const validateVoucher = async () => {
         if (!voucherCode.trim()) {
             setVoucherError("Please enter a promotional code");
@@ -72,7 +64,6 @@ export default function Details({
                 setVoucherError("");
                 setShowVoucherDetails(true);
                 
-                // Trigger confetti animation
                 const duration = 3 * 1000;
                 const animationEnd = Date.now() + duration;
                 const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
@@ -90,7 +81,6 @@ export default function Details({
 
                     const particleCount = 50 * (timeLeft / duration);
                     
-                    // since particles fall down, start a bit higher than random
                     confetti({
                         ...defaults,
                         particleCount,
@@ -116,7 +106,6 @@ export default function Details({
         }
     };
 
-    // Calculate final price with voucher discount
     const calculateFinalPrice = () => {
         const totalWithTax = calculateSubtotal(); // This is the tax-inclusive amount
         const subtotalExcludingTax = totalWithTax / (1 + taxPercentage); // Remove tax to get base amount
@@ -152,7 +141,6 @@ export default function Details({
         };
     };
 
-    // Filter countries based on search for nationality dropdown
     const filteredCountries = useMemo(() => {
         if (!nationalitySearch.trim()) return countries;
         return countries.filter((country: any) => 
@@ -160,8 +148,7 @@ export default function Details({
             country.code.toLowerCase().includes(nationalitySearch.toLowerCase())
         );
     }, [nationalitySearch, countries]);
-    
-    // Helper functions from Summary component
+
     const formatDate = (date: string) => {
         if (!date) return '';
         const d = new Date(date);
@@ -182,24 +169,18 @@ export default function Details({
         let total = 0;
         const nights = calculateNights(item.checkIn, item.checkOut);
         
-        // Calculate products/enhancements price based on pricing type
         if (item.selectedEnhancements && item.selectedEnhancements.length > 0) {
             total += item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
                 let price = enhancement.price;
                 
-                // Handle different pricing types
                 if (enhancement.pricingType === 'PER_GUEST') {
-                    // For per-guest pricing, multiply by quantity (if specified) or adults
                     const quantity = enhancement.quantity || item.adults;
                     price = enhancement.price * quantity;
                 } else if (enhancement.pricingType === 'PER_DAY') {
-                    // For per-day pricing, multiply by nights
                     price = enhancement.price * nights;
                 } else if (enhancement.pricingType === 'PER_BOOKING') {
-                    // For PER_BOOKING, price is fixed
                     price = enhancement.price;
                 } else {
-                    // Fallback for old data without pricingType
                     price = enhancement.price * item.adults;
                 }
                 
@@ -207,7 +188,6 @@ export default function Details({
             }, 0);
         }
         
-        // Calculate events price separately using selectedEventsDetails
         if (item.selectedEventsDetails && item.selectedEventsDetails.length > 0) {
             total += item.selectedEventsDetails.reduce((sum: number, event: any) => {
                 const eventPrice = event.price || 0;
@@ -241,24 +221,41 @@ export default function Details({
         return "Fenicottero - Vineyard View";
     };
 
+    
+    const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
+
     const getAllItems = () => {
         const items = [...bookingItems];
         
-        // Only add current booking data if it's complete and not yet saved
         const isCurrentBookingComplete = bookingData.selectedRoom && 
-            (bookingData.selectedRateOption || bookingData.totalPrice > 0);
+          (bookingData.selectedRateOption || bookingData.totalPrice > 0);
         
         if (isCurrentBookingComplete) {
-            // Add current unsaved booking for preview
+          const currentBookingExists = items.some(item => {
+            const checkIn1 = new Date(item.checkIn);
+            const checkOut1 = new Date(item.checkOut);
+            const checkIn2 = new Date(bookingData.checkIn);
+            const checkOut2 = new Date(bookingData.checkOut);
+            
+            return item.selectedRoom === bookingData.selectedRoom &&
+              checkIn1.getTime() === checkIn2.getTime() &&
+              checkOut1.getTime() === checkOut2.getTime() &&
+              item.adults === bookingData.adults &&
+              item.rooms === bookingData.rooms;
+          });
+          
+          // Only add current booking if it doesn't already exist in saved items
+          if (!currentBookingExists) {
             items.push({ 
-                ...bookingData, 
-                id: 'current',
-                roomDetails: availabilityData?.availableRooms?.find((r: any) => r.id === bookingData.selectedRoom)
+              ...bookingData, 
+              id: 'current',
+              roomDetails: selectedRoom
             });
+          }
         }
         
         return items;
-    };
+      };
 
     const allItems = getAllItems();
 
@@ -275,23 +272,18 @@ export default function Details({
 
     
 const validatePhone = (phone: string) => {
-    // Remove spaces and special characters for validation
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
     
-    // Check if phone starts with + and has valid length
     if (!cleanPhone.startsWith('+')) {
         return { isValid: false, error: "Phone number must start with country code (e.g., +1, +44)" };
     }
     
-    // Remove the + for further validation
     const phoneWithoutPlus = cleanPhone.substring(1);
     
-    // Check if it contains only digits after the +
     if (!/^\d+$/.test(phoneWithoutPlus)) {
         return { isValid: false, error: "Phone number can only contain digits after country code" };
     }
     
-    // Check total length (country code + phone number should be 7-15 digits)
     if (phoneWithoutPlus.length < 7 || phoneWithoutPlus.length > 15) {
         return { isValid: false, error: "Phone number must be 7-15 digits including country code" };
     }
@@ -304,10 +296,8 @@ const validateDialCode = (phone: string, countries: any[]) => {
         return { isValid: false, error: "Phone number must include country code" };
     }
     
-    // Extract potential dial codes (1-4 digits after +)
     const phoneWithoutPlus = phone.substring(1);
     
-    // Try to match dial codes of different lengths (1-4 digits)
     for (let i = 1; i <= 4; i++) {
         const potentialDialCode = '+' + phoneWithoutPlus.substring(0, i);
         const matchingCountry = countries.find(country => 
@@ -315,7 +305,6 @@ const validateDialCode = (phone: string, countries: any[]) => {
         );
         
         if (matchingCountry) {
-            // Check if remaining digits form a valid phone number
             const remainingDigits = phoneWithoutPlus.substring(i);
             if (remainingDigits.length >= 4 && remainingDigits.length <= 12) {
                 return { 
@@ -332,7 +321,6 @@ const validateDialCode = (phone: string, countries: any[]) => {
     return { isValid: false, error: "Invalid country code or phone number format" };
 };
 
-// Updated validateForm function
 const validateForm = () => {
     const newErrors: any = {};
     
@@ -361,12 +349,10 @@ const validateForm = () => {
     if (!formData.phone.trim()) {
         newErrors.phone = "Phone number is required";
     } else {
-        // Validate phone format first
         const phoneValidation = validatePhone(formData.phone);
         if (!phoneValidation.isValid) {
             newErrors.phone = phoneValidation.error;
         } else {
-            // Then validate dial code
             const dialCodeValidation = validateDialCode(formData.phone, countries);
             if (!dialCodeValidation.isValid) {
                 newErrors.phone = dialCodeValidation.error;
@@ -383,9 +369,7 @@ const validateForm = () => {
 };
 
 
-    // Handle nationality change and update phone code
     const handleNationalityChange = (country: any) => {
-        setSelectedCountry(country);
         setFormData(prev => ({
             ...prev,
             nationality: country.name,
@@ -394,7 +378,6 @@ const validateForm = () => {
         setShowNationality(false);
         setNationalitySearch("");
         
-        // Clear errors
         if (errors.nationality) {
             setErrors((prev: any) => ({
                 ...prev,
@@ -403,7 +386,6 @@ const validateForm = () => {
         }
     };
 
-    // Check if form is complete and valid
     const isFormComplete = () => {
         return (
             formData.firstName.trim().length >= 2 &&
@@ -416,7 +398,6 @@ const validateForm = () => {
         );
     };
     
-    // Handle form submission and Stripe checkout
     const handleConfirmAndPay = async () => {
         if (!validateForm()) {
             return;
@@ -424,7 +405,6 @@ const validateForm = () => {
 
         setIsProcessing(true);
         try {
-            // Calculate current charge amount for split payments
             const currentChargeAmount = allItems.reduce((sum, item) => {
                 const itemTotal = calculateItemTotal(item);
                 const prepayPercentage = item.selectedRateOption?.prepayPercentage || 30;
@@ -483,7 +463,6 @@ const validateForm = () => {
             [field]: value
         }));
         
-        // Clear error when user starts typing
         if (errors[field]) {
             setErrors((prev: any) => ({
                 ...prev,
@@ -1040,11 +1019,11 @@ const validateForm = () => {
                                 )}
                             </button>
                             
-                            {!isFormComplete() && !isProcessing && (
+                            {/* {!isFormComplete() && !isProcessing && (
                                 <p id="form-incomplete-message" className="text-sm text-gray-500 text-center">
                                     Please complete all required fields to continue
                                 </p>
-                            )}
+                            )} */}
                         </div>
                     </div>
                 </div>

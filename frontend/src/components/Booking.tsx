@@ -60,6 +60,7 @@ export default function Booking() {
     selectedRoom: null,
     selectedRateOption: null,
     totalPrice: 0,
+    sessionId: Date.now().toString(), // Unique session ID for this booking
   })
   
   // Use the centralized calendar availability hook

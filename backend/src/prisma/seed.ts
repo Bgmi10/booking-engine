@@ -259,7 +259,7 @@ async function main() {
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
                     <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Amount:</span>
-                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
+                    <span style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 18px;">€{{amount}}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid ${emailStyles.borderColor};">
                     <span style="font-weight: 600; color: ${emailStyles.secondaryColor};">Description:</span>
@@ -520,7 +520,7 @@ async function main() {
                   <div style="display: grid; gap: 8px;">
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Rate per Night</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{basePrice}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{basePrice}}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Number of Nights</span>
@@ -528,17 +528,17 @@ async function main() {
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Total</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{roomTotal}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{roomTotal}}</span>
                     </div>
                     {{#if enhancementsTotal}}
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Enhancements</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{enhancementsTotal}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{enhancementsTotal}}</span>
                     </div>
                     {{/if}}
                     <div style="display: flex; justify-content: space-between; padding: 12px 0; background: #f0f9ff; border-radius: 6px; margin-top: 8px;">
                       <span style="color: ${emailStyles.infoColor}; font-weight: 600;">Total for This Room</span>
-                      <span style="color: ${emailStyles.infoColor}; font-weight: 700;">{{../currency}} {{add roomTotal enhancementsTotal}}</span>
+                      <span style="color: ${emailStyles.infoColor}; font-weight: 700;">€{{add roomTotal enhancementsTotal}}</span>
                     </div>
                   </div>
                 </div>
@@ -565,15 +565,41 @@ async function main() {
                         <div style="color: ${emailStyles.secondaryColor}; font-size: 13px;">{{description}}</div>
                         <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
                           {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
-                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
                           {{else if (eq pricingDetails.pricingType "PER_DAY")}}
-                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
                           {{else}}
-                          {{../../currency}} {{pricingDetails.basePrice}} (per booking)
+                          €{{pricingDetails.basePrice}} (per booking)
                           {{/if}}
                         </div>
                       </div>
-                      <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../../currency}} {{calculatedPrice}}</div>
+                      <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{calculatedPrice}}</div>
+                    </div>
+                  </div>
+                  {{/each}}
+                </div>
+                {{/if}}
+
+                {{#if events.length}}
+                <div style="margin-top: 16px; padding: 16px; background: #f0f4ff; border-radius: 8px;">
+                  <strong style="color: ${emailStyles.infoColor}; font-size: 14px; display: block; margin-bottom: 12px;">Events & Activities:</strong>
+                  {{#each events}}
+                  <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                      <div>
+                        <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{name}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 13px;">{{description}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
+                          {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.attendees}} attendee(s)
+                          {{else if (eq pricingDetails.pricingType "PER_DAY")}}
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                          {{else}}
+                          €{{pricingDetails.basePrice}} (per booking)
+                          {{/if}}
+                        </div>
+                      </div>
+                      <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{calculatedPrice}}</div>
                     </div>
                   </div>
                   {{/each}}
@@ -612,26 +638,38 @@ async function main() {
                   {{#if enhancementsTotal}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Total Enhancements:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{enhancementsTotal}}</span>
+                    <span style="color: #166534; font-weight: 600;">€{{enhancementsTotal}}</span>
+                  </div>
+                  {{/if}}
+                  {{#if roomsTotal}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Total Rooms:</span>
+                    <span style="color: #166534; font-weight: 600;">€{{roomsTotal}}</span>
+                  </div>
+                  {{/if}}
+                  {{#if eventsTotal}}
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
+                    <span style="color: #166534; font-weight: 600;">Total Events:</span>
+                    <span style="color: #166534; font-weight: 600;">€{{eventsTotal}}</span>
                   </div>
                   {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Subtotal:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{subtotal}}</span>
+                    <span style="color: #166534; font-weight: 600;">€{{subtotal}}</span>
                   </div>
                   {{#if voucherInfo}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0; background: #f0f9ff; border-radius: 6px; padding: 12px;">
                     <span style="color: #166534; font-weight: 600;">Voucher Discount ({{voucherInfo.code}}):</span>
-                    <span style="color: #166534; font-weight: 600;">-{{currency}} {{voucherInfo.discountAmount}}</span>
+                    <span style="color: #166534; font-weight: 600;">-€{{voucherInfo.discountAmount}}</span>
                   </div>
                   {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Tax (10%):</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{taxAmount}}</span>
+                    <span style="color: #166534; font-weight: 600;">€{{taxAmount}}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; background: #f0fdf4; border-radius: 8px; margin-top: 8px;">
                     <span style="color: #166534; font-weight: 700; font-size: 18px;">Total Amount:</span>
-                    <span style="color: #166534; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">€{{amount}}</span>
                   </div>
                 </div>
               </div>
@@ -648,7 +686,7 @@ async function main() {
                 <ul style="color: #92400e; margin: 0; padding-left: 20px; line-height: 2;">
                   <li>Please bring the exact amount in cash upon check-in</li>
                   <li>Payment is due at the time of arrival</li>
-                  <li>We accept EUR currency only</li>
+                  <li>We accept € currency only</li>
                   <li>Please have your confirmation ID ready</li>
                 </ul>
               </div>
@@ -906,7 +944,7 @@ async function main() {
                   <div style="display: grid; gap: 8px;">
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Rate per Night</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{basePrice}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{basePrice}}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Number of Nights</span>
@@ -914,17 +952,23 @@ async function main() {
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Total</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{roomTotal}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{roomTotal}}</span>
                     </div>
                     {{#if enhancementsTotal}}
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                       <span style="color: ${emailStyles.secondaryColor};">Room Enhancements</span>
-                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{enhancementsTotal}}</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{enhancementsTotal}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if eventsTotal}}
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                      <span style="color: ${emailStyles.secondaryColor};">Events & Activities</span>
+                      <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{eventsTotal}}</span>
                     </div>
                     {{/if}}
                     <div style="display: flex; justify-content: space-between; padding: 12px 0; background: #fef2f2; border-radius: 6px; margin-top: 8px; text-decoration: line-through; opacity: 0.7;">
                       <span style="color: #dc2626; font-weight: 600;">Original Total</span>
-                      <span style="color: #dc2626; font-weight: 700;">{{../currency}} {{add roomTotal enhancementsTotal}}</span>
+                      <span style="color: #dc2626; font-weight: 700;">€{{add roomTotal enhancementsTotal eventsTotal}}</span>
                     </div>
                   </div>
                 </div>
@@ -940,15 +984,41 @@ async function main() {
                         <div style="color: ${emailStyles.secondaryColor}; font-size: 13px; text-decoration: line-through;">{{description}}</div>
                         <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
                           {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
-                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
                           {{else if (eq pricingDetails.pricingType "PER_DAY")}}
-                          {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
                           {{else}}
-                          {{../../currency}} {{pricingDetails.basePrice}} (per booking)
+                          €{{pricingDetails.basePrice}} (per booking)
                           {{/if}}
                         </div>
                       </div>
-                      <div style="color: #dc2626; font-weight: 600; text-decoration: line-through;">{{../../currency}} {{calculatedPrice}}</div>
+                      <div style="color: #dc2626; font-weight: 600; text-decoration: line-through;">€{{calculatedPrice}}</div>
+                    </div>
+                  </div>
+                  {{/each}}
+                </div>
+                {{/if}}
+
+                {{#if events.length}}
+                <div style="margin-top: 16px; padding: 16px; background: #fef2f2; border-radius: 8px;">
+                  <strong style="color: #dc2626; font-size: 14px; display: block; margin-bottom: 12px;">Cancelled Events & Activities:</strong>
+                  {{#each events}}
+                  <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px; opacity: 0.7;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                      <div>
+                        <div style="color: ${emailStyles.primaryColor}; font-weight: 600; text-decoration: line-through;">{{name}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 13px; text-decoration: line-through;">{{description}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
+                          {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.attendees}} attendee(s)
+                          {{else if (eq pricingDetails.pricingType "PER_DAY")}}
+                          €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                          {{else}}
+                          €{{pricingDetails.basePrice}} (per booking)
+                          {{/if}}
+                        </div>
+                      </div>
+                      <div style="color: #dc2626; font-weight: 600; text-decoration: line-through;">€{{calculatedPrice}}</div>
                     </div>
                   </div>
                   {{/each}}
@@ -1229,7 +1299,7 @@ async function main() {
                     </div>
                   </div>
                   <div style="text-align: right;">
-                    <div style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 20px;">{{../currency}} {{room.price}}</div>
+                    <div style="color: ${emailStyles.primaryColor}; font-weight: 700; font-size: 20px;">€{{room.price}}</div>
                     <div style="color: ${emailStyles.secondaryColor}; font-size: 13px;">per night</div>
                   </div>
                 </div>
@@ -1242,6 +1312,26 @@ async function main() {
                     <span style="background: ${emailStyles.backgroundColor}; color: ${emailStyles.primaryColor}; font-size: 12px; padding: 4px 12px; border-radius: 12px;">{{this}}</span>
                     {{/each}}
                   </div>
+                </div>
+                {{/if}}
+
+                {{#if events.length}}
+                <div style="margin-top: 16px; padding: 16px; background: #f0f4ff; border-radius: 8px;">
+                  <div style="color: ${emailStyles.infoColor}; font-size: 13px; margin-bottom: 8px;">Events & Activities</div>
+                  {{#each events}}
+                  <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                      <div>
+                        <div style="color: ${emailStyles.primaryColor}; font-weight: 600; font-size: 14px;">{{name}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 12px;">{{description}}</div>
+                        <div style="color: ${emailStyles.secondaryColor}; font-size: 11px; margin-top: 4px;">
+                          {{plannedAttendees}} attendee(s) • €{{pricingDetails.basePrice}} {{pricingDetails.pricingType}}
+                        </div>
+                      </div>
+                      <div style="color: ${emailStyles.primaryColor}; font-weight: 600; font-size: 14px;">€{{calculatedPrice}}</div>
+                    </div>
+                  </div>
+                  {{/each}}
                 </div>
                 {{/if}}
 
@@ -1262,12 +1352,12 @@ async function main() {
                 <div style="display: grid; gap: 16px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bbf7d0;">
                     <span style="font-weight: 600; color: #166534; font-family: ${emailStyles.fontFamily};">Amount:</span>
-                    <span style="color: #166534; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{payment.currency}} {{payment.amount}}</span>
+                    <span style="color: #166534; font-weight: 600; font-family: ${emailStyles.fontFamily};">€{{payment.amount}}</span>
                   </div>
                   {{#if voucherInfo}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bbf7d0; background: #f0f9ff; border-radius: 6px; padding: 12px;">
                     <span style="font-weight: 600; color: #166534; font-family: ${emailStyles.fontFamily};">Voucher Applied:</span>
-                    <span style="color: #166534; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{voucherInfo.code}} (-{{payment.currency}} {{voucherInfo.discountAmount}})</span>
+                    <span style="color: #166534; font-weight: 600; font-family: ${emailStyles.fontFamily};">{{voucherInfo.code}} (-€{{voucherInfo.discountAmount}})</span>
                   </div>
                   {{/if}}
                   <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #bbf7d0;">
@@ -1304,7 +1394,7 @@ async function main() {
                       <div style="margin-top: 8px;">
                         <span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">COMPLIMENTARY</span>
                         {{#if value}}
-                        <span style="color: #92400e; font-size: 14px; margin-left: 8px;">Value: {{../payment.currency}} {{value}}</span>
+                        <span style="color: #92400e; font-size: 14px; margin-left: 8px;">Value: €{{value}}</span>
                         {{/if}}
                       </div>
                     </div>
@@ -1550,7 +1640,7 @@ async function main() {
                   <p style="margin: 0; color: ${emailStyles.secondaryColor}; font-size: 14px;">Transaction ID: {{transactionId}}</p>
                 </div>
                 <div style="text-align: right;">
-                  <div style="color: ${emailStyles.primaryColor}; font-size: 24px; font-weight: 700;">{{currency}} {{amount}}</div>
+                  <div style="color: ${emailStyles.primaryColor}; font-size: 24px; font-weight: 700;">€{{amount}}</div>
                   <div style="color: ${emailStyles.successColor}; font-size: 14px; font-weight: 600;">✓ PAID</div>
                 </div>
               </div>
@@ -1645,7 +1735,7 @@ async function main() {
                         </div>
                       </div>
                       <div style="text-align: right; margin-left: 24px;">
-                        <div style="font-weight: 700; font-size: 24px; color: ${emailStyles.primaryColor};">{{../currency}} {{basePrice}}</div>
+                        <div style="font-weight: 700; font-size: 24px; color: ${emailStyles.primaryColor};">€{{basePrice}}</div>
                         <div style="font-size: 14px; color: ${emailStyles.secondaryColor};">per night</div>
                       </div>
                     </div>
@@ -1656,21 +1746,21 @@ async function main() {
                       <div style="display: grid; gap: 8px;">
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                           <span style="color: ${emailStyles.secondaryColor};">Room Rate</span>
-                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{basePrice}} × {{nights}} night(s)</span>
+                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{basePrice}} × {{nights}} night(s)</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                           <span style="color: ${emailStyles.secondaryColor};">Room Total</span>
-                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{roomTotal}}</span>
+                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{roomTotal}}</span>
                         </div>
                         {{#if enhancementsTotal}}
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                           <span style="color: ${emailStyles.secondaryColor};">Room Enhancements</span>
-                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../currency}} {{enhancementsTotal}}</span>
+                          <span style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{enhancementsTotal}}</span>
                         </div>
                         {{/if}}
                         <div style="display: flex; justify-content: space-between; padding: 12px 0; background: #f0f9ff; border-radius: 6px; margin-top: 8px;">
                           <span style="color: ${emailStyles.infoColor}; font-weight: 600;">Total for This Room</span>
-                          <span style="color: ${emailStyles.infoColor}; font-weight: 700;">{{../currency}} {{add roomTotal enhancementsTotal}}</span>
+                          <span style="color: ${emailStyles.infoColor}; font-weight: 700;">€{{add roomTotal enhancementsTotal}}</span>
                         </div>
                       </div>
                     </div>
@@ -1704,15 +1794,41 @@ async function main() {
                             <div style="color: ${emailStyles.secondaryColor}; font-size: 13px;">{{description}}</div>
                             <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
                               {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
-                              {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
+                              €{{pricingDetails.basePrice}} × {{pricingDetails.guests}} guest(s)
                               {{else if (eq pricingDetails.pricingType "PER_DAY")}}
-                              {{../../currency}} {{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                              €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
                               {{else}}
-                              {{../../currency}} {{pricingDetails.basePrice}} (per booking)
+                              €{{pricingDetails.basePrice}} (per booking)
                               {{/if}}
                             </div>
                           </div>
-                          <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{../../currency}} {{calculatedPrice}}</div>
+                          <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{calculatedPrice}}</div>
+                        </div>
+                      </div>
+                      {{/each}}
+                    </div>
+                    {{/if}}
+
+                    {{#if events.length}}
+                    <div style="margin-top: 16px; padding: 16px; background: #f0f4ff; border-radius: 8px;">
+                      <strong style="color: ${emailStyles.infoColor}; font-size: 14px; display: block; margin-bottom: 12px;">Events & Activities:</strong>
+                      {{#each events}}
+                      <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                          <div>
+                            <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">{{name}}</div>
+                            <div style="color: ${emailStyles.secondaryColor}; font-size: 13px;">{{description}}</div>
+                            <div style="color: ${emailStyles.secondaryColor}; font-size: 12px; margin-top: 4px;">
+                              {{#if (eq pricingDetails.pricingType "PER_GUEST")}}
+                              €{{pricingDetails.basePrice}} × {{pricingDetails.attendees}} attendee(s)
+                              {{else if (eq pricingDetails.pricingType "PER_DAY")}}
+                              €{{pricingDetails.basePrice}} × {{pricingDetails.nights}} night(s)
+                              {{else}}
+                              €{{pricingDetails.basePrice}} (per booking)
+                              {{/if}}
+                            </div>
+                          </div>
+                          <div style="color: ${emailStyles.primaryColor}; font-weight: 600;">€{{calculatedPrice}}</div>
                         </div>
                       </div>
                       {{/each}}
@@ -1745,15 +1861,15 @@ async function main() {
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Subtotal:</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{subtotal}}</span>
+                    <span style="color: #166534; font-weight: 600;">€{{subtotal}}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #bbf7d0;">
                     <span style="color: #166534; font-weight: 600;">Tax (10%):</span>
-                    <span style="color: #166534; font-weight: 600;">{{currency}} {{taxAmount}}</span>
+                    <span style="color: #166534; font-weight: 600;">€{{taxAmount}}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; background: #f0fdf4; border-radius: 8px; margin-top: 8px;">
                     <span style="color: #166534; font-weight: 700; font-size: 18px;">Total Amount:</span>
-                    <span style="color: #166534; font-weight: 700; font-size: 18px;">{{currency}} {{amount}}</span>
+                    <span style="color: #166534; font-weight: 700; font-size: 18px;">€{{amount}}</span>
                   </div>
                 </div>
               </div>
@@ -1770,7 +1886,7 @@ async function main() {
                 <ul style="color: #92400e; margin: 0; padding-left: 20px; line-height: 2;">
                   <li>Please bring the exact amount in cash upon check-in</li>
                   <li>Payment is due at the time of arrival</li>
-                  <li>We accept EUR currency only</li>
+                  <li>We accept € currency only</li>
                   <li>Please have your confirmation ID ready</li>
                 </ul>
               </div>

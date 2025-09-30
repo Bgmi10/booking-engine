@@ -99,6 +99,15 @@ interface BookingDetails {
     totalPrice: number
     rooms: number
     receiveMarketing?: boolean
+    selectedEventsDetails?: {
+      id: string
+      name: string
+      title?: string
+      description: string
+      price: number
+      plannedAttendees: number
+      pricingType?: 'PER_GUEST' | 'PER_DAY' | 'PER_BOOKING'
+    }[]
   }
 }
 
@@ -175,6 +184,46 @@ export const sendConsolidatedBookingConfirmation = async (
 
     const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
 
+    // Process events with proper pricing
+    const processedEvents = (booking.metadata?.selectedEventsDetails || []).map((event: any) => {
+      let calculatedPrice = event.price || 0;
+      const plannedAttendees = event.plannedAttendees || 1;
+      
+      // Handle different pricing types for events
+      switch (event.pricingType) {
+        case 'PER_GUEST':
+          calculatedPrice = event.price * plannedAttendees;
+          break;
+        case 'PER_BOOKING':
+          calculatedPrice = event.price;
+          break;
+        case 'PER_DAY':
+          calculatedPrice = event.price * nights;
+          break;
+        default:
+          // Default to per guest pricing if not specified
+          calculatedPrice = event.price * plannedAttendees;
+          break;
+      }
+
+      return {
+        id: event.id,
+        name: event.name || event.title,
+        description: event.description,
+        price: event.price,
+        plannedAttendees,
+        calculatedPrice,
+        pricingDetails: {
+          basePrice: event.price,
+          pricingType: event.pricingType || 'PER_GUEST',
+          nights: event.pricingType === 'PER_DAY' ? nights : null,
+          attendees: plannedAttendees
+        }
+      };
+    });
+
+    const eventsTotal = processedEvents.reduce((sum: number, event: any) => sum + event.calculatedPrice, 0);
+
     return {
       id: booking.id,
       room: {
@@ -192,7 +241,9 @@ export const sendConsolidatedBookingConfirmation = async (
       roomTotal,
       enhancements: processedEnhancements,
       enhancementsTotal,
-      total: roomTotal + enhancementsTotal,
+      events: processedEvents,
+      eventsTotal,
+      total: roomTotal + enhancementsTotal + eventsTotal,
       rateOption: booking.metadata?.selectedRateOption
     };
   });
@@ -202,6 +253,7 @@ export const sendConsolidatedBookingConfirmation = async (
   const totalGuests = bookings.reduce((sum, booking) => sum + booking.totalGuests, 0);
   const roomCharges = processedBookings.reduce((sum, booking) => sum + booking.roomTotal, 0);
   const enhancementsTotal = processedBookings.reduce((sum, booking) => sum + booking.enhancementsTotal, 0);
+  const eventsTotal = processedBookings.reduce((sum, booking) => sum + booking.eventsTotal, 0);
   
   try {
     // Generate confirmation ID using the helper function for consistency
@@ -231,6 +283,7 @@ export const sendConsolidatedBookingConfirmation = async (
       subtotal: ((payment.totalAmount || payment.amount || 0) - (payment.taxAmount || 0)).toFixed(2), // Subtotal = Total - Tax
       roomCharges,
       enhancementsTotal,
+      eventsTotal,
       taxAmount: (payment.taxAmount || 0).toFixed(2), // 10% tax included in total amount
       currency: payment.currency === 'EUR' ? '€' : (payment.currency || 'EUR').toUpperCase(),
       paymentStatus: payment.status,
@@ -338,15 +391,54 @@ export const sendConsolidatedAdminNotification = async (
       customerEmail: customerDetails.email,
       customerPhone: customerDetails.phone,
       totalGuests,
-      bookings: bookings.map(booking => ({
-        id: booking.id,
-        room: booking.room,
-        checkIn: new Date(booking.checkIn).toLocaleDateString(),
-        checkOut: new Date(booking.checkOut).toLocaleDateString(),
-        totalGuests: booking.totalGuests,
-        request: booking.request,
-        nights: Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / (1000 * 60 * 60 * 24)),
-      })),
+      bookings: bookings.map(booking => {
+        const nights = Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Process events from booking metadata
+        const events = (booking.metadata?.selectedEventsDetails || []).map((event: any) => {
+          let calculatedPrice = event.price || 0;
+          const plannedAttendees = event.plannedAttendees || 1;
+          
+          // Handle different pricing types for events
+          switch (event.pricingType) {
+            case 'PER_GUEST':
+              calculatedPrice = event.price * plannedAttendees;
+              break;
+            case 'PER_BOOKING':
+              calculatedPrice = event.price;
+              break;
+            case 'PER_DAY':
+              calculatedPrice = event.price * nights;
+              break;
+            default:
+              // Default to per guest pricing if not specified
+              calculatedPrice = event.price * plannedAttendees;
+              break;
+          }
+
+          return {
+            name: event.name || event.title,
+            description: event.description,
+            plannedAttendees,
+            calculatedPrice,
+            pricingDetails: {
+              basePrice: event.price,
+              pricingType: event.pricingType || 'PER_GUEST'
+            }
+          };
+        });
+
+        return {
+          id: booking.id,
+          room: booking.room,
+          checkIn: new Date(booking.checkIn).toLocaleDateString(),
+          checkOut: new Date(booking.checkOut).toLocaleDateString(),
+          totalGuests: booking.totalGuests,
+          request: booking.request,
+          nights,
+          events
+        };
+      }),
       payment: {
         amount: payment.amount,
         currency: payment.currency,
@@ -457,6 +549,48 @@ export const  sendRefundConfirmationEmail = async (
 
     const enhancementsTotal = processedEnhancements.reduce((sum: number, enh: any) => sum + enh.calculatedPrice, 0);
 
+    // Safely handle events
+    const processedEvents = (bookingData.selectedEventsDetails || []).map((event: any) => {
+      if (!event || typeof event.price !== 'number') {
+        console.warn('Skipping invalid event booking in cancellation email:', event);
+        return undefined;
+      }
+      
+      let calculatedPrice = event.price;
+      const plannedAttendees = event.plannedAttendees || 1;
+      
+      // Handle different pricing types for events
+      switch (event.pricingType) {
+        case 'PER_GUEST':
+          calculatedPrice = event.price * plannedAttendees;
+          break;
+        case 'PER_DAY':
+          calculatedPrice = event.price * nights;
+          break;
+        case 'PER_BOOKING':
+        default:
+          calculatedPrice = event.price;
+          break;
+      }
+      
+      return {
+        name: event.name || event.title || 'Event',
+        description: event.description || '',
+        price: event.price,
+        plannedAttendees,
+        pricingType: event.pricingType || 'PER_GUEST',
+        calculatedPrice,
+        pricingDetails: {
+          basePrice: event.price,
+          pricingType: event.pricingType || 'PER_GUEST',
+          nights: event.pricingType === 'PER_DAY' ? nights : null,
+          attendees: plannedAttendees
+        }
+      };
+    }).filter(Boolean);
+
+    const eventsTotal = processedEvents.reduce((sum: number, event: any) => sum + event.calculatedPrice, 0);
+
     return {
       id: bookingData.id || 'N/A',
       room: {
@@ -476,7 +610,9 @@ export const  sendRefundConfirmationEmail = async (
       roomTotal,
       enhancementsTotal,
       enhancements: processedEnhancements,
-      total: roomTotal + enhancementsTotal
+      eventsTotal,
+      events: processedEvents,
+      total: roomTotal + enhancementsTotal + eventsTotal
     };
   });
 

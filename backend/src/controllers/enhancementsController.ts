@@ -354,7 +354,6 @@ export const getEnhancements = async (req: Request, res: Response) => {
         }
       });
       
-      // Get all active events that fall within the booking date range
       let applicableEvents: any[] = [];
       if (hasActiveEvent) {
         applicableEvents = enhancement.events.filter((ee: any) => {
@@ -362,23 +361,16 @@ export const getEnhancements = async (req: Request, res: Response) => {
             return false;
           }
           
-          // Check if event date falls within the booking period
           const eventDate = new Date(ee.event.eventDate);
           const eventDateStr = eventDate.toISOString().split('T')[0];
           const checkInDateStr = checkInDate.toISOString().split('T')[0];
           const checkOutDateStr = checkOutDate.toISOString().split('T')[0];
           
-          // Event must be during the guest's stay (inclusive of check-in, exclusive of check-out)
-          return eventDateStr >= checkInDateStr && eventDateStr < checkOutDateStr;
+          return eventDateStr >= checkInDateStr && eventDateStr <= checkOutDateStr;
         });
       }
       
-      // If enhancement has no active rules at all, it's always available
-      // If it has rules, at least one must apply
       if (totalRulesCount === 0) {
-        // No rules exist - enhancement is always available
-        
-        // For EVENT type enhancements, create separate entries for each applicable event
         if (hasActiveEvent && enhancement.type === 'EVENT' && applicableEvents.length > 0) {
           for (const eventEnhancement of applicableEvents) {
             const activeEvent = eventEnhancement.event;
@@ -714,7 +706,6 @@ export const updateEnhancementRule = async (req: Request, res: Response) => {
     availableDays,
     availableTimeStart,
     availableTimeEnd,
-    seasonal,
     seasonStart,
     seasonEnd,
     specificDates,
@@ -775,7 +766,6 @@ export const updateEnhancementRule = async (req: Request, res: Response) => {
   }
 
   try {
-    // Get the current rule first
     const currentRule = await prisma.enhancementRule.findUnique({
       where: { id }
     });
@@ -785,13 +775,11 @@ export const updateEnhancementRule = async (req: Request, res: Response) => {
       return;
     }
 
-    // Merge current rule data with update data to get final state
     const finalRuleData = {
       ...currentRule,
       ...updateData
     };
 
-    // Check for duplicate rule (excluding the current rule being updated and ignoring name)
     const whereConditions: any[] = [
       { id: { not: id } }, // Exclude current rule
       { enhancementId: finalRuleData.enhancementId },

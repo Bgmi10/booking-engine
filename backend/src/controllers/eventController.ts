@@ -187,9 +187,7 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
             changedFields.push("status");
         }
 
-        // Start transaction to update event and handle enhancements
-        const updatedEvent = await prisma.$transaction(async (tx) => {
-            // Update the event
+        await prisma.$transaction(async (tx) => {
             const event = await tx.event.update({
                 where: { id },
                 data: updateData,
@@ -202,9 +200,7 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
                 }
             });
 
-            // Handle enhancement updates if provided
             if (enhancements !== undefined) {
-                // Store previous enhancement data for audit log
                 const previousEnhancementData = currentEvent.eventEnhancements.map(e => ({
                     enhancementId: e.enhancementId,
                     overridePrice: e.overridePrice,
@@ -227,10 +223,8 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
                     return currentEnhancementIds.includes(id);
                 });
 
-                // Track if any changes were made
                 let enhancementsChanged = false;
 
-                // Remove old enhancements
                 if (toRemove.length > 0) {
                     await tx.eventEnhancement.deleteMany({
                         where: {
@@ -241,7 +235,6 @@ export const editEvent = async (req: express.Request, res: express.Response) => 
                     enhancementsChanged = true;
                 }
 
-                // Add new enhancements
                 if (toAdd.length > 0) {
                     await tx.eventEnhancement.createMany({
                         data: toAdd.map((enhancement: any) => ({

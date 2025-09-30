@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Calendar, Users, BarChart3, Plus, X, AlertTriangle } from 'lucide-react';
 import { calculateNights } from '../utils/format';
@@ -8,13 +7,14 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
   const [conflicts, setConflicts] = useState<any[]>([]);
   
   const selectedRoom = availabilityData?.availableRooms?.find((room: any) => room.id === bookingData.selectedRoom);
-  // Update existing bookingItems when bookingData changes (especially selectedEventsDetails)
+
   useEffect(() => {
     if (bookingData.selectedEventsDetails && bookingItems.length > 0) {
       setBookingItems((prev: any) => {
         return prev.map((item: any) => {
-          // Update the item if it matches the current booking
-          if (item.selectedRoom === bookingData.selectedRoom && 
+          // Only update items that have the same session ID to prevent cross-contamination
+          if (item.sessionId === bookingData.sessionId &&
+              item.selectedRoom === bookingData.selectedRoom && 
               item.checkIn === bookingData.checkIn && 
               item.checkOut === bookingData.checkOut) {
             return {
@@ -38,25 +38,19 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         for (let j = i + 1; j < allItems.length; j++) {
           const item1 = allItems[i];
           const item2 = allItems[j];
-    
-          // Check if same room
+
           if (item1.selectedRoom === item2.selectedRoom) {
             const checkIn1 = new Date(item1.checkIn);
             const checkOut1 = new Date(item1.checkOut);
             const checkIn2 = new Date(item2.checkIn);
             const checkOut2 = new Date(item2.checkOut);
-    
-            // Check for date overlap
             const hasOverlap = checkIn1 < checkOut2 && checkIn2 < checkOut1;
     
             if (hasOverlap) {
-              // Check if this is exactly the same booking (same room, same dates)
               const isSameBooking = item1.selectedRoom === item2.selectedRoom &&
                 checkIn1.getTime() === checkIn2.getTime() &&
                 checkOut1.getTime() === checkOut2.getTime();
-              
-              // Only treat as conflict if these are truly different bookings
-              // Don't conflict if it's the same booking data (user navigating back)
+
               if (!isSameBooking) {
                 if (!conflictingItems.some(c => c.id === item1.id)) {
                   conflictingItems.push({ ...item1, conflictWith: item2.id });
@@ -67,27 +61,14 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
               }
             }
           }
-    
-          // 👇 log each comparison
-          console.log(`Compare i=${i}, j=${j}`, { item1, item2, conflictingItems });
         }
       }
     
-      // 👇 control stop when conflicts == 2
-      if (conflictingItems.length === 2) {
-        console.log("STOP — conflicts reached 2", conflictingItems);
-        debugger; // <-- execution will pause here in browser devtools
-      }
-    
-      console.log("Final Conflicts:", conflictingItems.length, conflictingItems);
-    
       setConflicts(conflictingItems);
     
-      // Auto-remove conflicts (keep the first one, remove duplicates)
       if (conflictingItems.length > 0) {
         const itemsToRemove = new Set();
         
-        // Group conflicts by room
         const roomConflicts: any = {};
         conflictingItems.forEach(item => {
           if (!roomConflicts[item.selectedRoom]) {
@@ -96,28 +77,23 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
           roomConflicts[item.selectedRoom].push(item);
         });
 
-        // For each room, keep the first item and mark others for removal
         Object.values(roomConflicts).forEach((conflictGroup: any) => {
-          // Sort by creation order (newer items have higher timestamps)
           conflictGroup.sort((a: any, b: any) => {
             const aTime = a.id === 'current' ? Date.now() : parseInt(a.id);
             const bTime = b.id === 'current' ? Date.now() : parseInt(b.id);
             return aTime - bTime;
           });
 
-          // Mark all but the first for removal
           for (let i = 1; i < conflictGroup.length; i++) {
             itemsToRemove.add(conflictGroup[i].id);
           }
         });
 
-        // Remove conflicting items from bookingItems
         if (itemsToRemove.size > 0) {
           setBookingItems((prev: any) => 
             prev.filter((item: any) => !itemsToRemove.has(item.id))
           );
 
-          // If current booking conflicts, reset it (preserve dates and promo code)
           if (itemsToRemove.has('current')) {
             console.log('True conflict detected - resetting current booking')
             setBookingData((prev: any) => ({
@@ -134,14 +110,14 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
               rooms: 1,
               hasExtraBed: false,
               extraBedCount: 0,
-              extraBedPrice: 0
+              extraBedPrice: 0,
+              sessionId: Date.now().toString() + '_reset' // New session ID
             }));
           }
         }
       }
     };
     
-
     checkConflicts();
   }, [bookingData, bookingItems]);
 
@@ -176,19 +152,14 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       total += item.selectedEnhancements.reduce((sum: number, enhancement: any) => {
         let price = enhancement.price;
         
-        // Handle different pricing types
         if (enhancement.pricingType === 'PER_GUEST') {
-          // For per-guest pricing, multiply by quantity (if specified) or adults
           const quantity = enhancement.quantity || item.adults;
           price = enhancement.price * quantity;
         } else if (enhancement.pricingType === 'PER_DAY') {
-          // For per-day pricing, multiply by nights
           price = enhancement.price * nights;
         } else if (enhancement.pricingType === 'PER_BOOKING') {
-          // For PER_BOOKING, price is fixed
           price = enhancement.price;
         } else {
-          // Fallback for old data without pricingType - treat as PER_GUEST
           price = enhancement.price * item.adults;
         }
         
@@ -196,7 +167,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       }, 0);
     }
     
-    // Calculate events price separately using selectedEventsDetails
     if (item.selectedEventsDetails && item.selectedEventsDetails.length > 0) {
       total += item.selectedEventsDetails.reduce((sum: number, event: any) => {
         const eventPrice = event.price || 0;
@@ -216,7 +186,6 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
 
   const handleRemoveItem = (itemId: string) => {
     if (itemId === 'current') {
-      // Reset current unsaved booking data
       setBookingData((prev: any) => ({
         checkIn: prev.checkIn,
         checkOut: prev.checkOut,
@@ -231,10 +200,10 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         rooms: 1,
         hasExtraBed: false,
         extraBedCount: 0,
-        extraBedPrice: 0
+        extraBedPrice: 0,
+        sessionId: Date.now().toString() + '_removed' // New session ID
       }));
     } else {
-      // Remove from booking items
       setBookingItems((prev: any) => prev.filter((item: any) => item.id !== itemId));
     }
   };
@@ -249,17 +218,34 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
       
       setBookingItems((prev: any) => [...prev, bookingCopy]);
       
-      setCurrentStep(1);
+      // Reset booking data with new session ID for the next booking
+      setBookingData((prev: any) => ({
+        checkIn: prev.checkIn,
+        checkOut: prev.checkOut,
+        adults: 2,
+        promotionCode: prev.promotionCode,
+        selectedRoom: null,
+        selectedEnhancements: [],
+        selectedEvents: {},
+        selectedEventsDetails: [],
+        selectedRateOption: null,
+        totalPrice: 0,
+        rooms: 1,
+        hasExtraBed: false,
+        extraBedCount: 0,
+        extraBedPrice: 0,
+        sessionId: Date.now().toString() + '_new' // New unique session ID
+      }));
+      
+      setCurrentStep(1); // Go to Categories step instead of Dates
     }
   };
 
   const getRoomName = (item: any) => {
-    // First try to get room name from stored room details
     if (item.roomDetails?.name) {
       return item.roomDetails.name;
     }
     
-    // Fallback to room ID lookup
     const roomId = item.selectedRoom;
     if (availabilityData?.availableRooms) {
       const room = availabilityData.availableRooms.find((r: any) => r.id === roomId);
@@ -267,24 +253,17 @@ export default function Summary({ bookingData, bookingItems, setBookingItems, se
         return room.name;
       }
     }
-    
-    // Final fallback to hardcoded names
-    if (roomId === "54202303-615d-4cf0-bf79-f1b46dfccc65") {
-      return "Fagiano - Garden View Terrace";
-    }
+
     return "Fenicottero - Vineyard View";
   };
 
-  // Prepare all items for display - bookingItems is the source of truth
   const getAllItems = () => {
     const items = [...bookingItems];
     
-    // Only add current booking data if it's complete and not yet saved
     const isCurrentBookingComplete = bookingData.selectedRoom && 
       (bookingData.selectedRateOption || bookingData.totalPrice > 0);
     
     if (isCurrentBookingComplete) {
-      // Check if current booking already exists in saved bookingItems
       const currentBookingExists = items.some(item => {
         const checkIn1 = new Date(item.checkIn);
         const checkOut1 = new Date(item.checkOut);

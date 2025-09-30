@@ -207,7 +207,7 @@ export default function Events() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
         >
           <option value="all">All Status</option>
           <option value="IN_PROGRESS">In Progress</option>
@@ -218,7 +218,7 @@ export default function Events() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
         >
           <option value="all">All Types</option>
           <option value="PIZZA_NIGHT">Pizza Night</option>
@@ -231,7 +231,7 @@ export default function Events() {
 
         <button
           onClick={fetchEvents}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <RiRefreshLine className={loading ? "animate-spin" : ""} />
           Refresh
@@ -239,7 +239,7 @@ export default function Events() {
 
         <button
           onClick={() => setIsCreateEventModalOpen(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <RiAddLine />
           Create Event
